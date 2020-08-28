@@ -1,5 +1,4 @@
 # InformationGeometry.jl
-
 [![Build Status](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master)](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl)
 [![Codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl)
@@ -41,13 +40,13 @@ KullbackLeibler(MvNormal([0,2.5],diagm([1,4.])),MvTDist(1,[3,2],diagm([2.,3.])),
 ```
 
 
-# Future Plans for this package
--------------------------------
+Future Plans for this package
+-----------------------------
 `InformationGeometry.jl` is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written as a module but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
 
 
-## Todo:
---------
+Todo:
+-----
 * Fisher Metrics: Allow for non-normal error distributions by interpolating and deriving the Kullback-Leibler divergence over a domain
 * Parallelism: Improve support for parallel computations of geodesics, curvature tensors and so on
 * Divergences: Discrete distributions, more user control over parallelization for Monte Carlo, Importance Sampling
