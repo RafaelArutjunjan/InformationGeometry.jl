@@ -40,7 +40,7 @@ OrdinaryDiffEq = "^5"
 Plots = "^1.6"
 RecipesBase = "^1.0"
 Roots = "^1.0"
-SpecialFunctions = "^0.10"
+SpecialFunctions = "0.7 - 0.12"
 TensorOperations = "^2.2"
 
 [extras]
