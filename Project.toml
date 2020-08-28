@@ -26,6 +26,22 @@ TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 
 [compat]
 julia = "1"
+BenchmarkTools = "^0.5"
+BoundaryValueDiffEq = "^2.5"
+Combinatorics = "~1.0"
+DataFrames = "^0.21"
+DiffEqCallbacks = "^2"
+Distributions = "^0.23"
+ForwardDiff = "^0.10"
+LsqFit = "^0.11"
+Measurements = "^2.2"
+Optim = "^0.22"
+OrdinaryDiffEq = "^5"
+Plots = "^1.6"
+RecipesBase = "^1.0"
+Roots = "^1.0"
+SpecialFunctions = "^0.10"
+TensorOperations = "^2.2"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
