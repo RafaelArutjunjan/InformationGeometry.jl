@@ -37,23 +37,23 @@ import LsqFit.curve_fit
 curve_fit(DM::DataModel,initial::Vector=ones(5),args...;kwargs...) = curve_fit(DM.model,DM.dmodel,xdata(DM),ydata(DM),sigma(DM).^(-2),initial,args...;kwargs...)
 
 
-RecipesBase.@recipe function RecipeTester(args...)
-    rand(10,5)
-end
-
-RecipesBase.@recipe function FittedPlot2(DM::DataModel,Fit::LsqFit.LsqFitResult)
-    legendtitle     --> "R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))"
-    xlabel          --> "x"
-    ylabel          --> "y"
-    RecipesBase.@series begin
-        DM
-    end
-    RecipesBase.@series begin
-        X = range(xdata(DM)[1],xdata(DM)[end],length=500)
-        X, map(z->DM.model(z,Fit.param),X)
-    end
-end
-export FittedPlot2, RecipeTester
+# RecipesBase.@recipe function RecipeTester(args...)
+#     rand(10,5)
+# end
+#
+# RecipesBase.@recipe function FittedPlot2(DM::DataModel,Fit::LsqFit.LsqFitResult)
+#     legendtitle     --> "R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))"
+#     xlabel          --> "x"
+#     ylabel          --> "y"
+#     RecipesBase.@series begin
+#         DM
+#     end
+#     RecipesBase.@series begin
+#         X = range(xdata(DM)[1],xdata(DM)[end],length=500)
+#         X, map(z->DM.model(z,Fit.param),X)
+#     end
+# end
+# export FittedPlot2, RecipeTester
 
 FittedPlot(DM::DataModel) = FittedPlot(DM,curve_fit(DM))
 FittedPlot(DM::DataModel,p::Vector) = FittedPlot(DM,curve_fit(DM,p))
@@ -386,8 +386,11 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::Vector,
     end
 end
 
-
-function PlotMatrix(Mat::Matrix,MLE::Vector,N::Int=400)
+"""
+    PlotMatrix(Mat::Matrix,MLE::Vector,N::Int=400)
+Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
+"""
+function PlotMatrix(Mat::Matrix,MLE::Vector=zeros(size(Mat,1)),N::Int=400)
     !(length(MLE) == size(Mat,1) == size(Mat,2) == 2) && throw("PlotMatrix: Dimensional mismatch.")
     C = cholesky(Symmetric(Mat)).L;    angles = range(0,2pi,length=N)
     F(angle::Real) = MLE .+ C* [cos(angle),sin(angle)]
