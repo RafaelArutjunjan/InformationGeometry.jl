@@ -30,7 +30,7 @@ using SafeTestsets
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     @test OrthVF(DM,XYPlane,x) == OrthVF(DM,x)
     @test dot(OrthVF(DM,R),Score(DM,R)) < 2e-15
-
+    @test sum(abs.(FindMLE(DM) .- [6.121348314606742,0.838202247191011])) < 1e-12
     # ALSO DO NONLINEAR MODEL!
 
 end
@@ -100,4 +100,8 @@ end
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
     @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1e-3
+    @test abs(InformationGeometry.Integrate1D(cos,[0,pi/2]) .- 1) < 1e-13
+    z = 3rand()
+    @test abs(InformationGeometry.Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
+    @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
 end
