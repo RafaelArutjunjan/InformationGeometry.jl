@@ -54,4 +54,4 @@ Todo:
 * Documentation: More docstrings, show concrete examples / write guide
 * Interface: Standardize the user-facing keyword arguments
 * Benchmarks: Provide benchmarks for how `InformationGeometry.jl` compares to conventional inference methods
-* Optimisation: Use IntervalArthmetic
+* Optimisation: Use IntervalArithmetic

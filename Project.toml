@@ -27,7 +27,7 @@ TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 [compat]
 julia = "1"
 BenchmarkTools = "^0.5"
-BoundaryValueDiffEq = "^2.5"
+BoundaryValueDiffEq = "^2"
 Combinatorics = "~1.0"
 DataFrames = "~0"
 DiffEqCallbacks = "^2"
