@@ -39,14 +39,15 @@ loglikelihood(DM::DataModel,p::Vector)
 FindMLE(DM::DataModel)
 Score(DM::DataModel,p::Vector)
 FisherMetric(DM::DataModel,p::Vector)
-AIC(DM::DataModel,p::Vector)
-GeodesicDistance(DM::DataModel,p::Vector,q::Vector)
+GeometricDensity(DM::DataModel,p::Vector)
+Christoffel(DM::DataModel,p::Vector)
 Riemann(DM::DataModel,p::Vector)
 Ricci(DM::DataModel,p::Vector)
 RicciScalar(DM::DataModel,p::Vector)
-GeometricDensity(DM::DataModel,p::Vector)
+AIC(DM::DataModel,p::Vector)
+GeodesicDistance(DM::DataModel,p::Vector,q::Vector)
 ```
-where `Riemann` returns the components of the (1,3)-Riemann tensor and `GeometricDensity` corresponds to the square root of the determinant of the Fisher metric.
+where `Riemann` returns the components of the (1,3)-Riemann tensor and `Christoffel` returns the (1,2) form of the Christoffel symbols.
 
 
 Calculating Kullback-Leibler divergences
