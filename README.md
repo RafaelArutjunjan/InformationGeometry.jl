@@ -25,7 +25,7 @@ If provided like this, the gradient of the model with respect to the parameters 
 ```julia
 function dmodel(x,p::Vector)
    J = Array{Float64}(undef, length(x), length(p))
-   @. J[:,1] = p[1]     # ∂(model)/∂p₁
+   @. J[:,1] = x        # ∂(model)/∂p₁
    @. J[:,2] = 1.       # ∂(model)/∂p₂
    J
 end
@@ -36,17 +36,17 @@ The output of the Jacobian must be a matrix whose columns correspond to the part
 Given such a `DataModel`, further quantities of interest can be calculated, e.g. via
 ```julia
 loglikelihood(DM::DataModel,p::Vector)
-MLE = FindMLE(DM::DataModel)
+FindMLE(DM::DataModel)
 Score(DM::DataModel,p::Vector)
 FisherMetric(DM::DataModel,p::Vector)
 AIC(DM::DataModel,p::Vector)
 GeodesicDistance(DM::DataModel,p::Vector,q::Vector)
-Riem(DM::DataModel,p::Vector)
-Ric(DM::DataModel,p::Vector)
+Riemann(DM::DataModel,p::Vector)
+Ricci(DM::DataModel,p::Vector)
 RicciScalar(DM::DataModel,p::Vector)
 GeometricDensity(DM::DataModel,p::Vector)
 ```
-where `Riem` and `Ric` return the components of the Riemann and Ricci tensor respectively and `GeometricDensity` corresponds to the square root of the determinant of the Fisher metric.
+where `Riemann` returns the components of the (1,3)-Riemann tensor and `GeometricDensity` corresponds to the square root of the determinant of the Fisher metric.
 
 
 Calculating Kullback-Leibler divergences

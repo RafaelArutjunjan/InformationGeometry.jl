@@ -48,7 +48,7 @@ export DistanceAlongGeodesic, Endpoints, Truncated, ConstLengthGeodesics, Confid
 export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic
 export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve, PlotAlongCurve, SaveConfidence, SaveGeodesics
-export Riem, Ric, RicciScalar, GeometricDensity
+export Riemann, Ricci, RicciScalar, GeometricDensity
 
 export AutoScore, AutoMetric
 export GenerateMultipleIntervals
