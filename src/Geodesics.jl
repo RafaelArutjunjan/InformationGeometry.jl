@@ -89,7 +89,7 @@ function NumericChristoffel(Metric::Function, point::Vector; BigCalc::Bool=false
     end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
-
+Christoffel(args...;kwargs...) = NumericChristoffel(args...;kwargs...)
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
