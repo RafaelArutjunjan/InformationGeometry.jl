@@ -43,7 +43,7 @@ export EmbeddingMap, Pullback
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
 include("Geodesics.jl")
 
-export Cross, ChristoffelTerm, Christoffel, ComputeGeodesic, MetricNorm, GeodesicLength, GeodesicCrossing
+export Cross, ChristoffelTerm, ChristoffelSymbol, ComputeGeodesic, MetricNorm, GeodesicLength, GeodesicCrossing
 export DistanceAlongGeodesic, Endpoints, Truncated, ConstLengthGeodesics, ConfidenceBoundaryViaGeodesic
 export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic

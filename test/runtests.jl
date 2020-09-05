@@ -52,7 +52,7 @@ end
     # Numerically calculated for via arbitrary types defined in Distributions.jl
     # ALSO ADD TESTS FOR DISCRETE DISTRIBUTIONS, DISTRIBUTIONS WITH LIMITED DOMAIN
     @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=false) - 16.77645704773449) < 1e-9
-    @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=true,N=Int(1e6)) - 16.7764) < 3.2e-2
+    @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=true,N=Int(1e6)) - 16.7764) < 5e-2
     @test abs(KullbackLeibler(MvTDist(1,[3,2,1.],diagm([1.,2.,3.])),MvNormal([1,2,3.],diagm([2,4,5.])),HyperCube(collect([-10,10.] for i in 1:3)),N=Int(1e6)) - 1.6559288) < 3e-1
 
     # Via any positive (hopefully normalized) functions
@@ -82,8 +82,8 @@ end
     # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar
     # Test WITH AND WITHOUT BIGFLOAT
     x = rand(2)
-    @test sum(abs.(NumericChristoffel(S2metric,x) .- S2Christoffel(x))) < 5e-10
-    @test sum(abs.(NumericChristoffel(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)))) < 1e-40
+    @test sum(abs.(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x))) < 5e-10
+    @test sum(abs.(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)))) < 1e-40
 
     @test abs(RicciScalar(S2metric,rand(2)) - 2) < 5e-4
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22

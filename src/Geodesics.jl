@@ -65,14 +65,14 @@ end
 # Accuracy ≈ 3e-11
 # ROUND TO 1e-10???
 # BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
-NumericChristoffel(DM::DataModel, point::Vector; BigCalc::Bool=false) = NumericChristoffel(z->FisherMetric(DM,z), point, BigCalc=BigCalc)
+ChristoffelSymbol(DM::DataModel, point::Vector; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), point, BigCalc=BigCalc)
 """
-    NumericChristoffel(DM::DataModel, point::Vector; BigCalc::Bool=false)
-    NumericChristoffel(Metric::Function, point::Vector; BigCalc::Bool=false)
+    ChristoffelSymbol(DM::DataModel, point::Vector; BigCalc::Bool=false)
+    ChristoffelSymbol(Metric::Function, point::Vector; BigCalc::Bool=false)
 Calculates the Christoffel symbol at a point `p` though finite differencing of the `Metric`. Accurate to ≈ 3e-11.
 `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-function NumericChristoffel(Metric::Function, point::Vector; BigCalc::Bool=false)
+function ChristoffelSymbol(Metric::Function, point::Vector; BigCalc::Bool=false)
     Finv = inv(Metric(point))
     function FPDVs(Metric,point; BigCalc::Bool=false)
         if BigCalc      point = BigFloat.(point)        end
@@ -89,7 +89,6 @@ function NumericChristoffel(Metric::Function, point::Vector; BigCalc::Bool=false
     end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
-Christoffel(args...;kwargs...) = NumericChristoffel(args...;kwargs...)
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
@@ -101,7 +100,7 @@ function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector,
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
         n = Int(n/2)
         du[1:n] = u[(n+1):2n]
-        du[(n+1):2n] = ChristoffelTerm(NumericChristoffel(Metric,u[1:n]),du[1:n])
+        du[(n+1):2n] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:n]),du[1:n])
     end
     tspan = (0.0,Endtime);
     Initial = [InitialPos...,InitialVel...]
@@ -236,7 +235,7 @@ function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
         n = Int(n/2)
         du[1:n] = u[(n+1):2n]
-        du[(n+1):2n] = ChristoffelTerm(NumericChristoffel(Metric,u[1:n]),du[1:n])
+        du[(n+1):2n] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:n]),du[1:n])
     end
     WilksCond = loglikelihood(DM,MLE) - (1/2)*quantile(Chisq(length(MLE)),Conf)
     Inside(x)::Bool = (WilksCond <= loglikelihood(DM,x))
@@ -278,7 +277,7 @@ function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; t
     dim = length(P)
     function GeodesicODE!(du,u,p,t)
         du[1:dim] = u[(dim+1):2dim]
-        du[(dim+1):2dim] = ChristoffelTerm(NumericChristoffel(Metric,u[1:dim]),du[1:dim])
+        du[(dim+1):2dim] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:dim]),du[1:dim])
     end
     function bc!(resid, u, p, t)
         resid[1:dim] = u[1][1:dim] .- P
@@ -453,7 +452,7 @@ function Riemann(Metric::Function,point::Vector; BigCalc::Bool=false)
         DownUpDownDown = Array{suff(point)}(undef,length(point),length(point),length(point),length(point))
         h = GetH(suff(point))
         for i in 1:length(point)
-            DownUpDownDown[i,:,:,:] .= (NumericChristoffel(Metric,point + h*BasisVector(i,length(point))) .- NumericChristoffel(Metric,point - h*BasisVector(i,length(point))))
+            DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,point + h*BasisVector(i,length(point))) .- ChristoffelSymbol(Metric,point - h*BasisVector(i,length(point))))
         end
         (1/(2*h))*DownUpDownDown
     end
@@ -461,7 +460,7 @@ function Riemann(Metric::Function,point::Vector; BigCalc::Bool=false)
     if (suff(point) != BigFloat) && BigCalc
         DownUpDownDown = convert(Array{Float64,4},DownUpDownDown)
     end
-    Gamma = NumericChristoffel(Metric,point,BigCalc=BigCalc)
+    Gamma = ChristoffelSymbol(Metric,point,BigCalc=BigCalc)
     # @tensor Riem[m,i,k,p] := DownUpDownDown[k,m,i,p] - DownUpDownDown[p,m,i,k] + Gamma[a,i,p]*Gamma[m,a,k] - Gamma[a,i,k]*Gamma[m,a,p]
     @tensor Riem[i,j,k,l] := DownUpDownDown[k,i,j,l] - DownUpDownDown[l,i,j,k] + Gamma[i,a,k]*Gamma[a,j,l] - Gamma[i,a,l]*Gamma[a,j,k]
 end
