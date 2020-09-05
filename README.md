@@ -27,7 +27,7 @@ function dmodel(x,p::Vector)
    J = Array{Float64}(undef, length(x), length(p))
    @. J[:,1] = x        # ∂(model)/∂p₁
    @. J[:,2] = 1.       # ∂(model)/∂p₂
-   J
+   return J
 end
 DM = DataModel(DS,model,dmodel)
 ```
@@ -47,7 +47,7 @@ RicciScalar(DM::DataModel,p::Vector)
 AIC(DM::DataModel,p::Vector)
 GeodesicDistance(DM::DataModel,p::Vector,q::Vector)
 ```
-where `Riemann` returns the components of the (1,3)-Riemann tensor and `ChristoffelSymbol` returns the (1,2) form of the Christoffel symbols.
+where `Riemann` returns the components of the (1,3)-Riemann tensor and `ChristoffelSymbol` returns the (1,2) form of the Christoffel symbols, that is, the Christoffel symbols "of the second kind".
 
 
 Calculating Kullback-Leibler divergences
@@ -63,10 +63,20 @@ KullbackLeibler(Cauchy(1.,2.4),Normal(-4,0.5),HyperCube([-100,100]),Carlo=false,
 KullbackLeibler(MvNormal([0,2.5],diagm([1,4.])),MvTDist(1,[3,2],diagm([2.,3.])),HyperCube([[-50,50],[-50,50]]),N=Int(1e8))
 ```
 
+Installation
+------------
+As with any Julia package, `InformationGeometry.jl` can be added from the Julia terminal via
+```julia
+julia> ] add InformationGeometry
+```
+or alternatively by
+```julia
+julia> using Pkg; Pkg.add("InformationGeometry")
+```
 
 Future Plans for this package
 -----------------------------
-`InformationGeometry.jl` is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written as a module but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
+`InformationGeometry.jl` is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
 
 
 Todo:
