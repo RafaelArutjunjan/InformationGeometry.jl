@@ -168,11 +168,26 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
     L = loglikelihood(DM,BigFloat.(MLE));    CF = ConfVol(BigFloat(Confnum))
     f(x::Real) = ChisqCDF(length(MLE),2(L-loglikelihood(DM,MLE .+ (x .* BasisVector(1,length(MLE)))))) - CF
     df(x) = ForwardDiff.gradient(f,x)
-    @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xrtol=tol)
+    @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xatol=tol)
     println("Finished.")
     MLE +  b .* BasisVector(1,length(MLE))
 end
 
+function Interval1D(DM::DataModel,MLE::Vector,Confnum::Real=1.;tol=1e-14)
+    if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
+        throw("Interval1D not programmed for BigFloat yet.")
+    end
+    (length(MLE) != 1) && throw("Interval1D not defined for p != 1.")
+    lMLE = loglikelihood(DM,MLE)
+    A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
+    Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
+    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
+    B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
+    A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
+    rts = [MLE[1]+A, MLE[1]+B]
+    rts[1] < rts[2] && return rts
+    throw("Interval1D errored...")
+end
 
 # function FBoundary(DM::DataModel,MLE::Vector,Confnum::Real=1.; tol=1e-12)
 #     n = length(ydata(DM));  p = length(MLE)
@@ -443,7 +458,11 @@ function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1;
         MLE = FindMLEBig(DM,MLE)
         println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
     end
-    GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
+    if length(MLE) == 1
+        return Interval1D(DM,MLE,Confnum,tol=tol)
+    else
+        return GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
+    end
 end
 
 
@@ -477,6 +496,7 @@ end
 
 function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth=Tsit5(), mfd::Bool=true)
     if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
+    length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
     LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)
     for CONF in Range
         if IsConfVol

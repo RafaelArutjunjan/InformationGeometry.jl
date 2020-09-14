@@ -18,8 +18,8 @@ using Plots
 # THEN TEST FOR det(g) ≠ 0 FOR ~10 RANDOM PARAMETER CONFIGURATIONS IN DOMAIN ON INITIALISATION.
 # ALSO, TEST FOR det(g) ≠ 0 ALONG CONFIDENCE BOUNDARY AND PRINT IF THIS HAPPENS BUT CONTINUE CURVE.
 
-
-
+# Immediately determine MLE and LogLikeMLE when building DataModel
+# Remove Plots.jl dependency and instead write recipes for FittedPlot and ResidualPlot
 
 
 include("Structures.jl")
@@ -30,14 +30,14 @@ export DataSet, DataModel, Plane, HyperCube, LowerUpper
 # Functions
 export Unpack, plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
-
-export ydata, xdata, sigma
+export xdata, ydata, sigma
 
 
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
-export EmbeddingMap, Pullback, StructurallyIdentifiable, Integrate1D
+export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
+export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
@@ -51,7 +51,6 @@ export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve,
 export Riemann, Ricci, RicciScalar, GeometricDensity
 
 export AutoScore, AutoMetric
-export GenerateMultipleIntervals
 
 include("Plotting.jl")
 export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, VisualizeSol, VisualizeSols, PlotMatrix
