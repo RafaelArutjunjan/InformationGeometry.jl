@@ -37,7 +37,7 @@ export ydata, xdata, sigma
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
-export EmbeddingMap, Pullback, StructurallyIdentifiable
+export EmbeddingMap, Pullback, StructurallyIdentifiable, Integrate1D
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation

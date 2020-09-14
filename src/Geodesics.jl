@@ -92,7 +92,6 @@ end
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
-
 function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
     function GeodesicODE!(du,u,p,t)
@@ -111,6 +110,12 @@ function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector,
         return solve(prob,meth,reltol=tol,abstol=tol,callback=DiscreteCallback(Boundaries,terminate!))
     end
 end
+"""
+    ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
+Constructs geodesic with given initial position and velocity.
+It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
+"""
 function ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
@@ -292,7 +297,7 @@ function GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; 
 end
 GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q,tol=tol)
 
-ParamVol(sol::ODESolution) = sol.t[end]-sol.t[1]
+ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
 GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange=sol.t[end];fullSol::Bool=false,tol=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
 function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol=1e-14)
     n = length(sol.u[1])/2 |> Int
@@ -446,14 +451,19 @@ function SaveGeodesics(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=
 end
 
 """
-    SaveDataSet(DS::DataSet; sigdigits::Int=7)
+    SaveDataSet(DS::DataSet; sigdigits::Int=0)
 Returns a `DataFrame` whose columns respectively constitute the x-values, y-values and standard distributions associated with the data points.
+For `sigdigits > 0` the values are rounded to the specified number of significant digits.
 """
-function SaveDataSet(DS::DataSet; sigdigits::Int=7)
+function SaveDataSet(DS::DataSet; sigdigits::Int=0)
     !(length(DS.x[1]) == length(DS.y[1]) == length(DS.sigma[1])) && throw("Not programmed yet.")
-    DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)],sigdigits=sigdigits))
+    if sigdigits < 1
+        return DataFrame([xdata(DS) ydata(DS) sigma(DS)])
+    else
+        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)],sigdigits=sigdigits))
+    end
 end
-SaveDataSet(DM::DataModel; sigdigits::Int=7) = SaveDataSet(DM.Data, sigdigits=sigdigits)
+SaveDataSet(DM::DataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigdigits=sigdigits)
 
 ############### Curvature ################
 

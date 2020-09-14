@@ -1,8 +1,10 @@
 # InformationGeometry.jl
-[![Build Status](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master)](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl)
-[![Codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl)
-[![Coveralls](https://coveralls.io/repos/github/RafaelArutjunjan/InformationGeometry.jl/badge.svg?branch=master)](https://coveralls.io/github/RafaelArutjunjan/InformationGeometry.jl?branch=master)
+
+*A Julia package for geometric analyses of statistical problems.*
+
+| **Build Status**                                                                                |
+|:-----------------------------------------------------------------------------------------------:|
+| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
 This package offers a set of basic tools to compute quantities of interest in information geometry and statistical analysis.
 Among these are (log-)likelihoods, Fisher Metrics, Kullback-Leibler divergences, Geodesics, Riemann and Ricci curvature tensors and so on.
@@ -52,10 +54,7 @@ where `Riemann` returns the components of the (1,3)-Riemann tensor and `Christof
 
 Calculating Kullback-Leibler divergences
 ----------------------------------------
-Using the distribution types defined in [Distributions.jl](https://github.com/JuliaStats/Distributions.jl), this package implements a variety of schemes for the numerical evaluation of the [Kullback-Leibler divergence](https://en.wikipedia.org/wiki/Kullback–Leibler_divergence) between distributions over a specified domain defined by
-```math
-D_{\\text{KL}} = \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
-```
+Using the distribution types defined in [Distributions.jl](https://github.com/JuliaStats/Distributions.jl), this package implements a variety of schemes for the numerical evaluation of the [Kullback-Leibler divergence](https://en.wikipedia.org/wiki/Kullback–Leibler_divergence) between distributions over a specified domain:
 * For univariate distributions, the integral is rephrased in the form of an ordinary differential equation and solved with the sophisticated methods provided by [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl).
 * For multivariate distributions, Monte Carlo simulation is used to estimate the integral.
 * In many cases, closed-form expressions for the Kullback-Leibler divergence are known. These include: Normal, Cauchy, Exponential, Weibull, Gamma
@@ -92,3 +91,20 @@ Todo:
 * Interface: Standardize the user-facing keyword arguments
 * Benchmarks: Provide benchmarks for how `InformationGeometry.jl` compares to conventional inference methods
 * Optimisation: Use IntervalArithmetic
+
+
+
+
+
+
+
+
+
+[travis-img]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl
+
+[codecov-img]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl
