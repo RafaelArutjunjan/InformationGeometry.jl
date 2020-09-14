@@ -92,7 +92,6 @@ end
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
-
 function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
     function GeodesicODE!(du,u,p,t)
@@ -111,7 +110,16 @@ function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector,
         return solve(prob,meth,reltol=tol,abstol=tol,callback=DiscreteCallback(Boundaries,terminate!))
     end
 end
-
+"""
+    ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
+Constructs geodesic with given initial position and velocity.
+It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
+"""
+function ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
+    ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
+end
 
 function MetricNorm(G,v::Vector,w::Vector=v) where Q<:Real
     (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
@@ -165,8 +173,6 @@ function DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Real; tol=1e
 end
 
 
-
-
 # Input Array of Geodesics, Output Array of its endpoints
 function Endpoints(Geodesics::Vector{ODESolution})
     Endpoints = Vector{Vector{Float64}}(undef,0)
@@ -177,20 +183,12 @@ function Endpoints(Geodesics::Vector{ODESolution})
     end;    Endpoints
 end
 
+# function GaussNewton(Metric::Function,Cost::Function,point::Vector)
+#     Ginv = inv(Metric(point))
+#     Cov = ForwardDiff.gradient(Cost,point)
+#     @tensor v[a] := Ginv[a,b] * Cov[b]
+# end
 
-
-function GaussNewton(Metric::Function,Cost::Function,point::Vector)
-    Ginv = inv(Metric(point))
-    Cov = ForwardDiff.gradient(Cost,point)
-    @tensor v[a] := Ginv[a,b] * Cov[b]
-end
-
-# Under construction
-function MixedLevenberg(Metric::Function, Cost::Function, point::Vector, λ::Q=1) where Q<:Real
-    Cov = ForwardDiff.gradient(Cost,point);
-    Ginv = inv(Metric(point))
-    nothing
-end
 
 """
     Truncated(sol::ODESolution) -> Function
@@ -299,6 +297,18 @@ function GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; 
 end
 GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q,tol=tol)
 
+ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
+GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange=sol.t[end];fullSol::Bool=false,tol=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
+function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol=1e-14)
+    n = length(sol.u[1])/2 |> Int
+    function Integrand(t)
+        FullGamma = sol(t)
+        transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n]
+    end
+    Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
+end
+
+
 function PlotCurves(Curves::Vector; N::Int=100)
     p = [];    A = Array{Float64,2}(undef,N,2)
     for sol in Curves
@@ -402,7 +412,10 @@ function Dehomogenize(V::Vector,N::Int=500)
     end;    Ts
 end
 
-
+"""
+    SaveConfidence(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
+Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
+"""
 function SaveConfidence(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
     !isa(sols[1],ODESolution) && throw(ArgumentError("Wrong type."))
     d = length(sols[1].u[1])
@@ -418,7 +431,11 @@ function SaveConfidence(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool
 end
 
 
-
+"""
+    SaveGeodesics(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
+Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
+Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
+"""
 function SaveGeodesics(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
     !isa(sols[1],ODESolution) && throw(ArgumentError("Wrong type."))
     d = length(sols[1].u[1])/2 |> Int
@@ -433,12 +450,20 @@ function SaveGeodesics(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=
     round.(Res,sigdigits=sigdigits) |> DataFrame
 end
 
-
-function SaveDataSet(DS::DataSet; sigdigits::Int=7)
+"""
+    SaveDataSet(DS::DataSet; sigdigits::Int=0)
+Returns a `DataFrame` whose columns respectively constitute the x-values, y-values and standard distributions associated with the data points.
+For `sigdigits > 0` the values are rounded to the specified number of significant digits.
+"""
+function SaveDataSet(DS::DataSet; sigdigits::Int=0)
     !(length(DS.x[1]) == length(DS.y[1]) == length(DS.sigma[1])) && throw("Not programmed yet.")
-    DataFrame(round.([DS.x DS.y DS.sigma],sigdigits=sigdigits))
+    if sigdigits < 1
+        return DataFrame([xdata(DS) ydata(DS) sigma(DS)])
+    else
+        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)],sigdigits=sigdigits))
+    end
 end
-SaveDataSet(DM::DataModel; sigdigits::Int=7) = SaveDataSet(DM.Data, sigdigits=sigdigits)
+SaveDataSet(DM::DataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigdigits=sigdigits)
 
 ############### Curvature ################
 
@@ -488,10 +513,12 @@ function RicciScalar(Metric::Function,point::Vector; BigCalc::Bool=false)
 end
 RicciScalar(DM::DataModel,point::Vector; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),point,BigCalc=BigCalc)
 
-
-GeometricDensity(Metric::Function,point::Vector) = sqrt(det(Metric(point)))
+"""
+    GeometricDensity(DM::DataModel,point::Vector)
+Computes the square root of the determinant of the Fisher metric at `p`.
+"""
 GeometricDensity(DM::DataModel,point::Vector) = GeometricDensity(x->FisherMetric(DM,x),point)
-
+GeometricDensity(Metric::Function,point::Vector) = sqrt(det(Metric(point)))
 
 
 # Adaptation from PlotUtils.jl

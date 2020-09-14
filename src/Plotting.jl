@@ -320,7 +320,7 @@ function VisualizeSolPoints(sols::Vector; OverWrite::Bool=false)
     end;    p
 end
 
-VisualizeGeo(sol;OverWrite::Bool=false,leg::Bool=false) = VisualizeSol(sol,vars=Tuple(1:Int(length(sol[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
+VisualizeGeo(sol::ODESolution;OverWrite::Bool=false,leg::Bool=false) = VisualizeSol(sol,vars=Tuple(1:Int(length(sol.u[1])/2)),OverWrite=OverWrite,leg=leg)
 VisualizeGeos(sols::Vector; OverWrite::Bool=true,leg::Bool=false) = VisualizeSols(sols,vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
 
 

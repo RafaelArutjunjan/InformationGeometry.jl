@@ -1,8 +1,10 @@
 # InformationGeometry.jl
-[![Build Status](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master)](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl)
-[![Codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl)
-[![Coveralls](https://coveralls.io/repos/github/RafaelArutjunjan/InformationGeometry.jl/badge.svg?branch=master)](https://coveralls.io/github/RafaelArutjunjan/InformationGeometry.jl?branch=master)
+
+*A Julia package for geometric analyses of statistical problems.*
+
+| **Build Status**                                                                                |
+|:-----------------------------------------------------------------------------------------------:|
+| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
 This package offers a set of basic tools to compute quantities of interest in information geometry and statistical analysis.
 Among these are (log-)likelihoods, Fisher Metrics, Kullback-Leibler divergences, Geodesics, Riemann and Ricci curvature tensors and so on.
@@ -89,3 +91,20 @@ Todo:
 * Interface: Standardize the user-facing keyword arguments
 * Benchmarks: Provide benchmarks for how `InformationGeometry.jl` compares to conventional inference methods
 * Optimisation: Use IntervalArithmetic
+
+
+
+
+
+
+
+
+
+[travis-img]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl
+
+[codecov-img]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl

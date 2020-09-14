@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.0.1"
+version = "1.0.2"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -28,20 +28,20 @@ TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 BenchmarkTools = "^0.5"
 BoundaryValueDiffEq = "^2"
 Combinatorics = "~1.0"
-DataFrames = "~0"
+DataFrames = "^0"
 DiffEqCallbacks = "^2"
 Distributions = "0.21, 0.22, 0.23, 0.24"
 ForwardDiff = "^0.10"
-LsqFit = "~0"
+LsqFit = "^0"
 Measurements = "^2.2"
-Optim = "^0.22"
+Optim = "^0.22, 1.0, 1.1, 1.2"
 OrdinaryDiffEq = "^5"
 Plots = "^1"
 RecipesBase = "^1.0"
 Roots = "^1.0"
 SpecialFunctions = "~0"
 TensorOperations = "^2.2, 3.0"
-julia = "1"
+julia = "^1"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"

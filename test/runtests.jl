@@ -7,14 +7,16 @@ using SafeTestsets
     using InformationGeometry, Test, LinearAlgebra
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1]*x + p[2];     dmodel(x::Number,p) = reshape([x,1.],(1,2))
-    function dmodel(x::Vector,p)
-        J = Array{Float64,2}(undef,length(x),length(p))
-        for i in 1:length(x)
-            J[i,:] = dmodel(x[i],p)[:]
-        end;    J
-    end
-    DM = DataModel(DS,model,dmodel)
+    model(x,p) = p[1]*x + p[2];
+    # dmodel(x::Number,p) = reshape([x,1.],(1,2))
+    # function dmodel(x::Vector,p)
+    #     J = Array{Float64,2}(undef,length(x),length(p))
+    #     for i in 1:length(x)
+    #         J[i,:] = dmodel(x[i],p)[:]
+    #     end;    J
+    # end
+    # DM = DataModel(DS,model,dmodel)
+    DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
     x = [0.1,0.5]; R = rand(2)
 
@@ -33,6 +35,10 @@ using SafeTestsets
     @test sum(abs.(FindMLE(DM) .- [6.121348314606742,0.838202247191011])) < 1e-12
     # ALSO DO NONLINEAR MODEL!
 
+    sols = GenerateMultipleIntervals(DM,1:2)
+    @test StructurallyIdentifiable(DM,sols[1])[1] == true
+    @test size(SaveConfidence(sols,100)) == (100,4)
+    @test size(SaveGeodesics(sols,100)) == (100,2)
 end
 
 
@@ -58,7 +64,7 @@ end
     # Via any positive (hopefully normalized) functions
     @test abs(KullbackLeibler(x->pdf.(Normal(1,3),x),y->pdf.(Normal(5,2),y),Carlo=true,N=Int(1e6)) - 2.2195303) < 2e-2
     @test abs(KullbackLeibler(x->pdf.(Normal(1,3),x),y->pdf.(Normal(5,2),y),Carlo=false) - 2.21953032578115) < 1e-9
-    @test abs(KullbackLeibler(x->pdf(MvNormal([1,2,3.],diagm([1,2,1.5])),x),y->pdf(MvNormal([1,-2,-3.],diagm([2,1.5,1.])),y),HyperCube(collect([-7,7.] for i in 1:3)),N=Int(1e6)) - 23.4) < 4.3e-1
+    @test abs(KullbackLeibler(x->pdf(MvNormal([1,2,3.],diagm([1,2,1.5])),x),y->pdf(MvNormal([1,-2,-3.],diagm([2,1.5,1.])),y),HyperCube(collect([-7,7.] for i in 1:3)),N=Int(1e6)) - 23.4) < 4.5e-1
 
 end
 
@@ -100,8 +106,9 @@ end
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
     @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1e-3
-    @test abs(InformationGeometry.Integrate1D(cos,[0,pi/2]) .- 1) < 1e-13
+    @test abs(Integrate1D(cos,[0,pi/2]) .- 1) < 1e-13
     z = 3rand()
-    @test abs(InformationGeometry.Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
+    @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
     @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
+    @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,pi],[-sqrt(2),0]]),rand(3))) - sqrt(2)*pi) < 3e-15
 end

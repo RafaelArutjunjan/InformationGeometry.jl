@@ -168,11 +168,26 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
     L = loglikelihood(DM,BigFloat.(MLE));    CF = ConfVol(BigFloat(Confnum))
     f(x::Real) = ChisqCDF(length(MLE),2(L-loglikelihood(DM,MLE .+ (x .* BasisVector(1,length(MLE)))))) - CF
     df(x) = ForwardDiff.gradient(f,x)
-    @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xrtol=tol)
+    @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xatol=tol)
     println("Finished.")
     MLE +  b .* BasisVector(1,length(MLE))
 end
 
+function Interval1D(DM::DataModel,MLE::Vector,Confnum::Real=1.;tol=1e-14)
+    if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
+        throw("Interval1D not programmed for BigFloat yet.")
+    end
+    (length(MLE) != 1) && throw("Interval1D not defined for p != 1.")
+    lMLE = loglikelihood(DM,MLE)
+    A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
+    Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
+    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
+    B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
+    A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
+    rts = [MLE[1]+A, MLE[1]+B]
+    rts[1] < rts[2] && return rts
+    throw("Interval1D errored...")
+end
 
 # function FBoundary(DM::DataModel,MLE::Vector,Confnum::Real=1.; tol=1e-12)
 #     n = length(ydata(DM));  p = length(MLE)
@@ -379,7 +394,7 @@ Finds the maximum likelihood parameter configuration given a DataModel and optio
 """
 function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false)
     Big && return FindMLEBig(DM,start)
-    max = 15
+    max = 50
     NegEll(x) = -loglikelihood(DM,x)
     if isa(start,Bool)
         A = Vector{Real}
@@ -388,7 +403,7 @@ function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false)
                 A = Optim.minimizer(optimize(NegEll, ones(i), BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward))
             catch y
                 if isa(y, BoundsError) || isa(y, ArgumentError)
-                    println("FindMLE automatically deduced that the model must have more than $i parameter(s) due to: \"$y\"")
+                    println("FindMLE automatically deduced that model must have >$i parameter(s).")
                     continue
                 else    throw(y)    end
             end
@@ -443,7 +458,11 @@ function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1;
         MLE = FindMLEBig(DM,MLE)
         println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
     end
-    GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
+    if length(MLE) == 1
+        return Interval1D(DM,MLE,Confnum,tol=tol)
+    else
+        return GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
+    end
 end
 
 
@@ -470,9 +489,14 @@ function GenerateConfidenceInterval(DM::DataModel,PL::Plane,MLE::Vector{<:Real},
     solve(prob,meth,reltol=tol,abstol=tol,callback=cb)
 end
 
+function StructurallyIdentifiable(DM::DataModel,sol::ODESolution)
+    roots = find_zeros(t->GeometricDensity(DM,sol(t)),sol.t[1],sol.t[end])
+    length(roots)==0, roots
+end
 
 function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth=Tsit5(), mfd::Bool=true)
     if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
+    length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
     LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)
     for CONF in Range
         if IsConfVol
@@ -482,14 +506,18 @@ function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVo
         end
         if sols[end].retcode == :Terminated
             # Be more quantitative in how large the discrepancy is?
-            ConfVolume = 0
-            if IsConfVol
-                ConfVolume = CONF
-            else
-                ConfVolume = ConfVol(CONF)
+            # ConfVolume = 0
+            # if IsConfVol
+            #     ConfVolume = CONF
+            # else
+            #     ConfVolume = ConfVol(CONF)
+            # end
+            # Tester(X) = WilksTestPrepared(DM,X,LogLikeMLE,ConfVolume)
+            # CurveInsideInterval(Tester,sols[end],1000);
+            _ , rts = StructurallyIdentifiable(DM,sols[end])
+            if length(rts) != 0
+                println("Solution $(length(sols)) corresponding to $(Range[length(sols)]) hits chart boundary at t=$rts and is therefore invalid.")
             end
-            Tester(X) = WilksTestPrepared(DM,X,LogLikeMLE,ConfVolume)
-            CurveInsideInterval(Tester,sols[end],1000);
         else
             println("solution $(length(sols)) did not exit properly: retcode=$(sols[end].retcode).")
         end
@@ -599,8 +627,11 @@ end
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 """
     FisherMetric(DM::DataModel, p::Vector{<:Real})
-Computes the Fisher metric given a `DataModel` and a parameter configuration `p` under the assumption that the data is normally distributed around the true model.
-``F_{ab} = \\int \\mathrm{d}y \\, p(y) \\, (\\partial_a \\partial_b \\ell)(x,\\theta)``
+Computes the Fisher metric given a `DataModel` and a parameter configuration `p` under the assumption that the likelihood ``L`` is a multivariate normal distribution.
+```math
+g_{ab} = -\\int_{\\mathcal{D}} \\mathrm{d}^N y \\, L(y,\\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b}
+```
+where ``\\theta`` corresponds to the parameters `p`.
 """
 function FisherMetric(DM::DataModel, p::Vector{<:Real})
     F = zeros(suff(p),length(p),length(p))
@@ -619,6 +650,9 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 Computes the Kullback-Leibler divergence between two probability distributions `p` and `q` over the `Domain`.
 If `Carlo=true`, this is done using a Monte Carlo Simulation with `N` samples.
 If the `Domain` is one-dimensional, the calculation is performed without Monte Carlo to a tolerance of ≈ `tol`.
+```math
+D_{\\text{KL}} = \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
+```
 """
 function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([[-15,15]]); tol=1e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
     function Integrand(x)
@@ -725,6 +759,7 @@ Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 function Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, point::Vector)
     J = EmbeddingMatrix(DM,point)
+    # return transpose(J) * G * J
     @tensor R[a,b] := J[i,a]*J[j,b]*G[i,j]
 end
 
