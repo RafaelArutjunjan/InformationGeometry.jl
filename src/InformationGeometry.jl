@@ -37,7 +37,7 @@ export ydata, xdata, sigma
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
-export EmbeddingMap, Pullback
+export EmbeddingMap, Pullback, StructurallyIdentifiable
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
@@ -55,7 +55,7 @@ export GenerateMultipleIntervals
 
 include("Plotting.jl")
 export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, VisualizeSol, VisualizeSols, PlotMatrix
-export VisualizeGeos, VisualizeGeo
+export VisualizeGeos, VisualizeGeo, PointwiseConfidenceBand
 
 export suff, ConfidenceRegionVolume, SaveDataSet
 

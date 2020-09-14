@@ -52,7 +52,10 @@ where `Riemann` returns the components of the (1,3)-Riemann tensor and `Christof
 
 Calculating Kullback-Leibler divergences
 ----------------------------------------
-Using the distribution types defined in [Distributions.jl](https://github.com/JuliaStats/Distributions.jl), this package implements a variety of schemes for the numerical evaluation of the [Kullback-Leibler divergence](https://en.wikipedia.org/wiki/Kullback–Leibler_divergence) between distributions over a specified domain:
+Using the distribution types defined in [Distributions.jl](https://github.com/JuliaStats/Distributions.jl), this package implements a variety of schemes for the numerical evaluation of the [Kullback-Leibler divergence](https://en.wikipedia.org/wiki/Kullback–Leibler_divergence) between distributions over a specified domain defined by
+```math
+D_{\\text{KL}} = \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
+```
 * For univariate distributions, the integral is rephrased in the form of an ordinary differential equation and solved with the sophisticated methods provided by [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl).
 * For multivariate distributions, Monte Carlo simulation is used to estimate the integral.
 * In many cases, closed-form expressions for the Kullback-Leibler divergence are known. These include: Normal, Cauchy, Exponential, Weibull, Gamma
