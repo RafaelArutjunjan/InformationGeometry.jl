@@ -39,6 +39,13 @@ using SafeTestsets
     @test StructurallyIdentifiable(DM,sols[1])[1] == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
+
+
+    # DataSet and DataModel for multi-component x and y!!!
+    @test xdata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
+    @test ydata(DataSet([1,5,6],[[0,1.],[2,3],[5,8]],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
+
+    # Allow covariance matrix of size ydata * ydata
 end
 
 

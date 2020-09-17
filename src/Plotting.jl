@@ -304,6 +304,14 @@ end
 
 
 VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false) = Plots.plot!(sol,vars=vars,leg=leg)
+# function VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false)
+#     if leg
+#         q = erfinv(cdf(Chisq(length(sol.u[1])),2*(loglikelihood())))
+#         return Plots.plot!(sol,vars=vars,leg=leg,label="$(erfinv(cdf(Chisq(length())))) sigma")
+#     else
+#         return Plots.plot!(sol,vars=vars,leg=leg)
+#     end
+# end
 function VisualizeSols(sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false)
     p = [];     OverWrite && Plots.plot()
     for sol in sols

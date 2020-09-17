@@ -3,36 +3,36 @@
 ################### Probability Stuff
 import Distributions.loglikelihood
 """
-    likelihood(DM::DataModel,p::Vector)
-Calculates the Likelihood given a DataModel and a parameter configuration `p`.
+    likelihood(DM::DataModel,θ::Vector)
+Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` and a parameter configuration ``\\theta``.
 """
 likelihood(args...) = exp(loglikelihood(args...))
 
 """
-    loglikelihood(DM::DataModel, p::Vector)
-Calculates the logarithm of the Likelihood given a DataModel and a parameter configuration `p`.
+    loglikelihood(DM::DataModel, θ::Vector)
+Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-function loglikelihood(DM::DataModel, params::Vector)
-    R = zero(suff(params))
+function loglikelihood(DM::DataModel, θ::Vector)
+    R = zero(suff(θ))
     if length(ydata(DM)[1]) == 1    # For some reason this is faster.
         for i in 1:length(xdata(DM))
-            R += ((ydata(DM)[i]-DM.model(xdata(DM)[i],params))/sigma(DM)[i])^2
+            R += ((ydata(DM)[i]-DM.model(xdata(DM)[i],θ))/sigma(DM)[i])^2
         end
     else
-        term(i) = dot((ydata(DM)[i] .- DM.model(xdata(DM)[i],params))/sigma(DM)[i])
+        term(i) = dot((ydata(DM)[i] .- DM.model(xdata(DM)[i],θ))/sigma(DM)[i])
         R = sum( term(i) for i in 1:length(xdata(DM)) )
     end
     -0.5*(length(xdata(DM))*log(2pi) + 2*sum(log.(sigma(DM))) + R)
 end
 
 
-function loglikelihood2(DM::DataModel, p::Vector)
-    logpdf(product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))]),EmbeddingMap(DM,p))
+function loglikelihood2(DM::DataModel, θ::Vector)
+    logpdf(product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))]),EmbeddingMap(DM,θ))
 end
 
-function ploglikelihood(DM::DataModel, params::Vector)
+function ploglikelihood(DM::DataModel, θ::Vector)
     R = @distributed (+) for i in 1:length(xdata(DM))
-        (2*log(sigma(DM)[i]) + ((ydata(DM)[i]-DM.model(xdata(DM)[i],params))/sigma(DM)[i])^2)
+        (2*log(sigma(DM)[i]) + ((ydata(DM)[i]-DM.model(xdata(DM)[i],θ))/sigma(DM)[i])^2)
     end
     -0.5*(length(xdata(DM))*log(2pi) + R)
 end
@@ -97,32 +97,32 @@ function ScoreDimN(DM::DataModel,p::Vector{<:Real})
 end
 
 """
-    Score(DM::DataModel,p::Vector{<:Real}; Auto::Bool=false)
+    Score(DM::DataModel, θ::Vector{<:Real}; Auto::Bool=false)
 Calculates the gradient of the log-likelihood with respect to a set of parameters `p`. `Auto=true` uses automatic differentiation.
 """
-function Score(DM::DataModel,p::Vector{<:Real}; Auto::Bool=false)
-    Auto && return AutoScore(DM,p)
-    length(ydata(DM)[1]) != 1 && return ScoreDimN(DM,p)
-    Res = zeros(suff(p),length(p))
-    mod = map(z->DM.model(z,p),xdata(DM))
-    dmod = DM.dmodel(xdata(DM),p)
-    for j in 1:length(p)
+function Score(DM::DataModel, θ::Vector{<:Real}; Auto::Bool=false)
+    Auto && return AutoScore(DM,θ)
+    length(ydata(DM)[1]) != 1 && return ScoreDimN(DM,θ)
+    Res = zeros(suff(θ),length(θ))
+    mod = map(z->DM.model(z,θ),xdata(DM))
+    dmod = DM.dmodel(xdata(DM),θ)
+    for j in 1:length(θ)
         Res[j] += sum((sigma(DM)[i])^(-2) *(ydata(DM)[i]-mod[i])*dmod[i,j]   for i in 1:length(xdata(DM)))
     end
     Res
 end
-function ScoreOrth(DM::DataModel,PL::Plane,p::Vector{<:Real})
-    length(p) == 2 && return [0 -1; 1 0]*Score(DM,p)
-    -RotateVector(PL,ProjectOntoPlane(PL,Score(DM,p)),pi/2)
+function ScoreOrth(DM::DataModel, PL::Plane, θ::Vector{<:Real})
+    length(p) == 2 && return [0 -1; 1 0]*Score(DM,θ)
+    -RotateVector(PL,ProjectOntoPlane(PL,Score(DM,θ)),pi/2)
 end
 """
-    WilksTest(DM::DataModel, p::Vector{<:Real},MLE::Vector{<:Real},ConfVol=ConfVol(1)) -> Bool
+    WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real}, ConfVol=ConfVol(1)) -> Bool
 Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
-function WilksTest(DM::DataModel, p::Vector{<:Real},MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
+function WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
     # return (loglikelihood(DM,MLE) - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
-    return ChisqCDF(length(MLE), 2(loglikelihood(DM,MLE) - loglikelihood(DM,p))) - ConfVol < 0
+    return ChisqCDF(length(MLE), 2(loglikelihood(DM,MLE) - loglikelihood(DM,θ))) - ConfVol < 0
 end
 
 """
@@ -131,18 +131,18 @@ Checks whether a given parameter configuration `p` is within a confidence interv
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 To simplify the calculation, `LogLikeMLE` accepts the value of the log-likelihood evaluated at the MLE.
 """
-function WilksTestPrepared(DM::DataModel, p::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1))::Bool
+function WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1))::Bool
     # return (LogLikeMLE - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
-    return ChisqCDF(length(p), 2(LogLikeMLE - loglikelihood(DM,p))) - ConfVol < 0
+    return ChisqCDF(length(θ), 2(LogLikeMLE - loglikelihood(DM,θ))) - ConfVol < 0
 end
 
 
 
-function FtestPrepared(DM::DataModel, point::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
-    n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
-    S(point) <= S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
+function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
+    n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
+    S(θ) <= S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
 end
-Ftest(DM::DataModel, point::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,point,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
+Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
 function Ftest2(DM::DataModel, point::Vector{T}, MLE::Vector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
@@ -276,37 +276,37 @@ end
 
 
 """
-    OrthVF(DM::DataModel, p::Vector{<:Real}; Auto::Bool=false) -> Vector
-Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration `p`.
+    OrthVF(DM::DataModel, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
+Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::DataModel, p::Vector{<:Real}; Auto::Bool=false)
-    length(p) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible"))
-    S = Score(DM,p;Auto=Auto);    P = prod(S);    VF = P ./ S
-    VF[length(p)] = -(length(p)-1)*VF[length(p)]
+function OrthVF(DM::DataModel, θ::Vector{<:Real}; Auto::Bool=false)
+    length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible"))
+    S = Score(DM,θ;Auto=Auto);    P = prod(S);    VF = P ./ S
+    VF[length(θ)] = -(length(θ)-1)*VF[length(θ)]
     VF |> normalize
 end
 
 
 """
-    OrthVF(DM::DataModel, PL::Plane, p::Vector{<:Real}; Auto::Bool=false) -> Vector
-Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration `p`.
+    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
+Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 If a `Plane` is specified, the direction will be projected onto it.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::DataModel, PL::Plane, p::Vector{<:Real}; Auto::Bool=false)
-    length(p) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible"))
+function OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false)
+    length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible"))
     planeorth = Cross(PL.Vx,PL.Vy)
-    if length(p) != 2
-        !IsOnPlane(PL,p) && throw(ArgumentError("Parameter Configuration not on specified Plane."))
-        länge(planeorth .- ones(length(p))) < 1e-14 && throw(ArgumentError("Visualization plane unsuitable: $planeorth"))
+    if length(θ) != 2
+        !IsOnPlane(PL,θ) && throw(ArgumentError("Parameter Configuration not on specified Plane."))
+        länge(planeorth .- ones(length(θ))) < 1e-14 && throw(ArgumentError("Visualization plane unsuitable: $planeorth"))
     end
 
-    S = Score(DM,p; Auto=Auto);    P = prod(S);    VF = P ./ S
+    S = Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
 
     alpha = []
-    if length(p) > 2
-        alpha = Cross(ones(length(p)),planeorth)
+    if length(θ) > 2
+        alpha = Cross(ones(length(θ)),planeorth)
     else
         alpha = Cross(ones(3),planeorth)[1:2]
     end
@@ -626,16 +626,15 @@ end
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 """
-    FisherMetric(DM::DataModel, p::Vector{<:Real})
-Computes the Fisher metric given a `DataModel` and a parameter configuration `p` under the assumption that the likelihood ``L`` is a multivariate normal distribution.
+    FisherMetric(DM::DataModel, θ::Vector{<:Real})
+Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
 ```math
-g_{ab} = -\\int_{\\mathcal{D}} \\mathrm{d}^N y \\, L(y,\\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b}
+g_{ab} \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
-where ``\\theta`` corresponds to the parameters `p`.
 """
-function FisherMetric(DM::DataModel, p::Vector{<:Real})
-    F = zeros(suff(p),length(p),length(p))
-    dmod = sigma(DM).^(-1) .* map(z->DM.dmodel(z,p),xdata(DM))
+function FisherMetric(DM::DataModel, θ::Vector{<:Real})
+    F = zeros(suff(θ),length(θ),length(θ))
+    dmod = sigma(DM).^(-1) .* map(z->DM.dmodel(z,θ),xdata(DM))
     for i in 1:length(xdata(DM))
         F .+=  transpose(dmod[i]) * dmod[i]
     end;    F
@@ -651,7 +650,7 @@ Computes the Kullback-Leibler divergence between two probability distributions `
 If `Carlo=true`, this is done using a Monte Carlo Simulation with `N` samples.
 If the `Domain` is one-dimensional, the calculation is performed without Monte Carlo to a tolerance of ≈ `tol`.
 ```math
-D_{\\text{KL}} = \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
+D_{\\text{KL}}[p,q] \\coloneqq \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
 ```
 """
 function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([[-15,15]]); tol=1e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
@@ -730,7 +729,7 @@ end
 
 """
     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
-Calculates KL divergence under assumption of normal error distribution around data.
+Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
 """
 KullbackLeibler(DM::DataModel,p::Vector,q::Vector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))
 
@@ -738,27 +737,27 @@ KullbackLeibler(DM::DataModel,p::Vector) = KullbackLeibler(MvNormal(zeros(length
 
 
 # h(p) ∈ Dataspace
-EmbeddingMap(DM::DataModel,p::Vector{<:Real}) = map(x->DM.model(x,p),xdata(DM))
+EmbeddingMap(DM::DataModel,θ::Vector{<:Real}) = map(x->DM.model(x,θ),xdata(DM))
 
 # NOT TO BE CONFUSED WITH JACOBIAN FROM TRANSTRUM PAPER -- NO SIGMAS HERE
 # Correct this to ensure that the shape of the matrix is correct, irrespective of the model definition.
-EmbeddingMatrix(DM::DataModel,point::Vector{<:Real}) = DM.dmodel(xdata(DM),float.(point))
+EmbeddingMatrix(DM::DataModel,θ::Vector{<:Real}) = DM.dmodel(xdata(DM),float.(θ))
 
 # From D to M
-Pullback(DM::DataModel,F::Function,point::Vector) = F(EmbeddingMap(DM,point))
+Pullback(DM::DataModel,F::Function,θ::Vector) = F(EmbeddingMap(DM,θ))
 """
-    Pullback(DM::DataModel, omega::Vector{<:Real}, point::Vector) -> Vector
+    Pullback(DM::DataModel, ω::Vector{<:Real}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.
 """
-Pullback(DM::DataModel, omega::Vector{<:Real}, point::Vector) = transpose(EmbeddingMatrix(DM,point))*omega
+Pullback(DM::DataModel, ω::Vector{<:Real}, θ::Vector) = transpose(EmbeddingMatrix(DM,θ)) * ω
 
 
 """
-    Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, point::Vector)
+    Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
-function Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, point::Vector)
-    J = EmbeddingMatrix(DM,point)
+function Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
+    J = EmbeddingMatrix(DM,θ)
     # return transpose(J) * G * J
     @tensor R[a,b] := J[i,a]*J[j,b]*G[i,j]
 end
@@ -768,7 +767,7 @@ end
     Pushforward(DM::DataModel, X::Vector, point::Vector)
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
 """
-Pushforward(DM::DataModel, X::Vector, point::Vector) = EmbeddingMatrix(DM,point) * X
+Pushforward(DM::DataModel, X::Vector, θ::Vector) = EmbeddingMatrix(DM,θ) * X
 
 """
     DataSpaceDist(DM::DataModel,v::Vector) -> Real
@@ -787,7 +786,7 @@ FisherEllipsoid(Metric::Function, point::Vector{<:Real}) = eigvecs(Metric(point)
 
 
 """
-    AIC(DM::DataModel,p::Vector)
-Calculates the Akaike Information Criterion given a parameter configuration `p`.
+    AIC(DM::DataModel, θ::Vector)
+Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta) + 2 \\, \\mathrm{length}(\\theta)``.
 """
-AIC(DM::DataModel,p::Vector) = -2loglikelihood(DM,p) + 2length(p)
+AIC(DM::DataModel, θ::Vector) = -2loglikelihood(DM,θ) + 2length(θ)

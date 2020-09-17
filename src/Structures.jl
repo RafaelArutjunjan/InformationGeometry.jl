@@ -4,22 +4,34 @@ suff(x::Number) = typeof(float(x))
 suff(X::AbstractArray) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
 """
-The `DataSet` type is a container for datapoints. It holds 3 vectors `x, y, sigma` where the components of `sigma` quantify the error bars associated with each measurement.
+The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
+For example,
+```
+DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
+```
+Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
 """
 struct DataSet
     x::AbstractVector
     y::AbstractVector
     sigma::AbstractArray
     function DataSet(x,y,sigma)
-        if length(x) != length(y)
-            throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))"))
-        elseif length(sigma) != length(y) && length(sigma) != 1
-            throw(ArgumentError("Dimension mismatch. length(y) = $(length(y)), length(sigma) = $(length(sigma))"))
-        elseif length(sigma) == 1
-            sigma = sigma*ones(length(y))
+        length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
+        # Check that dimensions of x-values and y-values are consistent
+        xdim = length(x[1]);    ydim = length(y[1])
+        sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
+        sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
+        if length(sigma) == 1
+            return new(x, y, sigma*ones(length(y)))
+        elseif size(sigma,1) == size(sigma,2) == length(y)
+            throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
+        elseif length(sigma) == length(y) && length(sigma[1]) == 1
+            return new(x,y,[sigma[i] for i in 1:length(y)])
+        else
+            throw(ArgumentError("Unsuitable specification of uncertainty: sigma = $sigma."))
         end
-        new(x,y,sigma)
     end
+    DataSet(x::AbstractVector,y::AbstractVector) = DataSet(x,y,ones(length(y)))
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF)[2] != 3 && throw("Unclear dimensions.")
         new(DF[:,1], DF[:,2], DF[:,3])
@@ -27,7 +39,7 @@ struct DataSet
 end
 
 """
-In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,p)` and its derivative `dmodel(x,p)` where `x` denotes the x value of the data and `p` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `p`, not the x values.
+In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
 """
 struct DataModel
     Data::DataSet
@@ -49,9 +61,12 @@ struct DataModel
     DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
 end
 
-xdata(DS::DataSet) = DS.x;      xdata(DM::DataModel) = xdata(DM.Data)
-ydata(DS::DataSet) = DS.y;      ydata(DM::DataModel) = ydata(DM.Data)
-sigma(DS::DataSet) = DS.sigma;  sigma(DM::DataModel) = sigma(DM.Data)
+xdata(DS::DataSet) = DS.x;                  xdata(DM::DataModel) = xdata(DM.Data)
+ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data)
+sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
+xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
+ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
+
 
 function Sparsify(DS::DataSet,B::Vector=rand(Bool,length(DS.x)))
     length(B) != length(DS.x) && throw(ArgumentError("Sparsify: Vector not same number of components as datapoints."))

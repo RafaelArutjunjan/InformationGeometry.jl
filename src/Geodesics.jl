@@ -65,26 +65,26 @@ end
 # Accuracy ≈ 3e-11
 # ROUND TO 1e-10???
 # BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
-ChristoffelSymbol(DM::DataModel, point::Vector; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), point, BigCalc=BigCalc)
 """
-    ChristoffelSymbol(DM::DataModel, point::Vector; BigCalc::Bool=false)
-    ChristoffelSymbol(Metric::Function, point::Vector; BigCalc::Bool=false)
-Calculates the Christoffel symbol at a point `p` though finite differencing of the `Metric`. Accurate to ≈ 3e-11.
+    ChristoffelSymbol(DM::DataModel, θ::Vector; BigCalc::Bool=false)
+    ChristoffelSymbol(Metric::Function, θ::Vector; BigCalc::Bool=false)
+Calculates the components of the (1,2) Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
 `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-function ChristoffelSymbol(Metric::Function, point::Vector; BigCalc::Bool=false)
-    Finv = inv(Metric(point))
-    function FPDVs(Metric,point; BigCalc::Bool=false)
-        if BigCalc      point = BigFloat.(point)        end
-        PDV = zeros(suff(point),length(point),length(point),length(point))
-        h = GetH(suff(point))
-        for i in 1:length(point)
-            PDV[:,:,i] .= (1/(2*h)).*(Metric(point .+ h.*BasisVector(i,length(point))) .- Metric(point .- h.*BasisVector(i,length(point))))
+ChristoffelSymbol(DM::DataModel, θ::Vector; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ, BigCalc=BigCalc)
+function ChristoffelSymbol(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    Finv = inv(Metric(θ))
+    function FPDVs(Metric, θ; BigCalc::Bool=false)
+        if BigCalc      θ = BigFloat.(θ)        end
+        PDV = zeros(suff(θ),length(θ),length(θ),length(θ))
+        h = GetH(suff(θ))
+        for i in 1:length(θ)
+            PDV[:,:,i] .= (1/(2*h)).*(Metric(θ .+ h.*BasisVector(i,length(θ))) .- Metric(θ .- h.*BasisVector(i,length(θ))))
         end
         PDV
     end
-    FPDV = FPDVs(Metric,point,BigCalc=BigCalc)
-    if (suff(point) != BigFloat) && BigCalc
+    FPDV = FPDVs(Metric,θ,BigCalc=BigCalc)
+    if (suff(θ) != BigFloat) && BigCalc
         FPDV = convert(Array{Float64,3},FPDV)
     end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
@@ -121,16 +121,20 @@ function ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, En
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
-function MetricNorm(G,v::Vector,w::Vector=v) where Q<:Real
+function MetricNorm(G::Matrix,v::Vector,w::Vector=v) where Q<:Real
     (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
     sqrt(transpose(v)*G*w)
-    # @tensor Res = G[a,b]*v[a]*w[b];     sqrt(Res)
 end
 
 """
-    GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=0.; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
 Calculates the length of a geodesic `sol` using the `Metric` up to parameter value `Endrange`.
+```math
+L[\\gamma] \\coloneqq \\int_a^b \\mathrm{d} t \\, \\sqrt{g_{\\gamma(t)} \\big(\\dot{\\gamma}(t), \\dot{\\gamma}(t)\\big)}
+```
 """
+GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
 function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
     # GET RID OF ENDRANGE PARAMETER?
     n = length(sol.u[1])/2 |> Int
@@ -140,7 +144,6 @@ function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[
     end
     return Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
 end
-GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
 
 """
     GeodesicCrossing(DM::DataModel,sol::ODESolution,Conf::Real=ConfVol(1); tol=1e-15)
@@ -165,7 +168,7 @@ Calculates at which parameter value of the geodesic `sol` the length `L` is reac
 """
 function DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Real; tol=1e-14)
     L < 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
-    #Use interpolated Solution of integral for improved accuracy
+    # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], fullSol=true, tol=tol)
     Func(x) = L - GeoLength(x)
     dFunc(x) = ForwardDiff.derivative(Func,x)
@@ -227,7 +230,7 @@ function ConstLengthGeodesics(DM::DataModel,Metric::Function,MLE::Vector,Conf::F
 end
 
 
-function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec::Vector,Conf::Float64=ConfVol(1); tol::Float64=6e-11)
+function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec::Vector,Conf::Float64=ConfVol(1); tol::Float64=6e-11, meth=Vern9())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -242,7 +245,7 @@ function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec
     cb = DiscreteCallback(terminatecondition,terminate!,save_positions=(true,true))
     tspan = (0.0,150.0)
     prob = ODEProblem(GeodesicODE!,InitialVec,tspan)
-    @time solve(prob,Vern9(),reltol=tol,abstol=tol,callback=cb)
+    @time solve(prob,meth,reltol=tol,abstol=tol,callback=cb)
 end
 
 ###############################################################
@@ -267,9 +270,11 @@ function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Float64=10.,N
 end
 
 """
+    GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
     GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
+GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
 function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
@@ -286,16 +291,16 @@ function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; t
     BVP = BVProblem(GeodesicODE!, bc!, initial, tspan)
     solve(BVP, Shooting(meth), reltol=tol,abstol=tol)
 end
-GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
 
 """
-    GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
+    GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
 Computes the length of a geodesic connecting the points `P` and `Q`.
 """
+GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q,tol=tol)
 function GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
     GeodesicLength(Metric,GeodesicBetween(Metric,P,Q,tol=tol))
 end
-GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q,tol=tol)
 
 ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
 GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange=sol.t[end];fullSol::Bool=false,tol=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
@@ -468,57 +473,60 @@ SaveDataSet(DM::DataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigdigits=si
 ############### Curvature ################
 
 """
-    Riemann(Metric::Function, point::Vector; BigCalc::Bool=false)
-Calculates the Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
+    Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false)
+    Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
+Calculates the components of the (1,3) Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-function Riemann(Metric::Function,point::Vector; BigCalc::Bool=false)
-    function ChristoffelPartials(Metric,point; BigCalc::Bool=false)
-        if BigCalc      point = BigFloat.(point)        end
-        DownUpDownDown = Array{suff(point)}(undef,length(point),length(point),length(point),length(point))
-        h = GetH(suff(point))
-        for i in 1:length(point)
-            DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,point + h*BasisVector(i,length(point))) .- ChristoffelSymbol(Metric,point - h*BasisVector(i,length(point))))
+Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Riem(z->FisherMetric(DM,z), θ, BigCalc=BigCalc)
+function Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
+        if BigCalc      θ = BigFloat.(θ)        end
+        DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
+        h = GetH(suff(θ))
+        for i in 1:length(θ)
+            DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
         end
         (1/(2*h))*DownUpDownDown
     end
-    DownUpDownDown = ChristoffelPartials(Metric,point,BigCalc=BigCalc)
-    if (suff(point) != BigFloat) && BigCalc
+    DownUpDownDown = ChristoffelPartials(Metric, θ, BigCalc=BigCalc)
+    if (suff(θ) != BigFloat) && BigCalc
         DownUpDownDown = convert(Array{Float64,4},DownUpDownDown)
     end
-    Gamma = ChristoffelSymbol(Metric,point,BigCalc=BigCalc)
+    Gamma = ChristoffelSymbol(Metric, θ, BigCalc=BigCalc)
     # @tensor Riem[m,i,k,p] := DownUpDownDown[k,m,i,p] - DownUpDownDown[p,m,i,k] + Gamma[a,i,p]*Gamma[m,a,k] - Gamma[a,i,k]*Gamma[m,a,p]
     @tensor Riem[i,j,k,l] := DownUpDownDown[k,i,j,l] - DownUpDownDown[l,i,j,k] + Gamma[i,a,k]*Gamma[a,j,l] - Gamma[i,a,l]*Gamma[a,j,k]
 end
-Riemann(DM::DataModel, point::Vector; BigCalc::Bool=false) = Riem(z->FisherMetric(DM,z), point, BigCalc=BigCalc)
 
 """
-    Ricci(Metric::Function, point::Vector; BigCalc::Bool=false)
-Calculates the Ricci tensor by finite differencing of `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
+    Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false)
+    Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
+Calculates the components of the (0,2) Ricci tensor by finite differencing of `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-function Ricci(Metric::Function, point::Vector; BigCalc::Bool=false)
-    Riem = Riemann(Metric,point,BigCalc=BigCalc)
+Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Ric(z->FisherMetric(DM,z), θ, BigCalc=BigCalc)
+function Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    Riem = Riemann(Metric, θ, BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
-    RIC = zeros(suff(point),length(point),length(point))
+    RIC = zeros(suff(θ),length(θ),length(θ))
     @tensor RIC[a,b] = Riem[c,a,c,b]
 end
-Ricci(DM::DataModel, point::Vector; BigCalc::Bool=false) = Ric(z->FisherMetric(DM,z), point, BigCalc=BigCalc)
 
 """
-    RicciScalar(Metric::Function, point::Vector; BigCalc::Bool=false)
-Calculates the Ricci Scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
+    RicciScalar(DM::DataModel, θ::Vector; BigCalc::Bool=false)
+    RicciScalar(Metric::Function, θ::Vector; BigCalc::Bool=false)
+Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-function RicciScalar(Metric::Function,point::Vector; BigCalc::Bool=false)
-    RIC = Ricci(Metric,point,BigCalc=BigCalc)
-    tr(transpose(RIC)*inv(Metric(point)))
+RicciScalar(DM::DataModel, θ::Vector; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),θ,BigCalc=BigCalc)
+function RicciScalar(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    RIC = Ricci(Metric, θ, BigCalc=BigCalc)
+    tr(transpose(RIC)*inv(Metric(θ)))
 end
-RicciScalar(DM::DataModel,point::Vector; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),point,BigCalc=BigCalc)
 
 """
-    GeometricDensity(DM::DataModel,point::Vector)
-Computes the square root of the determinant of the Fisher metric at `p`.
+    GeometricDensity(DM::DataModel, θ::Vector)
+Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::DataModel,point::Vector) = GeometricDensity(x->FisherMetric(DM,x),point)
-GeometricDensity(Metric::Function,point::Vector) = sqrt(det(Metric(point)))
+GeometricDensity(DM::DataModel, θ::Vector) = GeometricDensity(x->FisherMetric(DM,x), θ)
+GeometricDensity(Metric::Function, θ::Vector) = sqrt(det(Metric(θ)))
 
 
 # Adaptation from PlotUtils.jl
