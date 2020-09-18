@@ -102,6 +102,13 @@ struct Plane
     end
 end
 
+function PlanarDataModel(DM::DataModel,PL::Plane)
+    newmod(x,p::Vector) = DM.model(x,PlaneCoordinates(PL,p))
+    H = [PL.Vx PL.Vy]
+    dnewmod(x,p::Vector) = DM.dmodel(x,PlaneCoordinates(PL,p)) * H
+    DataModel(DM.Data,newmod,dnewmod)
+end
+
 function BasisVector(Slot::Int,dims::Int)
     Res = zeros(dims);    Res[Slot] = 1;    Res
 end

@@ -314,9 +314,9 @@ function OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false)
     normalize(alpha .* VF)
 end
 
-ConstructCube(sol::ODESolution,Npoints::Int=200;Padding::Float64=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
-function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200;Padding::Float64=1/50)
-    Padding < 0. && throw("Cube Padding negative.")
+ConstructCube(sol::ODESolution,Npoints::Int=200;Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
+function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200;Padding::Real=1/50)
+    # Padding < 0. && throw("Cube Padding negative.")
     nparams = length(sol.u[1]);  lowers = copy(sol.u[1]);  uppers = copy(sol.u[1])
     for t in range(sol.t[1],sol.t[end], length=Npoints)
         Point = sol(t)

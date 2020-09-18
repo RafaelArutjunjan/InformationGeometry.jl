@@ -30,7 +30,7 @@ export DataSet, DataModel, Plane, HyperCube, LowerUpper
 # Functions
 export Unpack, plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
-export xdata, ydata, sigma, xdim, ydim
+export xdata, ydata, sigma, xdim, ydim, PlanarDataModel
 
 
 include("ConfidenceLib.jl")

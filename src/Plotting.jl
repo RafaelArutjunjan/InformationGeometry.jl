@@ -318,6 +318,21 @@ function VisualizeSols(sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), 
         p = VisualizeSol(sol,vars=vars,leg=leg)
     end;    p
 end
+
+function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500)
+    function Deplanarize(PL::Plane,sol::ODESolution;N::Int=500)
+        map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end],length=N)) |> Unpack
+    end
+    H = Deplanarize(PL,sol,N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3],leg=leg)
+end
+function VisualizeSols(PL::Plane,sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false)
+    p = [];     OverWrite && Plots.plot()
+    for sol in sols
+        p = VisualizeSol(PL,sol,vars=vars,leg=leg)
+    end;    p
+end
+
+
 function VisualizeSolPoints(sol::ODESolution)
     Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)],marker=:hex,markersize=2)
 end
