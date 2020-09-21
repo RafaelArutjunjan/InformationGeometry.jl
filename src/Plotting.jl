@@ -34,7 +34,7 @@ end
 
 # LSQFIT
 import LsqFit.curve_fit
-curve_fit(DM::DataModel,initial::Vector=ones(5),args...;kwargs...) = curve_fit(DM.model,DM.dmodel,xdata(DM),ydata(DM),sigma(DM).^(-2),initial,args...;kwargs...)
+curve_fit(DM::DataModel,initial::Vector=ones(pdim(DM)),args...;kwargs...) = curve_fit(DM.model,DM.dmodel,xdata(DM),ydata(DM),sigma(DM).^(-2),initial,args...;kwargs...)
 
 
 # RecipesBase.@recipe function RecipeTester(args...)
@@ -312,6 +312,11 @@ VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=
 #         return Plots.plot!(sol,vars=vars,leg=leg)
 #     end
 # end
+
+"""
+    VisualizeSols(sols::Vector; OverWrite::Bool=true)
+Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
+"""
 function VisualizeSols(sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
@@ -412,6 +417,11 @@ end
 """
     PlotMatrix(Mat::Matrix,MLE::Vector,N::Int=400)
 Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
+
+Example:
+```
+PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
+```
 """
 function PlotMatrix(Mat::Matrix,MLE::Vector=zeros(size(Mat,1)),N::Int=400)
     !(length(MLE) == size(Mat,1) == size(Mat,2) == 2) && throw("PlotMatrix: Dimensional mismatch.")

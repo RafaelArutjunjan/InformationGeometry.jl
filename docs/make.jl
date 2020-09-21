@@ -9,7 +9,7 @@ makedocs(
     pages = Any[
                 "Getting Started" => "index.md",
                 "Basics of Information Geometry" => "basics.md",
-                "Tutorials" => Any["Confidence Regions" => "confidence-regions.md","Kullback-Leibler Divergences" => "kullback-leibler.md"],
+                "Tutorials" => Any["Confidence Regions" => "confidence-regions.md", "Kullback-Leibler Divergences" => "kullback-leibler.md"],
                 "Contributing" => "todo.md",
             ],
 )
@@ -18,8 +18,9 @@ makedocs(
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
-#=deploydocs(
+deploydocs(
     repo = "github.com/RafaelArutjunjan/InformationGeometry.jl.git",
-    target = "build",
     julia = "1.3",
-)=#
+    osname = "linux",
+    # target = "build",
+)

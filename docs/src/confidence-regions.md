@@ -1,10 +1,10 @@
 
-## Confidence Regions
+### Confidence Regions
 
 ```@docs
 DataSet
 DataModel
-loglikelihood(::DataModel,::Vector{Float64})
+InformationGeometry.loglikelihood(::DataModel,::Vector{Float64})
 FindMLE(::DataModel)
 ```
 ```@example 1
@@ -42,7 +42,6 @@ savefig("../assets/sols2.svg"); nothing # hide
 
 
 
-
 Various geometric quantities which are intrinsic to the parameter manifold ``\mathcal{M}`` can be computed as a result of the Fisher metric ``g`` (and subsequent choice of the Levi-Civita connection) such as the Riemann and Ricci tensors and the Ricci scalar ``R``.
 ```@docs
 FisherMetric(::DataModel,::Vector{Float64})
@@ -59,3 +58,5 @@ Score(::DataModel,::Vector{Float64})
 AIC(::DataModel,::Vector{Float64})
 GeodesicDistance(::DataModel,::Vector{Float64},::Vector{Float64})
 ```
+
+**To be continued...**

@@ -2,7 +2,7 @@
 
 ## Contributing
 
-* If you encounter a bug, feel free to file an issue detailing the problem in comparison to the behavior you were expecting. Please provide a minimal working example and make sure to specify the particular version of **InformationGeometry.jl** that was used.
+* If you encounter a bug, feel free to file an issue detailing the problem in contrast to the behaviour you were expecting. Please provide a minimal working example and make sure to specify the particular version of **InformationGeometry.jl** that was used.
 * While pull requests are very much welcome, please try to provide detailed docstrings for all non-trivial methods.
 
 Todo:

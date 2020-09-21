@@ -21,9 +21,9 @@ struct DataSet
         xdim = length(x[1]);    ydim = length(y[1])
         sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
         sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
-        if length(sigma) == 1
+        if length(sigma) == 1 && length(y) > 1
             return new(x, y, sigma*ones(length(y)))
-        elseif size(sigma,1) == size(sigma,2) == length(y)
+        elseif size(sigma,1) == size(sigma,2) == length(y) && length(y) > 1
             throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
         elseif length(sigma) == length(y) && length(sigma[1]) == 1
             return new(x,y,[sigma[i] for i in 1:length(y)])
@@ -37,6 +37,7 @@ struct DataSet
         new(DF[:,1], DF[:,2], DF[:,3])
     end
 end
+
 
 """
 In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
@@ -77,6 +78,21 @@ function Sparsify(DM::DataModel,B::Vector=rand(Bool,length(xdata(DM))))
     return DataModel(Sparsify(DM.Data,B),DM.model,DM.dmodel)
 end
 
+import Base.length
+length(DS::DataSet) = length(xdata(DS));    length(DM::DataModel) = length(DM.Data)
+import DataFrames.DataFrame
+DataFrame(DS::DataSet) = DataFrame([xdata(DS) ydata(DS) sigma(DS)]);    DataFrame(DM::DataModel) = DataFrame(DM.Data)
+
+import Base.join
+join(DS1::DataSet,DS2::DataSet) = DataSet([xdata(DS1)...,xdata(DS2)...],[ydata(DS1)...,ydata(DS2)...],[sigma(DS1)...,sigma(DS2)...])
+join(DM1::DataModel,DM2::DataModel) = DataModel(join(DM1.Data,DM2.Data),DM1.model,DM1.dmodel)
+join(DS1::T,DS2::T,args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2),args...)
+join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
+
+SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
+SortDataModel(DM::DataModel) = DataModel(SortDataSet(DM.Data),DM.model,DM.dmodel)
+SubDataSet(DS::DataSet,ran) = DataSet(xdata(DS)[ran],ydata(DS)[ran],sigma(DS)[ran])
+SubDataModel(DM::DataModel,ran) = DataModel(SubDataSet(DM.Data,ran),DM.model,DM.dmodel)
 
 
 """
@@ -103,9 +119,8 @@ struct Plane
 end
 
 function PlanarDataModel(DM::DataModel,PL::Plane)
-    newmod(x,p::Vector) = DM.model(x,PlaneCoordinates(PL,p))
-    H = [PL.Vx PL.Vy]
-    dnewmod(x,p::Vector) = DM.dmodel(x,PlaneCoordinates(PL,p)) * H
+    newmod = (x,p::Vector) -> DM.model(x,PlaneCoordinates(PL,p))
+    dnewmod = (x,p::Vector) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
     DataModel(DM.Data,newmod,dnewmod)
 end
 
@@ -116,7 +131,6 @@ function PlaneCoordinates(PL::Plane,x::Vector)
     length(x) != 2 && throw(ArgumentError("length(coordinates) != 2"))
     return PL.stütz .+ x[1]*PL.Vx .+ x[2]*PL.Vy
 end
-using LinearAlgebra
 import LinearAlgebra.dot
 dot(A::AbstractMatrix, x::Vector, y::Vector=x) = transpose(x)*A*y
 dot(x) = dot(x,x)
@@ -298,11 +312,23 @@ function CubeVol(Space::Vector)
     prod(uppers .- lowers)
 end
 CubeWidths(S::LowerUpper) = S.U .- S.L
+"""
+    CubeWidths(H::HyperCube) -> Vector
+Returns vector of widths of the `HyperCube`.
+"""
 CubeWidths(H::HyperCube) = CubeWidths(LowerUpper(H))
 
+"""
+    CubeVol(X::HyperCube)
+Computes volume of a `HyperCube` as the product of its sidelengths.
+"""
 CubeVol(X::HyperCube) = CubeVol(LowerUpper(X))
 CubeVol(S::LowerUpper) = prod(CubeWidths(S))
 
+"""
+    TranslateCube(H::HyperCube,x::Vector)
+Returns a `HyperCube` object which has been translated by `x`.
+"""
 function TranslateCube(H::HyperCube,x::Vector)
     H.dim != length(x) && throw("Translation vector must be of same dimension as hypercube.")
     [H.vals[i] .+ x[i] for i in 1:length(x)] |> HyperCube

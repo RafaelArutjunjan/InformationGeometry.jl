@@ -1,7 +1,7 @@
 
 # InformationGeometry
 
-Documentation for **InformationGeometry.jl**, a Julia package for differential-geometric analyses of statistical problems.
+This is the documentation of **InformationGeometry.jl**, a Julia package for differential-geometric analyses of statistical problems.
 
 | **Build Status** |
 |:----------------:|
@@ -10,13 +10,14 @@ Documentation for **InformationGeometry.jl**, a Julia package for differential-g
 
 ## Main Uses
 
-* Maximum likelihood estimation
-* Construction and visualization of exact confidence regions
-* Efficient calculation of Kullback-Leibler divergences
-* Computation of geometric quantities such as geodesics and curvature on the parameter manifold
+* maximum likelihood estimation
+* construction and visualization of exact confidence regions
+* efficient calculation of Kullback-Leibler divergences
+* computation of geometric quantities such as geodesics and curvature on the parameter manifold
 
 
 ## Installation
+
 As with any Julia package, **InformationGeometry.jl** can be added from the Julia terminal via
 ```julia
 julia> ] add InformationGeometry

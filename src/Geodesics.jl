@@ -326,7 +326,7 @@ function PlotCurves(Curves::Vector; N::Int=100)
 end
 
 """
-    EvaluateEach(sols::Vector{Q}, Ts::Vector) where Q <: ODESolution
+    EvaluateEach(sols::Vector{Q}, Ts::Vector) where Q <: ODESolution -> Vector
 Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """

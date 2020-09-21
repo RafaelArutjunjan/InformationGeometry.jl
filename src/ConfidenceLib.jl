@@ -1,13 +1,13 @@
 
 
 ################### Probability Stuff
-import Distributions.loglikelihood
 """
     likelihood(DM::DataModel,θ::Vector)
 Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` and a parameter configuration ``\\theta``.
 """
 likelihood(args...) = exp(loglikelihood(args...))
 
+import Distributions.loglikelihood
 """
     loglikelihood(DM::DataModel, θ::Vector)
 Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
@@ -37,16 +37,6 @@ function ploglikelihood(DM::DataModel, θ::Vector)
     -0.5*(length(xdata(DM))*log(2pi) + R)
 end
 
-# Naive Way:
-LLRnaive(DM::DataModel,params1::Vector{<:Real},params2::Vector{<:Real}) = loglikelihood(DM,params1) - loglikelihood(DM,params2)
-function LLR(DM::DataModel,params1::Vector{<:Real},params2::Vector{<:Real})
-    mod1 = DM.model(xdata(DM),params1);     mod2 = DM.model(xdata(DM),params2)
-    R = 0.0
-    for i in 1:length(xdata(DM))
-        R += 0.5*sigma(DM)[i]^-2 * (mod2[i]^2 - mod1[i]^2 + 2*ydata(DM)[i]*(mod1[i]-mod2[i]))
-    end
-    R
-end
 
 """
     ConfAlpha(n::Real)
@@ -376,51 +366,94 @@ function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); 
 end
 
 
-
-# Find MLE to BigFLoat precision.
-function FindMLEBig(DM::DataModel,start::Union{Bool,Vector}=false)
-    if isa(start,Bool)
-        return FindMLEBig(DM,BigFloat.(FindMLE(DM)))
-    elseif isa(start,Vector)
-        println("Warning: Passed $start to FindMLEBig.")
-        NegEll(x) = -loglikelihood(DM,x)
-        return optimize(NegEll, BigFloat.(start), LBFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
+function pdim(F::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
+    max < 1 && throw("pdim: max = $max too small.")
+    for i in 1:(max+1)
+        try
+            F(x,ones(i))
+        catch y
+            if isa(y, BoundsError)
+                continue
+            else
+                println("pdim: Encountered error in specification of model function.")
+                throw(y)
+            end
+        end
+        i != (max+1) && return i
     end
+    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
 end
 
 """
-    FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false)
-Finds the maximum likelihood parameter configuration given a DataModel and optionally a starting configuration. `Big=true` will return the value as a `BigFloat`.
+    pdim(DM::DataModel; max::Int=50) -> Int
+Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false)
+pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
+
+# Find MLE to BigFLoat precision.
+function FindMLEBig(DM::DataModel,start::Union{Bool,Vector}=false)
+    if isa(start,Vector)
+        NegEll(x) = -loglikelihood(DM,x)
+        return optimize(NegEll, BigFloat.(start), LBFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
+    elseif isa(start,Bool)
+        return FindMLEBig(DM,BigFloat.(FindMLE(DM)))
+    end
+end
+
+
+# function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false)
+#     Big && return FindMLEBig(DM,start)
+#     max = 50
+#     NegEll(x) = -loglikelihood(DM,x)
+#     if isa(start,Bool)
+#         A = Vector{Real}
+#         for i in 1:max
+#             try
+#                 A = Optim.minimizer(optimize(NegEll, ones(i), BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward))
+#             catch y
+#                 if isa(y, BoundsError) || isa(y, ArgumentError)
+#                     println("FindMLE automatically deduced that model must have >$i parameter(s).")
+#                     continue
+#                 else    throw(y)    end
+#             end
+#             if i != max  return A    else
+#                 throw(ArgumentError("dim(ParamSpace) appears to be larger than $max. FindMLE unsuccessful."))
+#             end
+#         end
+#     elseif isa(start,Vector)
+#         if suff(start) == BigFloat
+#             return FindMLEBig(DM,start)
+#         else
+#             println("Warning: Passed $start to FindMLE.")
+#             return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward) |> Optim.minimizer
+#         end
+#     end
+# end
+
+"""
+    FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, max::Int=50) -> Vector
+Finds the maximum likelihood parameter configuration given a `DataModel` and optionally a starting configuration. `Big=true` will return the value as a `BigFloat`.
+If no starting value is provided (i.e. `start=false`) the dimension of the parameter space is inferred automatically and the initial configuration is chosen as `start=ones(dim)`.
+"""
+function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, max::Int=50)
     Big && return FindMLEBig(DM,start)
-    max = 50
     NegEll(x) = -loglikelihood(DM,x)
     if isa(start,Bool)
-        A = Vector{Real}
-        for i in 1:max
-            try
-                A = Optim.minimizer(optimize(NegEll, ones(i), BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward))
-            catch y
-                if isa(y, BoundsError) || isa(y, ArgumentError)
-                    println("FindMLE automatically deduced that model must have >$i parameter(s).")
-                    continue
-                else    throw(y)    end
-            end
-            if i != max  return A    else
-                throw(ArgumentError("dim(ParamSpace) appears to be larger than $max. FindMLE unsuccessful."))
-            end
-        end
+        return optimize(NegEll, ones(pdim(DM; max=max)), BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,Vector)
         if suff(start) == BigFloat
             return FindMLEBig(DM,start)
         else
-            println("Warning: Passed $start to FindMLE.")
+            println("Warning: Passed $start to FindMLE as starting value.")
             return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward) |> Optim.minimizer
         end
     end
 end
 
+"""
+    GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
+Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
+"""
 function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true)
     L(params) = loglikelihood(DM,params);    V(params) = OrthVF(DM,params)
     LogLikeOnBoundary = L(u0)
@@ -442,7 +475,7 @@ function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, me
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
     # tspan = (zero(suff(u0)),convert(suff(u0),1000.))
-    tspan = (0.,1e4)
+    tspan = (0.,1e5)
     prob = ODEProblem(IntCurveODE,u0,tspan)
     if mfd
         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
@@ -549,7 +582,7 @@ end
 
 """
     Rsquared(DM::DataModel,Fit::LsqFit.LsqFitResult) -> Real
-Calculates the R² value of the fit result `Fit`.
+Calculates the R² value of the fit result `Fit`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
 """
 function Rsquared(DM::DataModel,Fit::LsqFit.LsqFitResult)
     length(ydata(DM)[1]) != 1  && return -1
@@ -559,12 +592,15 @@ function Rsquared(DM::DataModel,Fit::LsqFit.LsqFitResult)
     1 - Sres/Stot
 end
 
-
-function Integrate1D(F::Function,Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+"""
+    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
+"""
+function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
     Cube.dim != 1 && throw(ArgumentError("Cube dim = $(Cube.dim) instead of 1"))
     Integrate1D(F,Cube.vals[1][:],tol=tol,fullSol=fullSol,meth=meth)
 end
-function Integrate1D(F::Function,Interval::Vector;tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+function Integrate1D(F::Function, Interval::Vector; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
     length(Interval) != 2 && throw(ArgumentError("Interval not suitable for integration."))
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
@@ -629,7 +665,7 @@ end
     FisherMetric(DM::DataModel, θ::Vector{<:Real})
 Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
 ```math
-g_{ab} \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
+g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
 function FisherMetric(DM::DataModel, θ::Vector{<:Real})
@@ -656,7 +692,7 @@ D_{\\text{KL}}[p,q] \\coloneqq \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \
 function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([[-15,15]]); tol=1e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
     function Integrand(x)
         P = p(x)[1];   Q = q(x)[1];   Rat = P/Q
-        Rat <= 0 && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
+        (Rat <= 0. || abs(Rat) == Inf) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
         P*log(Rat)
     end
     if Carlo
@@ -737,6 +773,13 @@ KullbackLeibler(DM::DataModel,p::Vector) = KullbackLeibler(MvNormal(zeros(length
 
 
 # h(p) ∈ Dataspace
+"""
+    EmbeddingMap(DM::DataModel,θ::Vector{<:Real})
+Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
+```
+h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N,\\theta)\\big) \\in \\mathcal{D}
+```
+"""
 EmbeddingMap(DM::DataModel,θ::Vector{<:Real}) = map(x->DM.model(x,θ),xdata(DM))
 
 # NOT TO BE CONFUSED WITH JACOBIAN FROM TRANSTRUM PAPER -- NO SIGMAS HERE

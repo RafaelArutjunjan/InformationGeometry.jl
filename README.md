@@ -2,13 +2,13 @@
 
 *A Julia package for differential-geometric analyses of statistical problems.*
 
-| **Build Status**                                                                                |
-|:-----------------------------------------------------------------------------------------------:|
-| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
+| **Documentation** | **Build Status** |
+|:-----------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
 This package offers a set of basic tools to compute quantities of interest in information geometry and statistical analysis.
-Among these are likelihoods, Fisher metrics, Kullback-Leibler divergences, geodesics, Riemann and Ricci curvature tensors and so on.
-In particular, this package allows the user to efficiently compute the exact boundary of confidence intervals of a non-linear statistical model given a dataset.
+Among these are likelihoods, Kullback-Leibler divergences, the Fisher metric, geodesics, Riemann and Ricci curvature tensors and so on.
+Most importantly, this package enables the user to efficiently compute the exact boundaries of confidence regions for non-linear statistical models given a dataset.
 
 An explanation of how these methods work can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis).
 
@@ -80,6 +80,13 @@ Future Plans for this package
 -----------------------------
 **InformationGeometry.jl** is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
 
+
+
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/stable
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev
 
 [travis-img]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master
 [travis-url]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl
