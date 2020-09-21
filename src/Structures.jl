@@ -127,17 +127,23 @@ end
 function BasisVector(Slot::Int,dims::Int)
     Res = zeros(dims);    Res[Slot] = 1;    Res
 end
-function PlaneCoordinates(PL::Plane,x::Vector)
-    length(x) != 2 && throw(ArgumentError("length(coordinates) != 2"))
-    return PL.stütz .+ x[1]*PL.Vx .+ x[2]*PL.Vy
+"""
+    PlaneCoordinates(PL::Plane, v::Vector{<:Real})
+Returns an n-dimensional vector from a tuple of two real numbers which
+"""
+function PlaneCoordinates(PL::Plane, v::Vector{<:Real})
+    length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
+    # PL.stütz .+ v[1]*PL.Vx .+ v[2]*PL.Vy
+    # Faster:
+    PL.stütz + [PL.Vx PL.Vy]*v
 end
 import LinearAlgebra.dot
 dot(A::AbstractMatrix, x::Vector, y::Vector=x) = transpose(x)*A*y
 dot(x) = dot(x,x)
 länge(x::Vector{<:Real}) = sqrt(dot(x,x))
-EuclideanDistance(x::Vector, y::Vector) = länge(x.-y)
+EuclideanDistance(x::Vector, y::Vector) = länge(x .- y)
 IsOnPlane(PL::Plane,x::Vector)::Bool = (DistanceToPlane(PL,x) == 0)
-TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz .+ v, PL.Vx, PL.Vy)
+TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
 RotatePlane(PL::Plane, rads=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
 function RotationMatrix(PL::Plane,rads::Q) where Q<:Real
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
@@ -153,7 +159,7 @@ function DecomposeWRTPlane(PL::Plane,x::Vector)
     # [dot(V,PL.Vx)/dot(PL.Vx,PL.Vx),dot(V,PL.Vy)/dot(PL.Vy,PL.Vy)]
 end
 DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x .- PL.stütz) |> länge
-ProjectOntoPlane(PL::Plane,x::Vector) = PL.Projector*(x .- PL.stütz) .+ PL.stütz
+ProjectOntoPlane(PL::Plane,x::Vector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::Matrix)
     size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")

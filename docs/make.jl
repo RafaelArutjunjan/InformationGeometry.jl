@@ -20,7 +20,7 @@ makedocs(
 # for more information.
 deploydocs(
     repo = "github.com/RafaelArutjunjan/InformationGeometry.jl.git",
-    julia = "1.3",
-    osname = "linux",
+    # julia = "1.3",
+    # osname = "linux",
     # target = "build",
 )
