@@ -7,15 +7,7 @@ using SafeTestsets
     using InformationGeometry, Test, LinearAlgebra
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1]*x + p[2];
-    # dmodel(x::Number,p) = reshape([x,1.],(1,2))
-    # function dmodel(x::Vector,p)
-    #     J = Array{Float64,2}(undef,length(x),length(p))
-    #     for i in 1:length(x)
-    #         J[i,:] = dmodel(x[i],p)[:]
-    #     end;    J
-    # end
-    # DM = DataModel(DS,model,dmodel)
+    model(x,p) = p[1]*x + p[2]
     DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
     x = [0.1,0.5]; R = rand(2)
@@ -39,6 +31,13 @@ using SafeTestsets
     @test StructurallyIdentifiable(DM,sols[1])[1] == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
+
+
+    # DataSet and DataModel for multi-component x and y!!!
+    @test xdata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
+    @test ydata(DataSet([1,5,6],[[0,1.],[2,3],[5,8]],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
+
+    # Allow covariance matrix of size ydata * ydata
 end
 
 
@@ -97,6 +96,13 @@ end
     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 1e-13
     @test abs(GeodesicDistance(S2metric,[pi/4,1],[3pi/4,1]) - pi/2) < 1e-11
     @test abs(GeodesicDistance(S2metric,[pi/2,0],[pi/2,pi/2]) - pi/2) < 3e-10
+
+    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
+    model(x,p) = p[1].^3 .*x .+ p[2].^3
+    DM = DataModel(DS,model);   MLE = FindMLE(DM)
+    geo = GeodesicBetween(DM,MLE,MLE + rand(2),tol=1e-11)
+    @test sum(abs.(MLE .- [1.829289173660125,0.942865200406147])) < 1e-7
+    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
 end
 
 

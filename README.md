@@ -1,14 +1,14 @@
 # InformationGeometry.jl
 
-*A Julia package for geometric analyses of statistical problems.*
+*A Julia package for differential-geometric analyses of statistical problems.*
 
-| **Build Status**                                                                                |
-|:-----------------------------------------------------------------------------------------------:|
-| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
+| **Documentation** | **Build Status** |
+|:-----------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
 This package offers a set of basic tools to compute quantities of interest in information geometry and statistical analysis.
-Among these are (log-)likelihoods, Fisher Metrics, Kullback-Leibler divergences, Geodesics, Riemann and Ricci curvature tensors and so on.
-In particular, this package allows the user to efficiently compute the exact boundary of confidence intervals of a non-linear statistical model given a dataset.
+Among these are likelihoods, Kullback-Leibler divergences, the Fisher metric, geodesics, Riemann and Ricci curvature tensors and so on.
+Most importantly, this package enables the user to efficiently compute the exact boundaries of confidence regions for non-linear statistical models given a dataset.
 
 An explanation of how these methods work can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis).
 
@@ -67,7 +67,7 @@ KullbackLeibler(MvNormal([0,2.5],diagm([1,4.])),MvTDist(1,[3,2],diagm([2.,3.])),
 
 Installation
 ------------
-As with any Julia package, `InformationGeometry.jl` can be added from the Julia terminal via
+As with any Julia package, **InformationGeometry.jl** can be added from the Julia terminal via
 ```julia
 julia> ] add InformationGeometry
 ```
@@ -78,27 +78,15 @@ julia> using Pkg; Pkg.add("InformationGeometry")
 
 Future Plans for this package
 -----------------------------
-`InformationGeometry.jl` is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
-
-
-Todo:
------
-* Fisher Metrics: Allow for non-normal uncertainties in measurements e.g. by interpolating and deriving the Kullback-Leibler divergence over a domain
-* Parallelism: Improve support for parallel computations of geodesics, curvature tensors and so on
-* Divergences: Discrete distributions, more user control over parallelization for Monte Carlo, Importance Sampling
-* Plotting: Improve visualization capabilities for high-dimensional models
-* Documentation: More docstrings, show concrete examples / write guide
-* Interface: Standardize the user-facing keyword arguments
-* Benchmarks: Provide benchmarks for how `InformationGeometry.jl` compares to conventional inference methods
-* Optimisation: Use IntervalArithmetic
+**InformationGeometry.jl** is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
 
 
 
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/stable
 
-
-
-
-
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev
 
 [travis-img]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master
 [travis-url]: https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl

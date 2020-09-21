@@ -1,6 +1,6 @@
 module InformationGeometry
 
-using Distributed
+using Distributed, LinearAlgebra
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements
 using Distributions, SpecialFunctions, TensorOperations, DataFrames
@@ -21,6 +21,8 @@ using Plots
 # Immediately determine MLE and LogLikeMLE when building DataModel
 # Remove Plots.jl dependency and instead write recipes for FittedPlot and ResidualPlot
 
+# SaveDataSet is basically equivalent to DataFrame(DS)?
+# Create method which boils DataSet down to, say length(θ)+1 points for visualization of h(M) ⊆ D
 
 include("Structures.jl")
 # Types
@@ -30,7 +32,8 @@ export DataSet, DataModel, Plane, HyperCube, LowerUpper
 # Functions
 export Unpack, plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
-export xdata, ydata, sigma
+export xdata, ydata, sigma, xdim, ydim, pdim, PlanarDataModel
+export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel
 
 
 include("ConfidenceLib.jl")
@@ -49,8 +52,8 @@ export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic
 export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve, PlotAlongCurve, SaveConfidence, SaveGeodesics
 export Riemann, Ricci, RicciScalar, GeometricDensity
-
 export AutoScore, AutoMetric
+
 
 include("Plotting.jl")
 export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, VisualizeSol, VisualizeSols, PlotMatrix
