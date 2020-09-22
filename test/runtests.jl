@@ -57,13 +57,13 @@ end
     # Numerically calculated for via arbitrary types defined in Distributions.jl
     # ALSO ADD TESTS FOR DISCRETE DISTRIBUTIONS, DISTRIBUTIONS WITH LIMITED DOMAIN
     @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=false) - 16.77645704773449) < 1e-9
-    @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=true,N=Int(1e6)) - 16.7764) < 5e-2
-    @test abs(KullbackLeibler(MvTDist(1,[3,2,1.],diagm([1.,2.,3.])),MvNormal([1,2,3.],diagm([2,4,5.])),HyperCube(collect([-10,10.] for i in 1:3)),N=Int(1e6)) - 1.6559288) < 3e-1
+    @test abs(KullbackLeibler(Cauchy(1,2),Normal(5,1),HyperCube([[-20,20]]),Carlo=true,N=Int(3e6)) - 16.7764) < 5e-2
+    @test abs(KullbackLeibler(MvTDist(1,[3,2,1.],diagm([1.,2.,3.])),MvNormal([1,2,3.],diagm([2,4,5.])),HyperCube(collect([-10,10.] for i in 1:3)),N=Int(3e6)) - 1.6559288) < 3e-1
 
     # Via any positive (hopefully normalized) functions
-    @test abs(KullbackLeibler(x->pdf.(Normal(1,3),x),y->pdf.(Normal(5,2),y),Carlo=true,N=Int(1e6)) - 2.2195303) < 2e-2
+    @test abs(KullbackLeibler(x->pdf.(Normal(1,3),x),y->pdf.(Normal(5,2),y),Carlo=true,N=Int(3e6)) - 2.2195303) < 2e-2
     @test abs(KullbackLeibler(x->pdf.(Normal(1,3),x),y->pdf.(Normal(5,2),y),Carlo=false) - 2.21953032578115) < 1e-9
-    @test abs(KullbackLeibler(x->pdf(MvNormal([1,2,3.],diagm([1,2,1.5])),x),y->pdf(MvNormal([1,-2,-3.],diagm([2,1.5,1.])),y),HyperCube(collect([-7,7.] for i in 1:3)),N=Int(1e6)) - 23.4) < 4.5e-1
+    @test abs(KullbackLeibler(x->pdf(MvNormal([1,2,3.],diagm([1,2,1.5])),x),y->pdf(MvNormal([1,-2,-3.],diagm([2,1.5,1.])),y),HyperCube(collect([-7,7.] for i in 1:3)),N=Int(3e6)) - 23.4) < 5e-1
 
 end
 
