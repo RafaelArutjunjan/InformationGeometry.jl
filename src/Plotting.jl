@@ -34,7 +34,7 @@ end
 
 # LSQFIT
 import LsqFit.curve_fit
-curve_fit(DM::DataModel,initial::Vector=ones(pdim(DM)),args...;kwargs...) = curve_fit(DM.model,DM.dmodel,xdata(DM),ydata(DM),sigma(DM).^(-2),initial,args...;kwargs...)
+curve_fit(DM::DataModel,initial::Vector=ones(pdim(DM)),args...;tol::Real=1e-14,kwargs...) = curve_fit(DM.model,DM.dmodel,xdata(DM),ydata(DM),sigma(DM).^(-2),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
 
 
 # RecipesBase.@recipe function RecipeTester(args...)
@@ -303,37 +303,39 @@ function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane,size::Float64=0.5,
 end
 
 
-VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false) = Plots.plot!(sol,vars=vars,leg=leg)
-# function VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false)
-#     if leg
-#         q = erfinv(cdf(Chisq(length(sol.u[1])),2*(loglikelihood())))
-#         return Plots.plot!(sol,vars=vars,leg=leg,label="$(erfinv(cdf(Chisq(length())))) sigma")
-#     else
-#         return Plots.plot!(sol,vars=vars,leg=leg)
-#     end
-# end
+
+
+function Deplanarize(PL::Plane,sol::ODESolution;N::Int=500)
+    map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end],length=N)) |> Unpack
+end
 
 """
     VisualizeSols(sols::Vector; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false)
+function VisualizeSols(sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSol(sol,vars=vars,leg=leg)
     end;    p
 end
+VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false) = Plots.plot!(sol,vars=vars,leg=leg)
+
 
 function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500)
-    function Deplanarize(PL::Plane,sol::ODESolution;N::Int=500)
-        map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end],length=N)) |> Unpack
-    end
     H = Deplanarize(PL,sol,N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3],leg=leg)
 end
-function VisualizeSols(PL::Plane,sols::Vector; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false)
+function VisualizeSols(PL::Plane,sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSol(PL,sol,vars=vars,leg=leg)
+    end;    p
+end
+function VisualizeSols(PL::Vector{P},sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution where P<:Plane
+    length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
+    p = [];     OverWrite && Plots.plot()
+    for i in 1:length(sols)
+        p = VisualizeSol(PL[i],sols[i],vars=vars,leg=leg)
     end;    p
 end
 

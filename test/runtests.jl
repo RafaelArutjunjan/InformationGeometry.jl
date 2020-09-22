@@ -111,7 +111,7 @@ end
 
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
-    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1e-3
+    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1.5e-3
     @test abs(Integrate1D(cos,[0,pi/2]) .- 1) < 1e-13
     z = 3rand()
     @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12

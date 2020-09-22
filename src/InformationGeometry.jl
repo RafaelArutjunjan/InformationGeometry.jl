@@ -38,7 +38,7 @@ export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataM
 
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
-export WilksTest, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
+export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
 
@@ -57,7 +57,7 @@ export AutoScore, AutoMetric
 
 include("Plotting.jl")
 export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, VisualizeSol, VisualizeSols, PlotMatrix
-export VisualizeGeos, VisualizeGeo, PointwiseConfidenceBand
+export VisualizeGeos, VisualizeGeo, PointwiseConfidenceBand, Deplanarize
 
 export suff, ConfidenceRegionVolume, SaveDataSet
 

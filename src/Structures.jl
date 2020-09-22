@@ -359,6 +359,8 @@ function CoverCubes(A::HyperCube,B::HyperCube)
     end
     HyperCube(LowerUpper(lower,upper))
 end
+CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
+CoverCubes(V::Vector{T}) where T<:HyperCube = CoverCubes(V...)
 
 
 normalize(x::Vector,scaling::Float64=1.0) = scaling.*x ./ sqrt(sum(x.^2))

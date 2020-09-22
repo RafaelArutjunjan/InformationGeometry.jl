@@ -304,19 +304,18 @@ function OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false)
     normalize(alpha .* VF)
 end
 
-ConstructCube(sol::ODESolution,Npoints::Int=200;Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
-function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200;Padding::Real=1/50)
-    # Padding < 0. && throw("Cube Padding negative.")
-    nparams = length(sol.u[1]);  lowers = copy(sol.u[1]);  uppers = copy(sol.u[1])
-    for t in range(sol.t[1],sol.t[end], length=Npoints)
-        Point = sol(t)
-        for i in 1:nparams
-            lowers[i] = minimum([lowers[i],Point[i]])
-            uppers[i] = maximum([uppers[i],Point[i]])
-        end
-    end
-    diff = (uppers .- lowers) .* Padding
-    LowerUpper(lowers .- diff,uppers .+ diff)
+
+ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
+function ConstructLowerUpper(M::Matrix{<:Real}; Padding::Real=1/50)
+    lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
+    uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
+    diff = (uppers - lowers) .* Padding
+    LowerUpper(lowers - diff,uppers + diff)
+end
+
+ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
+function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
+    ConstructLowerUpper(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))),Padding=Padding)
 end
 
 ########################## Monte Carlo
@@ -435,17 +434,17 @@ end
 Finds the maximum likelihood parameter configuration given a `DataModel` and optionally a starting configuration. `Big=true` will return the value as a `BigFloat`.
 If no starting value is provided (i.e. `start=false`) the dimension of the parameter space is inferred automatically and the initial configuration is chosen as `start=ones(dim)`.
 """
-function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, max::Int=50)
+function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, tol::Real=1e-14, max::Int=50)
     Big && return FindMLEBig(DM,start)
     NegEll(x) = -loglikelihood(DM,x)
     if isa(start,Bool)
-        return optimize(NegEll, ones(pdim(DM; max=max)), BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward) |> Optim.minimizer
+        return optimize(NegEll, ones(pdim(DM; max=max)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,Vector)
         if suff(start) == BigFloat
             return FindMLEBig(DM,start)
         else
             println("Warning: Passed $start to FindMLE as starting value.")
-            return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=1e-14), autodiff = :forward) |> Optim.minimizer
+            return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
         end
     end
 end
