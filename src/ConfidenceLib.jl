@@ -832,3 +832,10 @@ FisherEllipsoid(Metric::Function, point::Vector{<:Real}) = eigvecs(Metric(point)
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta) + 2 \\, \\mathrm{length}(\\theta)``.
 """
 AIC(DM::DataModel, θ::Vector) = -2loglikelihood(DM,θ) + 2length(θ)
+
+
+"""
+    IsLinear(DM::DataModel) -> Bool
+Checks whether the `model(x,θ)` function is linear with respect to its parameters ``\\theta \\in \\mathcal{M}``.
+"""
+IsLinear(DM::DataModel)::Bool = DM.dmodel(xdata(DM),rand(pdim(DM))) == DM.dmodel(xdata(DM),rand(pdim(DM)))

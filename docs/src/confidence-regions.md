@@ -40,6 +40,7 @@ savefig("../assets/sols2.svg"); nothing # hide
 ```
 ![](../assets/sols2.svg)
 
+Since both finding and visualizing exact confidence regions for models depending on more than two parameters (i.e. ``\mathrm{dim} \, \mathcal{M} > 2``) is more challenging from a technical perspective, the above methods only work for ``\mathrm{dim} \, \mathcal{M} = 2`` at this point in time. However, methods which allow for visualizations of confidence regions in arbitrary three-dimensional subspaces of parameter manifolds of any dimension are close to being finished and will follow soon.
 
 
 Various geometric quantities which are intrinsic to the parameter manifold ``\mathcal{M}`` can be computed as a result of the Fisher metric ``g`` (and subsequent choice of the Levi-Civita connection) such as the Riemann and Ricci tensors and the Ricci scalar ``R``.

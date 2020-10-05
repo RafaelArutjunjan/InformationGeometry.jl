@@ -6,7 +6,7 @@ suff(X::AbstractArray) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suf
 """
 The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
 For example,
-```
+```julia
 DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
 ```
 Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
@@ -41,6 +41,23 @@ end
 
 """
 In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
+For example
+```julia
+DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
+model(x,p::Vector) = p[1] .* x .+ p[2]
+DM = DataModel(DS,model)
+```
+If provided like this, the gradient of the model with respect to the parameters `p` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
+```julia
+function dmodel(x,p::Vector)
+   J = Array{Float64}(undef, length(x), length(p))
+   @. J[:,1] = x        # ∂(model)/∂p₁
+   @. J[:,2] = 1.       # ∂(model)/∂p₂
+   return J
+end
+DM = DataModel(DS,model,dmodel)
+```
+The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `p` and whose rows correspond to evaluations at different values of `x`.
 """
 struct DataModel
     Data::DataSet
@@ -49,8 +66,8 @@ struct DataModel
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     function DataModel(D::DataSet,F::Function)
-        Autodmodel(x::Q,p) where Q<:Real = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
-        function Autodmodel(x::Vector{<:Real},p)
+        Autodmodel(x::Q,p::Vector) where Q<:Real = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
+        function Autodmodel(x::Vector{<:Real},p::Vector)
             Res = Array{suff(p)}(undef,length(x),length(p))
             for i in 1:length(x)
                 Res[i,:] = Autodmodel(x[i],p)
@@ -204,7 +221,7 @@ end
 The `HyperCube` type has the fields `vals::Vector{Vector}`, which stores the intervals which define the hypercube and `dim::Int`, which gives the dimension.
 Overall it just offers a convenient and standardized way of passing domains for integration or plotting between functions without having to check that these domains are sensible every time.
 Examples for constructing `HyperCube`s:
-```
+```julia
 HyperCube([[1,3],[pi,2pi],[-500.0,100.0]])
 HyperCube([[-1,1]])
 HyperCube([-1,1])
@@ -212,8 +229,8 @@ HyperCube(LowerUpper([-1,-5],[0,-4]))
 HyperCube(collect([-7,7.] for i in 1:3))
 ```
 The `HyperCube` type is closely related to the `LowerUpper` type and they can be easily converted into each other.
-Examples for quantities that can be computed from and operations involving `HyperCube` objects:
-```
+Examples of quantities that can be computed from and operations involving a `HyperCube` object `X`:
+```julia
 CubeVol(X)
 TranslateCube(X,v::Vector)
 CubeWidths(X)
@@ -240,13 +257,13 @@ end
 The `LowerUpper` type has a field `L` and a field `U` which respectively store the lower and upper boundaries of an N-dimensional Hypercube.
 It is very closely related to (and stores the same information as) the `HyperCube` type.
 Examples for constructing `LowerUpper`s:
-```
+```julia
 LowerUpper([-1,-5,pi],[0,-4,2pi])
 LowerUpper(HyperCube([[5,6],[-pi,0.5]]))
 LowerUpper(collect(1:5),collect(15:20))
 ```
-Examples for quantities that can be computed from and operations involving `LowerUpper` objects:
-```
+Examples for quantities that can be computed from and operations involving a `LowerUpper` object `X`:
+```julia
 CubeVol(X)
 TranslateCube(X,v::Vector)
 CubeWidths(X)

@@ -8,7 +8,7 @@
 Todo:
 -----
 * Allow for non-normal uncertainties in measurements e.g. by interpolating and deriving the Kullback-Leibler divergence over a domain
-* Allow for uncertainties in the conditions (i.e. x-values) by rewriting the DataSet type
+* Allow for uncertainties in the conditions (i.e. x-values) by rewriting the `DataSet` type
 * Parallelism: Improve support for parallel computations of geodesics, curvature tensors and so on
 * Employ importance sampling for Monte Carlo computations
 * Improve visualization capabilities for high-dimensional models

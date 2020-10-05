@@ -35,7 +35,7 @@ g_{ab}(\theta) \coloneqq \bigg[\frac{\partial^2}{\partial \psi^a \, \partial \ps
 ```
 where it was assumed that the order of the derivative operator and the integration involved in the expectation value can be interchanged.
 
-The Hessian of the Kullback-Leibler divergence is typically referred to as the Fisher information matrix. Moreover, since it can be shown that the Fisher information is not only positive-definite but also exhibits the transformation behaviour associated with a ``(0,2)``-tensor field, it can be shown to constitute a Riemannian metric on the parameter manifold ``\mathcal{M}``.
+The Hessian of the Kullback-Leibler divergence is typically referred to as the Fisher information matrix. Moreover, since it can be shown that the Fisher information is not only positive-definite but also exhibits the transformation behaviour associated with a ``(0,2)``-tensor field, it can therefore be used as a Riemannian metric on the parameter manifold ``\mathcal{M}``.
 
 Clearly, the Riemannian geometry induced on ``\mathcal{M}`` by the Fisher metric is ill-equipped to faithfully capture the behaviour of the Kullback-Leibler divergence in its entirety (e.g. its asymmetry). Nevertheless, this Riemannian approximation already encodes many of the key aspects of the Kullback-Leibler divergence and additionally benefits from the versatility and maturity of the differential-geometric formalism. Therefore, the Fisher metric offers a convenient and powerful tool which can be used to study statistical problems in a coordinate invariant setting which focuses on intrinsic properties of the parameter manifold.
 

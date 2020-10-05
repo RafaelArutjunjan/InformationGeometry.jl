@@ -41,6 +41,7 @@ export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvC
 export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
+export IsLinear
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
