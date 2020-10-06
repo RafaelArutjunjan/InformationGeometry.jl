@@ -313,40 +313,40 @@ end
     VisualizeSols(sols::Vector; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution
+function VisualizeSols(sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...) where T<:ODESolution
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSol(sol,vars=vars,leg=leg)
+        p = VisualizeSol(sol;vars=vars,leg=leg,kwargs...)
     end;    p
 end
-VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false) = Plots.plot!(sol,vars=vars,leg=leg)
+VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false,kwargs...) = Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
 
 
-function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500)
-    H = Deplanarize(PL,sol,N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3],leg=leg)
+function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
+    H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
 end
-function VisualizeSols(PL::Plane,sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution
+function VisualizeSols(PL::Plane,sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...) where T<:ODESolution
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSol(PL,sol,vars=vars,leg=leg)
+        p = VisualizeSol(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
     end;    p
 end
-function VisualizeSols(PL::Vector{P},sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false) where T<:ODESolution where P<:Plane
+function VisualizeSols(PL::Vector{P},sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...) where T<:ODESolution where P<:Plane
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
-        p = VisualizeSol(PL[i],sols[i],vars=vars,leg=leg)
+        p = VisualizeSol(PL[i],sols[i]; N=N,vars=vars,leg=leg, kwargs...)
     end;    p
 end
 
 
-function VisualizeSolPoints(sol::ODESolution)
-    Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)],marker=:hex,markersize=2)
+function VisualizeSolPoints(sol::ODESolution; kwargs...)
+    Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex,markersize=2, kwargs...)
 end
-function VisualizeSolPoints(sols::Vector; OverWrite::Bool=false)
+function VisualizeSolPoints(sols::Vector; OverWrite::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSolPoints(sol)
+        p = VisualizeSolPoints(sol; kwargs...)
     end;    p
 end
 

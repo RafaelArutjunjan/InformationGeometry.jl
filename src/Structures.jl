@@ -116,22 +116,24 @@ SubDataModel(DM::DataModel,ran) = DataModel(SubDataSet(DM.Data,ran),DM.model,DM.
 Specifies a 2D plane in the so-called parameter form using 3 vectors.
 """
 struct Plane
-    stütz::Vector{<:Real}
-    Vx::Vector{<:Real}
-    Vy::Vector{<:Real}
-    Projector::Matrix{<:Real}
-    function Plane(stütz,Vx,Vy)
+    stütz::AbstractVector
+    Vx::AbstractVector
+    Vy::AbstractVector
+    Projector::AbstractMatrix
+    function Plane(stütz::Vector{<:Real},Vx::Vector{<:Real},Vy::Vector{<:Real})
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
-        dim = length(stütz)
-        if (length(Vx) != dim) || (length(Vy) != dim)
-            throw(ArgumentError("Dimension mismatch. length(stütz) = $dim, length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
+        if !(length(stütz) == length(Vx) == length(Vy))
+            throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
         elseif dot(Vx,Vy) != 0
             println("Plane: Making Vy orthogonal to Vx.")
             new(float.(stütz),float.(normalize(Vx)),Make2ndOrthogonal(Vx,Vy),ProjectionOperator([Vx Vy]))
-            # throw(ArgumentError("Basis Vectors of Plane not orthogonal."))
         else
-            new(float.(stütz),float.(normalize(Vx)),float.(normalize(Vy)),float.(ProjectionOperator([Vx Vy])))
+            new(float.(stütz),float.(normalize(Vx)),float.(normalize(Vy)),ProjectionOperator([Vx Vy]))
         end
+    end
+    function Plane(stütz::Vector{<:Real},Vx::Vector{<:Real},Vy::Vector{<:Real}, Projector::Matrix{<:Real})
+        !(length(stütz) == length(Vx) == length(Vy) == size(Projector,1) == size(Projector,2)) && throw("Plane: Dimensional Mismatch.")
+        new(stütz,Vx,Vy,Projector)
     end
 end
 

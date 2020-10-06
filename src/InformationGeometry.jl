@@ -24,6 +24,9 @@ using Plots
 # SaveDataSet is basically equivalent to DataFrame(DS)?
 # Create method which boils DataSet down to, say length(θ)+1 points for visualization of h(M) ⊆ D
 
+# ADD TESTS FOR CorrectedCovariance
+
+
 include("Structures.jl")
 # Types
 export DataSet, DataModel, Plane, HyperCube, LowerUpper
@@ -41,7 +44,7 @@ export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvC
 export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
-export IsLinear
+export IsLinearParameter, IsLinear, CorrectedCovariance
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation

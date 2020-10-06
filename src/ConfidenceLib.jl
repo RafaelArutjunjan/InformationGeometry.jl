@@ -443,7 +443,7 @@ function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false,
         if suff(start) == BigFloat
             return FindMLEBig(DM,start)
         else
-            println("Warning: Passed $start to FindMLE as starting value.")
+            # println("Warning: Passed $start to FindMLE as starting value.")
             return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
         end
     end
@@ -833,9 +833,44 @@ Calculates the Akaike Information Criterion given a parameter configuration ``\\
 """
 AIC(DM::DataModel, θ::Vector) = -2loglikelihood(DM,θ) + 2length(θ)
 
+"""
+    IsLinearParameter(DM::DataModel) -> Vector{Bool}
+Checks with respect to which parameters the model function `model(x,θ)` is linear and returns vector of booleans where `true` indicates linearity.
+This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
+"""
+function IsLinearParameter(DM::DataModel)::Vector{Bool}
+    J1 = DM.dmodel(xdata(DM),rand(pdim(DM)));    J2 = DM.dmodel(xdata(DM),rand(pdim(DM)))
+    [J1[:,i] == J2[:,i]  for i in 1:size(J1,2)]
+end
 
 """
     IsLinear(DM::DataModel) -> Bool
-Checks whether the `model(x,θ)` function is linear with respect to its parameters ``\\theta \\in \\mathcal{M}``.
+Checks whether the `model(x,θ)` function is linear with respect to all of its parameters ``\\theta \\in \\mathcal{M}``.
+A componentwise check can be attained via the method `IsLinearParameter(DM)`.
 """
-IsLinear(DM::DataModel)::Bool = DM.dmodel(xdata(DM),rand(pdim(DM))) == DM.dmodel(xdata(DM),rand(pdim(DM)))
+function IsLinear(DM::DataModel)::Bool
+    res = IsLinearParameter(DM)
+    sum(res) == length(res)
+end
+
+"""
+    CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
+Experimental function which attempts to compute the exact covariance matrix for linear models.
+"""
+function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
+    if !IsLinear(DM)
+        println("CorrectedCovariance: model not linear, thus ∄ linear covariance matrix.")
+        return false
+    end
+    MLE = FindMLE(DM);      C = Symmetric(inv(FisherMetric(DM,MLE)));    L = cholesky(C).L
+    v = L*normalize(ones(length(MLE)));    LogLikeMLE = loglikelihood(DM,MLE);    CF = ConfVol(1.)
+    lenp = length(MLE);    res = 0.
+    TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE-loglikelihood(DM,MLE + x.*v))) - CF
+    TestDisc(x::Real)::Bool = InformationGeometry.WilksTestPrepared(DM, MLE + x.*v, LogLikeMLE, CF)
+    if disc
+        res = LineSearch(TestDisc,1.,tol=tol)
+    else
+        res = find_zero(TestCont,1.,xatol=tol)
+    end
+    return res^2 .* C
+end

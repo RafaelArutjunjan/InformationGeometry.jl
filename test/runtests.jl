@@ -7,11 +7,12 @@ using SafeTestsets
     using InformationGeometry, Test, LinearAlgebra
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1]*x + p[2]
+    model(x,p) = p[1] * x + p[2]
     DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
     x = [0.1,0.5]; R = rand(2)
 
+    @test IsLinear(DM)
 
     @test loglikelihood(DM,x) ≈ -60.84746565764638
     @test Score(DM,x) ≈ [18.08402777777778,18.737500000000004]
