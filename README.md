@@ -9,11 +9,13 @@
 Upon closer inspection, one finds that the parameter space of a model (i.e. the set of all admissible parameter configurations) typically does not constitute a vector space as one might naively assume. Instead, the parameter space must be considered more generally as a smooth manifold.
 
 Given some dataset and a prescription of a model function which is assumed to accurately reflect the relationship present in the data, this package offers a set of basic tools to compute quantities of interest in applied information geometry and study the parameter space in detail. Said quantities of interest include
+
 * likelihoods,
 * Kullback-Leibler divergences,
 * the Fisher metric,
 * geodesics,
 * Riemann and Ricci curvature tensors
+
 and so on.
 
 Most importantly, this package provides methods for efficient computations of the *exact* boundaries of confidence regions for statistical models. Given that it is common practice in experimental sciences to rely on linear approximations of the uncertainty / covariance associated with the best fit parameters of a model, the methods provided by **InformationGeometry.jl** constitute a significant improvement, particularly when working with models which depend non-linearly on their parameters.
