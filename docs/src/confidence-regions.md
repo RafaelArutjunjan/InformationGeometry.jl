@@ -33,10 +33,10 @@ model2(x,θ) = θ[1]^3 .* x .+ exp(θ[1] + θ[2])
 DM2 = DataModel(DS,model2)
 sols2 = GenerateMultipleIntervals(DM2,1:2)
 VisualizeSols(sols2)
-plot(sols2[1],vars=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
-plot!(sols2[2],vars=(1,2),label="2σ CR") # hide
-MLE2 = FindMLE(DM2);  scatter!([MLE2[1]],[MLE2[2]],marker=:c,label="MLE") # hide
-savefig("../assets/sols2.svg"); nothing # hide
+#plot(sols2[1],vars=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
+#plot!(sols2[2],vars=(1,2),label="2σ CR") # hide
+#MLE2 = FindMLE(DM2);  scatter!([MLE2[1]],[MLE2[2]],marker=:c,label="MLE") # hide
+#savefig("../assets/sols2.svg"); nothing # hide
 ```
 ![](../assets/sols2.svg)
 
