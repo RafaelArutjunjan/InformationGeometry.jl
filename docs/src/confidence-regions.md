@@ -18,12 +18,12 @@ Depending on how the parameters ``\theta`` enter into the model, the shapes of c
 ```@example 1
 sols = GenerateMultipleIntervals(DM,1:2)
 VisualizeSols(sols)
-plot(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
-plot!(sols[2],vars=(1,2),label="2σ CR") # hide
-scatter!([MLE[1]],[MLE[2]],marker=:c,label="MLE") # hide
-savefig("../assets/sols.svg"); nothing # hide
+# plot(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
+# plot!(sols[2],vars=(1,2),label="2σ CR") # hide
+# scatter!([MLE[1]],[MLE[2]],marker=:c,label="MLE") # hide
+# savefig("../assets/sols.svg"); nothing # hide
 ```
-![](../assets/sols.svg)
+![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/386321f1ae2755f9ee36ebe267855cb6f70177a0/docs/assets/sols.svg)
 
 
 
@@ -38,7 +38,7 @@ VisualizeSols(sols2)
 #MLE2 = FindMLE(DM2);  scatter!([MLE2[1]],[MLE2[2]],marker=:c,label="MLE") # hide
 #savefig("../assets/sols2.svg"); nothing # hide
 ```
-![](../assets/sols2.svg)
+![](https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols2.svg)
 
 Since both finding and visualizing exact confidence regions for models depending on more than two parameters (i.e. ``\mathrm{dim} \, \mathcal{M} > 2``) is more challenging from a technical perspective, the above methods only work for ``\mathrm{dim} \, \mathcal{M} = 2`` at this point in time. However, methods which allow for visualizations of confidence regions in arbitrary three-dimensional subspaces of parameter manifolds of any dimension are close to being finished and will follow soon.
 

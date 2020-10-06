@@ -6,80 +6,26 @@
 |:-----------------:|:----------------:|
 | [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
-This package offers a set of basic tools to compute quantities of interest in information geometry and statistical analysis.
-Among these are likelihoods, Kullback-Leibler divergences, the Fisher metric, geodesics, Riemann and Ricci curvature tensors and so on.
-Most importantly, this package enables the user to efficiently compute the exact boundaries of confidence regions for non-linear statistical models given a dataset.
+Upon closer inspection, one finds that the parameter space of a model (i.e. the set of all admissible parameter configurations) typically does not constitute a vector space as one might naively assume. Instead, the parameter space must be considered more generally as a smooth manifold.
 
-An explanation of how these methods work can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis).
+Given some dataset and a prescription of a model function which is assumed to accurately reflect the relationship present in the data, this package offers a set of basic tools to compute quantities of interest in applied information geometry and study the parameter space in detail. Said quantities of interest include
+* likelihoods,
+* Kullback-Leibler divergences,
+* the Fisher metric,
+* geodesics,
+* Riemann and Ricci curvature tensors
+and so on.
 
+Most importantly, this package provides methods for efficient computations of the *exact* boundaries of confidence regions for statistical models. Given that it is common practice in experimental sciences to rely on linear approximations of the uncertainty / covariance associated with the best fit parameters of a model, the methods provided by **InformationGeometry.jl** constitute a significant improvement, particularly when working with models which depend non-linearly on their parameters.
 
-DataModels
-----------
-The `DataSet` and `DataModel` types represent immutable containers to store datasets and models and conveniently pass them to functions.
-Some elementary examples:
-```julia
-using InformationGeometry
-DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
-model(x,p) = p[1] .* x .+ p[2]
-DM = DataModel(DS,model)
-```
-If provided like this, the gradient of the model with respect to the parameters `p` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
-```julia
-function dmodel(x,p::Vector)
-   J = Array{Float64}(undef, length(x), length(p))
-   @. J[:,1] = x        # ∂(model)/∂p₁
-   @. J[:,2] = 1.       # ∂(model)/∂p₂
-   return J
-end
-DM = DataModel(DS,model,dmodel)
-```
-The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `p` and whose rows correspond to evaluations at different values of `x`.
+Resources detailing how to use this package can be found in the [**documentation**](https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev).
 
-Given such a `DataModel`, further quantities of interest can be calculated, e.g. via
-```julia
-loglikelihood(DM::DataModel,p::Vector)
-FindMLE(DM::DataModel)
-Score(DM::DataModel,p::Vector)
-FisherMetric(DM::DataModel,p::Vector)
-GeometricDensity(DM::DataModel,p::Vector)
-ChristoffelSymbol(DM::DataModel,p::Vector)
-Riemann(DM::DataModel,p::Vector)
-Ricci(DM::DataModel,p::Vector)
-RicciScalar(DM::DataModel,p::Vector)
-AIC(DM::DataModel,p::Vector)
-GeodesicDistance(DM::DataModel,p::Vector,q::Vector)
-```
-where `Riemann` returns the components of the (1,3)-Riemann tensor and `ChristoffelSymbol` returns the (1,2) form of the Christoffel symbols, that is, the Christoffel symbols "of the second kind".
+A discussion of the mathematical ideas underlying the methods employed by **InformationGeometry.jl** can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis).
 
-
-Calculating Kullback-Leibler divergences
-----------------------------------------
-Using the distribution types defined in [Distributions.jl](https://github.com/JuliaStats/Distributions.jl), this package implements a variety of schemes for the numerical evaluation of the [Kullback-Leibler divergence](https://en.wikipedia.org/wiki/Kullback–Leibler_divergence) between distributions over a specified domain:
-* For univariate distributions, the integral is rephrased in the form of an ordinary differential equation and solved with the sophisticated methods provided by [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl).
-* For multivariate distributions, Monte Carlo simulation is used to estimate the integral.
-* In many cases, closed-form expressions for the Kullback-Leibler divergence are known. These include: Normal, Cauchy, Exponential, Weibull, Gamma
-
-Examples of use:
-```julia
-KullbackLeibler(Cauchy(1.,2.4),Normal(-4,0.5),HyperCube([-100,100]),Carlo=false,tol=1e-12)
-KullbackLeibler(MvNormal([0,2.5],diagm([1,4.])),MvTDist(1,[3,2],diagm([2.,3.])),HyperCube([[-50,50],[-50,50]]),N=Int(1e8))
-```
-
-Installation
-------------
-As with any Julia package, **InformationGeometry.jl** can be added from the Julia terminal via
-```julia
-julia> ] add InformationGeometry
-```
-or alternatively by
-```julia
-julia> using Pkg; Pkg.add("InformationGeometry")
-```
 
 Future Plans for this package
 -----------------------------
-**InformationGeometry.jl** is a loose collection of code which I wrote especially to perform calculations in the specific context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
-
+**InformationGeometry.jl** is a loose collection of code which I wrote especially to perform calculations in the context of my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). As such, it was not originally written with its publication as a module in mind but instead mostly optimized to fit my personal needs. Now that my thesis is finished, I plan on revising the internals of this package to improve performance and significantly extend its functionality. In addition, I will do my best to provide detailed documentation and examples of how to use this package over the coming weeks.
 
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
