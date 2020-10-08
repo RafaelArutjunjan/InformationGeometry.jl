@@ -6,7 +6,7 @@
 |:-----------------:|:----------------:|
 | [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
 
-Upon closer inspection, one finds that the parameter space of a model (i.e. the set of all admissible parameter configurations) typically does not constitute a vector space as one might naively assume. Instead, the parameter space must be considered more generally as a smooth manifold.
+Upon closer inspection, one finds that the parameter space of a model (i.e. the set of all admissible parameter configurations) typically does not constitute a vector space as one might naively assume. Instead, the parameter space must be considered more generally as a (smooth) manifold.
 
 Given some dataset and a prescription of a model function which is assumed to accurately reflect the relationship present in the data, this package offers a set of basic tools to compute quantities of interest in applied information geometry and study the parameter space in detail. Said quantities of interest include
 

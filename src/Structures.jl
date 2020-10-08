@@ -1,7 +1,7 @@
 
 
 suff(x::Number) = typeof(float(x))
-suff(X::AbstractArray) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
+suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
 """
 The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
@@ -44,29 +44,32 @@ In addition to a `DataSet`, a `DataModel` contains the model as a function `mode
 For example
 ```julia
 DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
-model(x,p::Vector) = p[1] .* x .+ p[2]
+model(x,θ::Vector) = θ[1] .* x .+ θ[2]
 DM = DataModel(DS,model)
 ```
-If provided like this, the gradient of the model with respect to the parameters `p` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
+If provided like this, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
-function dmodel(x,p::Vector)
-   J = Array{Float64}(undef, length(x), length(p))
-   @. J[:,1] = x        # ∂(model)/∂p₁
-   @. J[:,2] = 1.       # ∂(model)/∂p₂
+function dmodel(x,θ::Vector)
+   J = Array{Float64}(undef, length(x), length(θ))
+   @. J[:,1] = x        # ∂(model)/∂θ₁
+   @. J[:,2] = 1.       # ∂(model)/∂θ₂
    return J
 end
 DM = DataModel(DS,model,dmodel)
 ```
-The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `p` and whose rows correspond to evaluations at different values of `x`.
+The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different values of `x`.
 """
 struct DataModel
     Data::DataSet
     model::Function
     dmodel::Function
+    # MLE::AbstractVector
+    # LogLikeMLE::Real
+    # pdim::Int
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     function DataModel(D::DataSet,F::Function)
-        Autodmodel(x::Q,p::Vector) where Q<:Real = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
+        Autodmodel(x::Real,p::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
         function Autodmodel(x::Vector{<:Real},p::Vector)
             Res = Array{suff(p)}(undef,length(x),length(p))
             for i in 1:length(x)
@@ -74,7 +77,7 @@ struct DataModel
             end
             Res
         end
-        new(D,F,Autodmodel)
+        DataModel(D,F,Autodmodel)
     end
     DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
 end
@@ -84,6 +87,33 @@ ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data
 sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
+
+
+
+
+"""
+    pdim(DM::DataModel; max::Int=50) -> Int
+Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
+"""
+pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
+
+function pdim(F::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
+    max < 1 && throw("pdim: max = $max too small.")
+    for i in 1:(max+1)
+        try
+            F(x,ones(i))
+        catch y
+            if isa(y, BoundsError)
+                continue
+            else
+                println("pdim: Encountered error in specification of model function.")
+                throw(y)
+            end
+        end
+        i != (max+1) && return i
+    end
+    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
+end
 
 
 function Sparsify(DS::DataSet,B::Vector=rand(Bool,length(DS.x)))
@@ -162,7 +192,7 @@ dot(x) = dot(x,x)
 länge(x::Vector{<:Real}) = sqrt(dot(x,x))
 EuclideanDistance(x::Vector, y::Vector) = länge(x .- y)
 IsOnPlane(PL::Plane,x::Vector)::Bool = (DistanceToPlane(PL,x) == 0)
-TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
+TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
 RotatePlane(PL::Plane, rads=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
 function RotationMatrix(PL::Plane,rads::Q) where Q<:Real
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
@@ -316,12 +346,12 @@ function SensibleOutput(Res::Vector)
         end
         return u,v
     else
-        throw(ArgumentError("Expected Vector{Real} or Vector{Vector{Real}}, got $(typeof(Res))"))
+        throw(ArgumentError("Expected Vector{Real} or Vector{Vector{Real}}, but got $(typeof(Res))"))
     end
 end
 
 Unpack(H::HyperCube) = Unpack(H.vals)
-function Unpack(Z::Vector{Vector{Q}}) where Q
+function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     N = length(Z); M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
     for i in 1:N
@@ -331,6 +361,7 @@ function Unpack(Z::Vector{Vector{Q}}) where Q
     end
     A
 end
+ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 
 function CubeVol(Space::Vector)
     lowers,uppers = SensibleOutput(Space)

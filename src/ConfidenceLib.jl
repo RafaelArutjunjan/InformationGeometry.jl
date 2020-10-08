@@ -12,30 +12,36 @@ import Distributions.loglikelihood
     loglikelihood(DM::DataModel, θ::Vector)
 Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-function loglikelihood(DM::DataModel, θ::Vector)
+loglikelihood(DM::DataModel,θ::Vector) = loglikelihood(DM.Data,DM.model,θ)
+function loglikelihood(DS::DataSet,model::Function,θ::Vector)
     R = zero(suff(θ))
-    if length(ydata(DM)[1]) == 1    # For some reason this is faster.
-        for i in 1:length(xdata(DM))
-            R += ((ydata(DM)[i]-DM.model(xdata(DM)[i],θ))/sigma(DM)[i])^2
+    if length(ydata(DS)[1]) == 1    # For some reason this is faster.
+        for i in 1:length(xdata(DS))
+            R += ((ydata(DS)[i]-model(xdata(DS)[i],θ))/sigma(DS)[i])^2
         end
     else
-        term(i) = dot((ydata(DM)[i] .- DM.model(xdata(DM)[i],θ))/sigma(DM)[i])
-        R = sum( term(i) for i in 1:length(xdata(DM)) )
+        term(i) = dot((ydata(DS)[i] .- model(xdata(DS)[i],θ))/sigma(DS)[i])
+        R = sum( term(i) for i in 1:length(xdata(DS)) )
     end
-    -0.5*(length(xdata(DM))*log(2pi) + 2*sum(log.(sigma(DM))) + R)
+    -0.5*(length(xdata(DS))*log(2pi) + 2*sum(log.(sigma(DS))) + R)
 end
 
+# function loglikelihood(DM::DataModel, θ::Vector)
+#     R = zero(suff(θ))
+#     if length(ydata(DM)[1]) == 1    # For some reason this is faster.
+#         for i in 1:length(xdata(DM))
+#             R += ((ydata(DM)[i]-DM.model(xdata(DM)[i],θ))/sigma(DM)[i])^2
+#         end
+#     else
+#         term(i) = dot((ydata(DM)[i] .- DM.model(xdata(DM)[i],θ))/sigma(DM)[i])
+#         R = sum( term(i) for i in 1:length(xdata(DM)) )
+#     end
+#     -0.5*(length(xdata(DM))*log(2pi) + 2*sum(log.(sigma(DM))) + R)
+# end
 
-function loglikelihood2(DM::DataModel, θ::Vector)
-    logpdf(product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))]),EmbeddingMap(DM,θ))
-end
-
-function ploglikelihood(DM::DataModel, θ::Vector)
-    R = @distributed (+) for i in 1:length(xdata(DM))
-        (2*log(sigma(DM)[i]) + ((ydata(DM)[i]-DM.model(xdata(DM)[i],θ))/sigma(DM)[i])^2)
-    end
-    -0.5*(length(xdata(DM))*log(2pi) + R)
-end
+# function loglikelihood2(DM::DataModel, θ::Vector)
+#     logpdf(product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))]),EmbeddingMap(DM,θ))
+# end
 
 
 """
@@ -312,6 +318,7 @@ function ConstructLowerUpper(M::Matrix{<:Real}; Padding::Real=1/50)
     diff = (uppers - lowers) .* Padding
     LowerUpper(lowers - diff,uppers + diff)
 end
+ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300),Padding=Padding)
 
 ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
 function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
@@ -364,30 +371,6 @@ function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); 
     MonteCarloArea(Test,Cube,N)
 end
 
-
-function pdim(F::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
-    max < 1 && throw("pdim: max = $max too small.")
-    for i in 1:(max+1)
-        try
-            F(x,ones(i))
-        catch y
-            if isa(y, BoundsError)
-                continue
-            else
-                println("pdim: Encountered error in specification of model function.")
-                throw(y)
-            end
-        end
-        i != (max+1) && return i
-    end
-    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
-end
-
-"""
-    pdim(DM::DataModel; max::Int=50) -> Int
-Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
-"""
-pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
 
 # Find MLE to BigFLoat precision.
 function FindMLEBig(DM::DataModel,start::Union{Bool,Vector}=false)
@@ -453,7 +436,7 @@ end
     GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
-function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true)
+function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
     L(params) = loglikelihood(DM,params);    V(params) = OrthVF(DM,params)
     LogLikeOnBoundary = L(u0)
     function IntCurveODE(du,u,p,t)
@@ -483,9 +466,9 @@ function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, me
     end
 end
 
-GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
+GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
 
-function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true)
+function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
     if (suff(MLE) != BigFloat) && tol < 2e-15
         MLE = FindMLEBig(DM,MLE)
         println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
@@ -498,7 +481,7 @@ function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1;
 end
 
 
-function GenerateConfidenceInterval(DM::DataModel,PL::Plane,MLE::Vector{<:Real},Confnum=1; tol=1e-14, meth=Tsit5())
+function GenerateConfidenceInterval(DM::DataModel,PL::Plane,MLE::Vector{<:Real},Confnum=1; tol=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     throw("GenerateConfidenceInterval: Not Programmed properly yet for Plane.")
     L(params) = loglikelihood(DM,params);    V(params) = OrthVF(DM,PL,params)
     LogLikeMLE = L(MLE);    Confvol = ConfVol(Confnum)
@@ -526,7 +509,7 @@ function StructurallyIdentifiable(DM::DataModel,sol::ODESolution)
     length(roots)==0, roots
 end
 
-function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth=Tsit5(), mfd::Bool=true)
+function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
     if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
     length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
     LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)

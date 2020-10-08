@@ -40,6 +40,9 @@ VisualizeSols(sols2)
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/sols2.svg)
 
+Specifically in the case of two-dimensional parameter spaces as shown here, the problem of finding the exact boundaries of the confidence regions is turned into a system of ordinary differential equations and subsequently solved using the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) suite. As a result, the boundaries of the confidence regions are obtained in the form of `ODESolution` objects, which come equipped with elaborate interpolation methods.
+
+
 Since both finding and visualizing exact confidence regions for models depending on more than two parameters (i.e. ``\mathrm{dim} \, \mathcal{M} > 2``) is more challenging from a technical perspective, the above methods only work for ``\mathrm{dim} \, \mathcal{M} = 2`` at this point in time. However, methods which allow for visualizations of confidence regions in arbitrary three-dimensional subspaces of parameter manifolds of any dimension are close to being finished and will follow soon.
 
 

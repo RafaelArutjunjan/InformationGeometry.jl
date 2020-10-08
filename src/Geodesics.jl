@@ -93,7 +93,7 @@ end
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
 function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
-                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -117,7 +117,7 @@ Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
 """
 function ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
-                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
+                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
@@ -230,7 +230,7 @@ function ConstLengthGeodesics(DM::DataModel,Metric::Function,MLE::Vector,Conf::F
 end
 
 
-function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec::Vector,Conf::Float64=ConfVol(1); tol::Float64=6e-11, meth=Vern9())
+function ConfidenceBoundaryViaGeodesic(DM::DataModel,Metric::Function,InitialVec::Vector,Conf::Float64=ConfVol(1); tol::Float64=6e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -274,8 +274,8 @@ end
     GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
-GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
-function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
+GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
+function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function GeodesicODE!(du,u,p,t)
