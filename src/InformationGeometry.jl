@@ -35,14 +35,15 @@ export DataSet, DataModel, Plane, HyperCube, LowerUpper
 # Functions
 export Unpack, ToCols, plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
-export xdata, ydata, sigma, xdim, ydim, pdim, PlanarDataModel
+export xdata, ydata, sigma, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
 export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel
 
 
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
-export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
+export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
+export MultipleConfidenceRegions, GenerateConfidenceRegion
 export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
 export IsLinearParameter, IsLinear, CorrectedCovariance
 

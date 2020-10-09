@@ -63,23 +63,38 @@ struct DataModel
     Data::DataSet
     model::Function
     dmodel::Function
-    # MLE::AbstractVector
-    # LogLikeMLE::Real
-    # pdim::Int
+    MLE::AbstractVector
+    LogLikeMLE::Real
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     function DataModel(D::DataSet,F::Function)
-        Autodmodel(x::Real,p::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
-        function Autodmodel(x::Vector{<:Real},p::Vector)
-            Res = Array{suff(p)}(undef,length(x),length(p))
+        Autodmodel(x::Real,θ::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),θ),1,length(θ))
+        function Autodmodel(x::Vector{<:Real},θ::Vector)
+            Res = Array{suff(θ)}(undef,length(x),length(θ))
             for i in 1:length(x)
-                Res[i,:] = Autodmodel(x[i],p)
-            end
-            Res
+                Res[i,:] = Autodmodel(x[i],θ)
+            end;    Res
         end
         DataModel(D,F,Autodmodel)
     end
-    DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
+    function DataModel(D::DataSet,F::Function,mle::AbstractVector)
+        Autodmodel(x::Real,θ::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),θ),1,length(θ))
+        function Autodmodel(x::Vector{<:Real},θ::Vector)
+            Res = Array{suff(θ)}(undef,length(x),length(θ))
+            for i in 1:length(x)
+                Res[i,:] = Autodmodel(x[i],θ)
+            end;    Res
+        end
+        DataModel(D,F,Autodmodel,mle)
+    end
+    # DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
+    ############## CHANGE curve_fit TO FindMLE and insert curve_fit there
+    DataModel(DS::DataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
+    function DataModel(DS::DataSet,M::Function,dM::Function,mle::AbstractVector)
+        MLE = FindMLE(DS,M,mle)
+        LogLikeMLE = loglikelihood(DS,M,MLE)
+        new(DS,M,dM,MLE,LogLikeMLE)
+    end
 end
 
 xdata(DS::DataSet) = DS.x;                  xdata(DM::DataModel) = xdata(DM.Data)
@@ -88,20 +103,20 @@ sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
 
+MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
-
+# pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
+pdim(DM::DataModel; kwargs...) = length(MLE(DM))
 
 """
-    pdim(DM::DataModel; max::Int=50) -> Int
+    pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
 Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
-
-function pdim(F::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
+function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
-            F(x,ones(i))
+            model(x,ones(i))
         catch y
             if isa(y, BoundsError)
                 continue
@@ -351,6 +366,10 @@ function SensibleOutput(Res::Vector)
 end
 
 Unpack(H::HyperCube) = Unpack(H.vals)
+"""
+    Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
+Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
+"""
 function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     N = length(Z); M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
@@ -368,6 +387,8 @@ function CubeVol(Space::Vector)
     prod(uppers .- lowers)
 end
 CubeWidths(S::LowerUpper) = S.U .- S.L
+
+
 """
     CubeWidths(H::HyperCube) -> Vector
 Returns vector of widths of the `HyperCube`.

@@ -4,31 +4,32 @@ using SafeTestsets
 
 
 @safetestset "Probability Objects" begin
-    using InformationGeometry, Test, LinearAlgebra
+    using InformationGeometry, Test, LinearAlgebra, Distributions
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1] * x + p[2]
+    model(x,p) = p[1] .* x .+ p[2]
     DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
     x = [0.1,0.5]; R = rand(2)
+    p = rand(2)
 
     @test IsLinear(DM)
-
-    @test loglikelihood(DM,x) ≈ -60.84746565764638
-    @test Score(DM,x) ≈ [18.08402777777778,18.737500000000004]
-    @test FisherMetric(DM,x) ≈ [2.840277777777778 2.902777777777778; 2.902777777777778 3.7222222222222228]
+    Dist = product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))])
+    @test loglikelihood(DM,p) ≈ logpdf(Dist,EmbeddingMap(DM,p))
+    @test Score(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * gradlogpdf(Dist,EmbeddingMap(DM,p))
+    @test FisherMetric(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * inv(cov(Dist)) * EmbeddingMatrix(DM,p)
 
     # Test AD vs manual derivative
-    @test sum(abs.(InformationGeometry.AutoScore(DM,x) .- Score(DM,x))) < 2e-13
-    @test sum(abs.(InformationGeometry.AutoMetric(DM,x) .- FisherMetric(DM,x))) < 2e-9
+    @test sum(abs.(InformationGeometry.AutoScore(DM,p) .- Score(DM,p))) < 2e-13
+    @test sum(abs.(InformationGeometry.AutoMetric(DM,p) .- FisherMetric(DM,p))) < 2e-9
 
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
-    @test OrthVF(DM,XYPlane,x) == OrthVF(DM,x)
-    @test dot(OrthVF(DM,R),Score(DM,R)) < 2e-15
-    @test sum(abs.(FindMLE(DM) .- [6.121348314606742,0.838202247191011])) < 1e-12
+    # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
+    @test dot(OrthVF(DM,p),Score(DM,p)) < 2e-15
+    @test sum(abs.(FindMLE(DM) .- [6.1213483146067,0.8382022471910])) < 1e-10
     # ALSO DO NONLINEAR MODEL!
 
-    sols = GenerateMultipleIntervals(DM,1:2)
+    sols = MultipleConfidenceRegions(DM,1:2)
     @test StructurallyIdentifiable(DM,sols[1])[1] == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
