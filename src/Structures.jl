@@ -15,32 +15,43 @@ struct DataSet
     x::AbstractVector
     y::AbstractVector
     sigma::AbstractArray
-    # InvCov::AbstractArray
-    function DataSet(x,y,sigma)
+    InvCov::AbstractMatrix
+    function HealthyData(x::AbstractVector,y::AbstractVector)::Bool
         length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
         # Check that dimensions of x-values and y-values are consistent
         xdim = length(x[1]);    ydim = length(y[1])
         sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
         sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
+        return true
+    end
+    function DataSet(x::AbstractVector,y::AbstractVector,sigma)
+        HealthyData(x,y)
         if length(sigma) == 1 && length(y) > 1
-            return new(x, y, sigma*ones(length(y)))
+            return DataSet(x, y, sigma*ones(length(y)))
         elseif size(sigma,1) == size(sigma,2) == length(y) && length(y) > 1
             throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
         elseif length(sigma) == length(y) && length(sigma[1]) == 1
-            return new(x,y,[sigma[i] for i in 1:length(y)])
+            return new(x,y,[sigma[i] for i in 1:length(y)],diagm([sigma[i]^-2 for i in 1:length(y)]))
         else
             throw(ArgumentError("Unsuitable specification of uncertainty: sigma = $sigma."))
         end
     end
-    DataSet(x::AbstractVector,y::AbstractVector) = DataSet(x,y,ones(length(y)))
+    function DataSet(x::AbstractVector,y::AbstractVector)
+        HealthyData(x,y)
+        println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
+        DataSet(x,y,ones(length(y)))
+    end
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
-        size(DF)[2] != 3 && throw("Unclear dimensions.")
-        new(DF[:,1], DF[:,2], DF[:,3])
+        size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
+        return DataSet(ToCols(convert(Matrix,DF))...)
     end
 end
 
 
-
+"""
+    DetermineDmodel(DS::DataSet,model::Function)::Function
+Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
+"""
 function DetermineDmodel(DS::DataSet,model::Function)::Function
     # xdim > 1, ydim = 1
     NAutodmodel(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
@@ -112,14 +123,12 @@ struct DataModel
         MLE = FindMLE(DS,M,mle);        LogLikeMLE = loglikelihood(DS,M,MLE)
         DataModel(DS,M,dM,MLE,LogLikeMLE)
     end
+    # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
     function DataModel(DS::DataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
         sneak && new(DS,M,dM,MLE,LogLikeMLE)
         J = dM(xdata(DS),MLE);  g = transpose(J) * InvCov(DS) * J
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at θ=$MLE.")
-        !isposdef(g) && throw("""
-        Hessian of likelihood at MLE not negative-definite: Could not determine MLE.
-        Consider passing an appropriate initial condition 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).
-        """)
+        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
         new(DS,M,dM,MLE,LogLikeMLE)
     end
 end
@@ -130,14 +139,16 @@ sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
 
-function InvCov(DS::DataSet)
-    if typeof(sigma(DS)) <: AbstractVector
-        return diagm(sigma(DS).^-2)
-    elseif typeof(sigma(DS)) <: AbstractMatrix
-        return inv(sigma(DS))
-    end
-end
-InvCov(DM::DataModel) = InvCov(DM.Data)
+
+InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Data)
+# Eventually incorporate into DataSet type such that InvCov(DS::DataSet) = DS.InvCov
+# function InvCov(DS::DataSet)
+#     if typeof(sigma(DS)) <: AbstractVector
+#         return diagm(sigma(DS).^-2)
+#     elseif typeof(sigma(DS)) <: AbstractMatrix
+#         return inv(sigma(DS))
+#     end
+# end
 
 MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
