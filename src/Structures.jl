@@ -41,13 +41,15 @@ end
 
 
 function DetermineDmodel(DS::DataSet,model::Function)::Function
-    AutodmodelN(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function AutodmodelN(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
+    # xdim > 1, ydim = 1
+    NAutodmodel(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function NAutodmodel(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
         Res = Array{suff(θ)}(undef,ydim(DS)*length(x),length(θ))
         for i in 1:length(x)
-            Res[i,:] = AutodmodelN(x[i],θ)
+            Res[i,:] = NAutodmodel(x[i],θ)
         end;    Res
     end
+    # xdim = 1, ydim = 1
     Autodmodel(x::Real,θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
     function Autodmodel(x::Vector{<:Real},θ::Vector{<:Number})
         Res = Array{suff(θ)}(undef,length(x),length(θ))
@@ -55,10 +57,21 @@ function DetermineDmodel(DS::DataSet,model::Function)::Function
             Res[i,:] = Autodmodel(x[i],θ)
         end;    Res
     end
+    # xdim = 1, ydim > 1
+    AutodmodelN(x::Number,θ::Vector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    AutodmodelN(x::Vector{<:Number},θ::Vector{<:Number}) = vcat([AutodmodelN(z,θ) for z in xdata(DS)]...)
     if xdim(DS) == 1
-        return Autodmodel
+        if ydim(DS) == 1
+            return Autodmodel
+        else
+            return AutodmodelN
+        end
     else
-        return AutodmodelN
+        if ydim(DS) == 1
+            return NAutodmodel
+        else
+            throw("Automatic differentiation for vector-valued xdata AND vector-valued ydata not pre-programmed yet.")
+        end
     end
 end
 
