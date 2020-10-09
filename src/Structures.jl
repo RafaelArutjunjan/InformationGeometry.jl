@@ -15,6 +15,7 @@ struct DataSet
     x::AbstractVector
     y::AbstractVector
     sigma::AbstractArray
+    # InvCov::AbstractArray
     function DataSet(x,y,sigma)
         length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
         # Check that dimensions of x-values and y-values are consistent
@@ -108,8 +109,17 @@ struct DataModel
     DataModel(DS::DataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
     DataModel(DS::DataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
     function DataModel(DS::DataSet,M::Function,dM::Function,mle::AbstractVector)
-        MLE = FindMLE(DS,M,mle)
-        LogLikeMLE = loglikelihood(DS,M,MLE)
+        MLE = FindMLE(DS,M,mle);        LogLikeMLE = loglikelihood(DS,M,MLE)
+        DataModel(DS,M,dM,MLE,LogLikeMLE)
+    end
+    function DataModel(DS::DataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
+        sneak && new(DS,M,dM,MLE,LogLikeMLE)
+        J = dM(xdata(DS),MLE);  g = transpose(J) * InvCov(DS) * J
+        det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at θ=$MLE.")
+        !isposdef(g) && throw("""
+        Hessian of likelihood at MLE not negative-definite: Could not determine MLE.
+        Consider passing an appropriate initial condition 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).
+        """)
         new(DS,M,dM,MLE,LogLikeMLE)
     end
 end
@@ -119,6 +129,15 @@ ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data
 sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
+
+function InvCov(DS::DataSet)
+    if typeof(sigma(DS)) <: AbstractVector
+        return diagm(sigma(DS).^-2)
+    elseif typeof(sigma(DS)) <: AbstractMatrix
+        return inv(sigma(DS))
+    end
+end
+InvCov(DM::DataModel) = InvCov(DM.Data)
 
 MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
@@ -200,8 +219,8 @@ struct Plane
 end
 
 function PlanarDataModel(DM::DataModel,PL::Plane)
-    newmod = (x,p::Vector) -> DM.model(x,PlaneCoordinates(PL,p))
-    dnewmod = (x,p::Vector) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
+    newmod = (x,p::Vector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
+    dnewmod = (x,p::Vector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
     DataModel(DM.Data,newmod,dnewmod)
 end
 
@@ -398,6 +417,8 @@ function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     A
 end
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
+Unwind(X::Vector{Vector{Q}}) where Q<:Number = vcat(X...)
+
 
 function CubeVol(Space::Vector)
     lowers,uppers = SensibleOutput(Space)

@@ -34,9 +34,10 @@ end
 
 # LSQFIT
 import LsqFit.curve_fit
-curve_fit(DM::DataModel,initial::Vector=MLE(DM),args...;tol::Real=1e-14,kwargs...) = curve_fit(DM.Data,DM.model,initial,args...;x_tol=tol,g_tol=tol,kwargs...)
-curve_fit(DS::DataSet,F::Function,initial::Vector=ones(pdim(F,ydata(DS)[1])),args...;tol::Real=1e-14,kwargs...) = curve_fit(F,xdata(DS),ydata(DS),sigma(DS).^(-2),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
-
+curve_fit(DM::DataModel,initial::Vector{<:Number}=MLE(DM),args...;tol::Real=1e-14,kwargs...) = curve_fit(DM.Data,DM.model,initial,args...;x_tol=tol,g_tol=tol,kwargs...)
+function curve_fit(DS::DataSet,F::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1])) + 0.01rand(pdim(F,ydata(DS)[1])),args...;tol::Real=1e-14,kwargs...)
+    curve_fit(F,xdata(DS),ydata(DS),sigma(DS).^(-2),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
+end
 
 # RecipesBase.@recipe function RecipeTester(args...)
 #     rand(10,5)

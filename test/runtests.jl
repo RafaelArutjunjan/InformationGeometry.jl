@@ -43,6 +43,8 @@ using SafeTestsets
 end
 
 
+# Test DataSets of different ydim and xdim and non-linear models.
+
 
 @safetestset "Kullback-Leibler Divergences" begin
     using InformationGeometry, Test, LinearAlgebra, Distributions
@@ -99,12 +101,12 @@ end
     @test abs(GeodesicDistance(S2metric,[pi/4,1],[3pi/4,1]) - pi/2) < 1e-11
     @test abs(GeodesicDistance(S2metric,[pi/2,0],[pi/2,pi/2]) - pi/2) < 3e-10
 
-    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1].^3 .*x .+ p[2].^3
-    DM = DataModel(DS,model);   MLE = FindMLE(DM)
-    geo = GeodesicBetween(DM,MLE,MLE + rand(2),tol=1e-11)
-    @test sum(abs.(MLE .- [1.829289173660125,0.942865200406147])) < 1e-7
-    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
+    # DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
+    # model(x,p) = p[1].^3 .*x .+ p[2].^3
+    # DM = DataModel(DS,model);   MLE = FindMLE(DM)
+    # geo = GeodesicBetween(DM,MLE,MLE + rand(2),tol=1e-11)
+    # @test sum(abs.(MLE .- [1.829289173660125,0.942865200406147])) < 1e-7
+    # @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
 end
 
 

@@ -680,7 +680,7 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::DataModel, θ::Vector{<:Number}) = Pullback(DM,diagm(sigma(DM).^-2), θ)
+FisherMetric(DM::DataModel, θ::Vector{<:Number}) = Pullback(DM,InvCov(DM), θ)
 
 # function FisherMetric(DM::DataModel, θ::Vector{<:Real})
 #     F = zeros(suff(θ),length(θ),length(θ))
