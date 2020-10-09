@@ -39,6 +39,30 @@ struct DataSet
 end
 
 
+
+function DetermineDmodel(DS::DataSet,model::Function)::Function
+    AutodmodelN(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function AutodmodelN(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
+        Res = Array{suff(θ)}(undef,ydim(DS)*length(x),length(θ))
+        for i in 1:length(x)
+            Res[i,:] = AutodmodelN(x[i],θ)
+        end;    Res
+    end
+    Autodmodel(x::Real,θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function Autodmodel(x::Vector{<:Real},θ::Vector{<:Number})
+        Res = Array{suff(θ)}(undef,length(x),length(θ))
+        for i in 1:length(x)
+            Res[i,:] = Autodmodel(x[i],θ)
+        end;    Res
+    end
+    if xdim(DS) == 1
+        return Autodmodel
+    else
+        return AutodmodelN
+    end
+end
+
+
 """
 In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
 For example
@@ -67,28 +91,8 @@ struct DataModel
     LogLikeMLE::Real
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    function DataModel(D::DataSet,F::Function)
-        Autodmodel(x::Real,θ::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),θ),1,length(θ))
-        function Autodmodel(x::Vector{<:Real},θ::Vector)
-            Res = Array{suff(θ)}(undef,length(x),length(θ))
-            for i in 1:length(x)
-                Res[i,:] = Autodmodel(x[i],θ)
-            end;    Res
-        end
-        DataModel(D,F,Autodmodel)
-    end
-    function DataModel(D::DataSet,F::Function,mle::AbstractVector)
-        Autodmodel(x::Real,θ::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),θ),1,length(θ))
-        function Autodmodel(x::Vector{<:Real},θ::Vector)
-            Res = Array{suff(θ)}(undef,length(x),length(θ))
-            for i in 1:length(x)
-                Res[i,:] = Autodmodel(x[i],θ)
-            end;    Res
-        end
-        DataModel(D,F,Autodmodel,mle)
-    end
-    # DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
-    ############## CHANGE curve_fit TO FindMLE and insert curve_fit there
+    DataModel(DS::DataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
+    DataModel(DS::DataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
     DataModel(DS::DataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
     function DataModel(DS::DataSet,M::Function,dM::Function,mle::AbstractVector)
         MLE = FindMLE(DS,M,mle)
