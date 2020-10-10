@@ -152,8 +152,18 @@ ydim(DS::AbstractDataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(D
 #         return inv(sigma(DS))
 #     end
 # end
-
-MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
+"""
+    MLE(DM::DataModel) -> Vector
+Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data.
+For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
+"""
+MLE(DM::DataModel) = DM.MLE
+"""
+    LogLikeMLE(DM::DataModel) -> Real
+Returns the value of the log-likelihood when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
+For performance reasons, this value is stored as a part of the `DataModel` type.
+"""
+LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 
 yDataDist(DS::DataSet) = product_distribution([Normal(ydata(DS)[i],sigma(DS)[i]) for i in 1:length(ydata(DS))])

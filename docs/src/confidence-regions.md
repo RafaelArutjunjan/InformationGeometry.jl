@@ -1,22 +1,23 @@
 
 ### Confidence Regions
 
+Once a `DataModel` object has been defined, it can subsequently be used to compute various quantities as follows:
+
 ```@docs
-DataSet
-DataModel
-InformationGeometry.loglikelihood(::DataModel,::Vector{Float64})
-FindMLE(::DataModel)
+loglikelihood(::DataModel,::Vector{Float64})
+MLE(::DataModel)
 ```
+
 ```@example 1
 using InformationGeometry, Plots; gr() # hide
 DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
 model(x,θ) = θ[1] .* x .+ θ[2]
 DM = DataModel(DS,model)
-MLE = FindMLE(DM)
+MLE(DM)
 ```
 Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model shown above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect hyperellipses as expected:
 ```@example 1
-sols = GenerateMultipleIntervals(DM,1:2)
+sols = MultipleConfidenceRegions(DM,1:2)
 VisualizeSols(sols)
 # plot(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
 # plot!(sols[2],vars=(1,2),label="2σ CR") # hide
@@ -26,12 +27,11 @@ VisualizeSols(sols)
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/sols.svg)
 
 
-
 For a non-linearly parametrized model, the confidence regions are found to be non-ellipsoidal:
 ```@example 1
 model2(x,θ) = θ[1]^3 .* x .+ exp(θ[1] + θ[2])
 DM2 = DataModel(DS,model2)
-sols2 = GenerateMultipleIntervals(DM2,1:2)
+sols2 = MultipleConfidenceRegions(DM2,1:2)
 VisualizeSols(sols2)
 #plot(sols2[1],vars=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
 #plot!(sols2[2],vars=(1,2),label="2σ CR") # hide
