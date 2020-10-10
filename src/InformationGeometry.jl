@@ -29,7 +29,7 @@ using Plots
 
 include("Structures.jl")
 # Types
-export DataSet, DataModel, Plane, HyperCube, LowerUpper
+export AbstractDataSet, DataSet, DataModel, Plane, HyperCube, LowerUpper
 
 
 # Functions

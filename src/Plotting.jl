@@ -4,13 +4,13 @@
 
 
 using RecipesBase
-RecipesBase.@recipe function plot(DS::DataSet,args...)
+RecipesBase.@recipe function plot(DS::AbstractDataSet,args...)
     line -->            (:scatter,1)
-    yerror -->          DS.sigma
+    yerror -->          sigma(DS)
     linecolor   -->     :blue
     markercolor -->     :blue
     markerstrokecolor --> :blue
-    DS.x,DS.y,args...
+    xdata(DS),ydata(DS),args...
 end
 RecipesBase.@recipe function plot(DM::DataModel,args...)
     DM.Data,args...
@@ -35,7 +35,7 @@ end
 # LSQFIT
 import LsqFit.curve_fit
 curve_fit(DM::DataModel,initial::Vector{<:Number}=MLE(DM),args...;tol::Real=1e-14,kwargs...) = curve_fit(DM.Data,DM.model,initial,args...;x_tol=tol,g_tol=tol,kwargs...)
-function curve_fit(DS::DataSet,F::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1])) + 0.01rand(pdim(F,ydata(DS)[1])),args...;tol::Real=1e-14,kwargs...)
+function curve_fit(DS::AbstractDataSet,F::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1])) + 0.01rand(pdim(F,ydata(DS)[1])),args...;tol::Real=1e-14,kwargs...)
     curve_fit(F,xdata(DS),ydata(DS),sigma(DS).^(-2),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
 end
 

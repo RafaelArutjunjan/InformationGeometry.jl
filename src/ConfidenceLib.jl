@@ -13,7 +13,7 @@ import Distributions.loglikelihood
 Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
 loglikelihood(DM::DataModel,θ::Vector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
-function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
+function loglikelihood(DS::AbstractDataSet,model::Function,θ::Vector{<:Number})
     R = zero(suff(θ))
     if length(ydata(DS)[1]) == 1    # For some reason this is faster.
         for i in 1:length(xdata(DS))
@@ -417,7 +417,7 @@ end
 
 
 FindMLEBig(DM::DataModel,start::Vector=MLE(DM)) = FindMLEBig(DM.Data,DM.model,start)
-function FindMLEBig(DS::DataSet,model::Function,start::Union{Bool,Vector}=false)
+function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=false)
     if isa(start,Vector)
         NegEll(p::Vector{<:Number}) = -loglikelihood(DS,model,p)
         return optimize(NegEll, BigFloat.(start), BFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
@@ -447,7 +447,7 @@ end
 # """
 
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
-function FindMLE(DS::DataSet,model::Function,start::Union{Bool,Vector}=false; Big::Bool=false, tol::Real=1e-14)
+function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
     NegEll(p::Vector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)

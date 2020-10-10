@@ -53,10 +53,10 @@ end
 
 
 """
-    DetermineDmodel(DS::DataSet,model::Function)::Function
+    DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::DataSet,model::Function)::Function
+function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     # xdim > 1, ydim = 1
     NAutodmodel(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
     function NAutodmodel(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
@@ -113,22 +113,22 @@ DM = DataModel(DS,model,dmodel)
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different values of `x`.
 """
 struct DataModel
-    Data::DataSet
+    Data::AbstractDataSet
     model::Function
     dmodel::Function
     MLE::AbstractVector
     LogLikeMLE::Real
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    DataModel(DS::DataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
-    DataModel(DS::DataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
-    DataModel(DS::DataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
-    function DataModel(DS::DataSet,M::Function,dM::Function,mle::AbstractVector)
+    DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
+    DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
+    DataModel(DS::AbstractDataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
+    function DataModel(DS::AbstractDataSet,M::Function,dM::Function,mle::AbstractVector)
         MLE = FindMLE(DS,M,mle);        LogLikeMLE = loglikelihood(DS,M,MLE)
         DataModel(DS,M,dM,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
-    function DataModel(DS::DataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
+    function DataModel(DS::AbstractDataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
         sneak && new(DS,M,dM,MLE,LogLikeMLE)
         J = dM(xdata(DS),MLE);  g = transpose(J) * InvCov(DS) * J
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at θ=$MLE.")
@@ -140,9 +140,9 @@ end
 xdata(DS::DataSet) = DS.x;                  xdata(DM::DataModel) = xdata(DM.Data)
 ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data)
 sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
-xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
-ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
 InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Data)
+xdim(DS::AbstractDataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
+ydim(DS::AbstractDataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
 
 # Eventually incorporate into DataSet type such that InvCov(DS::DataSet) = DS.InvCov
 # function InvCov(DS::DataSet)
@@ -208,7 +208,7 @@ join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
 
 SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::DataModel) = DataModel(SortDataSet(DM.Data),DM.model,DM.dmodel)
-SubDataSet(DS::DataSet,ran) = DataSet(xdata(DS)[ran],ydata(DS)[ran],sigma(DS)[ran])
+SubDataSet(DS::AbstractDataSet,ran) = DataSet(xdata(DS)[ran],ydata(DS)[ran],sigma(DS)[ran])
 SubDataModel(DM::DataModel,ran) = DataModel(SubDataSet(DM.Data,ran),DM.model,DM.dmodel)
 
 
