@@ -56,7 +56,7 @@ function Cross(A::Vector{<:Real},B::Vector{<:Real})
     end
 end
 
-function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::Vector{<:Real})
+function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::AbstractVector{<:Real})
     (Tuple(Int.(length(v) .*ones(3))) != size(ConnectionCoeff)) && throw(ArgumentError("Connectioncoefficients don't match vector: dim(v) = $(length(v)), size(Connection) = $(size(ConnectionCoeff))"))
     @tensor Res[a] := (-1*ConnectionCoeff)[a,b,c]*v[b]*v[c]
 end
@@ -125,6 +125,7 @@ function MetricNorm(G::Matrix,v::Vector,w::Vector=v) where Q<:Real
     (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
     sqrt(transpose(v)*G*w)
 end
+@deprecate MetricNorm(G,v,w) nothing
 
 """
     GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
@@ -140,7 +141,8 @@ function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
         FullGamma = sol(t)
-        MetricNorm(Metric(FullGamma[1:n]),FullGamma[(n+1):2n])
+        sqrt(transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n])
+        # MetricNorm(Metric(FullGamma[1:n]),FullGamma[(n+1):2n])
     end
     return Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
 end
@@ -177,7 +179,7 @@ end
 
 
 # Input Array of Geodesics, Output Array of its endpoints
-function Endpoints(Geodesics::Vector{ODESolution})
+function Endpoints(Geodesics::Vector{Q}) where Q <: ODESolution
     Endpoints = Vector{Vector{Float64}}(undef,0)
     Number = Int(length(Geodesics[1].u[1])/2)
     for Curve in Geodesics

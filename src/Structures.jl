@@ -3,6 +3,9 @@
 suff(x::Number) = typeof(float(x))
 suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
+
+abstract type AbstractDataSet end
+
 """
 The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
 For example,
@@ -11,30 +14,80 @@ DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
 ```
 Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
 """
-struct DataSet
+struct DataSet <: AbstractDataSet
     x::AbstractVector
     y::AbstractVector
     sigma::AbstractArray
-    function DataSet(x,y,sigma)
+    InvCov::AbstractMatrix
+    # dims::Tuple{Int,Int,Int}
+    function HealthyData(x::AbstractVector,y::AbstractVector)::Bool
         length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
         # Check that dimensions of x-values and y-values are consistent
         xdim = length(x[1]);    ydim = length(y[1])
         sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
         sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
+        return true
+    end
+    function DataSet(x::AbstractVector,y::AbstractVector,sigma)
+        HealthyData(x,y)
         if length(sigma) == 1 && length(y) > 1
-            return new(x, y, sigma*ones(length(y)))
+            return DataSet(x, y, sigma*ones(length(y)))
         elseif size(sigma,1) == size(sigma,2) == length(y) && length(y) > 1
             throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
         elseif length(sigma) == length(y) && length(sigma[1]) == 1
-            return new(x,y,[sigma[i] for i in 1:length(y)])
+            return new(x,y,[sigma[i] for i in 1:length(y)],Diagonal([sigma[i]^-2 for i in 1:length(y)]))
         else
             throw(ArgumentError("Unsuitable specification of uncertainty: sigma = $sigma."))
         end
     end
-    DataSet(x::AbstractVector,y::AbstractVector) = DataSet(x,y,ones(length(y)))
+    function DataSet(x::AbstractVector,y::AbstractVector)
+        HealthyData(x,y)
+        println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
+        DataSet(x,y,ones(length(y)))
+    end
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
-        size(DF)[2] != 3 && throw("Unclear dimensions.")
-        new(DF[:,1], DF[:,2], DF[:,3])
+        size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
+        return DataSet(ToCols(convert(Matrix,DF))...)
+    end
+end
+
+
+"""
+    DetermineDmodel(DS::DataSet,model::Function)::Function
+Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
+"""
+function DetermineDmodel(DS::DataSet,model::Function)::Function
+    # xdim > 1, ydim = 1
+    NAutodmodel(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function NAutodmodel(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
+        Res = Array{suff(θ)}(undef,ydim(DS)*length(x),length(θ))
+        for i in 1:length(x)
+            Res[i,:] = NAutodmodel(x[i],θ)
+        end;    Res
+    end
+    # xdim = 1, ydim = 1
+    Autodmodel(x::Real,θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function Autodmodel(x::Vector{<:Real},θ::Vector{<:Number})
+        Res = Array{suff(θ)}(undef,length(x),length(θ))
+        for i in 1:length(x)
+            Res[i,:] = Autodmodel(x[i],θ)
+        end;    Res
+    end
+    # xdim = 1, ydim > 1
+    AutodmodelN(x::Number,θ::Vector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    AutodmodelN(x::Vector{<:Number},θ::Vector{<:Number}) = vcat([AutodmodelN(z,θ) for z in xdata(DS)]...)
+    if xdim(DS) == 1
+        if ydim(DS) == 1
+            return Autodmodel
+        else
+            return AutodmodelN
+        end
+    else
+        if ydim(DS) == 1
+            return NAutodmodel
+        else
+            throw("Automatic differentiation for vector-valued xdata AND vector-valued ydata not pre-programmed yet.")
+        end
     end
 end
 
@@ -63,23 +116,25 @@ struct DataModel
     Data::DataSet
     model::Function
     dmodel::Function
-    # MLE::AbstractVector
-    # LogLikeMLE::Real
-    # pdim::Int
+    MLE::AbstractVector
+    LogLikeMLE::Real
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    function DataModel(D::DataSet,F::Function)
-        Autodmodel(x::Real,p::Vector) = reshape(ForwardDiff.gradient(z->F(x,z),p),1,length(p))
-        function Autodmodel(x::Vector{<:Real},p::Vector)
-            Res = Array{suff(p)}(undef,length(x),length(p))
-            for i in 1:length(x)
-                Res[i,:] = Autodmodel(x[i],p)
-            end
-            Res
-        end
-        DataModel(D,F,Autodmodel)
+    DataModel(DS::DataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
+    DataModel(DS::DataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
+    DataModel(DS::DataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
+    function DataModel(DS::DataSet,M::Function,dM::Function,mle::AbstractVector)
+        MLE = FindMLE(DS,M,mle);        LogLikeMLE = loglikelihood(DS,M,MLE)
+        DataModel(DS,M,dM,MLE,LogLikeMLE)
     end
-    DataModel(DS::DataSet,M::Function,dM::Function) = new(DS,M,dM)
+    # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
+    function DataModel(DS::DataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
+        sneak && new(DS,M,dM,MLE,LogLikeMLE)
+        J = dM(xdata(DS),MLE);  g = transpose(J) * InvCov(DS) * J
+        det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at θ=$MLE.")
+        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+        new(DS,M,dM,MLE,LogLikeMLE)
+    end
 end
 
 xdata(DS::DataSet) = DS.x;                  xdata(DM::DataModel) = xdata(DM.Data)
@@ -87,21 +142,36 @@ ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data
 sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
+InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Data)
+
+# Eventually incorporate into DataSet type such that InvCov(DS::DataSet) = DS.InvCov
+# function InvCov(DS::DataSet)
+#     if typeof(sigma(DS)) <: AbstractVector
+#         return diagm(sigma(DS).^-2)
+#     elseif typeof(sigma(DS)) <: AbstractMatrix
+#         return inv(sigma(DS))
+#     end
+# end
+
+MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 
+yDataDist(DS::DataSet) = product_distribution([Normal(ydata(DS)[i],sigma(DS)[i]) for i in 1:length(ydata(DS))])
+xDataDist(DS::DataSet) = product_distribution([Normal(xdata(DS)[i],sigma(DS)[i]) for i in 1:length(xdata(DS))])
+yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
 
+# pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
+pdim(DM::DataModel; kwargs...) = length(MLE(DM))
 
 """
-    pdim(DM::DataModel; max::Int=50) -> Int
+    pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
 Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
-
-function pdim(F::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
+function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
-            F(x,ones(i))
+            model(x,ones(i))
         catch y
             if isa(y, BoundsError)
                 continue
@@ -168,8 +238,8 @@ struct Plane
 end
 
 function PlanarDataModel(DM::DataModel,PL::Plane)
-    newmod = (x,p::Vector) -> DM.model(x,PlaneCoordinates(PL,p))
-    dnewmod = (x,p::Vector) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
+    newmod = (x,p::Vector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
+    dnewmod = (x,p::Vector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
     DataModel(DM.Data,newmod,dnewmod)
 end
 
@@ -351,6 +421,10 @@ function SensibleOutput(Res::Vector)
 end
 
 Unpack(H::HyperCube) = Unpack(H.vals)
+"""
+    Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
+Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
+"""
 function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     N = length(Z); M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
@@ -362,12 +436,16 @@ function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     A
 end
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
+Unwind(X::Vector{Vector{Q}}) where Q<:Number = vcat(X...)
+
 
 function CubeVol(Space::Vector)
     lowers,uppers = SensibleOutput(Space)
     prod(uppers .- lowers)
 end
 CubeWidths(S::LowerUpper) = S.U .- S.L
+
+
 """
     CubeWidths(H::HyperCube) -> Vector
 Returns vector of widths of the `HyperCube`.
