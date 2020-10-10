@@ -55,7 +55,7 @@ export Cross, ChristoffelTerm, ChristoffelSymbol, ComputeGeodesic, MetricNorm, G
 export DistanceAlongGeodesic, Endpoints, Truncated, ConstLengthGeodesics, ConfidenceBoundaryViaGeodesic
 export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic
-export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve, PlotAlongCurve, SaveConfidence, SaveGeodesics
+export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve, PlotAlongCurve, SaveConfidence, SaveGeodesics, SaveAdaptive
 export Riemann, Ricci, RicciScalar, GeometricDensity
 export AutoScore, AutoMetric
 

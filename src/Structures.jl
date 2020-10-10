@@ -3,6 +3,9 @@
 suff(x::Number) = typeof(float(x))
 suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
+
+abstract type AbstractDataSet end
+
 """
 The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
 For example,
@@ -11,11 +14,12 @@ DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
 ```
 Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
 """
-struct DataSet
+struct DataSet <: AbstractDataSet
     x::AbstractVector
     y::AbstractVector
     sigma::AbstractArray
     InvCov::AbstractMatrix
+    # dims::Tuple{Int,Int,Int}
     function HealthyData(x::AbstractVector,y::AbstractVector)::Bool
         length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
         # Check that dimensions of x-values and y-values are consistent
@@ -31,7 +35,7 @@ struct DataSet
         elseif size(sigma,1) == size(sigma,2) == length(y) && length(y) > 1
             throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
         elseif length(sigma) == length(y) && length(sigma[1]) == 1
-            return new(x,y,[sigma[i] for i in 1:length(y)],diagm([sigma[i]^-2 for i in 1:length(y)]))
+            return new(x,y,[sigma[i] for i in 1:length(y)],Diagonal([sigma[i]^-2 for i in 1:length(y)]))
         else
             throw(ArgumentError("Unsuitable specification of uncertainty: sigma = $sigma."))
         end
@@ -138,9 +142,8 @@ ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data
 sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
 xdim(DS::DataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
 ydim(DS::DataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
-
-
 InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Data)
+
 # Eventually incorporate into DataSet type such that InvCov(DS::DataSet) = DS.InvCov
 # function InvCov(DS::DataSet)
 #     if typeof(sigma(DS)) <: AbstractVector
@@ -151,6 +154,11 @@ InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Da
 # end
 
 MLE(DM::DataModel) = DM.MLE;                LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
+
+
+yDataDist(DS::DataSet) = product_distribution([Normal(ydata(DS)[i],sigma(DS)[i]) for i in 1:length(ydata(DS))])
+xDataDist(DS::DataSet) = product_distribution([Normal(xdata(DS)[i],sigma(DS)[i]) for i in 1:length(xdata(DS))])
+yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
 
 # pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
 pdim(DM::DataModel; kwargs...) = length(MLE(DM))
