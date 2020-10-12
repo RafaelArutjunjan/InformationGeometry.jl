@@ -2,7 +2,7 @@
 ### Providing Datasets
 
 Typically, one of the most difficult parts of any data science problem is to bring the data into a form which lends itself to the subsequent analysis.
-Thus, this section aims to describe the containers used by **InformationGeometry.jl** to store data and models in detail.
+Thus, this section aims to describe the containers used by **InformationGeometry.jl** to store datasets and models in detail.
 
 The data itself is stored using the `DataSet` container.
 ```@docs

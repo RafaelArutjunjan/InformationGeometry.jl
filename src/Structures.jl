@@ -134,9 +134,10 @@ struct DataModel <: AbstractDataModel
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
     function DataModel(DS::AbstractDataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
         sneak && new(DS,M,dM,MLE,LogLikeMLE)
-        J = dM(xdata(DS),MLE);  g = transpose(J) * InvCov(DS) * J
-        det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at θ=$MLE.")
-        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+        norm(AutoScore(DS,M,MLE)) > 1e-11 && throw("Gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
+        g = AutoMetric(DS,M,MLE)
+        det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
+        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
         new(DS,M,dM,MLE,LogLikeMLE)
     end
 end
@@ -169,12 +170,12 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 """
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
-
-yDataDist(DS::DataSet) = product_distribution([Normal(ydata(DS)[i],sigma(DS)[i]) for i in 1:length(ydata(DS))])
-xDataDist(DS::DataSet) = product_distribution([Normal(xdata(DS)[i],sigma(DS)[i]) for i in 1:length(xdata(DS))])
+DataDist(Y::AbstractVector,Sig::AbstractVector) = product_distribution([Normal(Y[i],Sig[i]) for i in eachindex(Y)])
+yDataDist(DS::DataSet) = DataDist(ydata(DS),sigma(DS))
+xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
 yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
 
-# pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
+
 pdim(DM::DataModel; kwargs...) = length(MLE(DM))
 pdim(DM::AbstractDataModel; kwargs...) = pdim(DM.model,xdata(DM)[1])
 
@@ -182,7 +183,7 @@ pdim(DM::AbstractDataModel; kwargs...) = pdim(DM.model,xdata(DM)[1])
     pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
 Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-function pdim(model::Function,x::Union{T,Vector{T}}=[1.]; max::Int=100)::Int where T<:Real
+function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=100)::Int where T<:Real
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
@@ -269,11 +270,8 @@ function PlaneCoordinates(PL::Plane, v::Vector{<:Real})
     length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
     PL.stütz + [PL.Vx PL.Vy]*v
 end
-import LinearAlgebra.dot
-# dot(A::AbstractMatrix, x::Vector, y::Vector=x) = transpose(x)*A*y
-dot(x) = dot(x,x)
-länge(x::Vector{<:Real}) = sqrt(dot(x,x))
-EuclideanDistance(x::Vector, y::Vector) = länge(x .- y)
+
+# EuclideanDistance(x::Vector, y::Vector) = norm(x .- y)
 IsOnPlane(PL::Plane,x::Vector)::Bool = (DistanceToPlane(PL,x) == 0)
 TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
@@ -288,9 +286,8 @@ function DecomposeWRTPlane(PL::Plane,x::Vector)
     !IsOnPlane(PL,x) && throw(ArgumentError("Decompose Error: Vector not on Plane."))
     V = x - PL.stütz
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
-    # [dot(V,PL.Vx)/dot(PL.Vx,PL.Vx),dot(V,PL.Vy)/dot(PL.Vy,PL.Vy)]
 end
-DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> länge
+DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> norm
 ProjectOntoPlane(PL::Plane,x::Vector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::Matrix)
@@ -510,7 +507,7 @@ function CoverCubes(A::HyperCube,B::HyperCube)
     HyperCube(LowerUpper(lower,upper))
 end
 CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
-CoverCubes(V::Vector{T}) where T<:HyperCube = CoverCubes(V...)
+CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
 
 normalize(x::Vector,scaling::Float64=1.0) = scaling.*x ./ sqrt(sum(x.^2))

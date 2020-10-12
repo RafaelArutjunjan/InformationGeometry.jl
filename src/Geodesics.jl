@@ -479,7 +479,7 @@ SaveDataSet(DM::DataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigdigits=si
     Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the components of the (1,3) Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Riem(z->FisherMetric(DM,z), θ, BigCalc=BigCalc)
+Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Riem(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
 function Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
     function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
         if BigCalc      θ = BigFloat.(θ)        end
@@ -504,7 +504,7 @@ end
     Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the components of the (0,2) Ricci tensor by finite differencing of `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Ric(z->FisherMetric(DM,z), θ, BigCalc=BigCalc)
+Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false) = Ric(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
 function Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
     Riem = Riemann(Metric, θ, BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
@@ -527,7 +527,7 @@ end
     GeometricDensity(DM::DataModel, θ::Vector)
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::DataModel, θ::Vector) = GeometricDensity(x->FisherMetric(DM,x), θ)
+GeometricDensity(DM::DataModel, θ::Vector) = GeometricDensity(x->AutoMetric(DM,x), θ)
 GeometricDensity(Metric::Function, θ::Vector) = sqrt(det(Metric(θ)))
 
 

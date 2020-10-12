@@ -1,7 +1,5 @@
 
 
-using InformationGeometry
-
 abstract type TemperedDistributions <: ContinuousMultivariateDistribution end
 struct Dirac <: TemperedDistributions
     μ::AbstractVector
@@ -25,7 +23,7 @@ struct DataSetExact <: AbstractDataSet
     xdist::Distribution
     ydist::Distribution
     dims::Tuple{Int,Int,Int}
-    # InvCov::AbstractMatrix
+    InvCov::AbstractMatrix
     # X::AbstractVector
     DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
@@ -35,24 +33,30 @@ struct DataSetExact <: AbstractDataSet
         length(Unwind(xSig)) != xdim(dims)*N(dims) && throw("Problem with x errors.")
         length(Unwind(ySig)) != ydim(dims)*N(dims) && throw("Problem with y errors.")
         if xSig == zeros(length(xSig))
-            return new(Dirac(x),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
+            return DataSetExact(Dirac(x),DataDist(y,ySig),dims)
+            # return DataSetExact(Dirac(x),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
         else
-            return new(product_distribution([Normal(x[i],xSig[i]) for i in 1:length(x)]),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
+            return DataSetExact(DataDist(x,xSig),DataDist(y,ySig),dims)
+            # return DataSetExact(product_distribution([Normal(x[i],xSig[i]) for i in 1:length(x)]),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
         end
     end
     function DataSetExact(x::AbstractVector,xCov::AbstractMatrix,y::AbstractVector,yCov::AbstractMatrix)
         dims = HealthyData(x,y)
         !(length(x) == length(y) == size(xCov,1) == size(yCov,1)) && throw("Vectors must have same length.")
         (!isposdef(Symmetric(xCov)) || !isposdef(Symmetric(yCov))) && throw("Covariance matrices not positive-definite.")
-        new(MvNormal(x,xCov),MvNormal(y,yCov),dims)
+        DataSetExact(MvNormal(x,xCov),MvNormal(y,yCov),dims)
     end
-    DataSetExact(xd::Distribution,yd::Distribution) = DataSetExact(xd,yd,Tuple([length(xd),1,1]))
+    function DataSetExact(xd::Distribution,yd::Distribution)
+        println("No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out.")
+        DataSetExact(xd,yd,Tuple([length(xd),1,1]))
+    end
     function DataSetExact(xd::Distribution,yd::Distribution,dims::Tuple{Int,Int,Int})
-        Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == N(dims) && return new(xd,yd,dims)
+        Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == N(dims) && return new(xd,yd,dims,InvCov(yd))
         throw("Dimensions of distributions are inconsistent with $dims: $xd and $yd.")
     end
 end
-import InformationGeometry: xdim, ydim, xdata, ydata, sigma, InvCov, loglikelihood, Score
+
+# import InformationGeometry: xdim, ydim, xdata, ydata, sigma, InvCov, loglikelihood, Score
 
 N(dims::Tuple{Int,Int,Int}) = dims[1];             N(DSE::DataSetExact) = N(DSE.dims)
 xdim(dims::Tuple{Int,Int,Int}) = dims[2];          xdim(DSE::DataSetExact) = xdim(DSE.dims)
@@ -83,7 +87,8 @@ function InvCov(P::Distributions.GenericMvTDist)
     end
 end
 InvCov(P::Distribution) = invcov(P)
-# InvCov(DSE::DataSetExact) = InvCov(ydist(DSE))
+
+InvCov(DSE::DataSetExact) = DSE.InvCov
 
 DataMetric(P::Distribution) = InvCov(P)
 function DataMetric(P::Distributions.GenericMvTDist)

@@ -16,12 +16,13 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 
 # function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
 #     R = zero(suff(θ))
+#     Dot(x) = dot(x,x)
 #     if length(ydata(DS)[1]) == 1    # For some reason this is faster.
 #         for i in 1:length(xdata(DS))
 #             R += ((ydata(DS)[i]-model(xdata(DS)[i],θ))/sigma(DS)[i])^2
 #         end
 #     else
-#         term(i) = dot((ydata(DS)[i] .- model(xdata(DS)[i],θ))/sigma(DS)[i])
+#         term(i) = Dot((ydata(DS)[i] .- model(xdata(DS)[i],θ))/sigma(DS)[i])
 #         R = sum( term(i) for i in 1:length(xdata(DS)) )
 #     end
 #     -0.5*(length(xdata(DS))*log(2pi) + 2*sum(log.(sigma(DS))) + R)
@@ -65,37 +66,38 @@ ChiQuant(sig::Real=1.,k::Int=2) = (1/2)*quantile(Chisq(k),ConfVol(sig))
 ChiQuantToSigma(ChiQuant::Real,k::Int=2) = cdf.(Chisq(k),2*ChiQuant) |> InvConfVol
 
 # Cannot be used with DiffEq since tags conflict. Use Zygote.jl?
-AutoScore(DM::AbstractDataModel,θ::Vector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DM,x),θ)
-AutoMetric(DM::AbstractDataModel,θ::Vector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DM,x)),θ)
+AutoScore(DM::AbstractDataModel,θ::Vector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
+AutoMetric(DM::AbstractDataModel,θ::Vector{<:Number}) = AutoMetric(DM.Data,DM.model,θ)
+AutoScore(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
+AutoMetric(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
 
+# """
+# Calculates the score of models with y vales of dim > 1.
+# """
+# function ScoreDimN(DM::DataModel,p::Vector{<:Number})
+#     Res = zeros(suff(p),length(p))
+#     moddif = (sigma(DM)).^(-2) .* (ydata(DM) .- map(z->DM.model(z,p),xdata(DM)))
+#     dmod = map(z->DM.dmodel(z,p),xdata(DM))
+#     for i in 1:length(xdata(DM))
+#         Res[:] .+= (transpose(moddif[i]) * DM.dmodel(xdata(DM)[i],p))[:]
+#     end
+#     Res
+# end
+#
+# # function Score1D(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
+# #     Res = zeros(suff(θ),length(θ))
+# #     mod = EmbeddingMap(DS,model,θ);    dmod = EmbeddingMatrix(DS,dmodel,θ)
+# #     for j in 1:length(θ)
+# #         Res[j] += sum((sigma(DS)[i])^(-2) *(ydata(DS)[i]-mod[i])*dmod[i,j]   for i in 1:length(xdata(DS)))
+# #     end;    Res
+# # end
+#
+# Score1D(DM::AbstractDataModel,θ::Vector{<:Number}) = Score1D(DM.Data,DM.model,DM.dmodel,θ)
 
-
-"""
-Calculates the score of models with y vales of dim > 1.
-"""
-function ScoreDimN(DM::DataModel,p::Vector{<:Number})
-    Res = zeros(suff(p),length(p))
-    moddif = (sigma(DM)).^(-2) .* (ydata(DM) .- map(z->DM.model(z,p),xdata(DM)))
-    dmod = map(z->DM.dmodel(z,p),xdata(DM))
-    for i in 1:length(xdata(DM))
-        Res[:] .+= (transpose(moddif[i]) * DM.dmodel(xdata(DM)[i],p))[:]
-    end
-    Res
-end
-
-Score1D(DM::AbstractDataModel,θ::Vector{<:Number}) = Score1D(DM.Data,DM.model,DM.dmodel,θ)
-
-function Score1D(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
+function Score(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
     transpose(EmbeddingMatrix(DS,dmodel,θ)) * InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ))
 end
 
-# function Score1D(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
-#     Res = zeros(suff(θ),length(θ))
-#     mod = EmbeddingMap(DS,model,θ);    dmod = EmbeddingMatrix(DS,dmodel,θ)
-#     for j in 1:length(θ)
-#         Res[j] += sum((sigma(DS)[i])^(-2) *(ydata(DS)[i]-mod[i])*dmod[i,j]   for i in 1:length(xdata(DS)))
-#     end;    Res
-# end
 
 
 """
@@ -104,8 +106,9 @@ Calculates the gradient of the log-likelihood with respect to a set of parameter
 """
 function Score(DM::AbstractDataModel, θ::Vector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DM,θ)
-    length(ydata(DM)[1]) != 1 && return ScoreDimN(DM,θ)
-    return Score1D(DM,θ)
+    return Score(DM.Data,DM.model,DM.dmodel,θ)
+    # length(ydata(DM)[1]) != 1 && return ScoreDimN(DM,θ)
+    # return Score1D(DM,θ)
 end
 
 
@@ -337,7 +340,7 @@ function OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false)
     planeorth = Cross(PL.Vx,PL.Vy)
     if length(θ) != 2
         !IsOnPlane(PL,θ) && throw(ArgumentError("Parameter Configuration not on specified Plane."))
-        länge(planeorth .- ones(length(θ))) < 1e-14 && throw(ArgumentError("Visualization plane unsuitable: $planeorth"))
+        norm(planeorth .- ones(length(θ))) < 1e-14 && throw(ArgumentError("Visualization plane unsuitable: $planeorth"))
     end
 
     S = Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S

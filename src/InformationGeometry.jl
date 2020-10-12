@@ -6,25 +6,22 @@ using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements
 using Distributions, SpecialFunctions, TensorOperations, DataFrames
 using Plots
 
-# todo: Add testing
-# Remove old unused code
+
 # Make interface more uniform: tolerance, method, Big, ...
-# Write documentation
 # Generalize accepted models (covariance, non-gaussian Fisher metrics,...)
 # Improve Plotting for higher-dim models
 
 # ALLOW FOR SPECIFICATION OF A DOMAIN IN DATAMODEL?
 # WOULD BE BEST TO MAKE THIS A BOOLEAN-VALUED FUNCTION WHICH CAN ALSO BE INDUCED BY A HYPERCUBE.
-# THEN TEST FOR det(g) ≠ 0 FOR ~10 RANDOM PARAMETER CONFIGURATIONS IN DOMAIN ON INITIALISATION.
-# ALSO, TEST FOR det(g) ≠ 0 ALONG CONFIDENCE BOUNDARY AND PRINT IF THIS HAPPENS BUT CONTINUE CURVE.
 
-# Immediately determine MLE and LogLikeMLE when building DataModel
 # Remove Plots.jl dependency and instead write recipes for FittedPlot and ResidualPlot
 
 # SaveDataSet is basically equivalent to DataFrame(DS)?
 # Create method which boils DataSet down to, say length(θ)+1 points for visualization of h(M) ⊆ D
 
 # ADD TESTS FOR CorrectedCovariance
+
+# Add descriptions of how to save stuff to docs
 
 
 include("Structures.jl")
@@ -37,7 +34,7 @@ export plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPl
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
 export xdata, ydata, sigma, InvCov, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
 export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup
-export HealthyData
+export HealthyData, DataDist
 
 
 include("ConfidenceLib.jl")
@@ -66,5 +63,11 @@ export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, Visua
 export VisualizeGeos, VisualizeGeo, PointwiseConfidenceBand, Deplanarize
 
 export suff, ConfidenceRegionVolume, SaveDataSet
+
+
+include("datasettypes.jl")
+export TemperedDistributions, Dirac
+export DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
+
 
 end # module
