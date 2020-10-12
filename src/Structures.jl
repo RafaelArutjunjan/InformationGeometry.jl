@@ -4,15 +4,27 @@ suff(x::Number) = typeof(float(x))
 suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
 
+function HealthyData(x::AbstractVector,y::AbstractVector)
+    length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
+    # Check that dimensions of x-values and y-values are consistent
+    xdim = length(x[1]);    ydim = length(y[1])
+    sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
+    sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
+    return Tuple([length(x),xdim,ydim])
+end
+
 abstract type AbstractDataSet end
+abstract type AbstractDataModel end
 
 """
 The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
-For example,
-```julia
-DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
-```
 Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
+
+In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a four-point `DataSet` can be constructed via
+```julia
+DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
+```
+where the three arguments constitute a vector of x-values, y-values and 1σ uncertainties associated with the y-values, respectively.
 """
 struct DataSet <: AbstractDataSet
     x::AbstractVector
@@ -20,15 +32,7 @@ struct DataSet <: AbstractDataSet
     sigma::AbstractArray
     InvCov::AbstractMatrix
     # dims::Tuple{Int,Int,Int}
-    function HealthyData(x::AbstractVector,y::AbstractVector)::Bool
-        length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
-        # Check that dimensions of x-values and y-values are consistent
-        xdim = length(x[1]);    ydim = length(y[1])
-        sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
-        sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
-        return true
-    end
-    function DataSet(x::AbstractVector,y::AbstractVector,sigma)
+    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray)
         HealthyData(x,y)
         if length(sigma) == 1 && length(y) > 1
             return DataSet(x, y, sigma*ones(length(y)))
@@ -112,7 +116,7 @@ DM = DataModel(DS,model,dmodel)
 ```
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different values of `x`.
 """
-struct DataModel
+struct DataModel <: AbstractDataModel
     Data::AbstractDataSet
     model::Function
     dmodel::Function
@@ -137,21 +141,21 @@ struct DataModel
     end
 end
 
-xdata(DS::DataSet) = DS.x;                  xdata(DM::DataModel) = xdata(DM.Data)
-ydata(DS::DataSet) = DS.y;                  ydata(DM::DataModel) = ydata(DM.Data)
-sigma(DS::DataSet) = DS.sigma;              sigma(DM::DataModel) = sigma(DM.Data)
-InvCov(DS::DataSet) = DS.InvCov;            InvCov(DM::DataModel) = InvCov(DM.Data)
-xdim(DS::AbstractDataSet) = length(xdata(DS)[1]);   xdim(DM::DataModel) = xdim(DM.Data)
-ydim(DS::AbstractDataSet) = length(ydata(DS)[1]);   ydim(DM::DataModel) = ydim(DM.Data)
+xdata(DM::AbstractDataModel) = xdata(DM.Data)
+ydata(DM::AbstractDataModel) = ydata(DM.Data)
+sigma(DM::AbstractDataModel) = sigma(DM.Data)
+InvCov(DM::AbstractDataModel) = InvCov(DM.Data)
+xdim(DM::AbstractDataModel) = xdim(DM.Data)
+ydim(DM::AbstractDataModel) = ydim(DM.Data)
 
-# Eventually incorporate into DataSet type such that InvCov(DS::DataSet) = DS.InvCov
-# function InvCov(DS::DataSet)
-#     if typeof(sigma(DS)) <: AbstractVector
-#         return diagm(sigma(DS).^-2)
-#     elseif typeof(sigma(DS)) <: AbstractMatrix
-#         return inv(sigma(DS))
-#     end
-# end
+xdata(DS::DataSet) = DS.x
+ydata(DS::DataSet) = DS.y
+sigma(DS::DataSet) = DS.sigma
+InvCov(DS::DataSet) = DS.InvCov
+xdim(DS::DataSet) = length(xdata(DS)[1])
+ydim(DS::DataSet) = length(ydata(DS)[1])
+
+
 """
     MLE(DM::DataModel) -> Vector
 Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data.
@@ -172,12 +176,13 @@ yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDa
 
 # pdim(DM::DataModel; max::Int=50)::Int = pdim(DM.model,xdata(DM)[1]; max=max)
 pdim(DM::DataModel; kwargs...) = length(MLE(DM))
+pdim(DM::AbstractDataModel; kwargs...) = pdim(DM.model,xdata(DM)[1])
 
 """
     pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
 Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real
+function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=100)::Int where T<:Real
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
@@ -196,12 +201,12 @@ function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where 
 end
 
 
-function Sparsify(DS::DataSet,B::Vector=rand(Bool,length(DS.x)))
-    length(B) != length(DS.x) && throw(ArgumentError("Sparsify: Vector not same number of components as datapoints."))
-    !(length(DS.x[1]) == length(DS.y[1]) == length(DS.sigma[1])) && throw("Not programmed yet.")
-    return DataSet(DS.x[B],DS.y[B],DS.sigma[B])
+function Sparsify(DS::DataSet,B::Vector=rand(Bool,length(xdata(DS))))
+    length(B) != length(xdata(DS)) && throw(ArgumentError("Sparsify: Vector not same number of components as datapoints."))
+    !(length(xdata(DS)[1]) == length(ydata(DS)[1]) == length(sigma(DS)[1])) && throw("Not programmed yet.")
+    return DataSet(xdata(DS)[B],ydata(DS)[B],sigma(DS)[B])
 end
-function Sparsify(DM::DataModel,B::Vector=rand(Bool,length(xdata(DM))))
+function Sparsify(DM::AbstractDataModel,B::Vector=rand(Bool,length(xdata(DM))))
     return DataModel(Sparsify(DM.Data,B),DM.model,DM.dmodel)
 end
 
@@ -262,24 +267,22 @@ Returns an n-dimensional vector from a tuple of two real numbers which
 """
 function PlaneCoordinates(PL::Plane, v::Vector{<:Real})
     length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
-    # PL.stütz .+ v[1]*PL.Vx .+ v[2]*PL.Vy
-    # Faster:
     PL.stütz + [PL.Vx PL.Vy]*v
 end
 import LinearAlgebra.dot
-dot(A::AbstractMatrix, x::Vector, y::Vector=x) = transpose(x)*A*y
+# dot(A::AbstractMatrix, x::Vector, y::Vector=x) = transpose(x)*A*y
 dot(x) = dot(x,x)
 länge(x::Vector{<:Real}) = sqrt(dot(x,x))
 EuclideanDistance(x::Vector, y::Vector) = länge(x .- y)
 IsOnPlane(PL::Plane,x::Vector)::Bool = (DistanceToPlane(PL,x) == 0)
 TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
-RotatePlane(PL::Plane, rads=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
-function RotationMatrix(PL::Plane,rads::Q) where Q<:Real
+RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
+function RotationMatrix(PL::Plane,rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
     W = PL.Vx*transpose(PL.Vy) - PL.Vy*transpose(PL.Vx)
     Diagonal(ones(length(PL.stütz))) + (cos(rads)-1.)*V -sin(rads)*W
 end
-RotateVector(PL::Plane,v::Vector,rads::Q) where Q<:Real = RotationMatrix(PL,rads)*v
+RotateVector(PL::Plane,v::Vector,rads::Real) = RotationMatrix(PL,rads)*v
 
 function DecomposeWRTPlane(PL::Plane,x::Vector)
     !IsOnPlane(PL,x) && throw(ArgumentError("Decompose Error: Vector not on Plane."))
@@ -287,7 +290,7 @@ function DecomposeWRTPlane(PL::Plane,x::Vector)
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
     # [dot(V,PL.Vx)/dot(PL.Vx,PL.Vx),dot(V,PL.Vy)/dot(PL.Vy,PL.Vy)]
 end
-DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x .- PL.stütz) |> länge
+DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> länge
 ProjectOntoPlane(PL::Plane,x::Vector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::Matrix)
@@ -302,13 +305,16 @@ function Make2ndOrthogonal(X::Vector,Y::Vector)
     return Basis[2]
 end
 
-function MinimizeOnPlane(PL::Plane,F::Function,initial::Vector=[1,-1.]; tol=1e-5)
+function MinimizeOnPlane(PL::Plane,F::Function,initial::Vector=[1,-1.]; tol::Real=1e-5)
     G(x) = F(PlaneCoordinates(PL,x))
     X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)
 end
 
-# project v onto u
+"""
+    ProjectOnto(v::Vector,u::Vector)
+Project `v` onto `u`.
+"""
 ProjectOnto(v::Vector,u::Vector) = dot(v,u)/dot(u,u) .* u
 
 function GramSchmidt(v::Vector{<:Real},dim::Int=length(v))
@@ -329,6 +335,11 @@ function GramSchmidt(Basis::Vector{Vector{Q}}) where Q
     [normalize(ONBasis[i]) for i in 1:length(ONBasis)]
 end
 
+
+
+
+abstract type Cuboid end
+
 """
 The `HyperCube` type has the fields `vals::Vector{Vector}`, which stores the intervals which define the hypercube and `dim::Int`, which gives the dimension.
 Overall it just offers a convenient and standardized way of passing domains for integration or plotting between functions without having to check that these domains are sensible every time.
@@ -348,7 +359,7 @@ TranslateCube(X,v::Vector)
 CubeWidths(X)
 ```
 """
-struct HyperCube{Q<:Real}
+struct HyperCube{Q<:Real} <: Cuboid
     vals::Vector{Vector{Q}}
     dim::Int
     function HyperCube(vals::Vector)
@@ -381,7 +392,7 @@ TranslateCube(X,v::Vector)
 CubeWidths(X)
 ```
 """
-struct LowerUpper{Q<:Real}
+struct LowerUpper{Q<:Real} <: Cuboid
     L::Vector{Q}
     U::Vector{Q}
     function LowerUpper(lowers,uppers)
@@ -403,7 +414,7 @@ struct LowerUpper{Q<:Real}
     LowerUpper(H::Vector) = LowerUpper(HyperCube(H))
 end
 
-SensibleOutput(LU::LowerUpper) = LU.L,LU.U
+# SensibleOutput(LU::LowerUpper) = LU.L,LU.U
 function HyperCube(LU::LowerUpper)
     R = Vector{typeof(LU.U)}(undef,length(LU.U))
     for i in 1:length(LU.U)
@@ -446,8 +457,9 @@ function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     A
 end
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
-Unwind(X::Vector{Vector{Q}}) where Q<:Number = vcat(X...)
-
+Unwind(X::Vector{<:Vector{<:Number}}) = vcat(X...)
+Unwind(X::Vector{<:Number}) = X
+Windup(v::Vector{<:Number},n::Int) = [v[(1+(i-1)*n):(i*n)] for i in 1:Int(length(v)/n)]
 
 function CubeVol(Space::Vector)
     lowers,uppers = SensibleOutput(Space)

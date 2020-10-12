@@ -29,18 +29,19 @@ using Plots
 
 include("Structures.jl")
 # Types
-export AbstractDataSet, DataSet, DataModel, Plane, HyperCube, LowerUpper
+export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube, LowerUpper
 
 
 # Functions
-export Unpack, ToCols, plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
+export plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
-export xdata, ydata, sigma, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
-export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel
+export xdata, ydata, sigma, InvCov, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
+export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup
+export HealthyData
 
 
 include("ConfidenceLib.jl")
-export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC
+export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, BIC
 export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export MultipleConfidenceRegions, GenerateConfidenceRegion
