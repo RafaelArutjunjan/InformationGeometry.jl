@@ -182,7 +182,7 @@ pdim(DM::AbstractDataModel; kwargs...) = pdim(DM.model,xdata(DM)[1])
     pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
 Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
 """
-function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=100)::Int where T<:Real
+function pdim(model::Function,x::Union{T,Vector{T}}=[1.]; max::Int=100)::Int where T<:Real
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
