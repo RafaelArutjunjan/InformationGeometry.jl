@@ -66,10 +66,9 @@ xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
 
 
-function data(DSE::DataSetExact,F::Function)
-    isa(F(DSE),Product) && return [location(F(DSE).v[i]) for i in 1:length(F(DSE))]
-    return F(DSE).μ
-end
+GetMean(P::Product) = [location(P.v[i]) for i in 1:length(P)]
+GetMean(P::Distribution) = P.μ
+data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
 xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
 

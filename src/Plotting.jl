@@ -22,7 +22,7 @@ RecipesBase.@recipe function plot(LU::LowerUpper,args...)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1],rectangle(LU)[:,2],args...
 end
-RecipesBase.@recipe function plot(X::Vector{Vector{T}},args...) where T<:Real
+RecipesBase.@recipe function plot(X::Vector{<:Vector{<:Number}},args...)
     G = Unpack(X)
     marker --> :hex
     linealpha --> 0
@@ -34,10 +34,13 @@ end
 
 # LSQFIT
 import LsqFit.curve_fit
-curve_fit(DM::DataModel,initial::Vector{<:Number}=MLE(DM),args...;tol::Real=1e-14,kwargs...) = curve_fit(DM.Data,DM.model,initial,args...;x_tol=tol,g_tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,F::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1])) + 0.01rand(pdim(F,ydata(DS)[1])),args...;tol::Real=1e-14,kwargs...)
-    curve_fit(F,xdata(DS),ydata(DS),sigma(DS).^(-2),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
-    # curve_fit(F,xdata(DS),ydata(DS),InvCov(DS),initial,args...;x_tol=tol,g_tol=tol,kwargs...)
+curve_fit(DM::AbstractDataModel,initial::Vector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1]))+0.01rand(pdim(F,ydata(DS)[1]));tol::Real=6e-15,kwargs...)
+    X = xdata(DS);  Y = ydata(DS)
+    LsqFit.check_data_health(X, Y)
+    u = cholesky(InvCov(DS)).U
+    f(p) = u * ( model(X, p) - Y )
+    LsqFit.lmfit(f,initial,InvCov(DS);x_tol=tol,g_tol=tol,kwargs...)
 end
 
 # RecipesBase.@recipe function RecipeTester(args...)
