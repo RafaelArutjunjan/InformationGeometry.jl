@@ -479,27 +479,44 @@ end
     GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
-function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-    L(p) = loglikelihood(DM,p);    V(p) = OrthVF(DM,p)
-    LogLikeOnBoundary = L(u0)
-    function IntCurveODE(du,u,p,t)
-        du .= 0.1 .* V(u)
-    end
-    function g(resid,u,p,t)
-      resid[1] = LogLikeOnBoundary - L(u)
-      resid[2] = 0.
-    end
+function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
+    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
+    LogLikeOnBoundary = loglikelihood(DM,u0)
+    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u;Auto=Auto)
+    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
-    tspan = (0.,1e5)
-    prob = ODEProblem(IntCurveODE,u0,tspan)
+    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
     if mfd
         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
     else
         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
     end
 end
+
+# function GenerateBoundary(DM::DataModel, u0::Vector{<:Number}; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
+#     L(p) = loglikelihood(DM,p);    V(p) = OrthVF(DM,p)
+#     LogLikeOnBoundary = L(u0)
+#     function IntCurveODE(du,u,p,t)
+#         du .= 0.1 .* V(u)
+#     end
+#     function g(resid,u,p,t)
+#       resid[1] = LogLikeOnBoundary - L(u)
+#     end
+#     terminatecondition(u,t,integrator) = u[2] - u0[2]
+#     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
+#     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
+#     tspan = (0.,1e5)
+#     prob = ODEProblem(IntCurveODE,u0,tspan)
+#     if mfd
+#         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
+#     else
+#         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
+#     end
+# end
+
+
 
 # GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
 # function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
@@ -858,14 +875,14 @@ function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
         return false
     end
     C = Symmetric(inv(FisherMetric(DM,MLE(DM))));    L = cholesky(C).L
-    lenp = length(MLE);    res = 0.
+    lenp = length(MLE(DM));    res = 0.
     v = L*normalize(ones(lenp));    CF = ConfVol(1.)
-    TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE + x.*v))) - CF
-    TestDisc(x::Real)::Bool = WilksTest(DM, MLE + x.*v, CF)
+    TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE(DM) + x.*v))) - CF
+    TestDisc(x::Real)::Bool = WilksTest(DM, MLE(DM) + x.*v, CF)
     if disc
-        res = LineSearch(TestDisc,1.,tol=tol)
+        res = LineSearch(TestDisc,1.;tol=tol)
     else
-        res = find_zero(TestCont,1.,xatol=tol)
+        res = find_zero(TestCont,1.;xatol=tol)
     end
     return res^2 .* C
 end

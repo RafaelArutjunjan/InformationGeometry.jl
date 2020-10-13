@@ -273,10 +273,12 @@ struct Plane
     end
 end
 
+length(PL::Plane) = length(PL.stütz)
+
 function PlanarDataModel(DM::DataModel,PL::Plane)
     newmod = (x,p::Vector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
     dnewmod = (x,p::Vector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
-    DataModel(DM.Data,newmod,dnewmod)
+    DataModel(DM.Data,newmod,dnewmod,0.001ones(2))
 end
 
 function BasisVector(Slot::Int,dims::Int)
@@ -333,6 +335,17 @@ end
 Project `v` onto `u`.
 """
 ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
+
+"""
+    ParallelPlanes(PL::Plane,v::Vector,range) -> Vector{Plane}
+Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
+"""
+function ParallelPlanes(PL::Plane,v::Vector,range)
+    norm(v) == 0. && throw("Vector has length zero.")
+    PL.Projector * v == v && throw("Plane and vector linearly dependent.")
+    [TranslatePlane(PL, ran .* v) for ran in range]
+end
+
 
 function GramSchmidt(v::AbstractVector,dim::Int=length(v))
     Basis = Vector{suff(v)}(undef,0)
@@ -483,6 +496,9 @@ function CubeVol(Space::Vector)
     prod(uppers .- lowers)
 end
 CubeWidths(S::LowerUpper) = S.U .- S.L
+
+center(LU::LowerUpper) = 0.5.*(LU.U + LU.L)
+center(C::HyperCube) = center(LowerUpper(C))
 
 
 """

@@ -31,7 +31,7 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube,
 
 # Functions
 export plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
-export CubeWidths, CubeVol, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane
+export CubeWidths, CubeVol, center, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane, ParallelPlanes
 export xdata, ydata, sigma, InvCov, N, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
 export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup
 export HealthyData, HealthyCovariance, DataDist
@@ -49,7 +49,7 @@ export IsLinearParameter, IsLinear, CorrectedCovariance
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
 include("Geodesics.jl")
 
-export Cross, ChristoffelTerm, ChristoffelSymbol, ComputeGeodesic, MetricNorm, GeodesicLength, GeodesicCrossing
+export Cross, ChristoffelTerm, ChristoffelSymbol, ComputeGeodesic, GeodesicLength, GeodesicCrossing
 export DistanceAlongGeodesic, Endpoints, Truncated, ConstLengthGeodesics, ConfidenceBoundaryViaGeodesic
 export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic

@@ -438,3 +438,66 @@ function PlotMatrix(Mat::Matrix,MLE::Vector=zeros(size(Mat,1)),N::Int=400)
     Data = Unpack(F.(angles))
     display(plot!(Data[:,1],Data[:,2],label="Matrix")); Data
 end
+
+
+
+"""
+Returns Array of vertex numbers where every row constitutes a trapezoid for two adjacent curves from which N samples have been drawn.
+"""
+function RectangularFacetIndices(N::Int=20, zerobased::Bool=false)
+    G = Matrix{Int64}(undef,0,4)
+    for i in 0:(N-2)
+        G = vcat(G,[i i+1 N+i+1 N+i])
+    end
+    # Facet indices zero-based or one-based?
+    if zerobased
+        return vcat(G,[N-1 0 N 2N-1])
+    else
+        return vcat(G,[N-1 0 N 2N-1]) .+ 1
+    end
+end
+"""
+Turns Array which specifies trapezoidal faces into triangular connections.
+"""
+function RectToTriangFacets(M::Matrix{<:Int})
+    G = Matrix{Int64}(undef,2size(M,1),3)
+    for i in 1:size(M,1)
+        G[2i-1,:] = [M[i,1], M[i,2], M[i,4]]
+        G[2i,:] = M[i,2:4]
+    end;    G
+end
+function CreateMesh(Planes::Vector{T}, Sols::Vector{S}; N::Int=3*length(Sols), rectangular::Bool=true) where T <: Plane where S <: ODESolution
+    Vertices = vcat([Deplanarize(Planes[i],Sols[i], N=N) for i in 1:length(Sols)]...)
+    M = RectangularFacetIndices(N)
+    Facets = vcat([M .+ (i-1)*N for i in 1:(length(Sols)-1)]...)
+    if rectangular
+        return Vertices, Facets
+    else
+        return Vertices, RectToTriangFacets(Facets)
+    end
+end
+function ToObj(Vertices::Matrix,Facets::Matrix)
+    text = ""
+    for i in 1:size(Vertices,1)
+        text *= "v"
+        for j in 1:size(Vertices,2)
+            text *= " $(Vertices[i,j])"
+        end
+        text *= '\n'
+    end
+    # ONE-BASED facet indices for .obj files
+    for i in 1:size(Facets,1)
+        text *= "f"
+        for j in 1:size(Facets,2)
+            text *= " $(Facets[i,j])"
+        end
+        text *= '\n'
+    end
+    text
+end
+function WriteObj(Vertices::Matrix,Facets::Matrix, path::String="D:/Boundary.obj")
+    open(path,"w") do f
+        write(f,ToObj(Vertices,Facets))
+    end
+    return
+end
