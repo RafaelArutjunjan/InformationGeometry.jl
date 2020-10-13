@@ -38,10 +38,16 @@ end
 @safetestset "Inputting Dataset of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra
 
+    DS1 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])
+    DS2 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],diagm([0.7,1.1,2.2].^2))
+
+    @test sum(abs.(InvCov(DS1) .- InvCov(DS2))) < 1e-12
+    @test xdim(DS1) == 2
+    @test ydim(DS1) == 1
+    @test N(DS1) == 3
+
     # Covariance Matrices, multidimensional Y, multidimensional X
     @test ydata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [1,5,6.]
-    # @test xdata(DataSet([1,5,6],[[0,1.],[2,3],[5,8]],[0.7,1.1,2.2])) == [1,5,6.]
-
 end
 
 

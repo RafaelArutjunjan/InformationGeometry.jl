@@ -28,10 +28,20 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 #     -0.5*(length(xdata(DS))*log(2pi) + 2*sum(log.(sigma(DS))) + R)
 # end
 
+# function logdet(C::AbstractMatrix)
+#     L = log(det(C))
+#     if abs(L) < Inf
+#         return L
+#     else
+#         return sum(log.(eigvals(C)))
+#     end
+# end
+# logdet(C::Diagonal) = tr(log(C))
+
 function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     # -0.5*(length(xdata(DS))*log(2pi) - log(det(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
-    -0.5*(length(xdata(DS))*log(2pi) - tr(log(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(N(DS)*log(2pi) - logdet(InvCov(DS)) + transpose(Y) * InvCov(DS) * Y)
 end
 
 

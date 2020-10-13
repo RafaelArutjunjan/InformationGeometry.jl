@@ -3,7 +3,6 @@ using TensorOperations, Roots
 using Combinatorics
 
 
-# TensorOperations roughly 10 times slower than native Julia Linear Algebra
 GetH(x::Type) = (x == BigFloat) ? convert(BigFloat,10 .^(-precision(x)/10)) : 1e-6
 
 

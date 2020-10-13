@@ -1,8 +1,16 @@
 
 
-suff(x::Number) = typeof(float(x))
-suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
+# suff(x::Number) = typeof(float(x))
+# suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
+"""
+    suff(x) -> Type
+If `x` stores BigFloats, `suff` returns BigFloat, else `suff` returns `Float64`.
+"""
+suff(x::BigFloat) = BigFloat
+suff(x::Real) = Float64
+suff(x::Complex) = real(x)
+suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
 
 function HealthyData(x::AbstractVector,y::AbstractVector)
     length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
@@ -12,6 +20,10 @@ function HealthyData(x::AbstractVector,y::AbstractVector)
     sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
     return Tuple([length(x),xdim,ydim])
 end
+
+HealthyCovariance(sigma::AbstractVector{<:Real}) = !all(x->(0. < x),sigma) && throw("Some uncertainties not positive.")
+HealthyCovariance(sigma::AbstractMatrix{<:Real}) = !isposdef(sigma) && throw("Covariance matrix not positive-definite.")
+
 
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
@@ -43,17 +55,13 @@ struct DataSet <: AbstractDataSet
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractVector,dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
-        return DataSet(Unwind(x),Unwind(y),Sigma,diagm([Sigma[i]^-2 for i in 1:length(Sigma)]),dims)
+        DataSet(Unwind(x),Unwind(y),Sigma,diagm([Sigma[i]^-2 for i in 1:length(Sigma)]),dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
-        if typeof(sigma) <: AbstractVector
-            !all(x->(0. < x),sigma) && throw("Some uncertainties not positive.")
-        elseif !isposdef(sigma)
-            throw("Covariance matrix not positive-definite.")
-        end
-        return new(x,y,sigma,InvCov,dims)
+        HealthyCovariance(sigma)
+        new(x,y,sigma,InvCov,dims)
     end
 end
 
