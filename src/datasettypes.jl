@@ -26,6 +26,7 @@ struct DataSetExact <: AbstractDataSet
     InvCov::AbstractMatrix
     # X::AbstractVector
     DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
+    DataSetExact(DM::AbstractDataModel) = DataSetExact(DM.Data)
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
     function DataSetExact(x::AbstractVector,xSig::AbstractVector,y::AbstractVector,ySig::AbstractVector)
@@ -34,10 +35,8 @@ struct DataSetExact <: AbstractDataSet
         length(Unwind(ySig)) != ydim(dims)*N(dims) && throw("Problem with y errors.")
         if xSig == zeros(length(xSig))
             return DataSetExact(Dirac(x),DataDist(y,ySig),dims)
-            # return DataSetExact(Dirac(x),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
         else
             return DataSetExact(DataDist(x,xSig),DataDist(y,ySig),dims)
-            # return DataSetExact(product_distribution([Normal(x[i],xSig[i]) for i in 1:length(x)]),product_distribution([Normal(y[i],ySig[i]) for i in 1:length(y)]),dims)
         end
     end
     function DataSetExact(x::AbstractVector,xCov::AbstractMatrix,y::AbstractVector,yCov::AbstractMatrix)
@@ -56,12 +55,11 @@ struct DataSetExact <: AbstractDataSet
     end
 end
 
-# import InformationGeometry: xdim, ydim, xdata, ydata, sigma, InvCov, loglikelihood, Score
 
-N(dims::Tuple{Int,Int,Int}) = dims[1];             N(DSE::DataSetExact) = N(DSE.dims)
-xdim(dims::Tuple{Int,Int,Int}) = dims[2];          xdim(DSE::DataSetExact) = xdim(DSE.dims)
-ydim(dims::Tuple{Int,Int,Int}) = dims[3];          ydim(DSE::DataSetExact) = ydim(DSE.dims)
-
+N(DSE::DataSetExact) = N(DSE.dims)
+xdim(DSE::DataSetExact) = xdim(DSE.dims)
+ydim(DSE::DataSetExact) = ydim(DSE.dims)
+InvCov(DSE::DataSetExact) = DSE.InvCov
 xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
 
@@ -72,10 +70,10 @@ data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
 xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
 
-Cov(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> diagm
-Sigma(P::Distribution) = P.Σ
-xSigma(DSE::DataSetExact) = Sigma(xdist(DSE))
-ySigma(DSE::DataSetExact) = Sigma(ydist(DSE))
+sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> diagm
+sigma(P::Distribution) = P.Σ
+xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
+ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 
 InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> diagm
 function InvCov(P::Distributions.GenericMvTDist)
@@ -87,7 +85,6 @@ function InvCov(P::Distributions.GenericMvTDist)
 end
 InvCov(P::Distribution) = invcov(P)
 
-InvCov(DSE::DataSetExact) = DSE.InvCov
 
 DataMetric(P::Distribution) = InvCov(P)
 function DataMetric(P::Distributions.GenericMvTDist)

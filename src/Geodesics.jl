@@ -92,7 +92,7 @@ end
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
-function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Real=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
@@ -116,16 +116,16 @@ end
 Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
 """
-function ComputeGeodesic(DM::AbstractDataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+function ComputeGeodesic(DM::AbstractDataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Real=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
-function MetricNorm(G::Matrix,v::Vector,w::Vector=v)
-    (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
-    sqrt(transpose(v)*G*w)
-end
-@deprecate MetricNorm(G,v,w) nothing
+# function MetricNorm(G::Matrix,v::Vector,w::Vector=v)
+#     (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
+#     sqrt(transpose(v)*G*w)
+# end
+# @deprecate MetricNorm(G,v,w) nothing
 
 """
     GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
@@ -219,7 +219,7 @@ Truncated(sol::ODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
 # end
 
 # ADAPT FOR PLANES
-function ConstLengthGeodesics(DM::AbstractDataModel,Metric::Function,MLE::Vector,Conf::Float64=ConfVol(1); N::Int=100; tol::Float64=6e-11)
+function ConstLengthGeodesics(DM::AbstractDataModel,Metric::Function,MLE::Vector,Conf::Real=ConfVol(1), N::Int=100; tol::Real=6e-11)
     angles = [2*pi*n/N      for n in 1:N]
     Initials = [ [MLE...,cos(alpha),sin(alpha)] for alpha in angles]
     solving = 0
@@ -232,7 +232,7 @@ function ConstLengthGeodesics(DM::AbstractDataModel,Metric::Function,MLE::Vector
 end
 
 
-function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,InitialVec::Vector,Conf::Float64=ConfVol(1); tol::Real=6e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,InitialVec::Vector,Conf::Real=ConfVol(1); tol::Real=6e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -253,19 +253,19 @@ end
 ###############################################################
 
 
-function pConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Float64=10.,N::Int=100;
-    Boundaries::Union{Function,Nothing}=nothing, tol::Float64=1e-13, parallel::Bool=true)
+function pConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::Int=100;
+    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=true)
     ConstParamGeodesics(Metric,MLE,Endtime,N;Boundaries=Boundaries, tol=tol, parallel=parallel)
 end
 
-function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Float64=10.,N::Int=100;
-    Boundaries::Union{Function,Nothing}=nothing, tol::Float64=1e-13, parallel::Bool=false)
+function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::Int=100;
+    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
     Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2pi,length=N)]
     solving = 0
     function Constructor(Initial)
         solving += 1
         println("Computing Geodesic $(solving) / $N")
-        ComputeGeodesic(Metric,MLE,Initial,Endtime,tol=tol,Boundaries=Boundaries)
+        ComputeGeodesic(Metric,MLE,Initial,Endtime;tol=tol,Boundaries=Boundaries)
     end
     parallel && return pmap(Constructor,Initials)
     map(Constructor,Initials)

@@ -30,7 +30,8 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 
 function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
-    -0.5*(length(xdata(DS))*log(2pi) - log(det(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
+    # -0.5*(length(xdata(DS))*log(2pi) - log(det(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(length(xdata(DS))*log(2pi) - tr(log(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -125,19 +126,19 @@ WilksTest(DM::DataModel, θ::Vector{<:Real}, ConfVol=ConfVol(1))::Bool = ChisqCD
 # end
 
 
-"""
-    WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1)) -> Bool
-Checks whether a given parameter configuration ``\\theta`` is within a confidence interval of level `ConfVol` using Wilks' theorem.
-This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
-To simplify the calculation, `LogLikeMLE` accepts the value of the log-likelihood evaluated at the MLE.
-"""
-function WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1))::Bool
-    # return (LogLikeMLE - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
-    return ChisqCDF(length(θ), 2(LogLikeMLE - loglikelihood(DM,θ))) - ConfVol < 0.
-end
-
-@deprecate WilksTestPrepared(DM,θ,LogLikeMLE,ConfVol) WilksTest(DM,θ,ConfVol)
-@deprecate WilksTest(DM,θ,MLE,ConfVol) WilksTest(DM,θ,ConfVol)
+# """
+#     WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1)) -> Bool
+# Checks whether a given parameter configuration ``\\theta`` is within a confidence interval of level `ConfVol` using Wilks' theorem.
+# This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
+# To simplify the calculation, `LogLikeMLE` accepts the value of the log-likelihood evaluated at the MLE.
+# """
+# function WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1))::Bool
+#     # return (LogLikeMLE - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
+#     return ChisqCDF(length(θ), 2(LogLikeMLE - loglikelihood(DM,θ))) - ConfVol < 0.
+# end
+#
+# @deprecate WilksTestPrepared(DM,θ,LogLikeMLE,ConfVol) WilksTest(DM,θ,ConfVol)
+# @deprecate WilksTest(DM,θ,MLE,ConfVol) WilksTest(DM,θ,ConfVol)
 
 
 function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
@@ -176,22 +177,22 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
 end
 
 
-function Interval1D(DM::DataModel,MLE::Vector,Confnum::Real=1.;tol::Real=1e-14)
-    if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
-        throw("Interval1D not programmed for BigFloat yet.")
-    end
-    (length(MLE) != 1) && throw("Interval1D not defined for p != 1.")
-    lMLE = loglikelihood(DM,MLE)
-    A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
-    Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
-    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
-    B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
-    A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
-    rts = [MLE[1]+A, MLE[1]+B]
-    rts[1] < rts[2] && return rts
-    throw("Interval1D errored...")
-end
-@deprecate Interval1D(DM,MLE,Confnum) Interval1D(DM,Confnum)
+# function Interval1D(DM::DataModel,MLE::Vector,Confnum::Real=1.;tol::Real=1e-14)
+#     if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
+#         throw("Interval1D not programmed for BigFloat yet.")
+#     end
+#     (length(MLE) != 1) && throw("Interval1D not defined for p != 1.")
+#     lMLE = loglikelihood(DM,MLE)
+#     A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
+#     Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
+#     D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
+#     B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
+#     A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
+#     rts = [MLE[1]+A, MLE[1]+B]
+#     rts[1] < rts[2] && return rts
+#     throw("Interval1D errored...")
+# end
+# @deprecate Interval1D(DM,MLE,Confnum) Interval1D(DM,Confnum)
 
 function Interval1D(DM::DataModel, Confnum::Real=1.; tol::Real=1e-14)
     if tol < 2e-15 || typeof(ConfVol(Confnum)) == BigFloat
@@ -266,26 +267,26 @@ end
 #     LineSearch(Test,0,tol=tol,maxiter=maxiter) .* BasisVector(1,length(MLE)) .+ MLE
 # end
 
-function FindConfBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE) != BigFloat) && tol < 1e-15) && throw("FindConfBoundary: MLE not BigFloat but tol=$tol.")
-    LogLikeMLE = loglikelihood(DM,MLE);    Confvol = ConfVol(convert(suff(MLE),Confnum))
-    Test(x::Real) = WilksTestPrepared(DM, MLE .+ (x .* BasisVector(1,length(MLE))), LogLikeMLE, Confvol)
-    !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
-    stepsize = one(suff(MLE))/4.;  value = zero(suff(MLE))
-    for i in 1:maxiter
-        if Test(value + stepsize) # inside
-            value += stepsize
-            value > 20 && throw("FindConfBoundary: Value larger than 10.")
-        else            #outside
-            if stepsize < tol
-                return value .* BasisVector(1,length(MLE)) .+ MLE
-            end
-            stepsize /= 10
-        end
-    end
-    throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
-end
-@deprecate FindConfBoundary(DM,MLE,Confnum) FindConfBoundary(DM,Confnum)
+# function FindConfBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+#     ((suff(MLE) != BigFloat) && tol < 1e-15) && throw("FindConfBoundary: MLE not BigFloat but tol=$tol.")
+#     LogLikeMLE = loglikelihood(DM,MLE);    Confvol = ConfVol(convert(suff(MLE),Confnum))
+#     Test(x::Real) = WilksTestPrepared(DM, MLE .+ (x .* BasisVector(1,length(MLE))), LogLikeMLE, Confvol)
+#     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
+#     stepsize = one(suff(MLE))/4.;  value = zero(suff(MLE))
+#     for i in 1:maxiter
+#         if Test(value + stepsize) # inside
+#             value += stepsize
+#             value > 20 && throw("FindConfBoundary: Value larger than 10.")
+#         else            #outside
+#             if stepsize < tol
+#                 return value .* BasisVector(1,length(MLE)) .+ MLE
+#             end
+#             stepsize /= 10
+#         end
+#     end
+#     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
+# end
+# @deprecate FindConfBoundary(DM,MLE,Confnum) FindConfBoundary(DM,Confnum)
 
 function FindConfBoundary(DM::DataModel,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
@@ -490,20 +491,20 @@ function GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, me
     end
 end
 
-GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
-function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-    if (suff(MLE) != BigFloat) && tol < 2e-15
-        MLE = FindMLEBig(DM,MLE)
-        println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
-    end
-    if length(MLE) == 1
-        return Interval1D(DM,MLE,Confnum,tol=tol)
-    else
-        return GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
-    end
-end
-@deprecate GenerateConfidenceInterval(DM,Confnum) GenerateConfidenceRegion(DM,Confnum)
-@deprecate GenerateConfidenceInterval(DM,MLE,Confnum) GenerateConfidenceRegion(DM,Confnum)
+# GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
+# function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
+#     if (suff(MLE) != BigFloat) && tol < 2e-15
+#         MLE = FindMLEBig(DM,MLE)
+#         println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
+#     end
+#     if length(MLE) == 1
+#         return Interval1D(DM,MLE,Confnum,tol=tol)
+#     else
+#         return GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
+#     end
+# end
+# @deprecate GenerateConfidenceInterval(DM,Confnum) GenerateConfidenceRegion(DM,Confnum)
+# @deprecate GenerateConfidenceInterval(DM,MLE,Confnum) GenerateConfidenceRegion(DM,Confnum)
 
 function GenerateConfidenceRegion(DM::DataModel, Confnum::Real=1.; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
     if pdim(DM) == 1
@@ -513,43 +514,35 @@ function GenerateConfidenceRegion(DM::DataModel, Confnum::Real=1.; tol::Real=1e-
     end
 end
 
+
 function StructurallyIdentifiable(DM::DataModel,sol::ODESolution)
     roots = find_zeros(t->GeometricDensity(DM,sol(t)),sol.t[1],sol.t[end])
     length(roots)==0, roots
 end
 
-function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-    if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
-    length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
-    LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)
-    for CONF in Range
-        if IsConfVol
-            @time push!(sols, GenerateConfidenceInterval(DM,MLE,InvConfVol(CONF),tol=tol,meth=meth,mfd=mfd))
-        else
-            @time push!(sols, GenerateConfidenceInterval(DM,MLE,CONF,tol=tol,meth=meth,mfd=mfd))
-        end
-        if sols[end].retcode == :Terminated
-            # Be more quantitative in how large the discrepancy is?
-            # ConfVolume = 0
-            # if IsConfVol
-            #     ConfVolume = CONF
-            # else
-            #     ConfVolume = ConfVol(CONF)
-            # end
-            # Tester(X) = WilksTestPrepared(DM,X,LogLikeMLE,ConfVolume)
-            # CurveInsideInterval(Tester,sols[end],1000);
-            _ , rts = StructurallyIdentifiable(DM,sols[end])
-            if length(rts) != 0
-                println("Solution $(length(sols)) corresponding to $(Range[length(sols)]) hits chart boundary at t=$rts and is therefore invalid.")
-            end
-        else
-            println("solution $(length(sols)) did not exit properly: retcode=$(sols[end].retcode).")
-        end
-    end
-    sols
-end
-@deprecate GenerateMultipleIntervals(DM,Range,MLE) MultipleConfidenceRegions(DM,Range)
-@deprecate GenerateMultipleIntervals(DM,Range) MultipleConfidenceRegions(DM,Range)
+# function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
+#     if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
+#     length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
+#     LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)
+#     for CONF in Range
+#         if IsConfVol
+#             @time push!(sols, GenerateConfidenceInterval(DM,MLE,InvConfVol(CONF),tol=tol,meth=meth,mfd=mfd))
+#         else
+#             @time push!(sols, GenerateConfidenceInterval(DM,MLE,CONF,tol=tol,meth=meth,mfd=mfd))
+#         end
+#         if sols[end].retcode == :Terminated
+#             _ , rts = StructurallyIdentifiable(DM,sols[end])
+#             if length(rts) != 0
+#                 println("Solution $(length(sols)) corresponding to $(Range[length(sols)]) hits chart boundary at t=$rts and is therefore invalid.")
+#             end
+#         else
+#             println("solution $(length(sols)) did not exit properly: retcode=$(sols[end].retcode).")
+#         end
+#     end
+#     sols
+# end
+# @deprecate GenerateMultipleIntervals(DM,Range,MLE) MultipleConfidenceRegions(DM,Range)
+# @deprecate GenerateMultipleIntervals(DM,Range) MultipleConfidenceRegions(DM,Range)
 
 function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,Vector}; IsConfVol::Bool=false, tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
     pdim(DM) == 1 && return map(x->GenerateConfidenceRegion(DM,x;tol=tol),Range)

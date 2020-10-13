@@ -31,27 +31,29 @@ struct DataSet <: AbstractDataSet
     y::AbstractVector
     sigma::AbstractArray
     InvCov::AbstractMatrix
-    # dims::Tuple{Int,Int,Int}
-    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray)
-        HealthyData(x,y)
-        if length(sigma) == 1 && length(y) > 1
-            return DataSet(x, y, sigma*ones(length(y)))
-        elseif size(sigma,1) == size(sigma,2) == length(y) && length(y) > 1
-            throw(ArgumentError("DataSet not programmed for covariance matrices yet. Please decorrelate data and input as three vectors."))
-        elseif length(sigma) == length(y) && length(sigma[1]) == 1
-            return new(x,y,[sigma[i] for i in 1:length(y)],Diagonal([sigma[i]^-2 for i in 1:length(y)]))
-        else
-            throw(ArgumentError("Unsuitable specification of uncertainty: sigma = $sigma."))
-        end
-    end
+    dims::Tuple{Int,Int,Int}
     function DataSet(x::AbstractVector,y::AbstractVector)
-        HealthyData(x,y)
         println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
-        DataSet(x,y,ones(length(y)))
+        DataSet(x,y,ones(length(y)*length(y[1])))
     end
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
-        return DataSet(ToCols(convert(Matrix,DF))...)
+        DataSet(ToCols(convert(Matrix,DF))...)
+    end
+    DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
+    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractVector,dims::Tuple{Int,Int,Int})
+        Sigma = Unwind(sigma)
+        return DataSet(Unwind(x),Unwind(y),Sigma,diagm([Sigma[i]^-2 for i in 1:length(Sigma)]),dims)
+    end
+    DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
+    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
+        !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
+        if typeof(sigma) <: AbstractVector
+            !all(x->(0. < x),sigma) && throw("Some uncertainties not positive.")
+        elseif !isposdef(sigma)
+            throw("Covariance matrix not positive-definite.")
+        end
+        return new(x,y,sigma,InvCov,dims)
     end
 end
 
@@ -146,15 +148,26 @@ xdata(DM::AbstractDataModel) = xdata(DM.Data)
 ydata(DM::AbstractDataModel) = ydata(DM.Data)
 sigma(DM::AbstractDataModel) = sigma(DM.Data)
 InvCov(DM::AbstractDataModel) = InvCov(DM.Data)
+N(DM::AbstractDataModel) = N(DM.Data)
 xdim(DM::AbstractDataModel) = xdim(DM.Data)
 ydim(DM::AbstractDataModel) = ydim(DM.Data)
+
+
+N(dims::Tuple{Int,Int,Int}) = dims[1]
+xdim(dims::Tuple{Int,Int,Int}) = dims[2]
+ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 sigma(DS::DataSet) = DS.sigma
 InvCov(DS::DataSet) = DS.InvCov
-xdim(DS::DataSet) = length(xdata(DS)[1])
-ydim(DS::DataSet) = length(ydata(DS)[1])
+N(DS::DataSet) = N(DS.dims)
+xdim(DS::DataSet) = xdim(DS.dims)
+ydim(DS::DataSet) = ydim(DS.dims)
+
+
+import Base.length
+length(DS::AbstractDataSet) = N(DS);    length(DM::AbstractDataModel) = N(DM.Data)
 
 
 """
@@ -211,8 +224,7 @@ function Sparsify(DM::AbstractDataModel,B::Vector=rand(Bool,length(xdata(DM))))
     return DataModel(Sparsify(DM.Data,B),DM.model,DM.dmodel)
 end
 
-import Base.length
-length(DS::DataSet) = length(xdata(DS));    length(DM::DataModel) = length(DM.Data)
+
 import DataFrames.DataFrame
 DataFrame(DS::DataSet) = DataFrame([xdata(DS) ydata(DS) sigma(DS)]);    DataFrame(DM::DataModel) = DataFrame(DM.Data)
 

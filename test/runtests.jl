@@ -10,23 +10,22 @@ using SafeTestsets
     model(x,p) = p[1] .* x .+ p[2]
     DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
-    x = [0.1,0.5]; R = rand(2)
-    p = rand(2)
+    x = [0.1,0.5];    p = rand(2)
 
     @test IsLinear(DM)
-    Dist = product_distribution([Normal(ydata(DM)[i],sigma(DM)[i]) for i in 1:length(ydata(DM))])
-    @test loglikelihood(DM,p) ≈ logpdf(Dist,EmbeddingMap(DM,p))
+    Dist = DataDist(ydata(DM),sigma(DM))
+    @test abs(loglikelihood(DM,p) - logpdf(Dist,EmbeddingMap(DM,p))) < 1e-13
     @test Score(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * gradlogpdf(Dist,EmbeddingMap(DM,p))
     @test FisherMetric(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * inv(cov(Dist)) * EmbeddingMatrix(DM,p)
 
     # Test AD vs manual derivative
-    @test sum(abs.(InformationGeometry.AutoScore(DM,p) .- Score(DM,p))) < 2e-13
-    @test sum(abs.(InformationGeometry.AutoMetric(DM,p) .- FisherMetric(DM,p))) < 2e-9
+    @test sum(abs.(AutoScore(DM,p) - Score(DM,p))) < 2e-13
+    @test sum(abs.(AutoMetric(DM,p) - FisherMetric(DM,p))) < 2e-9
 
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
     @test dot(OrthVF(DM,p),Score(DM,p)) < 2e-15
-    @test sum(abs.(FindMLE(DM) .- [6.1213483146067,0.8382022471910])) < 1e-10
+    @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 1e-10
     # ALSO DO NONLINEAR MODEL!
 
     sols = MultipleConfidenceRegions(DM,1:2)
@@ -40,9 +39,9 @@ end
     using InformationGeometry, Test, LinearAlgebra
 
     # Covariance Matrices, multidimensional Y, multidimensional X
-    @test xdata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
-    @test ydata(DataSet([1,5,6],[[0,1.],[2,3],[5,8]],[0.7,1.1,2.2])) == [[0,1.],[2,3],[5,8]]
-    
+    @test ydata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [1,5,6.]
+    # @test xdata(DataSet([1,5,6],[[0,1.],[2,3],[5,8]],[0.7,1.1,2.2])) == [1,5,6.]
+
 end
 
 
