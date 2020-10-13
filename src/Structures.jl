@@ -44,6 +44,7 @@ struct DataSet <: AbstractDataSet
     sigma::AbstractArray
     InvCov::AbstractMatrix
     dims::Tuple{Int,Int,Int}
+    logdetInvCov::Real
     function DataSet(x::AbstractVector,y::AbstractVector)
         println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
         DataSet(x,y,ones(length(y)*length(y[1])))
@@ -55,13 +56,13 @@ struct DataSet <: AbstractDataSet
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractVector,dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
-        DataSet(Unwind(x),Unwind(y),Sigma,diagm([Sigma[i]^-2 for i in 1:length(Sigma)]),dims)
+        DataSet(Unwind(x),Unwind(y),Sigma,Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]),dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         HealthyCovariance(sigma)
-        new(x,y,sigma,InvCov,dims)
+        new(x,y,sigma,InvCov,dims,logdet(InvCov))
     end
 end
 
@@ -173,6 +174,10 @@ N(DS::DataSet) = N(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
 
+
+logdetInvCov(DM::AbstractDataModel) = logdetInvCov(DM.Data)
+logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
+logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 import Base.length
 length(DS::AbstractDataSet) = N(DS);    length(DM::AbstractDataModel) = N(DM.Data)

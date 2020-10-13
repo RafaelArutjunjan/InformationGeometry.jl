@@ -41,7 +41,7 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     # -0.5*(length(xdata(DS))*log(2pi) - log(det(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
-    -0.5*(N(DS)*log(2pi) - logdet(InvCov(DS)) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(N(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -482,7 +482,7 @@ Basic method for constructing a curve lying on the confidence region associated 
 function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
     meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
     LogLikeOnBoundary = loglikelihood(DM,u0)
-    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u;Auto=Auto)
+    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u; Auto=Auto)
     g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
