@@ -126,19 +126,19 @@ struct DataModel <: AbstractDataModel
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
     DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
-    DataModel(DS::AbstractDataSet,M::Function,dM::Function) = DataModel(DS,M,dM,FindMLE(DS,M))
-    function DataModel(DS::AbstractDataSet,M::Function,dM::Function,mle::AbstractVector)
-        MLE = FindMLE(DS,M,mle);        LogLikeMLE = loglikelihood(DS,M,MLE)
-        DataModel(DS,M,dM,MLE,LogLikeMLE)
+    DataModel(DS::AbstractDataSet,model::Function,dmodel::Function) = DataModel(DS,model,dmodel,FindMLE(DS,model))
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector)
+        MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
+        DataModel(DS,model,dmodel,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
-    function DataModel(DS::AbstractDataSet,M::Function,dM::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
-        sneak && new(DS,M,dM,MLE,LogLikeMLE)
-        norm(AutoScore(DS,M,MLE)) > 1e-11 && throw("Gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
-        g = AutoMetric(DS,M,MLE)
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
+        sneak && new(DS,model,dmodel,MLE,LogLikeMLE)
+        norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
+        g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
-        new(DS,M,dM,MLE,LogLikeMLE)
+        new(DS,model,dmodel,MLE,LogLikeMLE)
     end
 end
 
@@ -266,29 +266,29 @@ end
     PlaneCoordinates(PL::Plane, v::Vector{<:Real})
 Returns an n-dimensional vector from a tuple of two real numbers which
 """
-function PlaneCoordinates(PL::Plane, v::Vector{<:Real})
+function PlaneCoordinates(PL::Plane, v::AbstractVector)
     length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
     PL.stütz + [PL.Vx PL.Vy]*v
 end
 
 # EuclideanDistance(x::Vector, y::Vector) = norm(x .- y)
-IsOnPlane(PL::Plane,x::Vector)::Bool = (DistanceToPlane(PL,x) == 0)
-TranslatePlane(PL::Plane, v::Vector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
+IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
+TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
 function RotationMatrix(PL::Plane,rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
     W = PL.Vx*transpose(PL.Vy) - PL.Vy*transpose(PL.Vx)
     Diagonal(ones(length(PL.stütz))) + (cos(rads)-1.)*V -sin(rads)*W
 end
-RotateVector(PL::Plane,v::Vector,rads::Real) = RotationMatrix(PL,rads)*v
+RotateVector(PL::Plane,v::AbstractVector,rads::Real) = RotationMatrix(PL,rads)*v
 
-function DecomposeWRTPlane(PL::Plane,x::Vector)
+function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     !IsOnPlane(PL,x) && throw(ArgumentError("Decompose Error: Vector not on Plane."))
     V = x - PL.stütz
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
 end
-DistanceToPlane(PL::Plane,x::Vector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> norm
-ProjectOntoPlane(PL::Plane,x::Vector) = PL.Projector*(x - PL.stütz) + PL.stütz
+DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> norm
+ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::Matrix)
     size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")
@@ -302,7 +302,7 @@ function Make2ndOrthogonal(X::Vector,Y::Vector)
     return Basis[2]
 end
 
-function MinimizeOnPlane(PL::Plane,F::Function,initial::Vector=[1,-1.]; tol::Real=1e-5)
+function MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
     G(x) = F(PlaneCoordinates(PL,x))
     X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)
@@ -312,10 +312,10 @@ end
     ProjectOnto(v::Vector,u::Vector)
 Project `v` onto `u`.
 """
-ProjectOnto(v::Vector,u::Vector) = dot(v,u)/dot(u,u) .* u
+ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
 
-function GramSchmidt(v::Vector{<:Real},dim::Int=length(v))
-    Basis = Vector{typeof(v)}(undef,0)
+function GramSchmidt(v::AbstractVector,dim::Int=length(v))
+    Basis = Vector{suff(v)}(undef,0)
     push!(Basis,v)
     for i in 2:length(v)
         push!(Basis,BasisVector(i,length(v)))
