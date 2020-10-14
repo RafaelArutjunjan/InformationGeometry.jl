@@ -28,7 +28,7 @@ using SafeTestsets
     @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 1e-10
     # ALSO DO NONLINEAR MODEL!
 
-    sols = MultipleConfidenceRegions(DM,1:2)
+    sols = MultipleConfidenceRegions(DM,1:2; tol=1e-8)
     @test StructurallyIdentifiable(DM,sols[1])[1] == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
@@ -36,7 +36,7 @@ end
 
 
 @safetestset "Inputting Dataset of various shapes" begin
-    using InformationGeometry, Test, LinearAlgebra
+    using InformationGeometry, Test, LinearAlgebra, Distributions
 
     DS1 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])
     DS2 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],diagm([0.7,1.1,2.2].^2))
@@ -48,6 +48,27 @@ end
 
     # Covariance Matrices, multidimensional Y, multidimensional X
     @test ydata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [1,5,6.]
+
+    # ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
+    # ptrue = [1.,pi,-5.]
+    # ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
+    #
+    # model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = [p[1] * x[1]^2 + p[3]^3 * x[2],
+    #                                                                     sinh(p[2]) * (x[1] + x[2]),
+    #                                                                     exp(p[1]*x[1] + p[1]*x[2])]
+    # model(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->model(z,p),x)...)
+    # dmodel(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = ForwardDiff.jacobian(z->model(x,z),p)
+    # dmodel(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->dmodel(z,p),x)...)
+    # 
+    # Gen(t) = [t,0.5t^2] .|> float
+    # Xdata = Gen.(0.5:0.1:3)
+    # using Random; # Random.seed!(1234)
+    # Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
+    # Sig = BlockDiagonal(ycovtrue,length(Ydata));    InvSig = inv(Sig)
+    #
+    # DS = DataSet(Xdata,Ydata,Sig)
+    # @test typeof(DS) <: AbstractDataSet
+    # @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
 end
 
 
@@ -83,13 +104,13 @@ end
     using InformationGeometry, Test
 
     function S2metric(θ,ϕ)
-        metric = zeros(typeof(ϕ),2,2);    metric[1,1] = 1.;    metric[2,2] = sin(θ)^2
+        metric = zeros(suff(ϕ),2,2);    metric[1,1] = 1.;    metric[2,2] = sin(θ)^2
         metric
     end
     S2metric(p::Vector) = S2metric(p...)
 
     function S2Christoffel(θ,ϕ)
-        Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
+        Symbol = zeros(suff(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
         Symbol[2,1,2] = cot(θ);    Symbol[2,2,1] = cot(θ)
         Symbol
     end

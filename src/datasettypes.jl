@@ -96,10 +96,10 @@ function DataMetric(P::Distributions.GenericMvTDist)
     end
 end
 
-LogLike(DSE::DataSetExact,x::AbstractVector,y::AbstractVector) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
+LogLike(DSE::DataSetExact,x::AbstractVector{<:Real},y::AbstractVector{<:Real}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
 
-loglikelihood(DSE::DataSetExact,model::Function,θ::Vector{<:Number}) = LogLike(DSE,xdata(DSE),EmbeddingMap(DSE,model,θ))
+loglikelihood(DSE::DataSetExact,model::Function,θ::AbstractVector{<:Number}) = LogLike(DSE,xdata(DSE),EmbeddingMap(DSE,model,θ))
 
-function Score(DSE::DataSetExact,model::Function,dmodel::Function,θ::Vector{<:Number})
+function Score(DSE::DataSetExact,model::Function,dmodel::Function,θ::AbstractVector{<:Number})
     transpose(EmbeddingMatrix(DSE,dmodel,θ)) * gradlogpdf(ydist(DSE),EmbeddingMap(DSE,model,θ))
 end

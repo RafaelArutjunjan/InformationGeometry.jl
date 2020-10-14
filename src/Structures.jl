@@ -254,6 +254,14 @@ SubDataSet(DS::AbstractDataSet,ran) = DataSet(xdata(DS)[ran],ydata(DS)[ran],sigm
 SubDataModel(DM::DataModel,ran) = DataModel(SubDataSet(DM.Data,ran),DM.model,DM.dmodel)
 
 
+function BlockDiagonal(M::AbstractMatrix,N::Int)
+    Res = zeros(size(M,1)*N,size(M,2)*N)
+    for i in 1:N
+        Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
+    end; Res
+end
+
+
 """
 Specifies a 2D plane in the so-called parameter form using 3 vectors.
 """
@@ -346,7 +354,7 @@ ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
     ParallelPlanes(PL::Plane,v::Vector,range) -> Vector{Plane}
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
-function ParallelPlanes(PL::Plane,v::AbstractVector,range)
+function ParallelPlanes(PL::Plane,v::AbstractVector,range::Union{AbstractRange,AbstractVector})
     norm(v) == 0. && throw("Vector has length zero.")
     PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     [TranslatePlane(PL, ran .* v) for ran in range]

@@ -451,7 +451,7 @@ function SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,
         end
         Res[:,((i-1)*d+1):(d*i)] .= Unpack(sols[i].(T))[:,1:d]
     end
-    round.(Res,sigdigits=sigdigits) |> DataFrame
+    round.(Res; sigdigits=sigdigits) |> DataFrame
 end
 
 """
@@ -466,10 +466,10 @@ function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
     if sigdigits < 1
         return DataFrame([xdata(DS) ydata(DS) sigma(DS)])
     else
-        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)],sigdigits=sigdigits))
+        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits))
     end
 end
-SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigdigits=sigdigits)
+SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data; sigdigits=sigdigits)
 
 ############### Curvature ################
 
