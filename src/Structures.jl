@@ -72,36 +72,54 @@ end
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
 function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
-    # xdim > 1, ydim = 1
-    NAutodmodel(x::AbstractVector{<:Real},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function NAutodmodel(x::AbstractVector{Vector{Q}},θ::AbstractVector{<:Number}) where Q <: Real
-        Res = Array{suff(θ)}(undef,ydim(DS)*length(x),length(θ))
-        for i in 1:length(x)
-            Res[i,:] = NAutodmodel(x[i],θ)
-        end;    Res
-    end
+    # vcat(map()...) MARGINALLY faster than using vcat([]...)
+    # Manual allocation of array and filling via loop ~ 0.3x faster for small numbers of concatenations
+    # but basically the same for large numbers of data points.
+    # trying out transpose instead of reshape, about 0.1x faster?
+    Ydim = ydim(DS); Xdim = xdim(DS)
     # xdim = 1, ydim = 1
-    Autodmodel(x::Real,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function Autodmodel(x::AbstractVector{<:Real},θ::AbstractVector{<:Number})
+    Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function Autodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,length(x),length(θ))
         for i in 1:length(x)
             Res[i,:] = Autodmodel(x[i],θ)
         end;    Res
     end
+    # xdim > 1, ydim = 1
+    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function NAutodmodel(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
+        Res = Array{suff(θ)}(undef,length(x),length(θ))
+        for i in 1:length(x)
+            Res[i,:] = NAutodmodel(x[i],θ)
+        end;    Res
+    end
     # xdim = 1, ydim > 1
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-    AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = vcat([AutodmodelN(z,θ) for z in xdata(DS)]...)
-    if xdim(DS) == 1
-        if ydim(DS) == 1
+    function AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
+        Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
+        for i in 1:length(x)
+            Res[((i-1)*Ydim + 1):(i*Ydim),:] = AutodmodelN(x[i],θ)
+        end;    Res
+    end
+    # xdim > 1, ydim > 1
+    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    function NAutodmodelN(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
+        Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
+        for i in 1:length(x)
+            Res[((i-1)*Ydim + 1):(i*Ydim),:] = NAutodmodelN(x[i],θ)
+        end;    Res
+    end
+    if Xdim == 1
+        if Ydim == 1
             return Autodmodel
         else
             return AutodmodelN
         end
     else
-        if ydim(DS) == 1
+        if Ydim == 1
             return NAutodmodel
         else
-            throw("Automatic differentiation for vector-valued xdata AND vector-valued ydata not pre-programmed yet.")
+            return NAutodmodelN
         end
     end
 end
