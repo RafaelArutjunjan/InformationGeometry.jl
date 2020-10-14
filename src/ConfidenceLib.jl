@@ -103,7 +103,7 @@ Score(DM::AbstractDataModel, θ::Vector{<:Number}; Auto::Bool=false) = Score(DM.
 
 function Score(DS::AbstractDataSet, model::Function, dmodel::Function, θ::Vector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DS,model,θ)
-    Score(DM.Data,DM.model,DM.dmodel,θ)
+    Score(DS,model,dmodel,θ)
 end
 
 function Score(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})

@@ -502,8 +502,8 @@ function CubeVol(Space::Vector)
 end
 CubeWidths(S::LowerUpper) = S.U .- S.L
 
-center(LU::LowerUpper) = 0.5.*(LU.U + LU.L)
-center(C::HyperCube) = center(LowerUpper(C))
+Center(LU::LowerUpper) = 0.5.*(LU.U + LU.L)
+Center(C::HyperCube) = Center(LowerUpper(C))
 
 
 """
