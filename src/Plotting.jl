@@ -22,7 +22,7 @@ RecipesBase.@recipe function plot(LU::LowerUpper,args...)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1],rectangle(LU)[:,2],args...
 end
-RecipesBase.@recipe function plot(X::Vector{<:Vector{<:Number}},args...)
+RecipesBase.@recipe function plot(X::AbstractVector{<:AbstractVector{<:Number}},args...)
     G = Unpack(X)
     marker --> :hex
     linealpha --> 0
@@ -34,8 +34,8 @@ end
 
 # LSQFIT
 import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::Vector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::Vector{<:Number}=ones(pdim(F,ydata(DS)[1]))+0.01rand(pdim(F,ydata(DS)[1]));tol::Real=6e-15,kwargs...)
+curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(F,xdata(DS)[1]))+0.01rand(pdim(F,xdata(DS)[1]));tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
@@ -62,7 +62,7 @@ end
 # export FittedPlot2, RecipeTester
 
 FittedPlot(DM::DataModel) = FittedPlot(DM,curve_fit(DM))
-FittedPlot(DM::DataModel,p::Vector) = FittedPlot(DM,curve_fit(DM,p))
+FittedPlot(DM::DataModel,p::AbstractVector) = FittedPlot(DM,curve_fit(DM,p))
 function FittedPlot(DM::DataModel,Fit::LsqFit.LsqFitResult)
     Plots.plot(DM,label="Data",legendtitle="R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))")
     Plots.plot!(x->DM.model(x,Fit.param),range(xdata(DM)[1],xdata(DM)[end],length=600),label="Fit")
@@ -70,7 +70,7 @@ end
 
 ResidualPlot(args...) = ResidPlot(args...)
 ResidPlot(DM::DataModel) = ResidPlot(DM,curve_fit(DM))
-ResidPlot(DM::DataModel,p::Vector) = ResidPlot(DM,curve_fit(DM,p))
+ResidPlot(DM::DataModel,p::AbstractVector) = ResidPlot(DM,curve_fit(DM,p))
 function ResidPlot(DM::DataModel,Fit::LsqFit.LsqFitResult)
     Plots.plot(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
     Plots.plot!(DataSet(xdata(DM),-Fit.resid.*sigma(DM),sigma(DM)))
@@ -131,7 +131,7 @@ end
 
 
 ############################# Plotting
-function PlotLoglikelihood(DM::DataModel, MLE::Vector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
+function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
     PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
     Lcomp(args...) = loglikelihood(DM,[args...])
@@ -156,7 +156,7 @@ function PlotLoglikelihood(DM::DataModel, MLE::Vector, PlanarCube::HyperCube, N:
     end
 end
 
-PlotLoglikelihood(DM::DataModel,MLE::Vector,size::Float64=0.5,N::Int=100) = PlotLoglikelihood(DM, MLE, HyperCube([[-size,size],[-size,size]]), N)
+PlotLoglikelihood(DM::DataModel,MLE::AbstractVector,size::Float64=0.5,N::Int=100) = PlotLoglikelihood(DM, MLE, HyperCube([[-size,size],[-size,size]]), N)
 
 function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
     Lcomp(x,y) = loglikelihood(DM,PlaneCoordinates(PlotPlane,[x,y]))
@@ -194,7 +194,7 @@ function ConstructBox(fit::LsqFit.LsqFitResult,Confnum::Real; AxisCS::Bool=true)
 end
 
 # Choose a Plane?
-VisualizeMC(Test::Function, Boundaries::Vector,N::Int=2000) = VisualizeMC(Test, HyperCube(Boundaries), N)
+VisualizeMC(Test::Function, Boundaries::AbstractVector,N::Int=2000) = VisualizeMC(Test, HyperCube(Boundaries), N)
 
 function VisualizeMC(Test::Function, PlanarCube::HyperCube, N::Int=2000)
     PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
@@ -268,7 +268,7 @@ function VFRescale(ZeilenVecs::Array{<:Real,2},C::HyperCube;scaling=0.85)
     ZeilenVecs[:,1],ZeilenVecs[:,2]
 end
 
-function Plot2DVF(DM::DataModel,V::Function,MLE::Vector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
+function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
     PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = LowerUpper(TranslateCube(PlanarCube,MLE))
@@ -284,7 +284,7 @@ function Plot2DVF(DM::DataModel,V::Function,MLE::Vector,PlanarCube::HyperCube,N:
     [AV BV u v]
 end
 
-function Plot2DVF(DM::DataModel,V::Function,MLE::Vector,size::Float64=0.5,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
+function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,size::Float64=0.5,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
     Plot2DVF(DM,V, MLE, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
 end
 
@@ -319,7 +319,7 @@ end
     VisualizeSols(sols::Vector; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...) where T<:ODESolution
+function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSol(sol;vars=vars,leg=leg,kwargs...)
@@ -331,13 +331,13 @@ VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=
 function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
     H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
 end
-function VisualizeSols(PL::Plane,sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...) where T<:ODESolution
+function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSol(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
     end;    p
 end
-function VisualizeSols(PL::Vector{P},sols::Vector{T}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...) where T<:ODESolution where P<:Plane
+function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
@@ -349,7 +349,7 @@ end
 function VisualizeSolPoints(sol::ODESolution; kwargs...)
     Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex,markersize=2, kwargs...)
 end
-function VisualizeSolPoints(sols::Vector; OverWrite::Bool=false, kwargs...)
+function VisualizeSolPoints(sols::Vector{<:ODESolution}; OverWrite::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSolPoints(sol; kwargs...)
@@ -357,7 +357,7 @@ function VisualizeSolPoints(sols::Vector; OverWrite::Bool=false, kwargs...)
 end
 
 VisualizeGeo(sol::ODESolution;OverWrite::Bool=false,leg::Bool=false) = VisualizeSol(sol,vars=Tuple(1:Int(length(sol.u[1])/2)),OverWrite=OverWrite,leg=leg)
-VisualizeGeos(sols::Vector; OverWrite::Bool=true,leg::Bool=false) = VisualizeSols(sols,vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
+VisualizeGeos(sols::Vector{<:ODESolution}; OverWrite::Bool=true,leg::Bool=false) = VisualizeSols(sols,vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
 
 
 """
@@ -385,7 +385,7 @@ end
 
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
-function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::Vector,Cube::HyperCube,Confnum::Real=1; N::Int=500)
+function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::AbstractVector,Cube::HyperCube,Confnum::Real=1; N::Int=500)
     Cube.dim != length(xdata(DM)[1]) && throw("PWConfBand: Wrong Cube dim.")
     if length(ydata(DM)[1]) == 1
         Lims = ConstructCube(sol) |> LowerUpper
@@ -431,7 +431,7 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 ```
 """
-function PlotMatrix(Mat::Matrix,MLE::Vector=zeros(size(Mat,1)),N::Int=400)
+function PlotMatrix(Mat::Matrix,MLE::AbstractVector{<:Number}=zeros(size(Mat,1)),N::Int=400)
     !(length(MLE) == size(Mat,1) == size(Mat,2) == 2) && throw("PlotMatrix: Dimensional mismatch.")
     C = cholesky(Symmetric(Mat)).L;    angles = range(0,2pi,length=N)
     F(angle::Real) = MLE .+ C* [cos(angle),sin(angle)]
@@ -466,7 +466,7 @@ function RectToTriangFacets(M::Matrix{<:Int})
         G[2i,:] = M[i,2:4]
     end;    G
 end
-function CreateMesh(Planes::Vector{T}, Sols::Vector{S}; N::Int=3*length(Sols), rectangular::Bool=true) where T <: Plane where S <: ODESolution
+function CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:ODESolution}; N::Int=3*length(Sols), rectangular::Bool=true)
     Vertices = vcat([Deplanarize(Planes[i],Sols[i], N=N) for i in 1:length(Sols)]...)
     M = RectangularFacetIndices(N)
     Facets = vcat([M .+ (i-1)*N for i in 1:(length(Sols)-1)]...)

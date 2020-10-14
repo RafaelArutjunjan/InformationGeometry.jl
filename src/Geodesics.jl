@@ -41,7 +41,7 @@ function GenerateEpsilonTensor(dims::Int,rank::Int=3)
     G
 end
 
-function Cross(A::Vector{<:Real},B::Vector{<:Real})
+function Cross(A::AbstractVector{<:Real},B::AbstractVector{<:Real})
     length(A) != length(B) && throw(ArgumentError("Cross: Dimension Mismatch: $A, $B."))
     if length(A) > 3
         return @tensor C[a] := GenerateEpsilonTensor(length(A),3)[a,b,c]*A[b]*B[c]
@@ -70,8 +70,8 @@ end
 Calculates the components of the (1,2) Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
 `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-ChristoffelSymbol(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
-function ChristoffelSymbol(Metric::Function, θ::Vector{<:Number}; BigCalc::Bool=false)
+ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Finv = inv(Metric(θ))
     function FPDVs(Metric, θ; BigCalc::Bool=false)
         if BigCalc      θ = BigFloat.(θ)        end
@@ -91,7 +91,7 @@ end
 
 # PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # tol = 6e-11
-function ComputeGeodesic(Metric::Function,InitialPos::Vector,InitialVel::Vector, Endtime::Real=50.;
+function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
@@ -115,7 +115,7 @@ end
 Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
 """
-function ComputeGeodesic(DM::AbstractDataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Real=50.;
+function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
 end
@@ -275,8 +275,8 @@ end
     GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
-GeodesicBetween(DM::AbstractDataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
-function GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+GeodesicBetween(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
+function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function GeodesicODE!(du,u,p,t)
@@ -298,8 +298,8 @@ end
     GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
 Computes the length of a geodesic connecting the points `P` and `Q`.
 """
-GeodesicDistance(DM::AbstractDataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
-function GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
+GeodesicDistance(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
+function GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10)
     GeodesicLength(Metric,GeodesicBetween(Metric,P,Q,tol=tol))
 end
 
@@ -331,7 +331,7 @@ end
 Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
-function EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector{<:Real})
+function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Real})
     length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
     n = Int(length(sols[1].u[1])/2)
     Res = Vector{Vector{Float64}}(undef,0)
@@ -342,8 +342,8 @@ function EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector{<:Real})
     Res
 end
 
-EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
+EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
     Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
     if length(Z[1]) == 1
         if OverWrite
@@ -354,8 +354,8 @@ function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Vector{<:Real
     end
     [collect(range(Interval[1],Interval[2],length=N)) Z]
 end
-EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
+EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
+function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
     Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
     Geo = GeodesicLength(x->FisherMetric(DM,x), sol,sol.t[end];fullSol=true, Auto=true, tol=1e-14)
     Ls = map(Geo,range(Interval[1],Interval[2],length=N))
@@ -368,8 +368,8 @@ function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolut
     end
     [Ls Z]
 end
-EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongCurve(F::Function,sol::ODESolution, Interval::Vector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
+EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongCurve(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
     Z = EvaluateAlongCurve(F,sol,Interval, N=N)
     if length(Z[1]) == 1
         if OverWrite
@@ -402,7 +402,7 @@ end
 #     Ts
 # end
 Homogenize(sol::ODESolution,N::Int=500) = Homogenize(sol.t,N)
-function Homogenize(V::Vector,N::Int=500)
+function Homogenize(V::AbstractVector,N::Int=500)
     Ts = unique(V)
     for i in 1:(N-length(Ts))
         s = findmax(diff(Ts))[2]
@@ -410,7 +410,7 @@ function Homogenize(V::Vector,N::Int=500)
     end;    Ts
 end
 Dehomogenize(sol::ODESolution,N::Int=500) = Dehomogenize(sol.t,N)
-function Dehomogenize(V::Vector,N::Int=500)
+function Dehomogenize(V::AbstractVector,N::Int=500)
     Ts = unique(V)
     for i in 1:(length(Ts)-N)
         s = findmin(diff(Ts))[2]
@@ -478,8 +478,8 @@ SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data, sigd
     Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the components of the (1,3) Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Riemann(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
-function Riemann(Metric::Function, θ::Vector{<:Number}; BigCalc::Bool=false)
+Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
+function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
         if BigCalc      θ = BigFloat.(θ)        end
         DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
@@ -503,8 +503,8 @@ end
     Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the components of the (0,2) Ricci tensor by finite differencing of `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Ricci(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
-function Ricci(Metric::Function, θ::Vector{<:Number}; BigCalc::Bool=false)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
+function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Riem = Riemann(Metric, θ; BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
     RIC = zeros(suff(θ),length(θ),length(θ))
@@ -516,8 +516,8 @@ end
     RicciScalar(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-RicciScalar(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ;BigCalc=BigCalc)
-function RicciScalar(Metric::Function, θ::Vector{<:Number}; BigCalc::Bool=false)
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ;BigCalc=BigCalc)
+function RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     RIC = Ricci(Metric, θ; BigCalc=BigCalc)
     tr(transpose(RIC)*inv(Metric(θ)))
 end
@@ -526,8 +526,8 @@ end
     GeometricDensity(DM::DataModel, θ::Vector)
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::AbstractDataModel, θ::Vector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
-GeometricDensity(Metric::Function, θ::Vector{<:Number}) = sqrt(det(Metric(θ)))
+GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
+GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metric(θ)))
 
 
 # Adaptation from PlotUtils.jl
