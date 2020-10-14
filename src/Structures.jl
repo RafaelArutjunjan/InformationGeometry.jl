@@ -196,7 +196,7 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 """
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
-DataDist(Y::AbstractVector,Sig::AbstractVector) = product_distribution([Normal(Y[i],Sig[i]) for i in eachindex(Y)])
+DataDist(Y::AbstractVector,Sig::AbstractVector,dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
 yDataDist(DS::DataSet) = DataDist(ydata(DS),sigma(DS))
 xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
 yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)

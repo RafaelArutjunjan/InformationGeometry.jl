@@ -14,6 +14,12 @@ Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\th
 """
 loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
 
+function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
+    Y = ydata(DS) - EmbeddingMap(DS,model,θ)
+    -0.5*(N(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+end
+
+
 # function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
 #     R = zero(suff(θ))
 #     Dot(x) = dot(x,x)
@@ -27,23 +33,6 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 #     end
 #     -0.5*(length(xdata(DS))*log(2pi) + 2*sum(log.(sigma(DS))) + R)
 # end
-
-# function logdet(C::AbstractMatrix)
-#     L = log(det(C))
-#     if abs(L) < Inf
-#         return L
-#     else
-#         return sum(log.(eigvals(C)))
-#     end
-# end
-# logdet(C::Diagonal) = tr(log(C))
-
-function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
-    Y = ydata(DS) - EmbeddingMap(DS,model,θ)
-    # -0.5*(length(xdata(DS))*log(2pi) - log(det(InvCov(DS))) + transpose(Y) * InvCov(DS) * Y)
-    -0.5*(N(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
-end
-
 
 
 """
@@ -105,21 +94,20 @@ AutoMetric(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = ForwardDi
 #
 # Score1D(DM::AbstractDataModel,θ::Vector{<:Number}) = Score1D(DM.Data,DM.model,DM.dmodel,θ)
 
-function Score(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
-    transpose(EmbeddingMatrix(DS,dmodel,θ)) * InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ))
-end
-
-
 
 """
     Score(DM::DataModel, θ::Vector{<:Number}; Auto::Bool=false)
 Calculates the gradient of the log-likelihood with respect to a set of parameters `p`. `Auto=true` uses automatic differentiation.
 """
-function Score(DM::AbstractDataModel, θ::Vector{<:Number}; Auto::Bool=false)
-    Auto && return AutoScore(DM,θ)
-    return Score(DM.Data,DM.model,DM.dmodel,θ)
-    # length(ydata(DM)[1]) != 1 && return ScoreDimN(DM,θ)
-    # return Score1D(DM,θ)
+Score(DM::AbstractDataModel, θ::Vector{<:Number}; Auto::Bool=false) = Score(DM.Data,DM.model,DM.dmodel,θ; Auto=Auto)
+
+function Score(DS::AbstractDataSet, model::Function, dmodel::Function, θ::Vector{<:Number}; Auto::Bool=false)
+    Auto && return AutoScore(DS,model,θ)
+    Score(DM.Data,DM.model,DM.dmodel,θ)
+end
+
+function Score(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
+    transpose(EmbeddingMatrix(DS,dmodel,θ)) * InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ))
 end
 
 
@@ -128,27 +116,13 @@ end
 Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
-WilksTest(DM::DataModel, θ::Vector{<:Real}, ConfVol=ConfVol(1))::Bool = ChisqCDF(length(MLE(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - ConfVol < 0.
+WilksTest(DM::AbstractDataModel, θ::Vector{<:Number}, ConfVol::Real=ConfVol(1))::Bool = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - ConfVol < 0.
 
 # function WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
 #     # return (loglikelihood(DM,MLE) - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
 #     return ChisqCDF(length(MLE), 2(loglikelihood(DM,MLE) - loglikelihood(DM,θ))) - ConfVol < 0
 # end
 
-
-# """
-#     WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1)) -> Bool
-# Checks whether a given parameter configuration ``\\theta`` is within a confidence interval of level `ConfVol` using Wilks' theorem.
-# This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
-# To simplify the calculation, `LogLikeMLE` accepts the value of the log-likelihood evaluated at the MLE.
-# """
-# function WilksTestPrepared(DM::DataModel, θ::Vector{<:Real}, LogLikeMLE::Real, ConfVol=ConfVol(1))::Bool
-#     # return (LogLikeMLE - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
-#     return ChisqCDF(length(θ), 2(LogLikeMLE - loglikelihood(DM,θ))) - ConfVol < 0.
-# end
-#
-# @deprecate WilksTestPrepared(DM,θ,LogLikeMLE,ConfVol) WilksTest(DM,θ,ConfVol)
-# @deprecate WilksTest(DM,θ,MLE,ConfVol) WilksTest(DM,θ,ConfVol)
 
 
 function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
@@ -185,24 +159,6 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
     println("Finished.")
     MLE +  b .* BasisVector(1,length(MLE))
 end
-
-
-# function Interval1D(DM::DataModel,MLE::Vector,Confnum::Real=1.;tol::Real=1e-14)
-#     if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
-#         throw("Interval1D not programmed for BigFloat yet.")
-#     end
-#     (length(MLE) != 1) && throw("Interval1D not defined for p != 1.")
-#     lMLE = loglikelihood(DM,MLE)
-#     A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
-#     Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
-#     D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
-#     B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
-#     A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
-#     rts = [MLE[1]+A, MLE[1]+B]
-#     rts[1] < rts[2] && return rts
-#     throw("Interval1D errored...")
-# end
-# @deprecate Interval1D(DM,MLE,Confnum) Interval1D(DM,Confnum)
 
 function Interval1D(DM::DataModel, Confnum::Real=1.; tol::Real=1e-14)
     if tol < 2e-15 || typeof(ConfVol(Confnum)) == BigFloat
@@ -331,12 +287,24 @@ end
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::DataModel, θ::Vector{<:Number}; alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ)) - ones(length(θ))), Auto::Bool=false)
+function OrthVF(DM::AbstractDataModel, θ::Vector{<:Number};
+                alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ))-ones(length(θ))), Auto::Bool=false)
+    OrthVF(DM.Data,DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
+end
+
+function OrthVF(DS::AbstractDataSet, model::Function, dmodel::Function, θ::Vector{<:Number};
+                alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ))-ones(length(θ))), Auto::Bool=false)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-    S = -Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
+    S = -Score(DS,model,dmodel,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
     alpha .* VF |> normalize
 end
 
+
+# function OrthVF(DM::DataModel, θ::Vector{<:Number}; alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ)) - ones(length(θ))), Auto::Bool=false)
+#     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
+#     S = -Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
+#     alpha .* VF |> normalize
+# end
 
 """
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
@@ -374,11 +342,11 @@ function ConstructLowerUpper(M::Matrix{<:Real}; Padding::Real=1/50)
     diff = (uppers - lowers) .* Padding
     LowerUpper(lowers - diff,uppers + diff)
 end
-ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300),Padding=Padding)
+ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
 
-ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints,Padding=Padding))
+ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints; Padding=Padding))
 function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
-    ConstructLowerUpper(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))),Padding=Padding)
+    ConstructLowerUpper(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end
 
 
@@ -413,18 +381,16 @@ end
 MonteCarloAreaWE(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = CubeVol(Space)*MonteCarloRatioWE(Test,Space,N)
 
 
-
 function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); WE::Bool=false)
     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
     LogLikeBoundary = likelihood(DM,sol(0))
-    Cube = ConstructCube(sol,Padding=1e-5)
+    Cube = ConstructCube(sol; Padding=1e-5)
     # Indicator function for Integral
     InsideRegion(X::Vector{<:Real})::Bool = loglikelihood(DM,X) < LogLikeBoundary
     Test(X::Vector) = InsideRegion(X) ? sqrt(det(FisherMetric(DM,X))) : 0.
     WE && return MonteCarloAreaWE(Test,Cube,N)
     MonteCarloArea(Test,Cube,N)
 end
-
 
 
 FindMLEBig(DM::DataModel,start::Vector=MLE(DM)) = FindMLEBig(DM.Data,DM.model,start)
@@ -479,11 +445,17 @@ end
     GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
+
 function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
-    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
-    LogLikeOnBoundary = loglikelihood(DM,u0)
-    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u; Auto=Auto)
-    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,u)
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
+    GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto)
+end
+
+function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u0::Vector{<:Number}; tol::Real=1e-14,
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
+    LogLikeOnBoundary = loglikelihood(DS,model,u0)
+    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
@@ -495,27 +467,22 @@ function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=
     end
 end
 
-# function GenerateBoundary(DM::DataModel, u0::Vector{<:Number}; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-#     L(p) = loglikelihood(DM,p);    V(p) = OrthVF(DM,p)
-#     LogLikeOnBoundary = L(u0)
-#     function IntCurveODE(du,u,p,t)
-#         du .= 0.1 .* V(u)
-#     end
-#     function g(resid,u,p,t)
-#       resid[1] = LogLikeOnBoundary - L(u)
-#     end
+
+# function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
+#                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
+#     LogLikeOnBoundary = loglikelihood(DM,u0)
+#     IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u; Auto=Auto)
+#     g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,u)
 #     terminatecondition(u,t,integrator) = u[2] - u0[2]
 #     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
 #     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
-#     tspan = (0.,1e5)
-#     prob = ODEProblem(IntCurveODE,u0,tspan)
+#     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
 #     if mfd
 #         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
 #     else
 #         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
 #     end
 # end
-
 
 
 # GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
@@ -533,17 +500,18 @@ end
 # @deprecate GenerateConfidenceInterval(DM,Confnum) GenerateConfidenceRegion(DM,Confnum)
 # @deprecate GenerateConfidenceInterval(DM,MLE,Confnum) GenerateConfidenceRegion(DM,Confnum)
 
-function GenerateConfidenceRegion(DM::DataModel, Confnum::Real=1.; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
+function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14,
+                                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
     if pdim(DM) == 1
         return Interval1D(DM, Confnum; tol=tol)
     else
-        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd)
+        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto)
     end
 end
 
 
-function StructurallyIdentifiable(DM::DataModel,sol::ODESolution)
-    roots = find_zeros(t->GeometricDensity(DM,sol(t)),sol.t[1],sol.t[end])
+function StructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)
+    roots = find_zeros(t->GeometricDensity(x->FisherMetric(DM,x),sol(t)),sol.t[1],sol.t[end])
     length(roots)==0, roots
 end
 

@@ -516,7 +516,7 @@ end
     RicciScalar(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-RicciScalar(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),θ;BigCalc=BigCalc)
+RicciScalar(DM::AbstractDataModel, θ::Vector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ;BigCalc=BigCalc)
 function RicciScalar(Metric::Function, θ::Vector{<:Number}; BigCalc::Bool=false)
     RIC = Ricci(Metric, θ; BigCalc=BigCalc)
     tr(transpose(RIC)*inv(Metric(θ)))
