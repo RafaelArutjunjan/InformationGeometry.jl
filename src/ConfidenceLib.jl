@@ -16,7 +16,7 @@ loglikelihood(DM::AbstractDataModel,θ::Vector{<:Number}) = loglikelihood(DM.Dat
 
 function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
-    -0.5*(N(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(N(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -429,7 +429,11 @@ function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=f
     NegEll(p::Vector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
         # return curve_fit(DS,model,ones(pdim(model,xdata(DS)[1])); tol=tol).param
-        return optimize(NegEll, ones(pdim(model,xdata(DS)[1])), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+        if xdim(DS) == 1
+            return optimize(NegEll, ones(pdim(model,xdata(DS)[1])), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+        else
+            return optimize(NegEll, ones(pdim(model,ones(xdim(DS)))), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+        end
     elseif isa(start,Vector)
         if suff(start) == BigFloat
             return FindMLEBig(DS,model,start)
@@ -749,15 +753,18 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel,θ::Vector{<:Number}) = EmbeddingMap(DM.Data,DM.model,θ)
 
-EmbeddingMap(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = model(xdata(DS),θ)
+EmbeddingMap(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = model(Windup(xdata(DS),xdim(DS)),θ)
 
+# EmbeddingMap(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = model(xdata(DS),θ)
 # EmbeddingMap(DM::AbstractDataModel,θ::Vector{<:Number}) = map(x->DM.model(x,θ),xdata(DM))
 
 
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::Vector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
-EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::Vector{<:Number}) = dmodel(xdata(DS),float.(θ))
+EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::Vector{<:Number}) = dmodel(Windup(xdata(DS),xdim(DS)),float.(θ))
+
+# EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::Vector{<:Number}) = dmodel(xdata(DS),float.(θ))
 
 
 # From D to M

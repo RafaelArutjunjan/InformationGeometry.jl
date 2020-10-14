@@ -73,24 +73,24 @@ Returns appropriate function which constitutes the automatic derivative of the `
 """
 function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     # xdim > 1, ydim = 1
-    NAutodmodel(x::Vector{<:Real},θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function NAutodmodel(x::Vector{Vector{Q}},θ::Vector{<:Number}) where Q <: Real
+    NAutodmodel(x::AbstractVector{<:Real},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function NAutodmodel(x::AbstractVector{Vector{Q}},θ::AbstractVector{<:Number}) where Q <: Real
         Res = Array{suff(θ)}(undef,ydim(DS)*length(x),length(θ))
         for i in 1:length(x)
             Res[i,:] = NAutodmodel(x[i],θ)
         end;    Res
     end
     # xdim = 1, ydim = 1
-    Autodmodel(x::Real,θ::Vector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function Autodmodel(x::Vector{<:Real},θ::Vector{<:Number})
+    Autodmodel(x::Real,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    function Autodmodel(x::AbstractVector{<:Real},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,length(x),length(θ))
         for i in 1:length(x)
             Res[i,:] = Autodmodel(x[i],θ)
         end;    Res
     end
     # xdim = 1, ydim > 1
-    AutodmodelN(x::Number,θ::Vector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-    AutodmodelN(x::Vector{<:Number},θ::Vector{<:Number}) = vcat([AutodmodelN(z,θ) for z in xdata(DS)]...)
+    AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = vcat([AutodmodelN(z,θ) for z in xdata(DS)]...)
     if xdim(DS) == 1
         if ydim(DS) == 1
             return Autodmodel
@@ -138,17 +138,18 @@ struct DataModel <: AbstractDataModel
     DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
     DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
     DataModel(DS::AbstractDataSet,model::Function,dmodel::Function) = DataModel(DS,model,dmodel,FindMLE(DS,model))
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector)
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector,sneak::Bool=false)
+        sneak && return new(DS,model,dmodel,mle,-Inf)
         MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
         DataModel(DS,model,dmodel,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
-        sneak && new(DS,model,dmodel,MLE,LogLikeMLE)
+        sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
         norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
         g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
-        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Could not determine MLE, got $MLE. Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
         new(DS,model,dmodel,MLE,LogLikeMLE)
     end
 end
@@ -261,7 +262,7 @@ struct Plane
     Vx::AbstractVector
     Vy::AbstractVector
     Projector::AbstractMatrix
-    function Plane(stütz::Vector{<:Real},Vx::Vector{<:Real},Vy::Vector{<:Real})
+    function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real})
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         if !(length(stütz) == length(Vx) == length(Vy))
             throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
@@ -272,7 +273,7 @@ struct Plane
             new(float.(stütz),float.(normalize(Vx)),float.(normalize(Vy)),ProjectionOperator([Vx Vy]))
         end
     end
-    function Plane(stütz::Vector{<:Real},Vx::Vector{<:Real},Vy::Vector{<:Real}, Projector::Matrix{<:Real})
+    function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real}, Projector::AbstractMatrix{<:Real})
         !(length(stütz) == length(Vx) == length(Vy) == size(Projector,1) == size(Projector,2)) && throw("Plane: Dimensional Mismatch.")
         new(stütz,Vx,Vy,Projector)
     end
@@ -281,8 +282,8 @@ end
 length(PL::Plane) = length(PL.stütz)
 
 function PlanarDataModel(DM::DataModel,PL::Plane)
-    newmod = (x,p::Vector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
-    dnewmod = (x,p::Vector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
+    newmod = (x,p::AbstractVector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
+    dnewmod = (x,p::AbstractVector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
     DataModel(DM.Data,newmod,dnewmod,0.001ones(2))
 end
 
@@ -323,7 +324,7 @@ function ProjectionOperator(A::Matrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
 
-function Make2ndOrthogonal(X::Vector,Y::Vector)
+function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(float.([X,Y]))
     # Maybe add check for orientation?
     return Basis[2]
@@ -345,7 +346,7 @@ ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
     ParallelPlanes(PL::Plane,v::Vector,range) -> Vector{Plane}
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
-function ParallelPlanes(PL::Plane,v::Vector,range)
+function ParallelPlanes(PL::Plane,v::AbstractVector,range)
     norm(v) == 0. && throw("Vector has length zero.")
     PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     [TranslatePlane(PL, ran .* v) for ran in range]
@@ -360,7 +361,7 @@ function GramSchmidt(v::AbstractVector,dim::Int=length(v))
     end
     GramSchmidt([normalize(Basis[i]) for i in 1:length(Basis)])
 end
-function GramSchmidt(Basis::Vector{Vector{Q}}) where Q
+function GramSchmidt(Basis::AbstractVector{<:AbstractVector})
     ONBasis = float.(Basis)
     for j in 1:length(Basis)
         for i in 2:j
@@ -395,9 +396,9 @@ CubeWidths(X)
 ```
 """
 struct HyperCube{Q<:Real} <: Cuboid
-    vals::Vector{Vector{Q}}
+    vals::AbstractVector{<:AbstractVector{Q}}
     dim::Int
-    function HyperCube(vals::Vector)
+    function HyperCube(vals::AbstractVector)
         vals = float.(vals)
         types = typeof(vals[1][1])
         for i in 1:length(vals)
@@ -408,7 +409,7 @@ struct HyperCube{Q<:Real} <: Cuboid
         new{types}(vals,length(vals))
     end
     # Allow input [a,b] for 1D HyperCubes
-    HyperCube(vals::Vector{<:Real}) = HyperCube([vals])
+    HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
 end
 
 """
@@ -428,8 +429,8 @@ CubeWidths(X)
 ```
 """
 struct LowerUpper{Q<:Real} <: Cuboid
-    L::Vector{Q}
-    U::Vector{Q}
+    L::AbstractVector{Q}
+    U::AbstractVector{Q}
     function LowerUpper(lowers,uppers)
         lowers = float.(lowers); uppers = float.(uppers)
         length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch in LowerUpper."))
@@ -446,7 +447,7 @@ struct LowerUpper{Q<:Real} <: Cuboid
         end
         new{suff(S)}(l,u)
     end
-    LowerUpper(H::Vector) = LowerUpper(HyperCube(H))
+    LowerUpper(H::AbstractVector) = LowerUpper(HyperCube(H))
 end
 
 # SensibleOutput(LU::LowerUpper) = LU.L,LU.U
@@ -458,7 +459,7 @@ function HyperCube(LU::LowerUpper)
     HyperCube(R)
 end
 
-function SensibleOutput(Res::Vector)
+function SensibleOutput(Res::AbstractVector)
     if isa(Res[1],Real)
         return Res[1], Res[2]
     elseif isa(Res[1],Vector) && typeof(Res[1][1])<:Real
@@ -481,7 +482,7 @@ Unpack(H::HyperCube) = Unpack(H.vals)
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
-function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
+function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
     N = length(Z); M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
     for i in 1:N
@@ -491,12 +492,16 @@ function Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple}
     end
     A
 end
-ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
-Unwind(X::Vector{<:Vector{<:Number}}) = vcat(X...)
-Unwind(X::Vector{<:Number}) = X
-Windup(v::Vector{<:Number},n::Int) = [v[(1+(i-1)*n):(i*n)] for i in 1:Int(length(v)/n)]
 
-function CubeVol(Space::Vector)
+ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
+Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = vcat(X...)
+Unwind(X::AbstractVector{<:Number}) = X
+
+Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] for i in 1:Int(length(v)/n)]
+
+
+
+function CubeVol(Space::AbstractVector)
     lowers,uppers = SensibleOutput(Space)
     prod(uppers .- lowers)
 end
@@ -523,11 +528,11 @@ CubeVol(S::LowerUpper) = prod(CubeWidths(S))
     TranslateCube(H::HyperCube,x::Vector)
 Returns a `HyperCube` object which has been translated by `x`.
 """
-function TranslateCube(H::HyperCube,x::Vector)
+function TranslateCube(H::HyperCube,x::AbstractVector)
     H.dim != length(x) && throw("Translation vector must be of same dimension as hypercube.")
     [H.vals[i] .+ x[i] for i in 1:length(x)] |> HyperCube
 end
-TranslateCube(LU::LowerUpper,x::Vector) = TranslateCube(HyperCube(LU),x) |> LowerUpper
+TranslateCube(LU::LowerUpper,x::AbstractVector) = TranslateCube(HyperCube(LU),x) |> LowerUpper
 
 """
     CoverCubes(A::HyperCube,B::HyperCube)
@@ -551,7 +556,7 @@ CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args.
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
 
-normalize(x::Vector,scaling::Float64=1.0) = scaling.*x ./ sqrt(sum(x.^2))
+normalize(x::AbstractVector,scaling::Float64=1.0) = scaling.*x ./ sqrt(sum(x.^2))
 function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},scaling::Float64=1.0)
     newu = u;    newv = v;    factor = Float64
     for i in 1:length(u)
