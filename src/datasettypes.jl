@@ -70,17 +70,17 @@ data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
 xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
 
-sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> diagm
+sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
 sigma(P::Distribution) = P.Σ
 xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 
-InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> diagm
+InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)
     if P.df < 3
         return inv(P.Σ).mat
     else
-        return diagm([Inf for i in 1:length(P)])
+        return Diagonal([Inf for i in 1:length(P)])
     end
 end
 InvCov(P::Distribution) = invcov(P)

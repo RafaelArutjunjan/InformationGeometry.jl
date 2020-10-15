@@ -45,6 +45,7 @@ struct DataSet <: AbstractDataSet
     InvCov::AbstractMatrix
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
+    WoundX::Union{AbstractVector,Bool}
     function DataSet(x::AbstractVector,y::AbstractVector)
         println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
         DataSet(x,y,ones(length(y)*length(y[1])))
@@ -62,7 +63,11 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         HealthyCovariance(sigma)
-        new(x,y,sigma,InvCov,dims,logdet(InvCov))
+        if xdim(dims) < 2
+            return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
+        else
+            return new(x,y,sigma,InvCov,dims,logdet(InvCov),Windup(x,xdim(dims)))
+        end
     end
 end
 
@@ -192,6 +197,8 @@ InvCov(DS::DataSet) = DS.InvCov
 N(DS::DataSet) = N(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
+WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+
 
 
 logdetInvCov(DM::AbstractDataModel) = logdetInvCov(DM.Data)
@@ -341,7 +348,7 @@ function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     V = x - PL.stütz
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
 end
-DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) .- PL.Projector) * (x - PL.stütz) |> norm
+DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - PL.Projector) * (x - PL.stütz) |> norm
 ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::Matrix)

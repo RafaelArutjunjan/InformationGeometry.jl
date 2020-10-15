@@ -755,20 +755,26 @@ EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(
 
 EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = model(Windup(xdata(DS),xdim(DS)),θ)
 
-# EmbeddingMap(DS::AbstractDataSet,model::Function,θ::Vector{<:Number}) = model(xdata(DS),θ)
-# EmbeddingMap(DM::AbstractDataModel,θ::Vector{<:Number}) = map(x->DM.model(x,θ),xdata(DM))
+EmbeddingMap(DS::DataSet,model::Function,θ::AbstractVector{<:Number}) = model(WoundX(DS),θ)
 
+# function EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number})
+#     Res = Vector{suff(θ)}(undef,N(DS)*ydim(DS))
+#     for i in 1:N(DS)
+#         Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(xdata(DS)[1+(i-1)*xdim(DS):(i*xdim(DS))],θ)
+#     end;    Res
+# end
 
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
 EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(Windup(xdata(DS),xdim(DS)),float.(θ))
 
-# EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::Vector{<:Number}) = dmodel(xdata(DS),float.(θ))
+EmbeddingMatrix(DS::DataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(WoundX(DS),float.(θ))
+
 
 
 # From D to M
-Pullback(DM::DataModel,model::Function,θ::AbstractVector{<:Number}) = model(EmbeddingMap(DM,θ))
+Pullback(DM::DataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
 """
     Pullback(DM::DataModel, ω::Vector{<:Real}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.

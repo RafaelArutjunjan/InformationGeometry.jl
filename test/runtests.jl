@@ -36,39 +36,19 @@ end
 
 
 @safetestset "Inputting Dataset of various shapes" begin
-    using InformationGeometry, Test, LinearAlgebra, Distributions
+    using InformationGeometry, Test, LinearAlgebra, Random, Distributions
 
-    DS1 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])
-    DS2 = DataSet([[0,1.],[2,3],[5,8]],[1,5,6],diagm([0.7,1.1,2.2].^2))
+    ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
+    ptrue = [1.,pi,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
 
-    @test sum(abs.(InvCov(DS1) .- InvCov(DS2))) < 1e-12
-    @test xdim(DS1) == 2
-    @test ydim(DS1) == 1
-    @test N(DS1) == 3
-
-    # Covariance Matrices, multidimensional Y, multidimensional X
-    @test ydata(DataSet([[0,1.],[2,3],[5,8]],[1,5,6],[0.7,1.1,2.2])) == [1,5,6.]
-
-    # ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
-    # ptrue = [1.,pi,-5.]
-    # ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
-    #
-    # model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = [p[1] * x[1]^2 + p[3]^3 * x[2],
-    #                                                                     sinh(p[2]) * (x[1] + x[2]),
-    #                                                                     exp(p[1]*x[1] + p[1]*x[2])]
-    # model(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->model(z,p),x)...)
-    # dmodel(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = ForwardDiff.jacobian(z->model(x,z),p)
-    # dmodel(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->dmodel(z,p),x)...)
-    # 
-    # Gen(t) = [t,0.5t^2] .|> float
-    # Xdata = Gen.(0.5:0.1:3)
-    # using Random; # Random.seed!(1234)
-    # Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
-    # Sig = BlockDiagonal(ycovtrue,length(Ydata));    InvSig = inv(Sig)
-    #
-    # DS = DataSet(Xdata,Ydata,Sig)
-    # @test typeof(DS) <: AbstractDataSet
-    # @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
+    model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = [p[1] * x[1]^2 + p[3]^3 * x[2],
+                                                        sinh(p[2]) * (x[1] + x[2]), exp(p[1]*x[1] + p[1]*x[2])]
+    model(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->model(z,p),x)...)
+    Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
+    Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
+    Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
+    @test norm(MLE(DataModel(DS,model)) - ptrue) < 1e-2
+    @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
 end
 
 
@@ -120,7 +100,7 @@ end
     # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar
     # Test WITH AND WITHOUT BIGFLOAT
     x = rand(2)
-    @test sum(abs.(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x))) < 5e-10
+    @test sum(abs.(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x))) < 5e-9
     @test sum(abs.(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)))) < 1e-40
 
     @test abs(RicciScalar(S2metric,rand(2)) - 2) < 5e-4
