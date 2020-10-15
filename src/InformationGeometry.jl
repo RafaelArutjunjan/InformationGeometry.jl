@@ -34,7 +34,7 @@ export plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPl
 export CubeWidths, CubeVol, Center, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane, ParallelPlanes
 export xdata, ydata, sigma, InvCov, N, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
 export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup
-export HealthyData, HealthyCovariance, DataDist, BlockDiagonal
+export HealthyData, HealthyCovariance, DataDist, BlockDiagonal, IsNormalToPlane
 
 
 include("ConfidenceLib.jl")

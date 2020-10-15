@@ -357,6 +357,8 @@ function ProjectionOperator(A::Matrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
 
+IsNormalToPlane(PL::Plane,v::Vector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
+
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(float.([X,Y]))
     # Maybe add check for orientation?

@@ -337,11 +337,12 @@ function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(
         p = VisualizeSol(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
     end;    p
 end
-function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...)
+function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
+            OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
-        p = VisualizeSol(PL[i],sols[i]; N=N,vars=vars,leg=leg, kwargs...)
+        p = VisualizeSol(PL[i],sols[i]; N=N,vars=vars,leg=leg, color=color, kwargs...)
     end;    p
 end
 
