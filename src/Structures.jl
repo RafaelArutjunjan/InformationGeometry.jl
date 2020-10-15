@@ -29,14 +29,17 @@ abstract type AbstractDataSet end
 abstract type AbstractDataModel end
 
 """
-The `DataSet` type is a container for data points. It holds 3 vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each measurement.
-Its fields can be obtained via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
+The `DataSet` type is a versatile container for storing data. Typically, it is constructed by passing it three vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each y-value.
+Alternatively, a full covariance matrix can be supplied for the `ydata` instead of a vector of standard deviations. The contents of a `DataSet` can later be accessed via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
+
+Examples:
 
 In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a four-point `DataSet` can be constructed via
 ```julia
 DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
+DataSet([1,2,3,4],[4,5,6.5,7.8],Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
-where the three arguments constitute a vector of x-values, y-values and 1σ uncertainties associated with the y-values, respectively.
+where the diagonal covariance matrix in the second line is equivalent to the vector of uncertainties supplied in the first line.
 """
 struct DataSet <: AbstractDataSet
     x::AbstractVector
