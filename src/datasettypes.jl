@@ -2,7 +2,7 @@
 
 abstract type TemperedDistributions <: ContinuousMultivariateDistribution end
 struct Dirac <: TemperedDistributions
-    μ::AbstractVector
+    μ::AbstractVector{<:Real}
     Dirac(μ) = new(float.(Unwind(μ)))
 end
 

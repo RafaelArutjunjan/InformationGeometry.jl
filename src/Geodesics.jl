@@ -68,7 +68,7 @@ end
     ChristoffelSymbol(DM::DataModel, θ::Vector; BigCalc::Bool=false)
     ChristoffelSymbol(Metric::Function, θ::Vector; BigCalc::Bool=false)
 Calculates the components of the (1,2) Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
-`BigCalc=true` increases accuracy through BigFloat calculation.
+`BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
@@ -476,7 +476,7 @@ SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data; sigd
 """
     Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false)
     Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
-Calculates the components of the (1,3) Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
+Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
 Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
 function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
@@ -501,7 +501,7 @@ end
 """
     Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false)
     Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
-Calculates the components of the (0,2) Ricci tensor by finite differencing of `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
+Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
 function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)

@@ -30,16 +30,29 @@ abstract type AbstractDataModel end
 
 """
 The `DataSet` type is a versatile container for storing data. Typically, it is constructed by passing it three vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each y-value.
-Alternatively, a full covariance matrix can be supplied for the `ydata` instead of a vector of standard deviations. The contents of a `DataSet` can later be accessed via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
+Alternatively, a full covariance matrix can be supplied for the `ydata` instead of a vector of standard deviations. The contents of a `DataSet` `DS` can later be accessed via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
 
 Examples:
 
-In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a four-point `DataSet` can be constructed via
+In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a `DataSet` consisting of four points can be constructed via
 ```julia
 DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
+```
+or alternatively by
+```julia
 DataSet([1,2,3,4],[4,5,6.5,7.8],Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
 where the diagonal covariance matrix in the second line is equivalent to the vector of uncertainties supplied in the first line.
+
+More generally, if a dataset consists of ``N`` points where each ``x``-value has ``n`` many components and each ``y``-value has ``m`` many components, this can be specified to the `DataSet` constructor via a tuple ``(N,n,m)`` in addition to the vectors `x`, `y` and the covariance matrix.
+For example:
+```julia
+X = [0.9, 1.0, 1.1, 1.9, 2.0, 2.1, 2.9, 3.0, 3.1, 3.9, 4.0, 4.1]
+Y = [1.0, 5.0, 4.0, 8.0, 9.0, 13.0, 16.0, 20.0]
+Cov = Diagonal([2.0, 4.0, 2.0, 4.0, 2.0, 4.0, 2.0, 4.0])
+dims = Tuple([4,3,2])
+DS = DataSet(X,Y,Cov,dims)
+```
 """
 struct DataSet <: AbstractDataSet
     x::AbstractVector
@@ -64,6 +77,7 @@ struct DataSet <: AbstractDataSet
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
+        !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         HealthyCovariance(sigma)
         if xdim(dims) < 2
@@ -89,7 +103,7 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
     function Autodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,length(x),length(θ))
-        for i in 1:length(x)
+        for i in eachindex(x)
             Res[i,:] = Autodmodel(x[i],θ)
         end;    Res
     end
@@ -97,7 +111,7 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
     function NAutodmodel(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,length(x),length(θ))
-        for i in 1:length(x)
+        for i in eachindex(x)
             Res[i,:] = NAutodmodel(x[i],θ)
         end;    Res
     end
@@ -105,7 +119,7 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     function AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-        for i in 1:length(x)
+        for i in eachindex(x)
             Res[((i-1)*Ydim + 1):(i*Ydim),:] = AutodmodelN(x[i],θ)
         end;    Res
     end
@@ -113,7 +127,7 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     function NAutodmodelN(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-        for i in 1:length(x)
+        for i in eachindex(x)
             Res[((i-1)*Ydim + 1):(i*Ydim),:] = NAutodmodelN(x[i],θ)
         end;    Res
     end
@@ -133,15 +147,35 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 end
 
 
+function CheckModelHealth(DS::AbstractDataSet,model::Function,name::String)
+    P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
+    try  model(X,P)   catch Err
+        throw("Got xdim=$(xdim(DS)) but $name appears to not accept x-values of this size.")
+    end
+    !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of $name does not have this size.")
+    X = [X,X]
+    try  model(X,P)   catch Err
+        throw("Got xdim=$(xdim(DS)) but $name does not appear to accept x input $X.")
+    end
+    !(size(model(X,P),1) == 2ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of $name does not have the correct size for x input $X.")
+    return
+end
+
+
+
+
 """
-In addition to a `DataSet`, a `DataModel` contains the model as a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends. Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
+In addition to storing a `DataSet`, a `DataModel` also contains a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends.
+Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
 For example
 ```julia
-DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
+DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
 model(x,θ::Vector) = θ[1] .* x .+ θ[2]
 DM = DataModel(DS,model)
 ```
-If provided like this, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
+In order for all methods to perform as expected, the output of the model must always be in the form of a vector of numbers (if the y-values have more than one component or the model is evaluated on more than one point).
+
+If a `DataModel` is constructed as shown above, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
 function dmodel(x,θ::Vector)
    J = Array{Float64}(undef, length(x), length(θ))
@@ -152,6 +186,8 @@ end
 DM = DataModel(DS,model,dmodel)
 ```
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different values of `x`.
+
+The `DataSet` contained in a `DataModel` `DM` can be accessed via `DM.Data`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
 """
 struct DataModel <: AbstractDataModel
     Data::AbstractDataSet
@@ -163,15 +199,20 @@ struct DataModel <: AbstractDataModel
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
     DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
-    DataModel(DS::AbstractDataSet,model::Function,dmodel::Function) = DataModel(DS,model,dmodel,FindMLE(DS,model))
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function)
+        # CheckModelHealth(DS,model,"model")
+        DataModel(DS,model,dmodel,FindMLE(DS,model))
+    end
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector,sneak::Bool=false)
         sneak && return new(DS,model,dmodel,mle,-Inf)
+        # CheckModelHealth(DS,model,"model")
         MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
         DataModel(DS,model,dmodel,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
         sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
+        # CheckModelHealth(DS,model,"model");     CheckModelHealth(DS,dmodel,"dmodel")
         norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
         g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
@@ -201,7 +242,7 @@ N(DS::DataSet) = N(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
 WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
-
+WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 
 
 logdetInvCov(DM::AbstractDataModel) = logdetInvCov(DM.Data)
@@ -214,13 +255,13 @@ length(DS::AbstractDataSet) = N(DS);    length(DM::AbstractDataModel) = N(DM.Dat
 
 """
     MLE(DM::DataModel) -> Vector
-Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data.
+Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data (under the assumption that the specified model captures the true relationship present in the data).
 For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
 """
 MLE(DM::DataModel) = DM.MLE
 """
     LogLikeMLE(DM::DataModel) -> Real
-Returns the value of the log-likelihood when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
+Returns the value of the log-likelihood ``\\ell`` when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
 For performance reasons, this value is stored as a part of the `DataModel` type.
 """
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
@@ -231,8 +272,9 @@ xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
 yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
 
 
-pdim(DM::DataModel; kwargs...) = length(MLE(DM))
-pdim(DM::AbstractDataModel; kwargs...) = pdim(DM.model,xdata(DM)[1])
+pdim(DM::DataModel) = length(MLE(DM))
+pdim(DM::AbstractDataModel) = pdim(DM.Data,DM.model)
+pdim(DS::AbstractDataSet,model::Function) = xdim(DS) < 2 ? pdim(model,xdata(DS)[1]) : pdim(model,xdata(DS)[1:xdim(DS)])
 
 """
     pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int

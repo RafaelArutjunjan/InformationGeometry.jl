@@ -21,6 +21,8 @@ using Plots
 
 # ADD TESTS FOR CorrectedCovariance
 
+# Add tests for model functions: test on single and multiple datapoints
+
 # Add descriptions of how to save stuff to docs
 
 
@@ -66,7 +68,7 @@ export suff, ConfidenceRegionVolume, SaveDataSet
 
 
 include("datasettypes.jl")
-export TemperedDistributions, Dirac
+export Dirac
 export DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
 
 

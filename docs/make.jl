@@ -9,7 +9,7 @@ makedocs(
     pages = Any[
                 "Getting Started" => "index.md",
                 "Basics of Information Geometry" => "basics.md",
-                "Tutorials" => Any[ "Providing Data and Models" => "datamodels.md",
+                "Tutorial" => Any[ "Providing Data and Models" => "datamodels.md",
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Kullback-Leibler Divergences" => "kullback-leibler.md"],
                 "Contributing" => "todo.md",

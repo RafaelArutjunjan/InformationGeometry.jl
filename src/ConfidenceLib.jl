@@ -2,15 +2,15 @@
 
 ################### Probability Stuff
 """
-    likelihood(DM::DataModel,θ::Vector)
+    likelihood(DM::DataModel,θ::Vector) -> Real
 Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` and a parameter configuration ``\\theta``.
 """
 likelihood(args...) = exp(loglikelihood(args...))
 
 import Distributions.loglikelihood
 """
-    loglikelihood(DM::DataModel, θ::Vector)
-Calculates the logarithm of the likelihood ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
+    loglikelihood(DM::DataModel, θ::Vector) -> Real
+Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
 loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
 
@@ -429,11 +429,7 @@ function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=f
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
         # return curve_fit(DS,model,ones(pdim(model,xdata(DS)[1])); tol=tol).param
-        if xdim(DS) == 1
-            return optimize(NegEll, ones(pdim(model,xdata(DS)[1])), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-        else
-            return optimize(NegEll, ones(pdim(model,ones(xdim(DS)))), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-        end
+        return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,Vector)
         if suff(start) == BigFloat
             return FindMLEBig(DS,model,start)
@@ -748,28 +744,28 @@ KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zero
     EmbeddingMap(DM::DataModel,θ::Vector{<:Number})
 Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
 ```
-h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N,\\theta)\\big) \\in \\mathcal{D}
+h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
 """
 EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(DM.Data,DM.model,θ)
 
-EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = model(Windup(xdata(DS),xdim(DS)),θ)
+EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = model(WoundX(DS),θ)
 
-EmbeddingMap(DS::DataSet,model::Function,θ::AbstractVector{<:Number}) = model(WoundX(DS),θ)
-
-# function EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number})
-#     Res = Vector{suff(θ)}(undef,N(DS)*ydim(DS))
-#     for i in 1:N(DS)
-#         Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(xdata(DS)[1+(i-1)*xdim(DS):(i*xdim(DS))],θ)
-#     end;    Res
-# end
+function EmbeddingMap2(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
+    if ydim(DS) > 1
+        Res = Vector{suff(θ)}(undef,N(DS)*ydim(DS))
+        for i in 1:N(DS)
+            Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(WoundX(DS)[i],θ)
+        end;    return Res
+    else
+        return map(x->model(x,θ),WoundX(DS))
+    end
+end
 
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
-EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(Windup(xdata(DS),xdim(DS)),float.(θ))
-
-EmbeddingMatrix(DS::DataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(WoundX(DS),float.(θ))
+EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(WoundX(DS),float.(θ))
 
 
 
@@ -832,7 +828,7 @@ Checks with respect to which parameters the model function `model(x,θ)` is line
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
 function IsLinearParameter(DM::AbstractDataModel)::Vector{Bool}
-    J1 = EmbeddingMatrix(DM,rand(pdim(DM)));        J2 = EmbeddingMatrix(DM,rand(pdim(DM)))
+    P = pdim(DM);    J1 = EmbeddingMatrix(DM,rand(P));    J2 = EmbeddingMatrix(DM,rand(P))
     [J1[:,i] == J2[:,i]  for i in 1:size(J1,2)]
 end
 

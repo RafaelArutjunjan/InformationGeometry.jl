@@ -6,6 +6,7 @@ Once a `DataModel` object has been defined, it can subsequently be used to compu
 ```@docs
 loglikelihood(::DataModel,::Vector{Float64})
 MLE(::DataModel)
+LogLikeMLE(::DataModel)
 ```
 
 ```@example 1
@@ -13,7 +14,7 @@ using InformationGeometry, Plots; gr() # hide
 DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
 model(x,θ) = θ[1] .* x .+ θ[2]
 DM = DataModel(DS,model)
-MLE(DM)
+MLE(DM), LogLikeMLE(DM)
 ```
 Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model shown above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect hyperellipses as expected:
 ```@example 1
@@ -60,6 +61,7 @@ Further, studying the geodesics / autoparallels on a manifold can yield enlighte
 ```@docs
 Score(::DataModel,::Vector{Float64})
 AIC(::DataModel,::Vector{Float64})
+BIC(::DataModel,::Vector{Float64})
 GeodesicDistance(::DataModel,::Vector{Float64},::Vector{Float64})
 ```
 

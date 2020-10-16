@@ -8,12 +8,10 @@ The data itself is stored using the `DataSet` container.
 ```@docs
 DataSet
 ```
-Depending on the dimensionality of the dataset, that is, the number of components of the respective x-values and y-values, there are multiple ways the `DataSet` can be constructed.
 
-To complete the specification of the inference problem, a model function which takes an x-value and a parameter configuration ``\theta`` must be added.
+To complete the specification of an inference problem, a model function which is assumed to model the relationship which is inherent in the
+takes an x-value and a parameter configuration ``\theta`` must be added.
 
 ```@docs
 DataModel
 ```
-
-**To be continued...**
