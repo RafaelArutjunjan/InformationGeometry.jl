@@ -7,7 +7,7 @@ using SafeTestsets
     using InformationGeometry, Test, LinearAlgebra, Distributions
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1] .* x .+ p[2]
+    model(x,p) = p[1] * x + p[2]
     DM = DataModel(DS,model)
     XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
     x = [0.1,0.5];    p = rand(2)
@@ -36,14 +36,13 @@ end
 
 
 @safetestset "Inputting Dataset of various shapes" begin
-    using InformationGeometry, Test, LinearAlgebra, Random, Distributions
+    using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays
 
     ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
     ptrue = [1.,pi,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
 
-    model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = [p[1] * x[1]^2 + p[3]^3 * x[2],
+    model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[1]^2 + p[3]^3 * x[2],
                                                         sinh(p[2]) * (x[1] + x[2]), exp(p[1]*x[1] + p[1]*x[2])]
-    model(x::AbstractVector{<:AbstractVector{<:Number}},p::AbstractVector{<:Number}) = vcat(map(z->model(z,p),x)...)
     Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
     Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
     Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)

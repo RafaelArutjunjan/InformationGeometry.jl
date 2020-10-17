@@ -164,29 +164,28 @@ end
 
 
 
-
 """
 In addition to storing a `DataSet`, a `DataModel` also contains a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends.
 Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
 For example
 ```julia
-DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
-model(x,θ::Vector) = θ[1] .* x .+ θ[2]
+DS = DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
+model(x::Real,θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
 DM = DataModel(DS,model)
 ```
-In order for all methods to perform as expected, the output of the model must always be in the form of a vector of numbers (if the y-values have more than one component or the model is evaluated on more than one point).
+In cases where the output of the model has more than one component (i.e. `ydim > 1`), it is advisable to define the model function in such a way that it outputs static vectors using **StaticArrays.jl** for increased performance.
+For `ydim = 1`, **InformationGeometry.jl** expects the model to output a number instead of a vector with one component. In contrast, the parameter configuration `θ` must always be supplied as a vector.
 
 If a `DataModel` is constructed as shown above, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
-function dmodel(x,θ::Vector)
-   J = Array{Float64}(undef, length(x), length(θ))
-   @. J[:,1] = x        # ∂(model)/∂θ₁
-   @. J[:,2] = 1.       # ∂(model)/∂θ₂
-   return J
+using StaticArrays
+function dmodel(x::Real,θ::AbstractVector{<:Real})
+   @SMatrix [x  1.]     # ∂(model)/∂θ₁ and ∂(model)/∂θ₂
 end
 DM = DataModel(DS,model,dmodel)
 ```
-The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different values of `x`.
+The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different components of `x`.
+Again,
 
 The `DataSet` contained in a `DataModel` `DM` can be accessed via `DM.Data`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
 """
@@ -368,7 +367,7 @@ function BasisVector(Slot::Int,dims::Int)
     Res = zeros(dims);    Res[Slot] = 1;    Res
 end
 """
-    PlaneCoordinates(PL::Plane, v::Vector{<:Real})
+    PlaneCoordinates(PL::Plane, v::AbstractVector{<:Real})
 Returns an n-dimensional vector from a tuple of two real numbers which
 """
 function PlaneCoordinates(PL::Plane, v::AbstractVector)
@@ -422,7 +421,7 @@ Project `v` onto `u`.
 ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
 
 """
-    ParallelPlanes(PL::Plane,v::Vector,range) -> Vector{Plane}
+    ParallelPlanes(PL::Plane,v::AbstractVector,range) -> Vector{Plane}
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
 function ParallelPlanes(PL::Plane,v::AbstractVector,range::Union{AbstractRange,AbstractVector})

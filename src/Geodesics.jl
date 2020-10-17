@@ -65,9 +65,9 @@ end
 # ROUND TO 1e-10???
 # BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
 """
-    ChristoffelSymbol(DM::DataModel, θ::Vector; BigCalc::Bool=false)
-    ChristoffelSymbol(Metric::Function, θ::Vector; BigCalc::Bool=false)
-Calculates the components of the (1,2) Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
+    ChristoffelSymbol(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
+    ChristoffelSymbol(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
+Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
 `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
@@ -271,8 +271,8 @@ function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::I
 end
 
 """
-    GeodesicBetween(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
-    GeodesicBetween(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicBetween(DM::DataModel,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicBetween(Metric::Function,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
 GeodesicBetween(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
@@ -294,8 +294,8 @@ function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::Abstrac
 end
 
 """
-    GeodesicDistance(DM::DataModel,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
-    GeodesicDistance(Metric::Function,P::Vector{<:Real},Q::Vector{<:Real}; tol::Real=1e-10)
+    GeodesicDistance(DM::DataModel,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10)
+    GeodesicDistance(Metric::Function,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10)
 Computes the length of a geodesic connecting the points `P` and `Q`.
 """
 GeodesicDistance(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
@@ -327,7 +327,7 @@ function PlotCurves(Curves::Vector{<:ODESolution}; N::Int=100)
 end
 
 """
-    EvaluateEach(sols::Vector{Q}, Ts::Vector) where Q <: ODESolution -> Vector
+    EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector) -> Vector
 Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
@@ -419,7 +419,7 @@ function Dehomogenize(V::AbstractVector,N::Int=500)
 end
 
 """
-    SaveConfidence(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
+    SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
 Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
 """
 function SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
@@ -437,7 +437,7 @@ end
 
 
 """
-    SaveGeodesics(sols::Vector,N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
+    SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
 Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
 Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
 """
@@ -474,8 +474,8 @@ SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data; sigd
 ############### Curvature ################
 
 """
-    Riemann(DM::DataModel, θ::Vector; BigCalc::Bool=false)
-    Riemann(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    Riemann(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
+    Riemann(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
 Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
@@ -499,8 +499,8 @@ function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=f
 end
 
 """
-    Ricci(DM::DataModel, θ::Vector; BigCalc::Bool=false)
-    Ricci(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    Ricci(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
+    Ricci(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
@@ -512,8 +512,8 @@ function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=fal
 end
 
 """
-    RicciScalar(DM::DataModel, θ::Vector; BigCalc::Bool=false)
-    RicciScalar(Metric::Function, θ::Vector; BigCalc::Bool=false)
+    RicciScalar(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false) -> Real
+    RicciScalar(Metric::Function, θ::AbstractVector; BigCalc::Bool=false) -<> Real
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ;BigCalc=BigCalc)
@@ -523,7 +523,7 @@ function RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bo
 end
 
 """
-    GeometricDensity(DM::DataModel, θ::Vector)
+    GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)

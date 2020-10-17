@@ -2,14 +2,14 @@
 
 ################### Probability Stuff
 """
-    likelihood(DM::DataModel,θ::Vector) -> Real
+    likelihood(DM::DataModel,θ::AbstractVector) -> Real
 Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` and a parameter configuration ``\\theta``.
 """
 likelihood(args...) = exp(loglikelihood(args...))
 
 import Distributions.loglikelihood
 """
-    loglikelihood(DM::DataModel, θ::Vector) -> Real
+    loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
 loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
@@ -96,8 +96,8 @@ AutoMetric(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = F
 
 
 """
-    Score(DM::DataModel, θ::Vector{<:Number}; Auto::Bool=false)
-Calculates the gradient of the log-likelihood with respect to a set of parameters `p`. `Auto=true` uses automatic differentiation.
+    Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Bool=false)
+Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=true` uses automatic differentiation.
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(DM.Data,DM.model,DM.dmodel,θ; Auto=Auto)
 
@@ -112,7 +112,7 @@ end
 
 
 """
-    WilksTest(DM::DataModel, θ::Vector{<:Real}, ConfVol=ConfVol(1)) -> Bool
+    WilksTest(DM::DataModel, θ::AbstractVector{<:Real}, ConfVol=ConfVol(1)) -> Bool
 Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
@@ -283,7 +283,7 @@ end
 
 
 """
-    OrthVF(DM::DataModel, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
+    OrthVF(DM::DataModel, θ::AbstractVector{<:Real}; Auto::Bool=false) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
@@ -442,7 +442,7 @@ end
 
 
 """
-    GenerateBoundary(DM::DataModel, u0::Vector{<:Real}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
+    GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 
@@ -627,7 +627,7 @@ end
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 """
-    FisherMetric(DM::DataModel, θ::Vector{<:Number})
+    FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
 Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
 ```math
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
@@ -741,7 +741,7 @@ KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zero
 
 # h(p) ∈ Dataspace
 """
-    EmbeddingMap(DM::DataModel,θ::Vector{<:Number})
+    EmbeddingMap(DM::DataModel,θ::AbstractVector{<:Number})
 Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
 ```
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
@@ -789,7 +789,7 @@ end
 # From D to M
 Pullback(DM::DataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
 """
-    Pullback(DM::DataModel, ω::Vector{<:Real}, θ::Vector) -> Vector
+    Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.
 """
 Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<:Number}) = transpose(EmbeddingMatrix(DM,θ)) * ω
@@ -806,7 +806,7 @@ end
 
 # M to D
 """
-    Pushforward(DM::DataModel, X::Vector, point::Vector)
+    Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector)
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
 """
 Pushforward(DM::DataModel, X::Vector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
@@ -828,13 +828,13 @@ FisherEllipsoid(Metric::Function, θ::AbstractVector{<:Number}) = eigvecs(Metric
 
 
 """
-    AIC(DM::DataModel, θ::Vector) -> Real
+    AIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = 2 \\, \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)``.
 """
 AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = 2length(θ) - 2loglikelihood(DM,θ)
 
 """
-    BIC(DM::DataModel, θ::Vector) -> Real
+    BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
 BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(N(DM.Data)) - 2loglikelihood(DM,θ)

@@ -9,8 +9,7 @@ The data itself is stored using the `DataSet` container.
 DataSet
 ```
 
-To complete the specification of an inference problem, a model function which is assumed to model the relationship which is inherent in the
-takes an x-value and a parameter configuration ``\theta`` must be added.
+To complete the specification of an inference problem, a model function which is assumed to be able to capture the relationship which is inherent in the data must be added.
 
 ```@docs
 DataModel

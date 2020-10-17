@@ -12,7 +12,7 @@ LogLikeMLE(::DataModel)
 ```@example 1
 using InformationGeometry, Plots; gr() # hide
 DS = DataSet([1,2,3.],[4,5,6.5],[0.5,0.45,0.6])
-model(x,θ) = θ[1] .* x .+ θ[2]
+model(x::Real,θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
 DM = DataModel(DS,model)
 MLE(DM), LogLikeMLE(DM)
 ```
@@ -30,7 +30,7 @@ VisualizeSols(sols)
 
 For a non-linearly parametrized model, the confidence regions are found to be non-ellipsoidal:
 ```@example 1
-model2(x,θ) = θ[1]^3 .* x .+ exp(θ[1] + θ[2])
+model2(x::Real,θ::AbstractVector{<:Real}) = θ[1]^3 * x + exp(θ[1] + θ[2])
 DM2 = DataModel(DS,model2)
 sols2 = MultipleConfidenceRegions(DM2,1:2)
 VisualizeSols(sols2)
