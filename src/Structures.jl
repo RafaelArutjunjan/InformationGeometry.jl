@@ -76,14 +76,19 @@ struct DataSet <: AbstractDataSet
         DataSet(Unwind(x),Unwind(y),Sigma,Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]),dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
-    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray,InvCov::AbstractMatrix,dims::Tuple{Int,Int,Int})
+    function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},
+                                            InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         HealthyCovariance(sigma)
+        if typeof(sigma) <: AbstractMatrix
+            sigma = isdiag(sigma) ? Diagonal(sigma) : sigma
+        end
+        InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
         if xdim(dims) < 2
             return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
         else
-            return new(x,y,sigma,InvCov,dims,logdet(InvCov),Windup(x,xdim(dims)))
+            return new(x,y,sigma,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
 end
@@ -147,17 +152,13 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 end
 
 
-function CheckModelHealth(DS::AbstractDataSet,model::Function,name::String)
+function CheckModelHealth(DS::AbstractDataSet,model::Function)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
     try  model(X,P)   catch Err
-        throw("Got xdim=$(xdim(DS)) but $name appears to not accept x-values of this size.")
+        throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
-    !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of $name does not have this size.")
-    X = [X,X]
-    try  model(X,P)   catch Err
-        throw("Got xdim=$(xdim(DS)) but $name does not appear to accept x input $X.")
-    end
-    !(size(model(X,P),1) == 2ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of $name does not have the correct size for x input $X.")
+    !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
+    !(typeof(model(X,P)) <: SVector) && ydim(DS) > 1 && @warn "To increase overall performance, it is advisable to define the model function such that it outputs static vectors, i.e. SVectors."
     return
 end
 
@@ -200,24 +201,22 @@ struct DataModel <: AbstractDataModel
     DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
     DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function)
-        # CheckModelHealth(DS,model,"model")
         DataModel(DS,model,dmodel,FindMLE(DS,model))
     end
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector,sneak::Bool=false)
-        sneak && return new(DS,model,dmodel,mle,-Inf)
-        # CheckModelHealth(DS,model,"model")
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector{<:Number},sneak::Bool=false)
+        sneak && return DataModel(DS,model,dmodel,mle,-Inf,true)
         MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
         DataModel(DS,model,dmodel,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector,LogLikeMLE::Real,sneak::Bool=false)
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
         sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
-        # CheckModelHealth(DS,model,"model");     CheckModelHealth(DS,dmodel,"dmodel")
+        CheckModelHealth(DS,model)
         norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
         g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
-        new(DS,model,dmodel,MLE,LogLikeMLE)
+        new(DS,model,dmodel,SVector{length(MLE)}(MLE),LogLikeMLE)
     end
 end
 
@@ -574,7 +573,7 @@ function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
 end
 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
-Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = vcat(X...)
+Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat,X)
 Unwind(X::AbstractVector{<:Number}) = X
 
 Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] for i in 1:Int(length(v)/n)]

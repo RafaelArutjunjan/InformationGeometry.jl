@@ -500,7 +500,7 @@ end
 # @deprecate GenerateConfidenceInterval(DM,Confnum) GenerateConfidenceRegion(DM,Confnum)
 # @deprecate GenerateConfidenceInterval(DM,MLE,Confnum) GenerateConfidenceRegion(DM,Confnum)
 
-function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14,
+function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12,
                                     meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     if pdim(DM) == 1
         return Interval1D(DM, Confnum; tol=tol)
@@ -539,14 +539,14 @@ end
 # @deprecate GenerateMultipleIntervals(DM,Range,MLE) MultipleConfidenceRegions(DM,Range)
 # @deprecate GenerateMultipleIntervals(DM,Range) MultipleConfidenceRegions(DM,Range)
 
-function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false, tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
+function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false, tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     pdim(DM) == 1 && return map(x->GenerateConfidenceRegion(DM,x;tol=tol),Range)
     sols = Vector{ODESolution}(undef,0)
     for CONF in Range
         if IsConfVol
-            @time push!(sols, GenerateConfidenceRegion(DM,InvConfVol(CONF);tol=tol,meth=meth,mfd=mfd))
+            @time push!(sols, GenerateConfidenceRegion(DM,InvConfVol(CONF);tol=tol,meth=meth,mfd=mfd,Auto=Auto))
         else
-            @time push!(sols, GenerateConfidenceRegion(DM,CONF;tol=tol,meth=meth,mfd=mfd))
+            @time push!(sols, GenerateConfidenceRegion(DM,CONF;tol=tol,meth=meth,mfd=mfd,Auto=Auto))
         end
         if sols[end].retcode == :Terminated
             _ , rts = StructurallyIdentifiable(DM,sols[end])
@@ -749,23 +749,40 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(DM.Data,DM.model,θ)
 
-EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = model(WoundX(DS),θ)
+EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = performMap(DS,model,θ,WoundX(DS))
 
-function EmbeddingMap2(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
+function performMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
+    if ydim(DS) > 1
+        return reduce(vcat,map(x->model(x,θ),woundX))
+    else
+        return map(x->model(x,θ),woundX)
+    end
+end
+
+function performMap2(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
     if ydim(DS) > 1
         Res = Vector{suff(θ)}(undef,N(DS)*ydim(DS))
         for i in 1:N(DS)
-            Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(WoundX(DS)[i],θ)
+            Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
         end;    return Res
     else
-        return map(x->model(x,θ),WoundX(DS))
+        return map(x->model(x,θ),woundX)
     end
 end
 
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
-EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = dmodel(WoundX(DS),float.(θ))
+EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = performDMap(DS,dmodel,float.(θ),WoundX(DS))
+
+performDMap(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
+
+function performDMap2(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
+    Res = Array{suff(θ)}(undef,N(DS)*ydim(DS),length(θ))
+    for i in 1:N(DS)
+        Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
+    end;    Res
+end
 
 
 
