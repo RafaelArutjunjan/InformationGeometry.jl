@@ -57,7 +57,7 @@ DS = DataSet(X,Y,Cov,dims)
 struct DataSet <: AbstractDataSet
     x::AbstractVector
     y::AbstractVector
-    sigma::AbstractArray
+    # sigma::AbstractArray
     InvCov::AbstractMatrix
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
@@ -79,16 +79,19 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},
                                             InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
-        !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(sigma,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
-        HealthyCovariance(sigma)
-        if typeof(sigma) <: AbstractMatrix
-            sigma = isdiag(sigma) ? Diagonal(sigma) : sigma
-        end
+        !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
+        # HealthyCovariance(sigma)
+        # if typeof(sigma) <: AbstractMatrix
+        #     sigma = isdiag(sigma) ? Diagonal(sigma) : sigma
+        # end
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
+        !isposdef(InvCov) && throw("Inverse Covariance Matrix not positive-definite.")
         if xdim(dims) < 2
-            return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
+            return new(x,y,InvCov,dims,logdet(InvCov),false)
+            # return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
         else
-            return new(x,y,sigma,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            # return new(x,y,sigma,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
 end
@@ -99,57 +102,68 @@ end
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
 function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
-    # vcat(map()...) MARGINALLY faster than using vcat([]...)
-    # Manual allocation of array and filling via loop ~ 0.3x faster for small numbers of concatenations
-    # but basically the same for large numbers of data points.
-    # trying out transpose instead of reshape, about 0.1x faster?
-    Ydim = ydim(DS); Xdim = xdim(DS)
-    # xdim = 1, ydim = 1
-    Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function Autodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
-        Res = Array{suff(θ)}(undef,length(x),length(θ))
-        for i in eachindex(x)
-            Res[i,:] = Autodmodel(x[i],θ)
-        end;    Res
-    end
-    # xdim > 1, ydim = 1
-    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-    function NAutodmodel(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
-        Res = Array{suff(θ)}(undef,length(x),length(θ))
-        for i in eachindex(x)
-            Res[i,:] = NAutodmodel(x[i],θ)
-        end;    Res
-    end
-    # xdim = 1, ydim > 1
+    # Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+    Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-    function AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
-        Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-        for i in eachindex(x)
-            Res[((i-1)*Ydim + 1):(i*Ydim),:] = AutodmodelN(x[i],θ)
-        end;    Res
-    end
-    # xdim > 1, ydim > 1
-    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-    function NAutodmodelN(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
-        Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-        for i in eachindex(x)
-            Res[((i-1)*Ydim + 1):(i*Ydim),:] = NAutodmodelN(x[i],θ)
-        end;    Res
-    end
-    if Xdim == 1
-        if Ydim == 1
-            return Autodmodel
-        else
-            return AutodmodelN
-        end
+    if ydim(DS) == 1
+        return Autodmodel
     else
-        if Ydim == 1
-            return NAutodmodel
-        else
-            return NAutodmodelN
-        end
+        return AutodmodelN
     end
 end
+
+# function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
+#     # vcat(map()...) MARGINALLY faster than using vcat([]...)
+#     # Manual allocation of array and filling via loop ~ 0.3x faster for small numbers of concatenations
+#     # but basically the same for large numbers of data points.
+#     # trying out transpose instead of reshape, about 0.1x faster?
+#     Ydim = ydim(DS); Xdim = xdim(DS)
+#     # xdim = 1, ydim = 1
+#     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+#     function Autodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
+#         Res = Array{suff(θ)}(undef,length(x),length(θ))
+#         for i in eachindex(x)
+#             Res[i,:] = Autodmodel(x[i],θ)
+#         end;    Res
+#     end
+#     # xdim > 1, ydim = 1
+#     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
+#     function NAutodmodel(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
+#         Res = Array{suff(θ)}(undef,length(x),length(θ))
+#         for i in eachindex(x)
+#             Res[i,:] = NAutodmodel(x[i],θ)
+#         end;    Res
+#     end
+#     # xdim = 1, ydim > 1
+#     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+#     function AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
+#         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
+#         for i in eachindex(x)
+#             Res[((i-1)*Ydim + 1):(i*Ydim),:] = AutodmodelN(x[i],θ)
+#         end;    Res
+#     end
+#     # xdim > 1, ydim > 1
+#     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+#     function NAutodmodelN(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
+#         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
+#         for i in eachindex(x)
+#             Res[((i-1)*Ydim + 1):(i*Ydim),:] = NAutodmodelN(x[i],θ)
+#         end;    Res
+#     end
+#     if Xdim == 1
+#         if Ydim == 1
+#             return Autodmodel
+#         else
+#             return AutodmodelN
+#         end
+#     else
+#         if Ydim == 1
+#             return NAutodmodel
+#         else
+#             return NAutodmodelN
+#         end
+#     end
+# end
 
 
 function CheckModelHealth(DS::AbstractDataSet,model::Function)
@@ -234,7 +248,12 @@ ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
-sigma(DS::DataSet) = DS.sigma
+function sigma(DS::DataSet)
+    sig = !issparse(InvCov(DS)) ? inv(InvCov(DS)) : inv(convert(Matrix,InvCov(DS)))
+    sig = isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
+    return sig
+end
+# sigma(DS::DataSet) = DS.sigma
 InvCov(DS::DataSet) = DS.InvCov
 N(DS::DataSet) = N(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
@@ -265,6 +284,7 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 DataDist(Y::AbstractVector,Sig::AbstractVector,dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
+DataDist(Y::AbstractVector,Sig::AbstractMatrix,dist=MvNormal) = dist(Y,Sig)
 yDataDist(DS::DataSet) = DataDist(ydata(DS),sigma(DS))
 xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
 yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
