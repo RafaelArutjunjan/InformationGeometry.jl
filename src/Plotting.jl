@@ -2,33 +2,50 @@
 
 
 
+RecipesBase.@recipe function f(DM::AbstractDataModel)
+    !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+    legendtitle --> "R² ≈ $(round(Rsquared(DM),sigdigits=3))"
+    @series begin
+        DM.Data
+    end
+    markeralpha := 0.
+    label --> "Best Fit"
+    seriescolor --> :red
+    linestyle --> :solid
+    linewidth --> 2
+    X = range(xdata(DM)[1],xdata(DM)[end],length=600)
+    Y = map(z->DM.model(z,MLE(DM)),X)
+    ToCols([X Y])
+end
 
-using RecipesBase
-RecipesBase.@recipe function plot(DS::AbstractDataSet,args...)
+RecipesBase.@recipe function f(DS::DataSet)
+    !(typeof(sigma(DS)) <: AbstractVector) && throw("Not programmed for full covariance matrix yet.")
     line -->            (:scatter,1)
+    xguide -->          "Conditions x"
+    yguide -->          "Observations y"
+    label -->           "Data"
     yerror -->          sigma(DS)
-    linecolor   -->     :blue
-    markercolor -->     :blue
-    markerstrokecolor --> :blue
-    xdata(DS),ydata(DS),args...
+    linecolor   -->         :blue
+    markercolor -->         :blue
+    markerstrokecolor -->   :blue
+    xdata(DS), ydata(DS)
 end
-RecipesBase.@recipe function plot(DM::DataModel,args...)
-    DM.Data,args...
+
+RecipesBase.@recipe function f(H::HyperCube)
+    LowerUpper(H)
 end
-RecipesBase.@recipe function plot(H::HyperCube,args...)
-    LowerUpper(H),args...
-end
-RecipesBase.@recipe function plot(LU::LowerUpper,args...)
+
+RecipesBase.@recipe function f(LU::LowerUpper)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
-    rectangle(LU)[:,1],rectangle(LU)[:,2],args...
+    rectangle(LU)[:,1], rectangle(LU)[:,2]
 end
-RecipesBase.@recipe function plot(X::AbstractVector{<:AbstractVector{<:Number}},args...)
-    G = Unpack(X)
+
+RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
     marker --> :hex
     linealpha --> 0
     markersize --> 1.8
     markerstrokewidth --> 0.5
-    G[:,1],G[:,2]
+    ToCols(Unpack(X))
 end
 
 
@@ -43,40 +60,15 @@ function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<
     LsqFit.lmfit(f,initial,InvCov(DS);x_tol=tol,g_tol=tol,kwargs...)
 end
 
-# RecipesBase.@recipe function RecipeTester(args...)
-#     rand(10,5)
-# end
-#
-# RecipesBase.@recipe function FittedPlot2(DM::DataModel,Fit::LsqFit.LsqFitResult)
-#     legendtitle     --> "R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))"
-#     xlabel          --> "x"
-#     ylabel          --> "y"
-#     RecipesBase.@series begin
-#         DM
-#     end
-#     RecipesBase.@series begin
-#         X = range(xdata(DM)[1],xdata(DM)[end],length=500)
-#         X, map(z->DM.model(z,Fit.param),X)
-#     end
-# end
-# export FittedPlot2, RecipeTester
-
-FittedPlot(DM::DataModel) = FittedPlot(DM,curve_fit(DM))
-FittedPlot(DM::DataModel,p::AbstractVector) = FittedPlot(DM,curve_fit(DM,p))
-function FittedPlot(DM::DataModel,Fit::LsqFit.LsqFitResult)
-    Plots.plot(DM,label="Data",legendtitle="R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))")
-    Plots.plot!(x->DM.model(x,Fit.param),range(xdata(DM)[1],xdata(DM)[end],length=600),label="Fit")
+FittedPlot(DM::AbstractDataModel;kwargs...) = Plots.plot(DM;kwargs...)
+# ResidualPlot(args...;kwargs...) = ResidPlot(args...;kwargs...)
+function ResidualPlot(DM::AbstractDataModel;kwargs...)
+    !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+    resid = ydata(DM) - EmbeddingMap(DM,MLE(DM))
+    Plots.plot(DataSet(xdata(DM),resid,sigma(DM));kwargs...)
+    Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
+    Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
 end
-
-ResidualPlot(args...) = ResidPlot(args...)
-ResidPlot(DM::DataModel) = ResidPlot(DM,curve_fit(DM))
-ResidPlot(DM::DataModel,p::AbstractVector) = ResidPlot(DM,curve_fit(DM,p))
-function ResidPlot(DM::DataModel,Fit::LsqFit.LsqFitResult)
-    Plots.plot(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
-    Plots.plot!(DataSet(xdata(DM),-Fit.resid.*sigma(DM),sigma(DM)))
-    Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM,Fit),sigdigits=3))")
-end
-
 
 
 function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool = false, parallel::Bool=false)
@@ -316,7 +308,7 @@ function Deplanarize(PL::Plane,sol::ODESolution;N::Int=500)
 end
 
 """
-    VisualizeSols(sols::Vector; OverWrite::Bool=true)
+    VisualizeSols(sols::Vector{<:ODESolution}; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
 function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...)
@@ -365,10 +357,10 @@ VisualizeGeos(sols::Vector{<:ODESolution}; OverWrite::Bool=true,leg::Bool=false)
     PointwiseConfidenceBand(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence interval.
 """
-function PointwiseConfidenceBand(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=300)
-    domain.dim != length(xdata(DM)[1]) && throw("PWConfBand: Wrong Cube dim.")
-    if length(ydata(DM)[1]) == 1
-        T = range(sol.t[1],sol.t[end],length=300)
+function PointwiseConfidenceBand(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube; N::Int=300)
+    !(domain.dim == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
+    if ydim(DM) == 1
+        T = range(sol.t[1],sol.t[end]; length=300)
         X = range(domain.vals[1][1],domain.vals[1][2],length=N)
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
         for i in 1:length(X)
@@ -437,7 +429,7 @@ function PlotMatrix(Mat::Matrix,MLE::AbstractVector{<:Number}=zeros(size(Mat,1))
     C = cholesky(Symmetric(Mat)).L;    angles = range(0,2pi,length=N)
     F(angle::Real) = MLE .+ C* [cos(angle),sin(angle)]
     Data = Unpack(F.(angles))
-    display(plot!(Data[:,1],Data[:,2],label="Matrix")); Data
+    display(Plots.plot!(Data[:,1],Data[:,2],label="Matrix")); Data
 end
 
 

@@ -4,7 +4,7 @@ using Distributed, LinearAlgebra, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements
 using Distributions, SpecialFunctions, TensorOperations, DataFrames
-using Plots
+using RecipesBase, Plots
 
 
 # Make interface more uniform: tolerance, method, Big, ...

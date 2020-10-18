@@ -580,15 +580,15 @@ function Inside(LU::LowerUpper,p::AbstractVector)::Bool
 end
 
 """
-    Rsquared(DM::DataModel,Fit::LsqFit.LsqFitResult) -> Real
-Calculates the R² value of the fit result `Fit`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
+    Rsquared(DM::DataModel) -> Real
+Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
 """
-function Rsquared(DM::DataModel,Fit::LsqFit.LsqFitResult)
-    length(ydata(DM)[1]) != 1  && return -1
-    mean = sum(ydata(DM))/length(ydata(DM))
-    Stot = sum((ydata(DM) .- mean).^2)
-    Sres = sum((ydata(DM) .- DM.model(xdata(DM),Fit.param)).^2)
-    1 - Sres/Stot
+function Rsquared(DM::DataModel)
+    !(xdim(DM) == ydim(DM) == 1) && return -1
+    mean = sum(ydata(DM)) / length(ydata(DM))
+    Stot = (ydata(DM) .- mean).^2 |> sum
+    Sres = (ydata(DM) - EmbeddingMap(DM,MLE(DM))).^2 |> sum
+    1 - Sres / Stot
 end
 
 
