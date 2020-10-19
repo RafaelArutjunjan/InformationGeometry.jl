@@ -85,7 +85,7 @@ struct DataSet <: AbstractDataSet
         #     sigma = isdiag(sigma) ? Diagonal(sigma) : sigma
         # end
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
-        !isposdef(InvCov) && throw("Inverse Covariance Matrix not positive-definite.")
+        # !isposdef(Symmetric(InvCov)) && throw("Inverse Covariance Matrix not positive-definite.")
         if xdim(dims) < 2
             return new(x,y,InvCov,dims,logdet(InvCov),false)
             # return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
@@ -260,7 +260,7 @@ function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=100)::Int where
         try
             model(x,ones(i))
         catch y
-            if isa(y, BoundsError)
+            if isa(y, BoundsError) || isa(y,DimensionMismatch)
                 continue
             else
                 println("pdim: Encountered error in specification of model function.")
@@ -349,7 +349,7 @@ end
 Returns an n-dimensional vector from a tuple of two real numbers which
 """
 function PlaneCoordinates(PL::Plane, v::AbstractVector)
-    length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
+    # length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
     PL.stütz + [PL.Vx PL.Vy]*v
 end
 
@@ -518,7 +518,7 @@ end
 function SensibleOutput(Res::AbstractVector)
     if isa(Res[1],Real)
         return Res[1], Res[2]
-    elseif isa(Res[1],Vector) && typeof(Res[1][1])<:Real
+    elseif isa(Res[1],AbstractVector) && typeof(Res[1][1]) <: Real
         u = Vector{suff(Res)}(undef,length(Res)); v = similar(u)
         for i in 1:length(Res)
             if length(Res[i]) != 2
@@ -527,7 +527,7 @@ function SensibleOutput(Res::AbstractVector)
             u[i] = Res[i][1]
             v[i] = Res[i][2]
         end
-        return u,v
+        return u, v
     else
         throw(ArgumentError("Expected Vector{Real} or Vector{Vector{Real}}, but got $(typeof(Res))"))
     end
@@ -558,12 +558,12 @@ Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] f
 
 
 function CubeVol(Space::AbstractVector)
-    lowers,uppers = SensibleOutput(Space)
-    prod(uppers .- lowers)
+    lowers,uppers = Unpack(Space)
+    prod(uppers - lowers)
 end
-CubeWidths(S::LowerUpper) = S.U .- S.L
+CubeWidths(S::LowerUpper) = S.U - S.L
 
-Center(LU::LowerUpper) = 0.5.*(LU.U + LU.L)
+Center(LU::LowerUpper) = 0.5 * (LU.U + LU.L)
 Center(C::HyperCube) = Center(LowerUpper(C))
 
 
@@ -612,9 +612,9 @@ CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args.
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
 
-normalize(x::AbstractVector,scaling::Float64=1.0) = scaling.*x ./ sqrt(sum(x.^2))
-function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},scaling::Float64=1.0)
-    newu = u;    newv = v;    factor = Float64
+normalize(x::AbstractVector,scaling::Float64=1.0) = (scaling/norm(x)) * x
+function normalizeVF(u::AbstractVector{<:Real},v::AbstractVector{<:Real},scaling::Float64=1.0)
+    newu = u;    newv = v
     for i in 1:length(u)
         factor = sqrt(u[i]^2 + v[i]^2)
         newu[i] = (scaling/factor)*u[i]

@@ -309,29 +309,13 @@ end
 """
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
-If a `Plane` is specified, the direction will be projected onto it.
+If a `Plane` is specified, the direction will be specified in the planar coordinates using a 2-component vector.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false)
-    throw("Needs Reprogramming.")
-    # Use PlanarDataModel to ensure proper projection which retains orthogonality to score.
-    length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible"))
-    planeorth = Cross(PL.Vx,PL.Vy)
-    if length(θ) != 2
-        !IsOnPlane(PL,θ) && throw(ArgumentError("Parameter Configuration not on specified Plane."))
-        norm(planeorth .- ones(length(θ))) < 1e-14 && throw(ArgumentError("Visualization plane unsuitable: $planeorth"))
-    end
-
-    S = Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
-
-    alpha = []
-    if length(θ) > 2
-        alpha = Cross(ones(length(θ)),planeorth)
-    else
-        alpha = Cross(ones(3),planeorth)[1:2]
-    end
-    # ProjectOntoPlane(PL,alpha .* VF) |> normalize
-    normalize(alpha .* VF)
+function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Bool=false)
+    S = transpose([PL.Vx PL.Vy]) * (-Score(DM,PlaneCoordinates(PL,θ);Auto=Auto))
+    P = prod(S)
+    return SA[-P/S[1],P/S[2]] |> normalize
 end
 
 
@@ -394,7 +378,7 @@ end
 
 
 FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,start)
-function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=false)
+function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
         return optimize(NegEll, BigFloat.(start), BFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
@@ -424,7 +408,7 @@ end
 # """
 
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
-function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,Vector}=false; Big::Bool=false, tol::Real=1e-14)
+function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
@@ -467,6 +451,22 @@ function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u
     end
 end
 
+function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number};
+                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
+    length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
+    LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
+    IntCurveODE(du,u,p,t) = du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
+    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
+    terminatecondition(u,t,integrator) = u[2] - u0[2]
+    # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
+    cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
+    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
+    if mfd
+        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
+    else
+        return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
+    end
+end
 
 # function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
 #                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
