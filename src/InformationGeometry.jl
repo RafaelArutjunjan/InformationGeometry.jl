@@ -41,7 +41,7 @@ export HealthyData, HealthyCovariance, DataDist, BlockDiagonal, IsNormalToPlane
 
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, BIC
-export WilksTest, WilksTestPrepared, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
+export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export MultipleConfidenceRegions, GenerateConfidenceRegion
 export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D

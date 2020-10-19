@@ -770,6 +770,11 @@ function performMap2(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Nu
     end
 end
 
+function performMap3(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector{<:SArray})
+    # if model outputs StaticArrays
+    reinterpret(suff(θ),map(x->model(x,θ),woundX))
+end
+
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
@@ -873,10 +878,23 @@ function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
     v = L*normalize(ones(lenp));    CF = ConfVol(1.)
     TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE(DM) + x.*v))) - CF
     TestDisc(x::Real)::Bool = WilksTest(DM, MLE(DM) + x.*v, CF)
-    if disc
+    if disc || tol < 1e-14
         res = LineSearch(TestDisc,1.;tol=tol)
     else
         res = find_zero(TestCont,1.;xatol=tol)
     end
     return res^2 .* C
+end
+
+
+
+# LSQFIT
+import LsqFit.curve_fit
+curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(F,xdata(DS)[1]))+0.01rand(pdim(F,xdata(DS)[1]));tol::Real=6e-15,kwargs...)
+    X = xdata(DS);  Y = ydata(DS)
+    LsqFit.check_data_health(X, Y)
+    u = cholesky(InvCov(DS)).U
+    f(p) = u * ( model(X, p) - Y )
+    LsqFit.lmfit(f,initial,InvCov(DS);x_tol=tol,g_tol=tol,kwargs...)
 end

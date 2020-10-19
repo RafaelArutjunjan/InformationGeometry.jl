@@ -49,17 +49,6 @@ RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
 end
 
 
-# LSQFIT
-import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(F,xdata(DS)[1]))+0.01rand(pdim(F,xdata(DS)[1]));tol::Real=6e-15,kwargs...)
-    X = xdata(DS);  Y = ydata(DS)
-    LsqFit.check_data_health(X, Y)
-    u = cholesky(InvCov(DS)).U
-    f(p) = u * ( model(X, p) - Y )
-    LsqFit.lmfit(f,initial,InvCov(DS);x_tol=tol,g_tol=tol,kwargs...)
-end
-
 FittedPlot(DM::AbstractDataModel;kwargs...) = Plots.plot(DM;kwargs...)
 # ResidualPlot(args...;kwargs...) = ResidPlot(args...;kwargs...)
 function ResidualPlot(DM::AbstractDataModel;kwargs...)

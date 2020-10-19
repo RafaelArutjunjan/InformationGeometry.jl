@@ -102,68 +102,24 @@ end
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
 function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
-    # Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
+    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     if ydim(DS) == 1
-        return Autodmodel
+        if xdim(DS) == 1
+            return Autodmodel
+        else
+            return NAutodmodel
+        end
     else
-        return AutodmodelN
+        if xdim(DS) == 1
+            return AutodmodelN
+        else
+            return NAutodmodelN
+        end
     end
 end
-
-# function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
-#     # vcat(map()...) MARGINALLY faster than using vcat([]...)
-#     # Manual allocation of array and filling via loop ~ 0.3x faster for small numbers of concatenations
-#     # but basically the same for large numbers of data points.
-#     # trying out transpose instead of reshape, about 0.1x faster?
-#     Ydim = ydim(DS); Xdim = xdim(DS)
-#     # xdim = 1, ydim = 1
-#     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-#     function Autodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
-#         Res = Array{suff(θ)}(undef,length(x),length(θ))
-#         for i in eachindex(x)
-#             Res[i,:] = Autodmodel(x[i],θ)
-#         end;    Res
-#     end
-#     # xdim > 1, ydim = 1
-#     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = reshape(ForwardDiff.gradient(z->model(x,z),θ),1,length(θ))
-#     function NAutodmodel(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
-#         Res = Array{suff(θ)}(undef,length(x),length(θ))
-#         for i in eachindex(x)
-#             Res[i,:] = NAutodmodel(x[i],θ)
-#         end;    Res
-#     end
-#     # xdim = 1, ydim > 1
-#     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-#     function AutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number})
-#         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-#         for i in eachindex(x)
-#             Res[((i-1)*Ydim + 1):(i*Ydim),:] = AutodmodelN(x[i],θ)
-#         end;    Res
-#     end
-#     # xdim > 1, ydim > 1
-#     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-#     function NAutodmodelN(x::AbstractVector{<:AbstractVector{<:Number}},θ::AbstractVector{<:Number})
-#         Res = Array{suff(θ)}(undef,Ydim*length(x),length(θ))
-#         for i in eachindex(x)
-#             Res[((i-1)*Ydim + 1):(i*Ydim),:] = NAutodmodelN(x[i],θ)
-#         end;    Res
-#     end
-#     if Xdim == 1
-#         if Ydim == 1
-#             return Autodmodel
-#         else
-#             return AutodmodelN
-#         end
-#     else
-#         if Ydim == 1
-#             return NAutodmodel
-#         else
-#             return NAutodmodelN
-#         end
-#     end
-# end
 
 
 function CheckModelHealth(DS::AbstractDataSet,model::Function)
@@ -364,9 +320,11 @@ struct Plane
             throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
         elseif dot(Vx,Vy) != 0
             println("Plane: Making Vy orthogonal to Vx.")
-            new(float.(stütz),float.(normalize(Vx)),Make2ndOrthogonal(Vx,Vy),ProjectionOperator([Vx Vy]))
+            return Plane(stütz,Vx,Make2ndOrthogonal(Vx,Vy))
         else
-            new(float.(stütz),float.(normalize(Vx)),float.(normalize(Vy)),ProjectionOperator([Vx Vy]))
+            stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
+            Vy = SVector{length(Vx)}(float.(Vy))
+            return new(stütz,Vx,Vy,ProjectionOperator([Vx Vy]))
         end
     end
     function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real}, Projector::AbstractMatrix{<:Real})
@@ -414,13 +372,13 @@ end
 DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - PL.Projector) * (x - PL.stütz) |> norm
 ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
 
-function ProjectionOperator(A::Matrix)
+function ProjectionOperator(A::AbstractMatrix)
     size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")
     A * inv(transpose(A) * A) * transpose(A)
 end
-ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
+ProjectionOperator(PL::Plane) = PL.Projector
 
-IsNormalToPlane(PL::Plane,v::Vector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
+IsNormalToPlane(PL::Plane,v::AbstractVector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(float.([X,Y]))
