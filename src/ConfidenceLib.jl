@@ -377,11 +377,11 @@ function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); 
 end
 
 
-FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,start)
+FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,convert(Vector,start))
 function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-        return optimize(NegEll, BigFloat.(start), BFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
+        return optimize(NegEll, BigFloat.(convert(Vector,start)), BFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,Bool)
         return FindMLEBig(DS,model,FindMLE(DS,model))
     end
@@ -414,12 +414,12 @@ function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractV
     if isa(start,Bool)
         # return curve_fit(DS,model,ones(pdim(model,xdata(DS)[1])); tol=tol).param
         return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-    elseif isa(start,Vector)
+    elseif isa(start,AbstractVector)
         if suff(start) == BigFloat
-            return FindMLEBig(DS,model,start)
+            return FindMLEBig(DS,model,convert(Vector,start))
         else
             # return curve_fit(DS,model,start; tol=tol).param
-            return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+            return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
         end
     end
 end

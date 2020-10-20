@@ -80,18 +80,16 @@ struct DataSet <: AbstractDataSet
                                             InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
-        # HealthyCovariance(sigma)
-        # if typeof(sigma) <: AbstractMatrix
-        #     sigma = isdiag(sigma) ? Diagonal(sigma) : sigma
-        # end
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
-        # !isposdef(Symmetric(InvCov)) && throw("Inverse Covariance Matrix not positive-definite.")
-        if xdim(dims) < 2
+        if !isposdef(InvCov)
+            println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
+            !isposdef(Symmetric(InvCov)) && throw("Inverse covariance matrix still not positive-definite after symmetrization.")
+            InvCov = convert(Matrix,Symmetric(InvCov))
+        end
+        if xdim(dims) == 1
             return new(x,y,InvCov,dims,logdet(InvCov),false)
-            # return new(x,y,sigma,InvCov,dims,logdet(InvCov),false)
         else
             return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
-            # return new(x,y,sigma,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
 end
