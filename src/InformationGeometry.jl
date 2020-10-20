@@ -43,8 +43,7 @@ include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, BIC
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
-export MultipleConfidenceRegions, GenerateConfidenceRegion
-export GenerateMultipleIntervals, GenerateConfidenceInterval, Interval1D
+export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D
 export IsLinearParameter, IsLinear, CorrectedCovariance
 
 
@@ -63,13 +62,11 @@ export AutoScore, AutoMetric
 include("Plotting.jl")
 export curve_fit, FittedPlot, ResidualPlot, PlotLoglikelihood, PlotScalar, VisualizeSol, VisualizeSols, PlotMatrix
 export VisualizeGeos, VisualizeGeo, PointwiseConfidenceBand, Deplanarize
-
 export suff, ConfidenceRegionVolume, SaveDataSet
 
 
 include("datasettypes.jl")
-export Dirac
-export DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
+export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
 
 
 end # module

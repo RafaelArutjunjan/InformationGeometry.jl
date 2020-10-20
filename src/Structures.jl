@@ -153,9 +153,9 @@ end
 DM = DataModel(DS,model,dmodel)
 ```
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different components of `x`.
-Again,
+Again, although it is not strictly required, outputting the Jacobian in form of a static matrix is typically beneficial for the overall performance.
 
-The `DataSet` contained in a `DataModel` `DM` can be accessed via `DM.Data`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
+The `DataSet` contained in a `DataModel` named `DM` can be accessed via `DM.Data`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
 """
 struct DataModel <: AbstractDataModel
     Data::AbstractDataSet

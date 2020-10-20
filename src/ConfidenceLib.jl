@@ -515,32 +515,28 @@ function StructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)
     length(roots)==0, roots
 end
 
-# function GenerateMultipleIntervals(DM::DataModel, Range, MLE=[Inf,Inf]; IsConfVol::Bool=false, tol=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-#     if MLE == [Inf,Inf]     MLE = FindMLE(DM)    end
-#     length(MLE) == 1 && return map(x->GenerateConfidenceInterval(DM,MLE,x,tol=tol),Range)
-#     LogLikeMLE = loglikelihood(DM,MLE);     sols = Vector{ODESolution}(undef,0)
-#     for CONF in Range
-#         if IsConfVol
-#             @time push!(sols, GenerateConfidenceInterval(DM,MLE,InvConfVol(CONF),tol=tol,meth=meth,mfd=mfd))
-#         else
-#             @time push!(sols, GenerateConfidenceInterval(DM,MLE,CONF,tol=tol,meth=meth,mfd=mfd))
-#         end
-#         if sols[end].retcode == :Terminated
-#             _ , rts = StructurallyIdentifiable(DM,sols[end])
-#             if length(rts) != 0
-#                 println("Solution $(length(sols)) corresponding to $(Range[length(sols)]) hits chart boundary at t=$rts and is therefore invalid.")
-#             end
-#         else
-#             println("solution $(length(sols)) did not exit properly: retcode=$(sols[end].retcode).")
-#         end
-#     end
-#     sols
-# end
-# @deprecate GenerateMultipleIntervals(DM,Range,MLE) MultipleConfidenceRegions(DM,Range)
-# @deprecate GenerateMultipleIntervals(DM,Range) MultipleConfidenceRegions(DM,Range)
 
+
+"""
+    MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}) -> Vector{ODESolution}
+Computes the boundaries of confidence regions for two-dimensional parameter spaces given a vector or range of confidence levels.
+A convenient interface which extends this to higher dimensions is currently still under development.
+
+For example,
+```julia
+MultipleConfidenceRegions(DM, 1:3; tol=1e-9)
+```
+computes the ``1\\sigma``, ``2\\sigma`` and ``3\\sigma`` confidence regions associated with a given `DataModel` using a solver tolerance of ``10^{-9}``.
+
+Keyword arguments:
+* `IsConfVol = true` can be used to specify the desired confidence level directly in terms of a probability ``p \\in [0,1]`` instead of in units of standard deviations ``\\sigma``,
+* `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-12`),
+* `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
+* `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
+"""
 function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false, tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     pdim(DM) == 1 && return map(x->GenerateConfidenceRegion(DM,x;tol=tol),Range)
+    pdim(DM) != 2 && throw("This method has not been programmed for automatically generating families of solutions for parameter spaces with more than two dimensions yet.")
     sols = Vector{ODESolution}(undef,0)
     for CONF in Range
         if IsConfVol
@@ -633,7 +629,7 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM,InvCov(DM), θ)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM, InvCov(DM), θ)
 
 # function FisherMetric(DM::DataModel, θ::Vector{<:Real})
 #     F = zeros(suff(θ),length(θ),length(θ))
