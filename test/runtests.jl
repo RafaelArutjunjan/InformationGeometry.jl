@@ -24,7 +24,7 @@ using SafeTestsets
 
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
-    @test dot(OrthVF(DM,p),Score(DM,p)) < 2e-15
+    @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
     @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 1e-10
     # ALSO DO NONLINEAR MODEL!
 

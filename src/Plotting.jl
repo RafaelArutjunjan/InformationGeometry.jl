@@ -416,7 +416,7 @@ PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
     C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2pi,length=N)
-    F(α::Real) = MLE + C * RotationVector(α,dims[1],dims[2],length(MLE))
+    F(α::Real) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
     display(Plots.plot!(ToCols(Data)...,label="Matrix"));   Data
 end

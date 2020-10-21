@@ -20,80 +20,42 @@ function loglikelihood(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
 end
 
 
-# function loglikelihood(DS::DataSet,model::Function,θ::Vector{<:Number})
-#     R = zero(suff(θ))
-#     Dot(x) = dot(x,x)
-#     if length(ydata(DS)[1]) == 1    # For some reason this is faster.
-#         for i in 1:length(xdata(DS))
-#             R += ((ydata(DS)[i]-model(xdata(DS)[i],θ))/sigma(DS)[i])^2
-#         end
-#     else
-#         term(i) = Dot((ydata(DS)[i] .- model(xdata(DS)[i],θ))/sigma(DS)[i])
-#         R = sum( term(i) for i in 1:length(xdata(DS)) )
-#     end
-#     -0.5*(length(xdata(DS))*log(2pi) + 2*sum(log.(sigma(DS))) + R)
-# end
-
-
 """
     ConfAlpha(n::Real)
 Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-ConfAlpha(n::Real) = 1.0 .- ConfVol(n)
+ConfAlpha(n::Real) = 1.0 - ConfVol(n)
 
 """
     ConfVol(n::Real)
 Probability volume contained in a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
 function ConfVol(n::Real)
-    n < 0 && throw(ArgumentError("Input must be positive."))
-    num = erf(BigFloat(n)/sqrt(BigFloat(2)))
-    num == 1.0 && throw("ConfVol: BigFloat precision of $(precision(BigFloat)) not enough for n = $n.")
-    if suff(n) == BigFloat
-        return num
-    elseif n > 8
-        println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
-        return num
+    if abs(n) < 8
+        return erf(n/sqrt(2))
     else
-        return convert(Float64,num)
+        println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
+        return ConfVol(BigFloat(n))
     end
 end
-InvConfVol(x::Real; tol::Real=1e-15) = find_zero((z->(ConfVol(z)-x)),one(suff(x)),Order8(),xatol=tol)
-ChisqCDF(k::Int,x::Real) = gamma_inc(BigFloat(k)/2., BigFloat(x)/2.,0)[1]
-InvChisqCDF(k::Int,p::Float64) = 2gamma_inc_inv(k/2., p, 1-p)
+ConfVol(n::BigFloat) = erf(n/sqrt(BigFloat(2)))
 
+InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
+InvConfVol(x::BigFloat; tol::Real=GetH(x)) = find_zero(z->(ConfVol(z)-x),one(BigFloat),Order2(),xatol=tol)
 
-ChiQuant(sig::Real=1.,k::Int=2) = (1/2)*quantile(Chisq(k),ConfVol(sig))
-ChiQuantToSigma(ChiQuant::Real,k::Int=2) = cdf.(Chisq(k),2*ChiQuant) |> InvConfVol
+ChisqCDF(k::Int,x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
+ChisqCDF(k::Int,x::Real) = gamma_inc(k/2., x/2., 0)[1]
+InvChisqCDF(k::Int,p::Real) = 2gamma_inc_inv(k/2., p, 1-p)
+
+# ChiQuant(sig::Real=1.,k::Int=2) = (1/2)*quantile(Chisq(k),ConfVol(sig))
+# ChiQuantToSigma(ChiQuant::Real,k::Int=2) = cdf.(Chisq(k),2*ChiQuant) |> InvConfVol
+
 
 # Cannot be used with DiffEq since tags conflict. Use Zygote.jl?
 AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
 AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(DM.Data,DM.model,θ)
 AutoScore(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
 AutoMetric(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
-
-# """
-# Calculates the score of models with y vales of dim > 1.
-# """
-# function ScoreDimN(DM::DataModel,p::Vector{<:Number})
-#     Res = zeros(suff(p),length(p))
-#     moddif = (sigma(DM)).^(-2) .* (ydata(DM) .- map(z->DM.model(z,p),xdata(DM)))
-#     dmod = map(z->DM.dmodel(z,p),xdata(DM))
-#     for i in 1:length(xdata(DM))
-#         Res[:] .+= (transpose(moddif[i]) * DM.dmodel(xdata(DM)[i],p))[:]
-#     end
-#     Res
-# end
-#
-# # function Score1D(DS::DataSet,model::Function,dmodel::Function,θ::Vector{<:Number})
-# #     Res = zeros(suff(θ),length(θ))
-# #     mod = EmbeddingMap(DS,model,θ);    dmod = EmbeddingMatrix(DS,dmodel,θ)
-# #     for j in 1:length(θ)
-# #         Res[j] += sum((sigma(DS)[i])^(-2) *(ydata(DS)[i]-mod[i])*dmod[i,j]   for i in 1:length(xdata(DS)))
-# #     end;    Res
-# # end
-#
-# Score1D(DM::AbstractDataModel,θ::Vector{<:Number}) = Score1D(DM.Data,DM.model,DM.dmodel,θ)
 
 
 """
@@ -111,13 +73,19 @@ function Score(DS::DataSet,model::Function,dmodel::Function,θ::AbstractVector{<
     transpose(EmbeddingMatrix(DS,dmodel,θ)) * InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ))
 end
 
+"""
+Point θ lies outside confidence region of level `Confvol` if this function > 0.
+"""
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::Float64=ConfVol(one(suff(θ)))) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+
 
 """
-    WilksTest(DM::DataModel, θ::AbstractVector{<:Real}, Confvol=ConfVol(1)) -> Bool
+    WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
 Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
-WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.))::Bool = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol < 0.
+WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))::Bool = WilksCriterion(DM, θ, Confvol) < 0.
 
 # function WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
 #     # return (loglikelihood(DM,MLE) - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
@@ -154,64 +122,34 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
     suff(MLE) != BigFloat && println("WilksBoundaryBig: You should pass the MLE as BigFloat!")
     print("Starting WilksBoundaryBig.   ")
     L = loglikelihood(DM,BigFloat.(MLE));    CF = ConfVol(BigFloat(Confnum))
-    f(x::Real) = ChisqCDF(length(MLE),2(L-loglikelihood(DM,MLE .+ (x .* BasisVector(1,length(MLE)))))) - CF
+    f(x::Real) = ChisqCDF(length(MLE),2(L-loglikelihood(DM,MLE + (x .* BasisVector(1,length(MLE)))))) - CF
     df(x) = ForwardDiff.gradient(f,x)
     @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xatol=tol)
     println("Finished.")
     MLE +  b .* BasisVector(1,length(MLE))
 end
 
-function Interval1D(DM::DataModel, Confnum::Real=1.; tol::Real=1e-14)
-    if tol < 2e-15 || typeof(ConfVol(Confnum)) == BigFloat
-        throw("Interval1D not programmed for BigFloat yet.")
-    end
-    (length(MLE(DM)) != 1) && throw("Interval1D not defined for p != 1.")
-    A = LogLikeMLE(DM) - (1/2)*quantile(Chisq(pdim(DM)),ConfVol(Confnum))
-    Func(p::Real) = loglikelihood(DM,MLE(DM) .+ p*BasisVector(1,pdim(DM))) - A
+function Interval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14)
+    tol < 2e-15 || Confnum > 8 && throw("Interval1D not programmed for BigFloat yet.")
+    pdim(DM) != 1 && throw("Interval1D not defined for p != 1.")
+    A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
+    Func(p::Real) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
     D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
     B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
     A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
-    rts = [MLE[1]+A, MLE[1]+B]
+    rts = [MLE(DM)[1]+A, MLE(DM)[1]+B]
     rts[1] < rts[2] && return rts
     throw("Interval1D errored...")
 end
 
 
-# function FBoundary(DM::DataModel,MLE::Vector,Confnum::Real=1.; tol=1e-12)
-#     n = length(ydata(DM));  p = length(MLE)
-#     S(P) = dot(ydata(DM),map(x->DM.model(x,P),xdata(DM)))
-#     A = S(MLE) * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol(Confnum))
-#     Func(p::Q) where Q<:Real =  S(MLE +p*BasisVector(1,length(MLE))) - A
-#     b = find_zero(Func,1,Roots.Order8(),xatol=tol)
-#     b*BasisVector(1,length(MLE))
-# end
-
-
-# function FindConfBoundaryOld(DM::DataModel,MLE::Vector,Confnum::Real;tol::Real=1e-15,maxiter::Int=10000,Interval = [0., 5.])
-#     lMLE = loglikelihood(DM,MLE);   A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
-#     Test(x::Real)::Bool = (A <= loglikelihood(DM, MLE .+ x.*BasisVector(1,length(MLE)) ))
-#     (!(Test(Interval[1])) || Test(Interval[2])) && throw(ArgumentError("Step not inside Interval."))
-#     stepsize=(Interval[2]-Interval[1])/4.
-#     value=Interval[1]
-#     for i in 1:maxiter
-#         if Test(value) # inside
-#             value += stepsize
-#         else            #outside
-#             value -= stepsize
-#             if stepsize < tol
-#                 return value .* BasisVector(1,length(MLE)) .+ MLE
-#             end
-#             stepsize *= 1/10
-#         end
-#     end
-#     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
-# end
-
-# Flips when the Boolean-valued test goes from true to false
-# Tests in positive direction
+"""
+    LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int=10000) -> Real
+Finds real number `x` where the boolean-valued `Test(x::Real)` goes from `true` to `false`.
+"""
 function LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int=10000)
     ((suff(start) != BigFloat) && tol < 1e-15) && throw("LineSearch: start not BigFloat but tol=$tol.")
-    !(Test(start)) && throw(ArgumentError("LineSearch: Test not true for starting value."))
+    !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     stepsize = one(suff(start))/4.;  value = start
     for i in 1:maxiter
         if Test(value + stepsize) # inside
@@ -224,7 +162,7 @@ function LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int
             stepsize /= 5
         end
     end
-    throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
+    throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
 
 # VERY SLOW for some reason...
@@ -234,26 +172,6 @@ end
 #     LineSearch(Test,0,tol=tol,maxiter=maxiter) .* BasisVector(1,length(MLE)) .+ MLE
 # end
 
-# function FindConfBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-#     ((suff(MLE) != BigFloat) && tol < 1e-15) && throw("FindConfBoundary: MLE not BigFloat but tol=$tol.")
-#     LogLikeMLE = loglikelihood(DM,MLE);    Confvol = ConfVol(convert(suff(MLE),Confnum))
-#     Test(x::Real) = WilksTestPrepared(DM, MLE .+ (x .* BasisVector(1,length(MLE))), LogLikeMLE, Confvol)
-#     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
-#     stepsize = one(suff(MLE))/4.;  value = zero(suff(MLE))
-#     for i in 1:maxiter
-#         if Test(value + stepsize) # inside
-#             value += stepsize
-#             value > 20 && throw("FindConfBoundary: Value larger than 10.")
-#         else            #outside
-#             if stepsize < tol
-#                 return value .* BasisVector(1,length(MLE)) .+ MLE
-#             end
-#             stepsize /= 10
-#         end
-#     end
-#     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
-# end
-# @deprecate FindConfBoundary(DM,MLE,Confnum) FindConfBoundary(DM,Confnum)
 
 function FindConfBoundary(DM::DataModel,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
@@ -388,25 +306,6 @@ function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Abstra
     end
 end
 
-# function FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, tol::Real=1e-14, max::Int=50)
-#     Big && return FindMLEBig(DM,start)
-#     NegEll(x) = -loglikelihood(DM,x)
-#     if isa(start,Bool)
-#         return optimize(NegEll, ones(pdim(DM; max=max)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-#     elseif isa(start,Vector)
-#         if suff(start) == BigFloat
-#             return FindMLEBig(DM,start)
-#         else
-#             # println("Warning: Passed $start to FindMLE as starting value.")
-#             return optimize(NegEll, start, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-#         end
-#     end
-# end
-# """
-#     FindMLE(DM::DataModel,start::Union{Bool,Vector}=false; Big::Bool=false, max::Int=50) -> Vector
-# Finds the maximum likelihood parameter configuration given a `DataModel` and optionally a starting configuration. `Big=true` will return the value as a `BigFloat`.
-# If no starting value is provided (i.e. `start=false`) the dimension of the parameter space is inferred automatically and the initial configuration is chosen as `start=ones(dim)`.
-# """
 
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
 function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
@@ -426,11 +325,11 @@ function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractV
 end
 
 
+
 """
     GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
-
 function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-12,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto)
@@ -456,10 +355,11 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
                     tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
-    IntCurveODE(du,u,p,t) = du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
+    function IntCurveODE(du,u,p,t)
+        du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
+    end
     g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
-    # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
     if mfd
@@ -485,21 +385,6 @@ end
 #     end
 # end
 
-
-# GenerateConfidenceInterval(DM::DataModel,Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true) = GenerateConfidenceInterval(DM,FindMLE(DM),Confnum, tol=tol, meth=meth, mfd=mfd)
-# function GenerateConfidenceInterval(DM::DataModel,MLE::Vector{<:Real},Confnum=1; tol::Real=1e-14, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true)
-#     if (suff(MLE) != BigFloat) && tol < 2e-15
-#         MLE = FindMLEBig(DM,MLE)
-#         println("GenerateConfidenceInterval: Promoting MLE to BigFloat because tol=$tol.")
-#     end
-#     if length(MLE) == 1
-#         return Interval1D(DM,MLE,Confnum,tol=tol)
-#     else
-#         return GenerateBoundary(DM, FindConfBoundary(DM,MLE,Confnum; tol=tol), tol=tol, meth=meth, mfd=mfd)
-#     end
-# end
-# @deprecate GenerateConfidenceInterval(DM,Confnum) GenerateConfidenceRegion(DM,Confnum)
-# @deprecate GenerateConfidenceInterval(DM,MLE,Confnum) GenerateConfidenceRegion(DM,Confnum)
 
 function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12,
                                     meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
@@ -714,7 +599,7 @@ end
 # Add Wishart, Beta, Gompertz, generalized gamma
 
 """
-    function NormalDist(DM::DataModel,p::Vector) -> Distribution
+    NormalDist(DM::DataModel,p::Vector) -> Distribution
 Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
 This makes the assumption, that the errors associated with the data are normal.
 """
@@ -813,15 +698,6 @@ Calculates the push-forward of a vector `X` from the parameter manifold to the d
 """
 Pushforward(DM::DataModel, X::Vector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
 
-# """
-#     DataSpaceDist(DM::DataModel,v::Vector) -> Real
-# Calculates the euclidean distance between a point `v` in the data space and the data.
-# """
-# function DataSpaceDist(DM::DataModel,v::Vector)
-#     length(ydata(DM)) != length(v) && error("DataSpaceDist: Dimensional Mismatch")
-#     return MetricNorm(Diagonal(sigma(DM).^(-2)),(ydata(DM) .- v))
-# end
-
 
 
 # Compute all major axes of Fisher Ellipsoid from eigensystem of Fisher metric
@@ -861,25 +737,6 @@ function IsLinear(DM::AbstractDataModel)::Bool
     sum(res) == length(res)
 end
 
-# """
-#     CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
-# Experimental function which attempts to compute the exact covariance matrix for linear models.
-# """
-# function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
-#     !IsLinear(DM) && @warn "CorrectedCovariance: model not linear, thus ∄ linear covariance matrix. Continuing anyway."
-#     C = Symmetric(inv(FisherMetric(DM,MLE(DM))));    L = cholesky(C).L
-#     lenp = length(MLE(DM));    res = 0.
-#     v = L*normalize(ones(lenp));    CF = ConfVol(1.)
-#     TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE(DM) + x.*v))) - CF
-#     TestDisc(x::Real)::Bool = WilksTest(DM, MLE(DM) + x.*v, CF)
-#     if disc || tol < 1e-14
-#         res = LineSearch(TestDisc,1.;tol=tol)
-#     else
-#         res = find_zero(TestCont,1.;xatol=tol)
-#     end
-#     return res^2 .* C
-# end
-
 
 
 # LSQFIT
@@ -889,6 +746,6 @@ function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
-    f(p) = u * ( model(X, p) - Y )
-    LsqFit.lmfit(f,initial,InvCov(DS);x_tol=tol,g_tol=tol,kwargs...)
+    f(p) = u * (EmbeddingMap(DS, model, p) - Y)
+    LsqFit.lmfit(f,initial,InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end

@@ -342,16 +342,15 @@ end
 function BasisVector(Slot::Int,dims::Int)
     Res = zeros(dims);    Res[Slot] = 1;    Res
 end
+
 """
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Real})
-Returns an n-dimensional vector from a tuple of two real numbers which
+Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
-function PlaneCoordinates(PL::Plane, v::AbstractVector)
-    # length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
-    PL.stütz + [PL.Vx PL.Vy]*v
-end
+PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
+# length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
 
-# EuclideanDistance(x::Vector, y::Vector) = norm(x .- y)
+
 IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
@@ -362,7 +361,7 @@ function RotationMatrix(PL::Plane,rads::Real)
 end
 RotateVector(PL::Plane,v::AbstractVector,rads::Real) = RotationMatrix(PL,rads)*v
 
-function RotationVector(α::Real,n1::Int,n2::Int,tot::Int)
+function RotatedVector(α::Real,n1::Int,n2::Int,tot::Int)
     !(n1 <= tot && n2 <= tot && n1 != n2 && all(x->(x>0),[n1,n2,tot])) && throw("Error")
     res = zeros(tot);   res[n1] = cos(α);   res[n2] = sin(α);   res
 end
@@ -400,7 +399,7 @@ end
     ProjectOnto(v::Vector,u::Vector)
 Project `v` onto `u`.
 """
-ProjectOnto(v::AbstractVector,u::AbstractVector) = dot(v,u)/dot(u,u) .* u
+ProjectOnto(v::AbstractVector,u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
 
 """
     ParallelPlanes(PL::Plane,v::AbstractVector,range) -> Vector{Plane}
@@ -468,7 +467,6 @@ struct HyperCube{Q<:Real} <: Cuboid
         end
         new{types}(vals,length(vals))
     end
-    # Allow input [a,b] for 1D HyperCubes
     HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
 end
 

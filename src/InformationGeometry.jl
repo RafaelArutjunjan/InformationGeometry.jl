@@ -30,7 +30,7 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube,
 
 
 # Functions
-export plot, BasisVector, RotatePlane, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
+export plot, BasisVector, RotatePlane, RotatedVector, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, Center, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane, ParallelPlanes
 export xdata, ydata, sigma, InvCov, N, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel
 export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup

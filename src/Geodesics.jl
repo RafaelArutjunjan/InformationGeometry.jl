@@ -3,7 +3,7 @@ using TensorOperations, Roots
 using Combinatorics
 
 
-GetH(x::Type) = (x == BigFloat) ? convert(BigFloat,10 .^(-precision(x)/10)) : 1e-6
+GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(suff(x))/10)) : 1e-6
 
 
 function signature(I::Vector,dims::Int)
@@ -76,7 +76,7 @@ function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCa
     function FPDVs(Metric, θ; BigCalc::Bool=false)
         if BigCalc      θ = BigFloat.(θ)        end
         PDV = zeros(suff(θ),length(θ),length(θ),length(θ))
-        h = GetH(suff(θ))
+        h = GetH(θ)
         for i in 1:length(θ)
             PDV[:,:,i] .= (1/(2*h)).*(Metric(θ .+ h.*BasisVector(i,length(θ))) .- Metric(θ .- h.*BasisVector(i,length(θ))))
         end
@@ -483,7 +483,7 @@ function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=f
     function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
         if BigCalc      θ = BigFloat.(θ)        end
         DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
-        h = GetH(suff(θ))
+        h = GetH(θ)
         for i in 1:length(θ)
             DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
         end
