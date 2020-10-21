@@ -311,7 +311,7 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
-    Projector::AbstractMatrix
+    # Projector::AbstractMatrix
     function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real})
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         if !(length(stütz) == length(Vx) == length(Vy))
@@ -322,13 +322,14 @@ struct Plane
         else
             stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
             Vy = SVector{length(Vx)}(float.(Vy))
-            return new(stütz,Vx,Vy,ProjectionOperator([Vx Vy]))
+            return new(stütz,Vx,Vy)
+            # return new(stütz,Vx,Vy,ProjectionOperator([Vx Vy]))
         end
     end
-    function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real}, Projector::AbstractMatrix{<:Real})
-        !(length(stütz) == length(Vx) == length(Vy) == size(Projector,1) == size(Projector,2)) && throw("Plane: Dimensional Mismatch.")
-        new(stütz,Vx,Vy,Projector)
-    end
+    # function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real}, Projector::AbstractMatrix{<:Real})
+    #     !(length(stütz) == length(Vx) == length(Vy) == size(Projector,1) == size(Projector,2)) && throw("Plane: Dimensional Mismatch.")
+    #     new(stütz,Vx,Vy,Projector)
+    # end
 end
 
 length(PL::Plane) = length(PL.stütz)
@@ -352,7 +353,8 @@ PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
 
 
 IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
-TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
+#TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
+TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
 function RotationMatrix(PL::Plane,rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
@@ -372,14 +374,17 @@ function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     V = x - PL.stütz
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
 end
-DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - PL.Projector) * (x - PL.stütz) |> norm
-ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
+# DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - PL.Projector) * (x - PL.stütz) |> norm
+# ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
+DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - ProjectionOperator(PL)) * (x - PL.stütz) |> norm
+ProjectOntoPlane(PL::Plane,x::AbstractVector) = ProjectionOperator(PL) * (x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::AbstractMatrix)
     size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")
     A * inv(transpose(A) * A) * transpose(A)
 end
-ProjectionOperator(PL::Plane) = PL.Projector
+ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
+# ProjectionOperator(PL::Plane) = PL.Projector
 
 IsNormalToPlane(PL::Plane,v::AbstractVector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
 
@@ -407,7 +412,8 @@ Returns Vector of Planes which have been translated by `a .* v` for all `a` in `
 """
 function ParallelPlanes(PL::Plane,v::AbstractVector,range::Union{AbstractRange,AbstractVector})
     norm(v) == 0. && throw("Vector has length zero.")
-    PL.Projector * v == v && throw("Plane and vector linearly dependent.")
+    # PL.Projector * v == v && throw("Plane and vector linearly dependent.")
+    ProjectOntoPlane(PL,v) == v && throw("Plane and vector linearly dependent.")
     [TranslatePlane(PL, ran .* v) for ran in range]
 end
 
