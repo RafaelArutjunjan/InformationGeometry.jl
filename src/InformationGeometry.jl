@@ -19,8 +19,6 @@ using RecipesBase, Plots
 # SaveDataSet is basically equivalent to DataFrame(DS)?
 # Create method which boils DataSet down to, say length(θ)+1 points for visualization of h(M) ⊆ D
 
-# ADD TESTS FOR CorrectedCovariance
-
 # Add tests for model functions: test on single and multiple datapoints
 
 # Add descriptions of how to save stuff to docs
@@ -44,7 +42,7 @@ export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvC
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D
-export IsLinearParameter, IsLinear, CorrectedCovariance
+export IsLinearParameter, IsLinear
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation

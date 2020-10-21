@@ -405,7 +405,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::Abstrac
 end
 
 """
-    PlotMatrix(Mat::Matrix,MLE::Vector,N::Int=400)
+    PlotMatrix(Mat::Matrix, MLE::Vector; N::Int=400)
 Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
 
 Example:
@@ -413,12 +413,12 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 ```
 """
-function PlotMatrix(Mat::Matrix,MLE::AbstractVector{<:Number}=zeros(size(Mat,1)),N::Int=400)
-    !(length(MLE) == size(Mat,1) == size(Mat,2) == 2) && throw("PlotMatrix: Dimensional mismatch.")
-    C = cholesky(Symmetric(Mat)).L;    angles = range(0,2pi,length=N)
-    F(angle::Real) = MLE .+ C* [cos(angle),sin(angle)]
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400)
+    !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
+    C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2pi,length=N)
+    F(α::Real) = MLE + C * RotationVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
-    display(Plots.plot!(Data[:,1],Data[:,2],label="Matrix")); Data
+    display(Plots.plot!(ToCols(Data)...,label="Matrix"));   Data
 end
 
 

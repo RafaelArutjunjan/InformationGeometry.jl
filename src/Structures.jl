@@ -362,6 +362,12 @@ function RotationMatrix(PL::Plane,rads::Real)
 end
 RotateVector(PL::Plane,v::AbstractVector,rads::Real) = RotationMatrix(PL,rads)*v
 
+function RotationVector(α::Real,n1::Int,n2::Int,tot::Int)
+    !(n1 <= tot && n2 <= tot && n1 != n2 && all(x->(x>0),[n1,n2,tot])) && throw("Error")
+    res = zeros(tot);   res[n1] = cos(α);   res[n2] = sin(α);   res
+end
+
+
 function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     !IsOnPlane(PL,x) && throw(ArgumentError("Decompose Error: Vector not on Plane."))
     V = x - PL.stütz

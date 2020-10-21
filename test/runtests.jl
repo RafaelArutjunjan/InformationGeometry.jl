@@ -129,4 +129,7 @@ end
     @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
     @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
     @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,pi],[-sqrt(2),0]]),rand(3))) - sqrt(2)*pi) < 3e-15
+
+    k = rand(1:20);     r = 10rand()
+    @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
 end

@@ -59,8 +59,9 @@ function ConfVol(n::Real)
     end
 end
 InvConfVol(x::Real; tol::Real=1e-15) = find_zero((z->(ConfVol(z)-x)),one(suff(x)),Order8(),xatol=tol)
-ChisqCDF(k,x) = gamma_inc(BigFloat(k)/2., BigFloat(x)/2.,0)[1] ./ gamma(BigFloat(k)/2.)
-InvChisqCDF(k::Real,x::Real; tol::Real=1e-15) = find_zero((z->(ChisqCDF(k,z)-x)),(1e-5*one(suff(x)),300),Bisection(),xatol=tol)
+ChisqCDF(k::Int,x::Real) = gamma_inc(BigFloat(k)/2., BigFloat(x)/2.,0)[1]
+InvChisqCDF(k::Int,p::Float64) = 2gamma_inc_inv(k/2., p, 1-p)
+
 
 ChiQuant(sig::Real=1.,k::Int=2) = (1/2)*quantile(Chisq(k),ConfVol(sig))
 ChiQuantToSigma(ChiQuant::Real,k::Int=2) = cdf.(Chisq(k),2*ChiQuant) |> InvConfVol
@@ -112,11 +113,11 @@ end
 
 
 """
-    WilksTest(DM::DataModel, θ::AbstractVector{<:Real}, ConfVol=ConfVol(1)) -> Bool
+    WilksTest(DM::DataModel, θ::AbstractVector{<:Real}, Confvol=ConfVol(1)) -> Bool
 Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
-WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, ConfVol::Real=ConfVol(1))::Bool = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - ConfVol < 0.
+WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.))::Bool = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol < 0.
 
 # function WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
 #     # return (loglikelihood(DM,MLE) - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
@@ -860,27 +861,24 @@ function IsLinear(DM::AbstractDataModel)::Bool
     sum(res) == length(res)
 end
 
-"""
-    CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
-Experimental function which attempts to compute the exact covariance matrix for linear models.
-"""
-function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
-    if !IsLinear(DM)
-        println("CorrectedCovariance: model not linear, thus ∄ linear covariance matrix.")
-        return false
-    end
-    C = Symmetric(inv(FisherMetric(DM,MLE(DM))));    L = cholesky(C).L
-    lenp = length(MLE(DM));    res = 0.
-    v = L*normalize(ones(lenp));    CF = ConfVol(1.)
-    TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE(DM) + x.*v))) - CF
-    TestDisc(x::Real)::Bool = WilksTest(DM, MLE(DM) + x.*v, CF)
-    if disc || tol < 1e-14
-        res = LineSearch(TestDisc,1.;tol=tol)
-    else
-        res = find_zero(TestCont,1.;xatol=tol)
-    end
-    return res^2 .* C
-end
+# """
+#     CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
+# Experimental function which attempts to compute the exact covariance matrix for linear models.
+# """
+# function CorrectedCovariance(DM::DataModel; tol::Real=1e-14, disc::Bool=false)
+#     !IsLinear(DM) && @warn "CorrectedCovariance: model not linear, thus ∄ linear covariance matrix. Continuing anyway."
+#     C = Symmetric(inv(FisherMetric(DM,MLE(DM))));    L = cholesky(C).L
+#     lenp = length(MLE(DM));    res = 0.
+#     v = L*normalize(ones(lenp));    CF = ConfVol(1.)
+#     TestCont(x::Real) = ChisqCDF(lenp,2(LogLikeMLE(DM)-loglikelihood(DM,MLE(DM) + x.*v))) - CF
+#     TestDisc(x::Real)::Bool = WilksTest(DM, MLE(DM) + x.*v, CF)
+#     if disc || tol < 1e-14
+#         res = LineSearch(TestDisc,1.;tol=tol)
+#     else
+#         res = find_zero(TestCont,1.;xatol=tol)
+#     end
+#     return res^2 .* C
+# end
 
 
 
