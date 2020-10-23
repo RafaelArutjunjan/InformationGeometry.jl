@@ -503,7 +503,7 @@ end
     Ricci(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ, BigCalc=BigCalc)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
 function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Riem = Riemann(Metric, θ; BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
@@ -516,11 +516,26 @@ end
     RicciScalar(Metric::Function, θ::AbstractVector; BigCalc::Bool=false) -<> Real
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ;BigCalc=BigCalc)
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ; BigCalc=BigCalc)
 function RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     RIC = Ricci(Metric, θ; BigCalc=BigCalc)
     tr(transpose(RIC)*inv(Metric(θ)))
 end
+
+
+"""
+(0,4) Weyl curvature tensor.
+"""
+function Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false)
+    length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
+    Riem = Riemann(DM,θ; BigCalc=BigCalc)
+    g = BigCalc ? FisherMetric(DM,BigFloat.(θ)) : FisherMetric(DM,θ)
+    @tensor Ric[a,b] := Riem[m,a,m,b]
+    @tensor PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
+    @tensor PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
+    g * Riem + (length(θ) - 2)^(-1) .* PartA + ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
+end
+
 
 """
     GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
