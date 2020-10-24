@@ -24,7 +24,7 @@ struct DataSetExact <: AbstractDataSet
     ydist::Distribution
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix
-    # X::AbstractVector
+    WoundX::Union{AbstractVector,Bool}
     DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
     DataSetExact(DM::AbstractDataModel) = DataSetExact(DM.Data)
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
@@ -47,11 +47,15 @@ struct DataSetExact <: AbstractDataSet
     end
     function DataSetExact(xd::Distribution,yd::Distribution)
         println("No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out.")
-        DataSetExact(xd,yd,Tuple([length(xd),1,1]))
+        DataSetExact(xd,yd,(length(xd),1,1))
     end
     function DataSetExact(xd::Distribution,yd::Distribution,dims::Tuple{Int,Int,Int})
-        Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == N(dims) && return new(xd,yd,dims,InvCov(yd))
-        throw("Dimensions of distributions are inconsistent with $dims: $xd and $yd.")
+        !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == N(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
+        if xdim(dims) == 1
+            return new(xd,yd,dims,InvCov(yd),false)
+        else
+            return new(xd,yd,dims,InvCov(yd),[SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
+        end
     end
 end
 
@@ -60,6 +64,8 @@ N(DSE::DataSetExact) = N(DSE.dims)
 xdim(DSE::DataSetExact) = xdim(DSE.dims)
 ydim(DSE::DataSetExact) = ydim(DSE.dims)
 InvCov(DSE::DataSetExact) = DSE.InvCov
+WoundX(DS::DataSetExact) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+
 xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
 

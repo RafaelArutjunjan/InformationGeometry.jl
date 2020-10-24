@@ -12,13 +12,13 @@ suff(x::Real) = Float64
 suff(x::Complex) = real(x)
 suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
 
-function HealthyData(x::AbstractVector,y::AbstractVector)
+function HealthyData(x::AbstractVector,y::AbstractVector)::Tuple{Int,Int,Int}
     length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
     # Check that dimensions of x-values and y-values are consistent
     xdim = length(x[1]);    ydim = length(y[1])
     sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
     sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
-    return Tuple([length(x),xdim,ydim])
+    return (length(x), xdim, ydim)
 end
 
 HealthyCovariance(sigma::AbstractVector{<:Real}) = !all(x->(0. < x),sigma) && throw("Some uncertainties not positive.")
@@ -40,6 +40,7 @@ DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
 ```
 or alternatively by
 ```julia
+using LinearAlgebra
 DataSet([1,2,3,4],[4,5,6.5,7.8],Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
 where the diagonal covariance matrix in the second line is equivalent to the vector of uncertainties supplied in the first line.
@@ -50,9 +51,11 @@ For example:
 X = [0.9, 1.0, 1.1, 1.9, 2.0, 2.1, 2.9, 3.0, 3.1, 3.9, 4.0, 4.1]
 Y = [1.0, 5.0, 4.0, 8.0, 9.0, 13.0, 16.0, 20.0]
 Cov = Diagonal([2.0, 4.0, 2.0, 4.0, 2.0, 4.0, 2.0, 4.0])
-dims = Tuple([4,3,2])
+dims = (4, 3, 2)
 DS = DataSet(X,Y,Cov,dims)
 ```
+In this case, `X` is a vector consisting of the concatenated x-values (with 3 components each) for 4 different data points.
+The values of `Y` are the corresponding concatenated y-values (with 2 components each) of said 4 data points. Clearly, the covariance matrix must therefore be a positive-definite ``(m \\cdot N) \\times (m \\cdot N)`` matrix.
 """
 struct DataSet <: AbstractDataSet
     x::AbstractVector
@@ -183,7 +186,7 @@ struct DataModel <: AbstractDataModel
         g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
-        new(DS,model,dmodel,SVector{length(MLE)}(MLE),LogLikeMLE)
+        new(DS,model,dmodel,MLE,LogLikeMLE)
     end
 end
 
@@ -334,15 +337,26 @@ end
 
 length(PL::Plane) = length(PL.stütz)
 
+function MLEinPlane(DM::AbstractDataModel,PL::Plane,start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
+    length(start) != 2 && throw("Dimensional Mismatch.")
+    planarmod(x,p::AbstractVector{<:Number}) = DM.model(x,PlaneCoordinates(PL,p))
+    curve_fit(DM.Data,planarmod,start;tol=tol).param
+end
+
 function PlanarDataModel(DM::DataModel,PL::Plane)
     newmod = (x,p::AbstractVector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
     dnewmod = (x,p::AbstractVector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
-    DataModel(DM.Data,newmod,dnewmod,0.001ones(2))
+    mle = MLEinPlane(DM,PL)
+    DataModel(DM.Data,newmod,dnewmod,mle,loglikelihood(DM,PlaneCoordinates(mle)),true)
 end
 
+# Performance gains of using static vectors is lost if their length exceeds 32
+BasisVectorSV(Slot::Int,dims::Int) = dims < 33 ? BasisVectorSVdo(Slot,dims) : BasisVector(Slot,dims)
+BasisVectorSVdo(Slot::Int,dims::Int) = Slot > dims ? throw("Dimensional Mismatch.") : SVector{dims}(Float64(i == Slot) for i in 1:dims)
 function BasisVector(Slot::Int,dims::Int)
-    Res = zeros(dims);    Res[Slot] = 1;    Res
+    Res = zeros(dims);    Res[Slot] = 1.;    Res
 end
+
 
 """
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Real})
@@ -641,3 +655,6 @@ function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,s
     end
     newu,newv
 end
+
+
+Submatrix(M::AbstractMatrix,inds::Union{AbstractVector,AbstractRange}) = M[inds,inds]

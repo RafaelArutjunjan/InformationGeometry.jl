@@ -201,29 +201,31 @@ function FindFBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=4e-15,
 end
 
 
+inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
+function GetAlpha(n::Int)
+    V = Vector{Float64}(undef,n)
+    fill!(V,-inversefactor(n))
+    V[end] = (n-1) * inversefactor(n)
+    V
+end
+
 """
     OrthVF(DM::DataModel, θ::AbstractVector{<:Real}; Auto::Bool=false) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number};
-                alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ))-ones(length(θ))), Auto::Bool=false)
+                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
     OrthVF(DM.Data,DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
 end
 
 function OrthVF(DS::AbstractDataSet, model::Function, dmodel::Function, θ::AbstractVector{<:Number};
-                alpha::AbstractVector=normalize(length(θ)*BasisVector(length(θ),length(θ))-ones(length(θ))), Auto::Bool=false)
+                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
     S = -Score(DS,model,dmodel,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
     alpha .* VF |> normalize
 end
 
-
-# function OrthVF(DM::DataModel, θ::Vector{<:Number}; alpha::Vector=normalize(length(θ)*BasisVector(length(θ),length(θ)) - ones(length(θ))), Auto::Bool=false)
-#     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-#     S = -Score(DM,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
-#     alpha .* VF |> normalize
-# end
 
 """
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
@@ -352,7 +354,7 @@ function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u
 end
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number};
-                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
+                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
     function IntCurveODE!(du,u,p,t)
@@ -770,10 +772,10 @@ end
 # LSQFIT
 import LsqFit.curve_fit
 curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(F,xdata(DS)[1]))+0.01rand(pdim(F,xdata(DS)[1]));tol::Real=6e-15,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(DS,model));tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-    LsqFit.lmfit(f,initial,InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
+    LsqFit.lmfit(f,convert(Vector,initial),InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
