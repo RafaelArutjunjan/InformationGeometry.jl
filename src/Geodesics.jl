@@ -533,7 +533,7 @@ function Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=
     @tensor Ric[a,b] := Riem[m,a,m,b]
     @tensor PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
     @tensor PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
-    g * Riem + (length(θ) - 2)^(-1) .* PartA + ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
+    g * Riem .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
 end
 
 

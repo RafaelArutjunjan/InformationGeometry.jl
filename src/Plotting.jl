@@ -346,7 +346,7 @@ VisualizeGeos(sols::Vector{<:ODESolution}; OverWrite::Bool=true,leg::Bool=false)
     PointwiseConfidenceBand(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence interval.
 """
-function PointwiseConfidenceBand(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube; N::Int=300)
+function PointwiseConfidenceBand(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=HyperCube([xdata(DM)[1],xdata(DM)[end]]); N::Int=300)
     !(domain.dim == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
     if ydim(DM) == 1
         T = range(sol.t[1],sol.t[end]; length=300)

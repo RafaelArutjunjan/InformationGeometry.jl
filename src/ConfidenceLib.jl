@@ -70,7 +70,7 @@ function Score(DS::AbstractDataSet, model::Function, dmodel::Function, θ::Abstr
 end
 
 function Score(DS::DataSet,model::Function,dmodel::Function,θ::AbstractVector{<:Number})
-    transpose(EmbeddingMatrix(DS,dmodel,θ)) * InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ))
+    transpose(EmbeddingMatrix(DS,dmodel,θ)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ)))
 end
 
 """
@@ -338,12 +338,12 @@ end
 function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u0::AbstractVector{<:Number}; tol::Real=1e-12,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
-    IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
+    IntCurveODE!(du,u,p,t) = du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+    g!(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
-    cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
-    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
+    cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
+    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
     else
@@ -355,13 +355,13 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
                     tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
-    function IntCurveODE(du,u,p,t)
+    function IntCurveODE!(du,u,p,t)
         du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
     end
-    g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
+    g!(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
-    cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
-    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
+    cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
+    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
     else
@@ -664,6 +664,7 @@ EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number
 
 performDMap(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
 
+# very slightly faster apparently
 function performDMap2(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
     Res = Array{suff(θ)}(undef,N(DS)*ydim(DS),length(θ))
     for i in 1:N(DS)
@@ -708,14 +709,41 @@ FisherEllipsoid(Metric::Function, θ::AbstractVector{<:Number}) = eigvecs(Metric
 """
     AIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = 2 \\, \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)``.
+Lower values for the AIC indicate that the associated model function is more likely to be correct. For linearly parametrized models and small sample sizes, it is advisable to instead use the AICc which is more accurate.
 """
 AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = 2length(θ) - 2loglikelihood(DM,θ)
+AIC(DM::DataModel) = AIC(DM,MLE(DM))
+
+"""
+    AICc(DM::DataModel, θ::AbstractVector) -> Real
+Computes Akaike Information Criterion with an added correction term that prevents the AIC from selecting models with too many parameters (i.e. overfitting) in the case of small sample sizes.
+``\\mathrm{AICc} = \\mathrm{AICc} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
+Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
+"""
+AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (N(DM.Data) - length(θ) - 1)
+AICc(DM::DataModel) = AICc(DM,MLE(DM))
 
 """
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
 BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(N(DM.Data)) - 2loglikelihood(DM,θ)
+BIC(DM::DataModel) = BIC(DM,MLE(DM))
+
+
+"""
+    ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel) -> Tuple{Int,Real}
+Compares the AICc values of both models at best fit and estimates probability that one model is more likely than the other.
+First entry of tuple returns which model is more likely to be correct (1 or 2) whereas the second entry returns the ratio of probabilities.
+"""
+function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel)
+    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2)) && throw("Not comparing against same data!")
+    Mod1 = AICc(DM1,MLE(DM1));      Mod2 = AICc(DM2,MLE(DM2))
+    res = (Int((Mod1 > Mod2) + 1), round(exp(0.5*abs(Mod2-Mod1)),sigdigits=5))
+    println("Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values.")
+    res
+end
+
 
 """
     IsLinearParameter(DM::DataModel) -> Vector{Bool}
