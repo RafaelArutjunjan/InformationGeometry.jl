@@ -333,12 +333,12 @@ end
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-12,
-                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
-    GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto)
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+    GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
 function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u0::AbstractVector{<:Number}; tol::Real=1e-12,
-                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t) = du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
@@ -347,14 +347,14 @@ function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb) # ,save_everystep=false)
+        return solve(prob,meth; rtol=tol,atol=tol,callback=cb,kwargs...) # ,save_everystep=false)
     else
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
+        return solve(prob,meth; rtol=tol,atol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing),kwargs...)
     end
 end
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number};
-                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false)
+                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
     function IntCurveODE!(du,u,p,t)
@@ -365,9 +365,9 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb)
+        return solve(prob,meth; rtol=tol,atol=tol,callback=cb, kwargs...)
     else
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing), kwargs...)
     end
 end
 
@@ -389,11 +389,11 @@ end
 
 
 function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12,
-                                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
+                                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     if pdim(DM) == 1
         return Interval1D(DM, Confnum; tol=tol)
     else
-        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto)
+        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     end
 end
 
@@ -422,15 +422,16 @@ Keyword arguments:
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
-function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false, tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false)
+function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false,
+                        tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     pdim(DM) == 1 && return map(x->GenerateConfidenceRegion(DM,x;tol=tol),Range)
     pdim(DM) != 2 && throw("This method has not been programmed for automatically generating families of solutions for parameter spaces with more than two dimensions yet.")
     sols = Vector{ODESolution}(undef,0)
     for CONF in Range
         if IsConfVol
-            @time push!(sols, GenerateConfidenceRegion(DM,InvConfVol(CONF);tol=tol,meth=meth,mfd=mfd,Auto=Auto))
+            @time push!(sols, GenerateConfidenceRegion(DM,InvConfVol(CONF);tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...))
         else
-            @time push!(sols, GenerateConfidenceRegion(DM,CONF;tol=tol,meth=meth,mfd=mfd,Auto=Auto))
+            @time push!(sols, GenerateConfidenceRegion(DM,CONF;tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...))
         end
         if sols[end].retcode == :Terminated
             _ , rts = StructurallyIdentifiable(DM,sols[end])
@@ -767,6 +768,14 @@ function IsLinear(DM::AbstractDataModel)::Bool
     sum(res) == length(res)
 end
 
+"""
+    LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}) -> Vector{Float64}
+Returns a vector which points in the direction in which the likelihood decreases most slowly.
+"""
+function LeastInformativeDirection(DM::AbstractDataModel,θ::AbstractVector{<:Number})
+    M = eigen(FisherMetric(DM,θ));  i = findmin(M.values)[2]
+    M.vectors[:,i] / sqrt(M.values[i])
+end
 
 
 # LSQFIT

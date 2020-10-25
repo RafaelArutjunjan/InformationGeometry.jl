@@ -41,7 +41,7 @@ include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, AICc, BIC, ModelComparison
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
-export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D
+export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D, LeastInformativeDirection
 export IsLinearParameter, IsLinear
 
 
