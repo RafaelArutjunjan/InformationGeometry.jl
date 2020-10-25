@@ -70,6 +70,7 @@ Further, studying the geodesics associated with a metric manifold can yield valu
 ```@docs
 Score(::DataModel,::Vector{Float64})
 AIC(::DataModel,::Vector{Float64})
+AICc(::DataModel,::Vector{Float64})
 BIC(::DataModel,::Vector{Float64})
 GeodesicDistance(::DataModel,::Vector{Float64},::Vector{Float64})
 ```

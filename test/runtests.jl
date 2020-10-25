@@ -46,7 +46,7 @@ end
     Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
     Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
     Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
-    @test norm(MLE(DataModel(DS,model)) - ptrue) < 1e-2
+    @test norm(MLE(DataModel(DS,model)) - ptrue) < 5e-2
     @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
 end
 

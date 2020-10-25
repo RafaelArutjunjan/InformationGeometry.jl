@@ -43,7 +43,7 @@ or alternatively by
 using LinearAlgebra
 DataSet([1,2,3,4],[4,5,6.5,7.8],Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
-where the diagonal covariance matrix in the second line is equivalent to the vector of uncertainties supplied in the first line.
+where the diagonal covariance matrix in the second line is equivalent to the vector of standard deviations supplied in the first line.
 
 More generally, if a dataset consists of ``N`` points where each ``x``-value has ``n`` many components and each ``y``-value has ``m`` many components, this can be specified to the `DataSet` constructor via a tuple ``(N,n,m)`` in addition to the vectors `x`, `y` and the covariance matrix.
 For example:
@@ -147,7 +147,16 @@ DM = DataModel(DS,model)
 In cases where the output of the model has more than one component (i.e. `ydim > 1`), it is advisable to define the model function in such a way that it outputs static vectors using **StaticArrays.jl** for increased performance.
 For `ydim = 1`, **InformationGeometry.jl** expects the model to output a number instead of a vector with one component. In contrast, the parameter configuration `θ` must always be supplied as a vector.
 
-If a `DataModel` is constructed as shown above, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
+A starting value for the maximum likelihood estimation can be passed to the `DataModel` constructor by appending an appropriate vector, e.g.
+```julia
+DM = DataModel(DS,model,[1.0,2.5])
+```
+During the construction of a `DataModel` process which includes the search for the maximum likelihood estimate ``\\theta_\\text{MLE}``, multiple tests are run. If necessary, these tests can be skipped by appending `true` as the last argument in the constructor:
+```julia
+DM = DataModel(DS,model,[-Inf,π,1+im],true)
+```
+
+If a `DataModel` is constructed as shown in the above examples, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
 using StaticArrays
 function dmodel(x::Real,θ::AbstractVector{<:Real})
@@ -168,10 +177,10 @@ struct DataModel <: AbstractDataModel
     LogLikeMLE::Real
     # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    DataModel(DS::AbstractDataSet,model::Function) = DataModel(DS,model,DetermineDmodel(DS,model))
-    DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector) = DataModel(DS,model,DetermineDmodel(DS,model),mle)
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function)
-        DataModel(DS,model,dmodel,FindMLE(DS,model))
+    DataModel(DS::AbstractDataSet,model::Function,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
+    DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
+    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,sneak::Bool=false)
+        sneak ? DataModel(DS,model,dmodel,[-Inf,-Inf],true) : DataModel(DS,model,dmodel,FindMLE(DS,model))
     end
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector{<:Number},sneak::Bool=false)
         sneak && return DataModel(DS,model,dmodel,mle,-Inf,true)

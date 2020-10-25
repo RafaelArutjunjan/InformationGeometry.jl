@@ -302,7 +302,7 @@ FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(D
 function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-        return optimize(NegEll, BigFloat.(convert(Vector,start)), BFGS(), Optim.Options(g_tol=convert(BigFloat,10 .^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
+        return optimize(NegEll, BigFloat.(convert(Vector,start)), BFGS(), Optim.Options(g_tol=convert(BigFloat,10^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,Bool)
         return FindMLEBig(DS,model,FindMLE(DS,model))
     end
@@ -312,16 +312,16 @@ end
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
 function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
-    NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
+    # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
-        # return curve_fit(DS,model,ones(pdim(model,xdata(DS)[1])); tol=tol).param
-        return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+        return curve_fit(DS,model,rand(pdim(DS,model)); tol=tol).param
+        # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,AbstractVector)
         if suff(start) == BigFloat
             return FindMLEBig(DS,model,convert(Vector,start))
         else
-            # return curve_fit(DS,model,start; tol=tol).param
-            return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+            return curve_fit(DS,model,start; tol=tol).param
+            # return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
         end
     end
 end
@@ -347,7 +347,7 @@ function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
+        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb) # ,save_everystep=false)
     else
         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
     end
@@ -365,7 +365,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
+        return solve(prob,meth,reltol=tol,abstol=tol,callback=cb)
     else
         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
     end
@@ -719,7 +719,7 @@ AIC(DM::DataModel) = AIC(DM,MLE(DM))
 """
     AICc(DM::DataModel, θ::AbstractVector) -> Real
 Computes Akaike Information Criterion with an added correction term that prevents the AIC from selecting models with too many parameters (i.e. overfitting) in the case of small sample sizes.
-``\\mathrm{AICc} = \\mathrm{AICc} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
+``\\mathrm{AICc} = \\mathrm{AIC} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
 AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (N(DM.Data) - length(θ) - 1)
@@ -772,10 +772,24 @@ end
 # LSQFIT
 import LsqFit.curve_fit
 curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=ones(pdim(DS,model));tol::Real=6e-15,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-    LsqFit.lmfit(f,convert(Vector,initial),InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
+    p0 = convert(Vector,initial);    r = f(p0)
+    R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :finite)
+    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
+
+# function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
+#     X = xdata(DS);  Y = ydata(DS)
+#     LsqFit.check_data_health(X, Y)
+#     u = cholesky(InvCov(DS)).U
+#     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
+#     # Using Jacobian apparently slower
+#     df(p) = ForwardDiff.jacobian(f,p)
+#     p0 = convert(Vector,initial);    r = f(p0)
+#     R = OnceDifferentiable(f, df, p0, copy(r); inplace=false)
+#     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
+# end
