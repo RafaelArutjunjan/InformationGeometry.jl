@@ -43,6 +43,8 @@ export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundar
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
 export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D, LeastInformativeDirection
 export IsLinearParameter, IsLinear
+export Shift, Prune, AntiPrune, FindConfBoundaryOnPlane, IntersectCube, IntersectRegion
+export MincedBoundaries, LinearCuboid
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
