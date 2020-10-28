@@ -240,13 +240,18 @@ function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Au
 end
 
 
-ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
-function ConstructLowerUpper(M::Matrix{<:Real}; Padding::Real=1/50)
+"""
+    ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
+Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
+"""
+ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
+function ConstructLowerUpper(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
     lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
     uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
     diff = (uppers - lowers) .* Padding
     LowerUpper(lowers - diff,uppers + diff)
 end
+ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
 ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
 
 ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints; Padding=Padding))

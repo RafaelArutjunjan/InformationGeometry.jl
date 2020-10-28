@@ -226,7 +226,7 @@ xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
 WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
-
+WoundX(DM::AbstractDataModel) = WoundX(DM.Data)
 
 logdetInvCov(DM::AbstractDataModel) = logdetInvCov(DM.Data)
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
@@ -497,6 +497,7 @@ struct HyperCube{Q<:Real} <: Cuboid
         new{types}(vals,length(vals))
     end
     HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
+    HyperCube(vals::Tuple{<:Real,<:Real}) = HyperCube([vals[1],vals[2]])
 end
 
 """
@@ -579,6 +580,7 @@ function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
     end
     A
 end
+Unpack(Z::AbstractVector{<:Number}) = Z
 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat,X)
