@@ -774,10 +774,10 @@ function IsLinear(DM::AbstractDataModel)::Bool
 end
 
 """
-    LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}) -> Vector{Float64}
+    LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}=MLE(DM)) -> Vector{Float64}
 Returns a vector which points in the direction in which the likelihood decreases most slowly.
 """
-function LeastInformativeDirection(DM::AbstractDataModel,θ::AbstractVector{<:Number})
+function LeastInformativeDirection(DM::AbstractDataModel,θ::AbstractVector{<:Number}=MLE(DM))
     M = eigen(FisherMetric(DM,θ));  i = findmin(M.values)[2]
     M.vectors[:,i] / sqrt(M.values[i])
 end

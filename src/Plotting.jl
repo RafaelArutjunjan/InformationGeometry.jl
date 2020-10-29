@@ -424,6 +424,58 @@ end
 
 
 
+function PlotCurves(Curves::Vector{<:ODESolution}; N::Int=100)
+    p = [];    A = Array{Float64,2}(undef,N,2)
+    for sol in Curves
+        ran = range(sol.t[1],sol.t[end],length=N)
+        for i in 1:length(ran)    A[i,:] = sol(ran[i])[1:2]  end
+        p = Plots.plot!(A[:,1],A[:,2])
+        # p = Plots.plot!(sol,vars=(1,2))
+    end
+    p
+end
+
+EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+    Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
+    if length(Z[1]) == 1
+        if OverWrite
+            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
+        else
+            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
+        end
+    end
+    [collect(range(Interval[1],Interval[2],length=N)) Z]
+end
+EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
+function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+    Z = EvaluateAlongGeodesic(F,sol,Interval; N=N)
+    Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; fullSol=true, Auto=true, tol=1e-14)
+    Ls = map(Geo,range(Interval[1],Interval[2],length=N))
+    if length(Z[1]) == 1
+        if OverWrite
+            Plots.plot(Ls,Z) |> display
+        else
+            Plots.plot!(Ls,Z) |> display
+        end
+    end
+    [Ls Z]
+end
+EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+    Z = EvaluateAlongCurve(F,sol,Interval, N=N)
+    if length(Z[1]) == 1
+        if OverWrite
+            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
+        else
+            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
+        end
+    end
+    Z
+end
+
+
+
 """
 Returns Array of vertex numbers where every row constitutes a trapezoid for two adjacent curves from which N samples have been drawn.
 """

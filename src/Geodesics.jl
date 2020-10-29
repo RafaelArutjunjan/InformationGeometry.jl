@@ -98,23 +98,23 @@ function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel:
         du[(n+1):2n] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:n]),du[1:n])
     end
     tspan = (0.0,Endtime);
-    Initial = [InitialPos...,InitialVel...]
+    Initial = vcat(InitialPos,InitialVel)
     prob = ODEProblem(GeodesicODE!,Initial,tspan)
     if typeof(Boundaries) == Nothing
-        return solve(prob,meth,reltol=tol,abstol=tol)
+        return solve(prob,meth; reltol=tol,abstol=tol)
     else
-        return solve(prob,meth,reltol=tol,abstol=tol,callback=DiscreteCallback(Boundaries,terminate!))
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=DiscreteCallback(Boundaries,terminate!))
     end
 end
 """
     ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
 Constructs geodesic with given initial position and velocity.
-It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process it returns `false`.
+It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process when it returns `true`.
 """
 function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
-    ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
+    ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime; Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
 
@@ -134,7 +134,7 @@ function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[
         FullGamma = sol(t)
         sqrt(transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n])
     end
-    return Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
+    return Integrate1D(Integrand,(sol.t[1],Endrange); fullSol=fullSol,tol=tol)
 end
 
 """
@@ -306,17 +306,6 @@ function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; f
 end
 
 
-function PlotCurves(Curves::Vector{<:ODESolution}; N::Int=100)
-    p = [];    A = Array{Float64,2}(undef,N,2)
-    for sol in Curves
-        ran = range(sol.t[1],sol.t[end],length=N)
-        for i in 1:length(ran)    A[i,:] = sol(ran[i])[1:2]  end
-        p = Plots.plot!(A[:,1],A[:,2])
-        # p = Plots.plot!(sol,vars=(1,2))
-    end
-    p
-end
-
 """
     EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector) -> Vector
 Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.
@@ -333,44 +322,7 @@ function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Real})
     Res
 end
 
-EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
-    Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
-        else
-            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
-        end
-    end
-    [collect(range(Interval[1],Interval[2],length=N)) Z]
-end
-EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
-    Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-    Geo = GeodesicLength(x->FisherMetric(DM,x), sol,sol.t[end];fullSol=true, Auto=true, tol=1e-14)
-    Ls = map(Geo,range(Interval[1],Interval[2],length=N))
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(Ls,Z) |> display
-        else
-            Plots.plot!(Ls,Z) |> display
-        end
-    end
-    [Ls Z]
-end
-EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongCurve(F::Function,sol::ODESolution, Interval::AbstractVector{<:Real}=[sol.t[1],sol.t[end]]; N::Int=1000, OverWrite::Bool=false)
-    Z = EvaluateAlongCurve(F,sol,Interval, N=N)
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
-        else
-            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
-        end
-    end
-    Z
-end
+
 
 function SaveAdaptive(sol::ODESolution,N::Int=500; curvature = 0.003, Ntol=0.08)
     Tspan = (sol.t[1],sol.t[end]);      maxiter=30
