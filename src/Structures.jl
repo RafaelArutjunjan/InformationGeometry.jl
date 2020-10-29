@@ -463,8 +463,8 @@ end
 # abstract type Cuboid end
 
 """
-The `HyperCube` type has the fields `vals::Vector{Vector}`, which stores the intervals which define the hypercube and `dim::Int`, which gives the dimension.
-Overall it just offers a convenient and standardized way of passing domains for integration or plotting between functions without having to check that these domains are sensible every time.
+The `HyperCube` type is used to specify a cuboid region in the form of a cartesian product of ``N`` real intervals, thereby offering a convenient way of passing domains for integration or plotting between functions.
+A `HyperCube` object `cube` type has two fields: `cube.L` and `cube.U` which are two vectors which respectively store the lower and upper boundaries of the real intervals in order.
 Examples for constructing `HyperCube`s:
 ```julia
 HyperCube([[1,3],[pi,2π],[-500,100]])
@@ -497,10 +497,7 @@ struct HyperCube{Q<:Real}
     end
     HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
     HyperCube(vals::Tuple{<:Real,<:Real}) = HyperCube([vals[1],vals[2]])
-    # function HyperCube(Cube::HyperCube)
-    #     println("Input already HyperCube.")
-    #     Cube
-    # end
+    HyperCube(Cube::HyperCube) = Cube
 end
 
 length(Cube::HyperCube) = length(Cube.L)
