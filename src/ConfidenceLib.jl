@@ -244,41 +244,41 @@ end
     ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
 Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
 """
-ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
-function ConstructLowerUpper(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
+# ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
+function ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
     lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
     uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
     diff = (uppers - lowers) .* Padding
-    LowerUpper(lowers - diff,uppers + diff)
+    HyperCube(lowers - diff,uppers + diff)
 end
 ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
 ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
 
-ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints; Padding=Padding))
-function ConstructLowerUpper(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
-    ConstructLowerUpper(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
+# ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints; Padding=Padding))
+function ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
+    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end
 
 
 
-MonteCarloArea(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = CubeVol(Space)*MonteCarloRatio(Test,Space,N)
-MonteCarloRatio(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = MonteCarloRatio(Test,LowerUpper(Space),N)
-function MonteCarloRatio(Test::Function,LU::LowerUpper,N::Int=Int(1e7))
+MonteCarloArea(Test::Function,Cube::HyperCube,N::Int=Int(1e7)) = CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
+# MonteCarloRatio(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = MonteCarloRatio(Test,LowerUpper(Space),N)
+function MonteCarloRatio(Test::Function,Cube::HyperCube,N::Int=Int(1e7))
     (1/N)* @distributed (+) for i in 1:N
-        Test(rand.(Uniform.(LU.L,LU.U)))
+        Test(rand.(Uniform.(Cube.L,Cube.U)))
     end
 end
 
 
-function MonteCarloRatioWE(Test::Function,Space::HyperCube,N::Int=Int(1e7); chunksize::Int=Int(N/20))
+function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksize::Int=Int(N/20))
     chunksize > N && error("chunksize > N")
     if N%chunksize != 0
         println("N % chunksize = $(N%chunksize). Rounded N up from $N to $(N + N%chunksize + 1).")
         N += Int(N%chunksize + 1)
     end
-    chunks = Int(N/chunksize);   LU = LowerUpper(Space)
+    chunks = Int(N/chunksize)
     # Output not normalized by chunksize
-    function CarloLoop(Test::Function,LU::LowerUpper,chunksize::Int)
+    function CarloLoop(Test::Function,LU::HyperCube,chunksize::Int)
         tot = [rand.(Uniform.(LU.L,LU.U)) for i in 1:chunksize] .|> Test
         res = sum(tot)
         [res, sum((tot.-(res/chunksize)).^2)]
@@ -313,13 +313,17 @@ function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Abstra
     end
 end
 
+function GetStartP(DS::AbstractDataSet,model::Function)
+    P = pdim(DS,model)
+    ones(P) .+ 0.01*(rand(P) .- 0.5)
+end
 
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
 function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
-        return curve_fit(DS,model,rand(pdim(DS,model)); tol=tol).param
+        return curve_fit(DS,model,GetStartP(DS,model); tol=tol).param
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start,AbstractVector)
         if suff(start) == BigFloat
@@ -461,11 +465,11 @@ function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
     return NoPoints
 end
 
-Inside(C::HyperCube,p::AbstractVector) = Inside(LowerUpper(C),p)
-function Inside(LU::LowerUpper,p::AbstractVector)::Bool
-    length(LU.L) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
-    for i in 1:length(LU.L)
-        !(LU.L[i] <= p[i] <= LU.U[i]) && return false
+# Inside(C::HyperCube,p::AbstractVector) = Inside(LowerUpper(C),p)
+function Inside(Cube::HyperCube,p::AbstractVector{<:Real})::Bool
+    length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
+    for i in 1:length(Cube)
+        !(Cube.L[i] <= p[i] <= Cube.U[i]) && return false
     end;    true
 end
 
@@ -487,29 +491,29 @@ end
 Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
 """
 function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-    Cube.dim != 1 && throw(ArgumentError("Cube dim = $(Cube.dim) instead of 1"))
-    Integrate1D(F,Cube.vals[1][:],tol=tol,fullSol=fullSol,meth=meth)
+    length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
+    Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,fullSol=fullSol,meth=meth)
 end
-function Integrate1D(F::Function, Interval::AbstractVector{<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-    length(Interval) != 2 && throw(ArgumentError("Interval not suitable for integration."))
+# function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+#     Integrate1D(F,LowerUpper(Cube); tol=tol,fullSol=fullSol,meth=meth)
+# end
+Integrate1D(F::Function, Interval::AbstractVector{<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
+function Integrate1D(F::Function, Interval::Tuple{<:Real,<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+    Interval = float.(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
     f(u,p,t) = F(t)
     if tol < 1e-15
-        u0 = BigFloat(0.);        tspan = Tuple(BigFloat.(Interval))
-        if meth == nothing
-            meth = Feagin10()
-        end
+        u0 = BigFloat(0.);        Interval = BigFloat.(Interval)
+        meth = (meth == nothing) ? Vern9() : meth
     else
-        u0 = 0.;        tspan = Tuple(Interval)
-        if meth == nothing
-            meth = Tsit5()
-        end
+        u0 = 0.
+        meth = (meth == nothing) ? Tsit5() : meth
     end
     if fullSol
-        return solve(ODEProblem(f,u0,tspan),meth,reltol=tol,abstol=tol)
+        return solve(ODEProblem(f,u0,Interval),meth,reltol=tol,abstol=tol)
     else
-        return solve(ODEProblem(f,u0,tspan),meth,reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true).u[end]
+        return solve(ODEProblem(f,u0,Interval),meth,reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true).u[end]
     end
 end
 
@@ -538,7 +542,7 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
 # Always use Integreat for 1D -> Check Dim of Space to decide?
 """
-    KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([[-15,15]]); tol=2e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
+    KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-15,15]); tol=2e-15, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
 Computes the Kullback-Leibler divergence between two probability distributions `p` and `q` over the `Domain`.
 If `Carlo=true`, this is done using a Monte Carlo Simulation with `N` samples.
 If the `Domain` is one-dimensional, the calculation is performed without Monte Carlo to a tolerance of ≈ `tol`.
@@ -546,29 +550,25 @@ If the `Domain` is one-dimensional, the calculation is performed without Monte C
 D_{\\text{KL}}[p,q] \\coloneqq \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
 ```
 """
-function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([[-15,15]]); tol::Real=2e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
+function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-15,15]); tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
     function Integrand(x)
         P = p(x)[1];   Q = q(x)[1];   Rat = P/Q
-        (Rat <= 0. || abs(Rat) == Inf) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
+        (Rat <= 0. || !isfinite(Rat)) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
         P*log(Rat)
     end
     if Carlo
-        Domain.dim==1 && return MonteCarloArea(Integrand,Domain,N)[1]
+        length(Domain) == 1 && return MonteCarloArea(Integrand,Domain,N)[1]
         return MonteCarloArea(Integrand,Domain,N)
-    elseif Domain.dim == 1
-        return Integrate1D(Integrand,Domain,tol=tol)
+    elseif length(Domain) == 1
+        return Integrate1D(Integrand,Domain; tol=tol)
     else
-        throw("KL: Carlo=false and Domain.dim != 1. Aborting.")
+        throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
     end
 end
 
-function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([[-15,15]]);
-    tol=1e-15, N::Int=Int(3e7), Carlo::Bool=(Domain.dim!=1))
-    !(length(p) == length(q) == Domain.dim) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(Domain.dim)")
-    if length(p) == 1
-        !(sum(insupport(p,Domain.vals[1])) == 2) && throw("KL: p=$p not supported on Domain $(Domain.vals[1]).")
-        !(sum(insupport(q,Domain.vals[1])) == 2)  && throw("KL: q=$q not supported on Domain $(Domain.vals[1]).")
-    end
+function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([-15,15]);
+    tol=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
+    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     function Integrand(x)
         P = logpdf(p,x);   Q = logpdf(q,x)
         exp(P)*(P - Q)
@@ -581,10 +581,10 @@ function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=Hyper
     if Carlo
         length(p) == 1 && return MonteCarloArea(Integrand1D,Domain,N)[1]
         return MonteCarloArea(Integrand,Domain,N)
-    elseif Domain.dim == 1
-        return Integrate1D(Integrand1D,Domain,tol=tol)
+    elseif length(Domain) == 1
+        return Integrate1D(Integrand1D,Domain; tol=tol)
     else
-        throw("KL: Carlo=false and Domain.dim != 1. Aborting.")
+        throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
     end
 end
 
@@ -629,7 +629,7 @@ KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLei
 KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zeros(length(ydata(DM))),inv(InvCov(DM))),NormalDist(DM,p))
 
 
-# h(p) ∈ Dataspace
+# h(θ) ∈ Dataspace
 """
     EmbeddingMap(DM::DataModel,θ::AbstractVector{<:Number})
 Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
@@ -682,7 +682,7 @@ end
 
 
 
-# From D to M
+# M ⟵ D
 Pullback(DM::DataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
 """
     Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
@@ -700,7 +700,7 @@ function Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<
     return transpose(J) * G * J
 end
 
-# M to D
+# M ⟶ D
 """
     Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector)
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
@@ -887,7 +887,7 @@ end
 # LSQFIT
 import LsqFit.curve_fit
 curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U

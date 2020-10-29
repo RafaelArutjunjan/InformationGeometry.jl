@@ -3,7 +3,7 @@ module InformationGeometry
 using Distributed, LinearAlgebra, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements
-using Distributions, SpecialFunctions, TensorOperations, DataFrames
+using Distributions, SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots
 
 
@@ -26,7 +26,7 @@ using RecipesBase, Plots
 
 include("Structures.jl")
 # Types
-export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube, LowerUpper
+export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube
 
 
 # Functions

@@ -60,7 +60,6 @@ The values of `Y` are the corresponding concatenated y-values (with 2 components
 struct DataSet <: AbstractDataSet
     x::AbstractVector
     y::AbstractVector
-    # sigma::AbstractArray
     InvCov::AbstractMatrix
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
@@ -175,7 +174,6 @@ struct DataModel <: AbstractDataModel
     dmodel::Function
     MLE::AbstractVector
     LogLikeMLE::Real
-    # Provide dModel using ForwardDiff if not given
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     DataModel(DS::AbstractDataSet,model::Function,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
     DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
@@ -191,7 +189,7 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
         sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
         CheckModelHealth(DS,model)
-        norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,M,MLE))).")
+        norm(AutoScore(DS,model,MLE)) > 1e-5 && throw("Norm of gradient of log-likelihood at supposed MLE=$MLE too large: $(norm(AutoScore(DS,model,MLE))).")
         g = AutoMetric(DS,model,MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
@@ -462,20 +460,19 @@ end
 
 
 
-abstract type Cuboid end
+# abstract type Cuboid end
 
 """
 The `HyperCube` type has the fields `vals::Vector{Vector}`, which stores the intervals which define the hypercube and `dim::Int`, which gives the dimension.
 Overall it just offers a convenient and standardized way of passing domains for integration or plotting between functions without having to check that these domains are sensible every time.
 Examples for constructing `HyperCube`s:
 ```julia
-HyperCube([[1,3],[pi,2pi],[-500.0,100.0]])
+HyperCube([[1,3],[pi,2π],[-500,100]])
+HyperCube([1,π,-500],[3,2π,100])
 HyperCube([[-1,1]])
 HyperCube([-1,1])
-HyperCube(LowerUpper([-1,-5],[0,-4]))
 HyperCube(collect([-7,7.] for i in 1:3))
 ```
-The `HyperCube` type is closely related to the `LowerUpper` type and they can be easily converted into each other.
 Examples of quantities that can be computed from and operations involving a `HyperCube` object `X`:
 ```julia
 CubeVol(X)
@@ -483,89 +480,87 @@ TranslateCube(X,v::Vector)
 CubeWidths(X)
 ```
 """
-struct HyperCube{Q<:Real} <: Cuboid
-    vals::AbstractVector{<:AbstractVector{Q}}
-    dim::Int
-    function HyperCube(vals::AbstractVector)
-        vals = float.(vals)
-        types = typeof(vals[1][1])
-        for i in 1:length(vals)
-            length(vals[i]) != 2 && error("Unsuitable Hypercube.")
-            typeof(vals[i][1]) != types && error("Type Mismatch in Hypercube.")
-            vals[i][1] > vals[i][2] && error("HyperCube: Orientation wrong, Interval $i: [$(vals[i][1]),$(vals[i][2])] not allowed.")
-        end
-        new{types}(vals,length(vals))
-    end
-    HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
-    HyperCube(vals::Tuple{<:Real,<:Real}) = HyperCube([vals[1],vals[2]])
-end
-
-"""
-The `LowerUpper` type has a field `L` and a field `U` which respectively store the lower and upper boundaries of an N-dimensional Hypercube.
-It is very closely related to (and stores the same information as) the `HyperCube` type.
-Examples for constructing `LowerUpper`s:
-```julia
-LowerUpper([-1,-5,pi],[0,-4,2pi])
-LowerUpper(HyperCube([[5,6],[-pi,0.5]]))
-LowerUpper(collect(1:5),collect(15:20))
-```
-Examples for quantities that can be computed from and operations involving a `LowerUpper` object `X`:
-```julia
-CubeVol(X)
-TranslateCube(X,v::Vector)
-CubeWidths(X)
-```
-"""
-struct LowerUpper{Q<:Real} <: Cuboid
+struct HyperCube{Q<:Real}
     L::AbstractVector{Q}
     U::AbstractVector{Q}
-    function LowerUpper(lowers,uppers)
+    function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real})
         lowers = float.(lowers); uppers = float.(uppers)
-        length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch in LowerUpper."))
+        length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch."))
         for i in 1:length(lowers)
-            lowers[i] > uppers[i] && throw(ArgumentError("LowerUpper Constructor: lowers[$i] > uppers[$i]."))
+            lowers[i] > uppers[i] && throw(ArgumentError("Wrong orientation: lowers[$i] > uppers[$i]."))
         end
         new{suff(lowers)}(lowers,uppers)
     end
-    function LowerUpper(H::HyperCube)
-        S = H.vals; l = Vector{suff(S)}(undef,length(S))
-        u = Vector{suff(S)}(undef,length(S))
-        for i in 1:length(S)
-            l[i] = S[i][1];        u[i] = S[i][2]
-        end
-        new{suff(S)}(l,u)
+    function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}})
+        len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
+        M = Unpack(H);        HyperCube(M[:,1],M[:,2])
     end
-    LowerUpper(H::AbstractVector) = LowerUpper(HyperCube(H))
+    HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
+    HyperCube(vals::Tuple{<:Real,<:Real}) = HyperCube([vals[1],vals[2]])
+    # function HyperCube(Cube::HyperCube)
+    #     println("Input already HyperCube.")
+    #     Cube
+    # end
 end
 
-# SensibleOutput(LU::LowerUpper) = LU.L,LU.U
-function HyperCube(LU::LowerUpper)
-    R = Vector{typeof(LU.U)}(undef,length(LU.U))
-    for i in 1:length(LU.U)
-        R[i] = [LU.L[i],LU.U[i]]
-    end
-    HyperCube(R)
-end
+length(Cube::HyperCube) = length(Cube.L)
+lowers(Cube::HyperCube) = Cube.L
+uppers(Cube::HyperCube) = Cube.U
 
-function SensibleOutput(Res::AbstractVector)
-    if isa(Res[1],Real)
-        return Res[1], Res[2]
-    elseif isa(Res[1],AbstractVector) && typeof(Res[1][1]) <: Real
-        u = Vector{suff(Res)}(undef,length(Res)); v = similar(u)
-        for i in 1:length(Res)
-            if length(Res[i]) != 2
-                error("SensibleOutput only accepts inner vectors of length 2.")
-            end
-            u[i] = Res[i][1]
-            v[i] = Res[i][2]
-        end
-        return u, v
-    else
-        throw(ArgumentError("Expected Vector{Real} or Vector{Vector{Real}}, but got $(typeof(Res))"))
-    end
-end
 
-Unpack(H::HyperCube) = Unpack(H.vals)
+# """
+# The `LowerUpper` type has a field `L` and a field `U` which respectively store the lower and upper boundaries of an N-dimensional Hypercube.
+# It is very closely related to (and stores the same information as) the `HyperCube` type.
+# Examples for constructing `LowerUpper`s:
+# ```julia
+# LowerUpper([-1,-5,pi],[0,-4,2pi])
+# LowerUpper(HyperCube([[5,6],[-pi,0.5]]))
+# LowerUpper(collect(1:5),collect(15:20))
+# ```
+# Examples for quantities that can be computed from and operations involving a `LowerUpper` object `X`:
+# ```julia
+# CubeVol(X)
+# TranslateCube(X,v::Vector)
+# CubeWidths(X)
+# ```
+# """
+# struct LowerUpper{Q<:Real} <: Cuboid
+#     L::AbstractVector{Q}
+#     U::AbstractVector{Q}
+#     function LowerUpper(lowers::AbstractVector,uppers::AbstractVector)
+#         lowers = float.(lowers); uppers = float.(uppers)
+#         length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch in LowerUpper."))
+#         for i in 1:length(lowers)
+#             lowers[i] > uppers[i] && throw(ArgumentError("LowerUpper Constructor: lowers[$i] > uppers[$i]."))
+#         end
+#         new{suff(lowers)}(lowers,uppers)
+#     end
+#     LowerUpper(Cube::HyperCube) = LowerUpper(Cube.L, Cube.U)
+#     function LowerUpper(H::AbstractVector{<:AbstractVector{<:Real}})
+#         M = Unpack(H)
+#         LowerUpper(M[:,1],M[:,2])
+#     end
+#     LowerUpper(x::Tuple{<:Real,<:Real}) = LowerUpper([x[1]],[x[2]])
+#     LowerUpper(x::AbstractVector{<:Real}) = LowerUpper(Tuple(x))
+# end
+
+
+# length(Cube::LowerUpper) = length(Cube.L)
+#
+# lowers(Cube::LowerUpper) = Cube.L
+# uppers(Cube::LowerUpper) = Cube.U
+#
+#
+# # SensibleOutput(LU::LowerUpper) = LU.L,LU.U
+# function HyperCube(LU::LowerUpper)
+#     R = Vector{typeof(LU.U)}(undef,length(LU.U))
+#     for i in 1:length(LU.U)
+#         R[i] = [LU.L[i],LU.U[i]]
+#     end
+#     HyperCube(R)
+# end
+
+
 """
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
@@ -590,62 +585,58 @@ Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] f
 
 
 
-function CubeVol(Space::AbstractVector)
-    lowers,uppers = Unpack(Space)
-    prod(uppers - lowers)
-end
-CubeWidths(S::LowerUpper) = S.U - S.L
-
-Center(LU::LowerUpper) = 0.5 * (LU.U + LU.L)
-Center(C::HyperCube) = Center(LowerUpper(C))
-
+# function CubeVol(Space::AbstractVector)
+#     lowers,uppers = Unpack(Space)
+#     prod(uppers - lowers)
+# end
 
 """
     CubeWidths(H::HyperCube) -> Vector
 Returns vector of widths of the `HyperCube`.
 """
-CubeWidths(H::HyperCube) = CubeWidths(LowerUpper(H))
+CubeWidths(Cube::HyperCube) = Cube.U - Cube.L
+# CubeWidths(Cube::LowerUpper) = Cube.U - Cube.L
+
+Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
+# Center(Cube::LowerUpper) = 0.5 * (Cube.L + Cube.U)
+
 
 """
-    CubeVol(X::HyperCube)
+    CubeVol(Cube::HyperCube)
 Computes volume of a `HyperCube` as the product of its sidelengths.
 """
-CubeVol(X::HyperCube) = CubeVol(LowerUpper(X))
-CubeVol(S::LowerUpper) = prod(CubeWidths(S))
+CubeVol(Cube::HyperCube) = prod(CubeWidths(Cube))
+# CubeVol(S::LowerUpper) = prod(CubeWidths(S))
 
 """
-    TranslateCube(H::HyperCube,x::Vector)
+    TranslateCube(Cube::HyperCube,x::Vector{<:Real}) -> HyperCube
 Returns a `HyperCube` object which has been translated by `x`.
 """
-function TranslateCube(H::HyperCube,x::AbstractVector)
-    H.dim != length(x) && throw("Translation vector must be of same dimension as hypercube.")
-    [H.vals[i] .+ x[i] for i in 1:length(x)] |> HyperCube
-end
-TranslateCube(LU::LowerUpper,x::AbstractVector) = TranslateCube(HyperCube(LU),x) |> LowerUpper
+TranslateCube(Cube::HyperCube, x::AbstractVector{<:Real}) = HyperCube(Cube.L + x, Cube.U + x)
+# TranslateCube(Cube::LowerUpper, x::AbstractVector{<:Real}) = LowerUpper(Cube.L + x, Cube.U + x)
 
 """
     CoverCubes(A::HyperCube,B::HyperCube)
 Return new HyperCube which covers two other given HyperCubes.
 """
 function CoverCubes(A::HyperCube,B::HyperCube)
-    A.dim != B.dim && throw("CoverCubes: Cubes have different dims.")
-    ALU = LowerUpper(A);    BLU = LowerUpper(B)
-    lower = ALU.L; upper = ALU.U
-    for i in 1:A.dim
-        if ALU.L[i] > BLU.L[i]
-            lower[i] = BLU.L[i]
+    length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
+    lower = A.L; upper = A.U
+    for i in 1:length(A)
+        if A.L[i] > B.L[i]
+            lower[i] = B.L[i]
         end
-        if ALU.U[i] < BLU.U[i]
-            upper[i] = BLU.U[i]
+        if A.U[i] < B.U[i]
+            upper[i] = B.U[i]
         end
     end
-    HyperCube(LowerUpper(lower,upper))
+    HyperCube(lower,upper)
 end
 CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
 
-normalize(x::AbstractVector,scaling::Float64=1.0) = (scaling/norm(x)) * x
+normalize(x::AbstractVector{<:Real},scaling::Float64=1.0) = (scaling / norm(x)) * x
 function normalizeVF(u::AbstractVector{<:Real},v::AbstractVector{<:Real},scaling::Float64=1.0)
     newu = u;    newv = v
     for i in 1:length(u)
@@ -653,10 +644,10 @@ function normalizeVF(u::AbstractVector{<:Real},v::AbstractVector{<:Real},scaling
         newu[i] = (scaling/factor)*u[i]
         newv[i] = (scaling/factor)*v[i]
     end
-    newu,newv
+    newu, newv
 end
 function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,scaling::Float64=1.0)
-    PlanarCube.dim != 2 && throw("normalizeVF: Cube not planar.")
+    length(PlanarCube) != 2 && throw("normalizeVF: Cube not planar.")
     newu = u;    newv = v
     Widths = CubeWidths(PlanarCube) |> normalize
     for i in 1:length(u)
@@ -664,7 +655,7 @@ function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,s
         newu[i] = (scaling/factor)*u[i] * Widths[1]
         newv[i] = (scaling/factor)*v[i] * Widths[2]
     end
-    newu,newv
+    newu, newv
 end
 
 

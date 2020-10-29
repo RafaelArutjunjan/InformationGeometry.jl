@@ -25,7 +25,7 @@ using SafeTestsets
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
     @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
-    @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 1e-10
+    @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 5e-10
     # ALSO DO NONLINEAR MODEL!
 
     sols = MultipleConfidenceRegions(DM,1:2; tol=1e-8)
@@ -124,9 +124,9 @@ end
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
     @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1.5e-3
-    @test abs(Integrate1D(cos,[0,pi/2]) .- 1) < 1e-13
+    @test abs(Integrate1D(cos, (0,pi/2)) .- 1) < 1e-13
     z = 3rand()
-    @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2),[0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
+    @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
     @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
     @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,pi],[-sqrt(2),0]]),rand(3))) - sqrt(2)*pi) < 3e-15
 

@@ -1,7 +1,4 @@
 
-using TensorOperations, Roots
-using Combinatorics
-
 
 GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(suff(x))/10)) : 1e-6
 
@@ -89,7 +86,7 @@ function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCa
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
 
-# PROVIDE A FUNCTION WHICH SPECIFIES THE BOUNDARIES OF A MODEL AND TERMINATES GEODESICS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 # tol = 6e-11
 function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
@@ -120,11 +117,6 @@ function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,Initia
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime, Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
-# function MetricNorm(G::Matrix,v::Vector,w::Vector=v)
-#     (Tuple(Int.(length(v) .*ones(2))) != size(G)) && throw(ArgumentError("MetricNorm Dimension Mismatch."))
-#     sqrt(transpose(v)*G*w)
-# end
-# @deprecate MetricNorm(G,v,w) nothing
 
 """
     GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
@@ -141,7 +133,6 @@ function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[
     function Integrand(t)
         FullGamma = sol(t)
         sqrt(transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n])
-        # MetricNorm(Metric(FullGamma[1:n]),FullGamma[(n+1):2n])
     end
     return Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
 end

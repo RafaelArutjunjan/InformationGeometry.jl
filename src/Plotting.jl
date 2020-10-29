@@ -31,11 +31,11 @@ RecipesBase.@recipe function f(DS::DataSet)
     xdata(DS), ydata(DS)
 end
 
-RecipesBase.@recipe function f(H::HyperCube)
-    LowerUpper(H)
-end
+# RecipesBase.@recipe function f(H::HyperCube)
+#     LowerUpper(H)
+# end
 
-RecipesBase.@recipe function f(LU::LowerUpper)
+RecipesBase.@recipe function f(LU::HyperCube)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1], rectangle(LU)[:,2]
 end
@@ -61,8 +61,8 @@ end
 
 
 function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool = false, parallel::Bool=false)
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(PlanarCube)
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = PlanarCube
     A = range(Lims.L[1], Lims.U[1], length=N)
     B = range(Lims.L[2], Lims.U[2], length=N)
     if Save
@@ -84,8 +84,8 @@ end
 
 function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(PlanarCube)
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = PlanarCube
     A = range(Lims.L[1], Lims.U[1], length=N)
     B = range(Lims.L[2], Lims.U[2], length=N)
     if Save
@@ -114,9 +114,9 @@ end
 ############################# Plotting
 function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lcomp(args...) = loglikelihood(DM,[args...])
-    Lims = LowerUpper(TranslateCube(PlanarCube,MLE))
+    Lims = TranslateCube(PlanarCube,MLE)
     A = range(Lims.L[1], Lims.U[1], length=N);  B = range(Lims.L[2], Lims.U[2], length=N)
     if Save
         X,Y = meshgrid(A,B)
@@ -141,8 +141,8 @@ PlotLoglikelihood(DM::DataModel,MLE::AbstractVector,size::Float64=0.5,N::Int=100
 
 function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
     Lcomp(x,y) = loglikelihood(DM,PlaneCoordinates(PlotPlane,[x,y]))
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(PlanarCube)
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = PlanarCube
     A = range(Lims.L[1], Lims.U[1], length=N)
     B = range(Lims.L[2], Lims.U[2], length=N)
     if Save
@@ -171,15 +171,15 @@ PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, size::Float64=0.5,N::Int=100;
 
 function ConstructBox(fit::LsqFit.LsqFitResult,Confnum::Real; AxisCS::Bool=true)
     E = Confnum * stderror(fit)
-    LowerUpper(fit.param .- E, fit.param .+ E)
+    HyperCube(fit.param - E, fit.param + E)
 end
 
 # Choose a Plane?
 VisualizeMC(Test::Function, Boundaries::AbstractVector,N::Int=2000) = VisualizeMC(Test, HyperCube(Boundaries), N)
 
 function VisualizeMC(Test::Function, PlanarCube::HyperCube, N::Int=2000)
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(PlanarCube)
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = PlanarCube
     YesPoints = Vector{Vector{Float64}}(undef,0)
     NoPoints = Vector{Vector{Float64}}(undef,0)
     for i in 1:N
@@ -197,7 +197,8 @@ function VisualizeMC(Test::Function, PlanarCube::HyperCube, N::Int=2000)
 end
 
 function VisualizeMC(Test::Function, sol::ODESolution, N::Int=2000)
-    lowers, uppers = ConstructLowerUpper(sol)
+    Cube = ConstructCube(sol)
+    lowers, uppers = Cube.L, Cube.U
     YesPoints = Vector{Vector{Float64}}(undef,0)
     NoPoints = Vector{Vector{Float64}}(undef,0)
     for i in 1:N
@@ -222,11 +223,11 @@ function VisualizeMC(Test::Function, sol::ODESolution, N::Int=2000)
 end
 
 rectangle(ax,ay,bx,by) = [ax ay; bx ay; bx by; ax by; ax ay]
-function rectangle(LU::LowerUpper)
+function rectangle(LU::HyperCube)
     length(LU.L) != 2 && throw(ArgumentError("Cube not Planar."))
     rectangle((LU.L)...,(LU.U)...)
 end
-rectangle(H::HyperCube) = rectangle(LowerUpper(H))
+# rectangle(H::HyperCube) = rectangle(LowerUpper(H))
 
 
 """
@@ -251,8 +252,8 @@ end
 
 function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(TranslateCube(PlanarCube,MLE))
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = TranslateCube(PlanarCube,MLE)
     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
     Vcomp(a,b) = V([a,b])
     u,v = Vcomp.(AV,BV) |> SensibleOutput
@@ -271,8 +272,8 @@ end
 
 
 function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
-    PlanarCube.dim != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = LowerUpper(PlanarCube)
+    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+    Lims = PlanarCube
     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
     Vcomp(a,b) = V(PlaneCoordinates(PlotPlane,[a,b]))
     u,v = Vcomp.(AV,BV) |> SensibleOutput
@@ -347,7 +348,7 @@ VisualizeGeos(sols::Vector{<:ODESolution}; OverWrite::Bool=true,leg::Bool=false)
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence interval.
 """
 function PointwiseConfidenceBand(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=HyperCube([xdata(DM)[1],xdata(DM)[end]]); N::Int=300)
-    !(domain.dim == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
+    !(length(domain) == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
     if ydim(DM) == 1
         T = range(sol.t[1],sol.t[end]; length=300)
         X = range(domain.vals[1][1],domain.vals[1][2],length=N)
@@ -368,11 +369,11 @@ end
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
 function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::AbstractVector,Cube::HyperCube,Confnum::Real=1; N::Int=500)
-    Cube.dim != length(xdata(DM)[1]) && throw("PWConfBand: Wrong Cube dim.")
-    if length(ydata(DM)[1]) == 1
-        Lims = ConstructCube(sol) |> LowerUpper
+    !(length(Cube) == xdim(DM)) && throw("PWConfBand: Wrong Cube dim.")
+    if ydim(DM) == 1
+        Lims = ConstructCube(sol)
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
-        X = range(Cube.vals[1][1],Cube.vals[1][2],length=N)
+        X = range(Cube.L[1],Cube.U[1],length=N)
         for i in 1:length(X)
             Y = DM.model(X[i],MLE)
             up[i] = maximum(Y); low[i] = minimum(Y)
