@@ -33,15 +33,15 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube
 export plot, BasisVector, RotatePlane, RotatedVector, TranslatePlane, IsOnPlane, DecomposeWRTPlane, DistanceToPlane, normalizeVF
 export CubeWidths, CubeVol, Center, TranslateCube, CoverCubes, ConstructCube, PlaneCoordinates, MinimizeOnPlane, ProjectOntoPlane, ParallelPlanes
 export xdata, ydata, sigma, InvCov, N, xdim, ydim, pdim, MLE, LogLikeMLE, PlanarDataModel, MLEinPlane
-export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup
+export length, DataFrame, join, SortDataSet, SortDataModel, SubDataSet, SubDataModel, Unpack, ToCols, Unwind, Windup, WoundX
 export HealthyData, HealthyCovariance, DataDist, BlockDiagonal, IsNormalToPlane
 
 
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, AICc, BIC, ModelComparison
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
-export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, Integrate1D
-export MultipleConfidenceRegions, GenerateConfidenceRegion, Interval1D, LeastInformativeDirection
+export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, IsStructurallyIdentifiable, Integrate1D
+export MultipleConfidenceRegions, ConfidenceRegions, ConfidenceRegion, Interval1D, LeastInformativeDirection
 export IsLinearParameter, IsLinear
 export Shift, Prune, AntiPrune, FindConfBoundaryOnPlane, IntersectCube, IntersectRegion
 export MincedBoundaries, LinearCuboid

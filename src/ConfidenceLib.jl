@@ -47,9 +47,6 @@ ChisqCDF(k::Int,x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 ChisqCDF(k::Int,x::Real) = gamma_inc(k/2., x/2., 0)[1]
 InvChisqCDF(k::Int,p::Real) = 2gamma_inc_inv(k/2., p, 1-p)
 
-# ChiQuant(sig::Real=1.,k::Int=2) = (1/2)*quantile(Chisq(k),ConfVol(sig))
-# ChiQuantToSigma(ChiQuant::Real,k::Int=2) = cdf.(Chisq(k),2*ChiQuant) |> InvConfVol
-
 
 # Cannot be used with DiffEq since tags conflict. Use Zygote.jl?
 AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
@@ -86,11 +83,6 @@ Checks whether a given parameter configuration `p` is within a confidence interv
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
 WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))::Bool = WilksCriterion(DM, θ, Confvol) < 0.
-
-# function WilksTest(DM::DataModel, θ::Vector{<:Real}, MLE::Vector{<:Real},ConfVol=ConfVol(1))::Bool
-#     # return (loglikelihood(DM,MLE) - loglikelihood(DM,p) <= (1/2)*quantile(Chisq(length(MLE)),Conf))
-#     return ChisqCDF(length(MLE), 2(loglikelihood(DM,MLE) - loglikelihood(DM,θ))) - ConfVol < 0
-# end
 
 
 
@@ -165,13 +157,6 @@ function LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
 
-# VERY SLOW for some reason...
-# function FindConfBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=8e-15, maxiter::Int=10000)
-#     LogLikeMLE = loglikelihood(DM,MLE);    CF = ConfVol(convert(suff(MLE),Confnum))
-#     Test(x::Real) = WilksTestPrepared(DM, MLE .+ (x .* BasisVector(1,length(MLE))), LogLikeMLE, CF)
-#     LineSearch(Test,0,tol=tol,maxiter=maxiter) .* BasisVector(1,length(MLE)) .+ MLE
-# end
-
 
 function FindConfBoundary(DM::DataModel,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
@@ -244,7 +229,6 @@ end
     ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
 Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
 """
-# ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(M; Padding=Padding))
 function ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
     lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
     uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
@@ -254,15 +238,12 @@ end
 ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
 ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
 
-# ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50) = HyperCube(ConstructLowerUpper(sol,Npoints; Padding=Padding))
 function ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end
 
 
-
 MonteCarloArea(Test::Function,Cube::HyperCube,N::Int=Int(1e7)) = CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
-# MonteCarloRatio(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = MonteCarloRatio(Test,LowerUpper(Space),N)
 function MonteCarloRatio(Test::Function,Cube::HyperCube,N::Int=Int(1e7))
     (1/N)* @distributed (+) for i in 1:N
         Test(rand.(Uniform.(Cube.L,Cube.U)))
@@ -349,8 +330,8 @@ end
 function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u0::AbstractVector{<:Number}; tol::Real=1e-12,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
-    IntCurveODE!(du,u,p,t) = du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-    g!(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
@@ -366,10 +347,8 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
                     tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
-    function IntCurveODE!(du,u,p,t)
-        du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
-    end
-    g!(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
@@ -380,48 +359,40 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     end
 end
 
-# function GenerateBoundary(DM::AbstractDataModel,u0::Vector{<:Number}; tol::Real=1e-14,
-#                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=true)
-#     LogLikeOnBoundary = loglikelihood(DM,u0)
-#     IntCurveODE(du,u,p,t) = du .= 0.1 .* OrthVF(DM,u; Auto=Auto)
-#     g(resid,u,p,t) = resid[1] = LogLikeOnBoundary - loglikelihood(DM,u)
-#     terminatecondition(u,t,integrator) = u[2] - u0[2]
-#     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
-#     cb = CallbackSet(ManifoldProjection(g),ContinuousCallback(terminatecondition,terminate!,nothing))
-#     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE,u0,tspan)
-#     if mfd
-#         return solve(prob,meth,reltol=tol,abstol=tol,callback=cb,save_everystep=false)
-#     else
-#         return solve(prob,meth,reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing))
-#     end
-# end
-
-
-function GenerateConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12,
-                                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+"""
+Choose method depending on dimensionality of the parameter space.
+"""
+function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     if pdim(DM) == 1
         return Interval1D(DM, Confnum; tol=tol)
-    else
+    elseif pdim(DM) == 2
         return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+    else
+        println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
+        Cube = LinearCuboid(DM,Confnum)
+        Planes = IntersectCube(DM,Cube,Confnum; Dirs=[1,2,3], N=30)
+        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Auto=Auto, meth=meth, mfd=false)
     end
 end
 
 
+IsStructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)::Bool = length(StructurallyIdentifiable(DM,sol)) == 0
+
 function StructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)
-    roots = find_zeros(t->GeometricDensity(x->FisherMetric(DM,x),sol(t)),sol.t[1],sol.t[end])
-    length(roots)==0, roots
+    find_zeros(t->GeometricDensity(x->FisherMetric(DM,x),sol(t)), sol.t[1], sol.t[end])
 end
+StructurallyIdentifiable(DM::AbstractDataModel,sols::Vector{<:ODESolution}) = map(x->StructurallyIdentifiable(DM,x), sols)
 
 
 
 """
-    MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}) -> Vector{ODESolution}
+    ConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector})
 Computes the boundaries of confidence regions for two-dimensional parameter spaces given a vector or range of confidence levels.
 A convenient interface which extends this to higher dimensions is currently still under development.
 
 For example,
 ```julia
-MultipleConfidenceRegions(DM, 1:3; tol=1e-9)
+ConfidenceRegions(DM, 1:3; tol=1e-9)
 ```
 computes the ``1\\sigma``, ``2\\sigma`` and ``3\\sigma`` confidence regions associated with a given `DataModel` using a solver tolerance of ``10^{-9}``.
 
@@ -431,27 +402,32 @@ Keyword arguments:
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
-function MultipleConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false,
-                        tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
-    pdim(DM) == 1 && return map(x->GenerateConfidenceRegion(DM,x;tol=tol),Range)
-    pdim(DM) != 2 && throw("This method has not been programmed for automatically generating families of solutions for parameter spaces with more than two dimensions yet.")
-    sols = Vector{ODESolution}(undef,0)
-    for CONF in Range
-        if IsConfVol
-            @time push!(sols, GenerateConfidenceRegion(DM,InvConfVol(CONF);tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...))
-        else
-            @time push!(sols, GenerateConfidenceRegion(DM,CONF;tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...))
-        end
-        if sols[end].retcode == :Terminated
-            _ , rts = StructurallyIdentifiable(DM,sols[end])
-            if length(rts) != 0
-                println("Solution $(length(sols)) hits chart boundary at t=$rts and is therefore invalid.")
+function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false,
+                        tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false,
+                        CheckSols::Bool=true, kwargs...)
+    Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
+    if pdim(DM) == 1
+        return map(x->ConfidenceRegion(DM,x; tol=tol), Range)
+    elseif pdim(DM) == 2
+        sols = map(x->ConfidenceRegion(DM,x; tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
+        if CheckSols
+            NotTerminated = map(x->(x.retcode != :Terminated), sols)
+            sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
+            roots = StructurallyIdentifiable(DM,sols)
+            Unidentifiables = map(x->(length(x) != 0), roots)
+            for i in 1:length(roots)
+                length(roots[i]) != 0 && println("Solution $i hits chart boundary at t = $(roots[i]) and is therefore invalid.")
             end
-        else
-            println("solution $(length(sols)) did not exit properly: retcode=$(sols[end].retcode).")
         end
-    end;    sols
+        return sols
+    else
+        throw("This functionality is still under construction. Use ConfidenceRegion() instead.")
+    end
 end
+
+MultipleConfidenceRegions(args...;kwargs...) = ConfidenceRegions(args...;kwargs...)
+@deprecate MultipleConfidenceRegions(DM,Confnums) ConfidenceRegions(DM,Confnums)
+
 
 function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
     NoPoints = Vector{Vector{suff(sol.u)}}(undef,0)
@@ -465,7 +441,7 @@ function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
     return NoPoints
 end
 
-# Inside(C::HyperCube,p::AbstractVector) = Inside(LowerUpper(C),p)
+
 function Inside(Cube::HyperCube,p::AbstractVector{<:Real})::Bool
     length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
     for i in 1:length(Cube)
@@ -494,9 +470,6 @@ function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Boo
     length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
     Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,fullSol=fullSol,meth=meth)
 end
-# function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-#     Integrate1D(F,LowerUpper(Cube); tol=tol,fullSol=fullSol,meth=meth)
-# end
 Integrate1D(F::Function, Interval::AbstractVector{<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
 function Integrate1D(F::Function, Interval::Tuple{<:Real,<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
     Interval = float.(Interval)
@@ -538,7 +511,6 @@ FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM,
 # end
 
 
-meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
 # Always use Integreat for 1D -> Check Dim of Space to decide?
 """
@@ -566,8 +538,8 @@ function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-1
     end
 end
 
-function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([-15,15]);
-    tol=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
+function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]);
+    tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     function Integrand(x)
         P = logpdf(p,x);   Q = logpdf(q,x)
@@ -587,6 +559,12 @@ function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=Hyper
         throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
     end
 end
+
+# function KullbackLeibler(p::Product, q::Product, Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]); tol::Real=1e-14, kwargs...)
+#     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
+#     prod(KullbackLeibler(p.v[i], q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
+# end
+
 
 # Analytic expressions
 function KullbackLeibler(P::MvNormal,Q::MvNormal,args...;kwargs...)
@@ -847,17 +825,16 @@ function IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Real},Confn
     AntiPrune(DM,Prune(DM,Planes,Confnum),Confnum)
 end
 
-
-"""
-    MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; N::Int=31, tol::Real=1e-8, meth=Tsit5(), mfd::Bool=false, Auto::Bool=false)
-Intersects the confidence region of level `Confnum` with roughly `N` many Planes which are parallel to `PL` and computes integral curves.
-"""
-function MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; Padding::Real=1/2, N::Int=31, tol::Real=1e-8,
-                        meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, parallel::Bool=false)
-    Cube = LinearCuboid(DM,Confnum;Padding=Padding)
-    Planes = IntersectCube(DM,Cube,Confnum; N=N, Dirs=Dirs)
-    MincedBoundaries(DM, Planes, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto, parallel=parallel)
-end
+# """
+#     MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; N::Int=31, tol::Real=1e-8, meth=Tsit5(), mfd::Bool=false, Auto::Bool=false)
+# Intersects the confidence region of level `Confnum` with roughly `N` many Planes which are parallel to `PL` and computes integral curves.
+# """
+# function MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; Padding::Real=1/2, N::Int=31, tol::Real=1e-8,
+#                         meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, parallel::Bool=false)
+#     Cube = LinearCuboid(DM,Confnum;Padding=Padding)
+#     Planes = IntersectCube(DM,Cube,Confnum; N=N, Dirs=Dirs)
+#     MincedBoundaries(DM, Planes, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto, parallel=parallel)
+# end
 
 """
     MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Bool=false, meth=Tsit5(), mfd::Bool=false)

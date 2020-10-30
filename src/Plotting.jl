@@ -60,6 +60,9 @@ function ResidualPlot(DM::AbstractDataModel;kwargs...)
 end
 
 
+meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
+
+
 function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool = false, parallel::Bool=false)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube

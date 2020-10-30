@@ -29,7 +29,7 @@ using SafeTestsets
     # ALSO DO NONLINEAR MODEL!
 
     sols = MultipleConfidenceRegions(DM,1:2; tol=1e-8)
-    @test StructurallyIdentifiable(DM,sols[1])[1] == true
+    @test IsStructurallyIdentifiable(DM,sols[1]) == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
 end

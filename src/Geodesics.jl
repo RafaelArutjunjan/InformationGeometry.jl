@@ -338,12 +338,6 @@ function SaveAdaptive(sol::ODESolution,N::Int=500; curvature = 0.003, Ntol=0.08)
     end
     throw("SaveAdaptive: DNF in $maxiter iterations.")
 end
-# function SaveAdaptive(Ts::Vector,N::Int=500)
-#     N > length(Ts) && return Homogenize(Ts,N)
-#     N < length(Ts) && return Dehomogenize(Ts,N)
-#     println("SaveAdaptive: Nothing to do here, returning input as is.")
-#     Ts
-# end
 Homogenize(sol::ODESolution,N::Int=500) = Homogenize(sol.t,N)
 function Homogenize(V::AbstractVector,N::Int=500)
     Ts = unique(V)

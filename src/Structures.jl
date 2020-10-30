@@ -1,7 +1,5 @@
 
 
-# suff(x::Number) = typeof(float(x))
-# suff(X::Union{AbstractArray,Tuple}) = length(X) != 0 ? suff(X[1]) : error("Empty Array in suff.")
 
 """
     suff(x) -> Type
@@ -217,7 +215,7 @@ function sigma(DS::DataSet)
     sig = isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
     return sig
 end
-# sigma(DS::DataSet) = DS.sigma
+
 InvCov(DS::DataSet) = DS.InvCov
 N(DS::DataSet) = N(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
@@ -321,7 +319,6 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
-    # Projector::AbstractMatrix
     function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real})
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         if !(length(stütz) == length(Vx) == length(Vy))
@@ -333,13 +330,8 @@ struct Plane
             stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
             Vy = SVector{length(Vx)}(float.(Vy))
             return new(stütz,Vx,Vy)
-            # return new(stütz,Vx,Vy,ProjectionOperator([Vx Vy]))
         end
     end
-    # function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real}, Projector::AbstractMatrix{<:Real})
-    #     !(length(stütz) == length(Vx) == length(Vy) == size(Projector,1) == size(Projector,2)) && throw("Plane: Dimensional Mismatch.")
-    #     new(stütz,Vx,Vy,Projector)
-    # end
 end
 
 length(PL::Plane) = length(PL.stütz)
@@ -370,11 +362,9 @@ end
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
-# length(v) != 2 && throw(ArgumentError("PlaneCoordinates: length(v) != 2"))
 
 
 IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
-#TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, PL.Projector)
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
 function RotationMatrix(PL::Plane,rads::Real)
@@ -395,8 +385,7 @@ function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     V = x - PL.stütz
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
 end
-# DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - PL.Projector) * (x - PL.stütz) |> norm
-# ProjectOntoPlane(PL::Plane,x::AbstractVector) = PL.Projector*(x - PL.stütz) + PL.stütz
+
 DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - ProjectionOperator(PL)) * (x - PL.stütz) |> norm
 ProjectOntoPlane(PL::Plane,x::AbstractVector) = ProjectionOperator(PL) * (x - PL.stütz) + PL.stütz
 
@@ -405,7 +394,6 @@ function ProjectionOperator(A::AbstractMatrix)
     A * inv(transpose(A) * A) * transpose(A)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
-# ProjectionOperator(PL::Plane) = PL.Projector
 
 IsNormalToPlane(PL::Plane,v::AbstractVector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
 
@@ -459,9 +447,6 @@ end
 
 
 
-
-# abstract type Cuboid end
-
 """
 The `HyperCube` type is used to specify a cuboid region in the form of a cartesian product of ``N`` real intervals, thereby offering a convenient way of passing domains for integration or plotting between functions.
 A `HyperCube` object `cube` type has two fields: `cube.L` and `cube.U` which are two vectors which respectively store the lower and upper boundaries of the real intervals in order.
@@ -501,61 +486,6 @@ struct HyperCube{Q<:Real}
 end
 
 length(Cube::HyperCube) = length(Cube.L)
-lowers(Cube::HyperCube) = Cube.L
-uppers(Cube::HyperCube) = Cube.U
-
-
-# """
-# The `LowerUpper` type has a field `L` and a field `U` which respectively store the lower and upper boundaries of an N-dimensional Hypercube.
-# It is very closely related to (and stores the same information as) the `HyperCube` type.
-# Examples for constructing `LowerUpper`s:
-# ```julia
-# LowerUpper([-1,-5,pi],[0,-4,2pi])
-# LowerUpper(HyperCube([[5,6],[-pi,0.5]]))
-# LowerUpper(collect(1:5),collect(15:20))
-# ```
-# Examples for quantities that can be computed from and operations involving a `LowerUpper` object `X`:
-# ```julia
-# CubeVol(X)
-# TranslateCube(X,v::Vector)
-# CubeWidths(X)
-# ```
-# """
-# struct LowerUpper{Q<:Real} <: Cuboid
-#     L::AbstractVector{Q}
-#     U::AbstractVector{Q}
-#     function LowerUpper(lowers::AbstractVector,uppers::AbstractVector)
-#         lowers = float.(lowers); uppers = float.(uppers)
-#         length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch in LowerUpper."))
-#         for i in 1:length(lowers)
-#             lowers[i] > uppers[i] && throw(ArgumentError("LowerUpper Constructor: lowers[$i] > uppers[$i]."))
-#         end
-#         new{suff(lowers)}(lowers,uppers)
-#     end
-#     LowerUpper(Cube::HyperCube) = LowerUpper(Cube.L, Cube.U)
-#     function LowerUpper(H::AbstractVector{<:AbstractVector{<:Real}})
-#         M = Unpack(H)
-#         LowerUpper(M[:,1],M[:,2])
-#     end
-#     LowerUpper(x::Tuple{<:Real,<:Real}) = LowerUpper([x[1]],[x[2]])
-#     LowerUpper(x::AbstractVector{<:Real}) = LowerUpper(Tuple(x))
-# end
-
-
-# length(Cube::LowerUpper) = length(Cube.L)
-#
-# lowers(Cube::LowerUpper) = Cube.L
-# uppers(Cube::LowerUpper) = Cube.U
-#
-#
-# # SensibleOutput(LU::LowerUpper) = LU.L,LU.U
-# function HyperCube(LU::LowerUpper)
-#     R = Vector{typeof(LU.U)}(undef,length(LU.U))
-#     for i in 1:length(LU.U)
-#         R[i] = [LU.L[i],LU.U[i]]
-#     end
-#     HyperCube(R)
-# end
 
 
 """
@@ -569,8 +499,7 @@ function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
         for j in 1:M
             A[i,j] = Z[i][j]
         end
-    end
-    A
+    end;    A
 end
 Unpack(Z::AbstractVector{<:Number}) = Z
 
@@ -582,39 +511,33 @@ Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] f
 
 
 
-# function CubeVol(Space::AbstractVector)
-#     lowers,uppers = Unpack(Space)
-#     prod(uppers - lowers)
-# end
-
 """
     CubeWidths(H::HyperCube) -> Vector
 Returns vector of widths of the `HyperCube`.
 """
 CubeWidths(Cube::HyperCube) = Cube.U - Cube.L
-# CubeWidths(Cube::LowerUpper) = Cube.U - Cube.L
-
-Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
-# Center(Cube::LowerUpper) = 0.5 * (Cube.L + Cube.U)
-
 
 """
-    CubeVol(Cube::HyperCube)
+    CubeVol(Cube::HyperCube) -> Real
 Computes volume of a `HyperCube` as the product of its sidelengths.
 """
 CubeVol(Cube::HyperCube) = prod(CubeWidths(Cube))
-# CubeVol(S::LowerUpper) = prod(CubeWidths(S))
+
+"""
+    Center(Cube::HyperCube) |> Vector
+Returns center of mass of `Cube`.
+"""
+Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
 
 """
     TranslateCube(Cube::HyperCube,x::Vector{<:Real}) -> HyperCube
 Returns a `HyperCube` object which has been translated by `x`.
 """
 TranslateCube(Cube::HyperCube, x::AbstractVector{<:Real}) = HyperCube(Cube.L + x, Cube.U + x)
-# TranslateCube(Cube::LowerUpper, x::AbstractVector{<:Real}) = LowerUpper(Cube.L + x, Cube.U + x)
 
 """
     CoverCubes(A::HyperCube,B::HyperCube)
-Return new HyperCube which covers two other given HyperCubes.
+Return a new HyperCube which covers two other given HyperCubes.
 """
 function CoverCubes(A::HyperCube,B::HyperCube)
     length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
