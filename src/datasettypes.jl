@@ -14,7 +14,7 @@ insupport(d::TemperedDistributions,x::AbstractVector) = length(d) == length(x) &
 mean(d::TemperedDistributions) = d.μ
 cov(d::TemperedDistributions) = Diagonal(zeros(length(d)))
 invcov(d::TemperedDistributions) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = x == mean(d) ? one(x) : zero(x)
+pdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
 logpdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = log(pdf(d,x))
 
 

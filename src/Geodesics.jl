@@ -306,6 +306,37 @@ function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; f
 end
 
 
+
+"""
+Return `true` when integration of ODE should be terminated.
+"""
+function MBAMBoundaries(u,t,int)::Bool
+    A = !all(x->x < 100, u)
+    B = svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < 1e-8
+    # println does is not shown for some reason -> use @warn
+    if A
+        @warn "Terminated because a position / velocity coordinate > 100."
+        return true
+    elseif B
+        @warn "Terminated because Fisher metric became singular."
+        return true
+    else
+        return false
+    end
+end
+
+function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+    InitialVel = normalize(LeastInformativeDirection(DM,MLE(DM)))
+    if typeof(Boundaries) == Nothing
+        return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=MBAMBoundaries, tol=tol, meth=meth)
+    else
+        CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int)
+        return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=CombinedBoundaries, tol=tol, meth=meth)
+    end
+end
+
+
+
 """
     EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector) -> Vector
 Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.

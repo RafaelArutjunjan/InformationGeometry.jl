@@ -402,7 +402,7 @@ Keyword arguments:
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
-function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}; IsConfVol::Bool=false,
+function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false,
                         CheckSols::Bool=true, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
@@ -425,8 +425,6 @@ function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,Abstract
     end
 end
 
-MultipleConfidenceRegions(args...;kwargs...) = ConfidenceRegions(args...;kwargs...)
-@deprecate MultipleConfidenceRegions(DM,Confnums) ConfidenceRegions(DM,Confnums)
 
 
 function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)

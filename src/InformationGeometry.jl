@@ -41,10 +41,11 @@ include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, AICc, BIC, ModelComparison
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
 export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, IsStructurallyIdentifiable, Integrate1D, IntegrateND
-export MultipleConfidenceRegions, ConfidenceRegions, ConfidenceRegion, Interval1D, LeastInformativeDirection
+export ConfidenceRegions, ConfidenceRegion, Interval1D, LeastInformativeDirection
 export IsLinearParameter, IsLinear
 export Shift, Prune, AntiPrune, FindConfBoundaryOnPlane, IntersectCube, IntersectRegion
 export MincedBoundaries, LinearCuboid
+export AutoScore, AutoMetric
 
 
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computation
@@ -55,8 +56,7 @@ export DistanceAlongGeodesic, Endpoints, Truncated, ConstLengthGeodesics, Confid
 export ConstParamGeodesics, GeodesicBetween, GeodesicDistance
 export PlotCurves, EvaluateEach, EvaluateAlongGeodesic, PlotAlongGeodesic
 export EvaluateAlongGeodesicLength, PlotAlongGeodesicLength, EvaluateAlongCurve, PlotAlongCurve, SaveConfidence, SaveGeodesics, SaveAdaptive
-export Riemann, Ricci, RicciScalar, GeometricDensity
-export AutoScore, AutoMetric
+export Riemann, Ricci, RicciScalar, GeometricDensity, MBAM
 
 
 include("Plotting.jl")
