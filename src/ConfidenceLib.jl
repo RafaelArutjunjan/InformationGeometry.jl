@@ -490,6 +490,25 @@ function Integrate1D(F::Function, Interval::Tuple{<:Real,<:Real}; tol::Real=1e-1
     end
 end
 
+"""
+    IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
+Integrates the function `F` over `Cube` with the help of **HCubature.jl** to a tolerance of `tol`.
+If `WE=true`, the result is returned as a `Measurement` which also contains the estimated error in the result.
+"""
+function IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
+    if length(Cube) == 1
+        val, uncert = hquadrature(F, Cube.L[1], Cube.U[1]; rtol=tol, atol=tol, kwargs...)
+    else
+        val, uncert = hcubature(F, Cube.L, Cube.U; rtol=tol, atol=tol, kwargs...)
+    end
+    if length(val) == 1
+        return WE ? measurement(val[1],uncert[1]) : val[1]
+    else
+        return WE ? measurement.(val,uncert) : val
+    end
+end
+IntegrateND(F::Function, L::AbstractVector{<:Real}, U::AbstractVector{<:Real}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(L,U); tol=tol, WE=WE, kwargs...)
+IntegrateND(F::Function, Interval::Union{AbstractVector{<:Real},Tuple{<:Real,<:Real}}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(Interval); tol=tol, WE=WE, kwargs...)
 
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
@@ -584,19 +603,20 @@ end
 
 # Add Wishart, Beta, Gompertz, generalized gamma
 
-"""
-    NormalDist(DM::DataModel,p::Vector) -> Distribution
-Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
-This makes the assumption, that the errors associated with the data are normal.
-"""
-function NormalDist(DM::DataModel,p::Vector)::Distribution
-    if length(ydata(DM)[1]) == 1
-        length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),sigma(DM)[1])
-        return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(float.(sigma(DM).^2)))
-    else
-        throw("Not programmed yet.")
-    end
-end
+
+# """
+#     NormalDist(DM::DataModel,p::Vector) -> Distribution
+# Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
+# This makes the assumption, that the errors associated with the data are normal.
+# """
+# function NormalDist(DM::DataModel,p::Vector)::Distribution
+#     if length(ydata(DM)[1]) == 1
+#         length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),sigma(DM)[1])
+#         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(float.(sigma(DM).^2)))
+#     else
+#         throw("Not programmed yet.")
+#     end
+# end
 
 """
     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)

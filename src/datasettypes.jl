@@ -14,9 +14,14 @@ insupport(d::TemperedDistributions,x::AbstractVector) = length(d) == length(x) &
 mean(d::TemperedDistributions) = d.μ
 cov(d::TemperedDistributions) = Diagonal(zeros(length(d)))
 invcov(d::TemperedDistributions) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::TemperedDistributions,x::AbstractVector)::Float64 = x == mean(d) ? 1. : 0.
-logpdf(d::TemperedDistributions,x::AbstractVector) = log(pdf(d,x))
+pdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = x == mean(d) ? one(x) : zero(x)
+logpdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = log(pdf(d,x))
 
+
+# Fix gradlogpdf for Cauchy distribution and product distributions in general
+import Distributions: gradlogpdf
+gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
+gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
 
 
 struct DataSetExact <: AbstractDataSet

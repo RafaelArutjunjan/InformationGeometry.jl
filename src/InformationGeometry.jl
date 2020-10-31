@@ -2,7 +2,7 @@ module InformationGeometry
 
 using Distributed, LinearAlgebra, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
-using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements
+using ForwardDiff, BenchmarkTools, Optim, LsqFit, Random, Measurements, HCubature
 using Distributions, SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots
 
@@ -40,7 +40,7 @@ export HealthyData, HealthyCovariance, DataDist, BlockDiagonal, IsNormalToPlane
 include("ConfidenceLib.jl")
 export likelihood, loglikelihood, ConfVol, ConfAlpha, InvConfVol, ChisqCDF, InvChisqCDF, Score, FisherMetric, Rsquared, AIC, AICc, BIC, ModelComparison
 export WilksTest, FindConfBoundary, OrthVF, FindMLE, FindMLEBig, GenerateBoundary, Inside, KullbackLeibler, NormalDist, LineSearch
-export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, IsStructurallyIdentifiable, Integrate1D
+export EmbeddingMap, EmbeddingMatrix, Pullback, StructurallyIdentifiable, IsStructurallyIdentifiable, Integrate1D, IntegrateND
 export MultipleConfidenceRegions, ConfidenceRegions, ConfidenceRegion, Interval1D, LeastInformativeDirection
 export IsLinearParameter, IsLinear
 export Shift, Prune, AntiPrune, FindConfBoundaryOnPlane, IntersectCube, IntersectRegion

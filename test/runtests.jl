@@ -4,7 +4,7 @@ using SafeTestsets
 
 
 @safetestset "Probability Objects" begin
-    using InformationGeometry, Test, LinearAlgebra, Distributions
+    using InformationGeometry, Test, LinearAlgebra, Distributions, Plots
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
     model(x,p) = p[1] * x + p[2]
@@ -36,7 +36,7 @@ end
 
 
 @safetestset "Inputting Dataset of various shapes" begin
-    using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays
+    using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
 
     ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
     ptrue = [1.,pi,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
@@ -46,8 +46,12 @@ end
     Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
     Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
     Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
-    @test norm(MLE(DataModel(DS,model)) - ptrue) < 5e-2
+    DM = DataModel(DS,model)
+    @test norm(MLE(DM) - ptrue) < 5e-2
     @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
+
+    Planes, sols = ConfidenceRegion(DM,1)
+    @test typeof(VisualizeSols(Planes,sols)) <: Plots.Plot
 end
 
 
@@ -121,10 +125,12 @@ end
 @safetestset "Numerical Helper Functions" begin
     using InformationGeometry, Test
 
+    # Compare Integrate1D and IntegrateND
+
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
     @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1.5e-3
-    @test abs(Integrate1D(cos, (0,pi/2)) .- 1) < 1e-13
+    @test abs(Integrate1D(cos, (0,pi/2); tol=1e-12) - IntegrateND(cos, (0,pi/2); tol=1e-12)) < 1e-10
     z = 3rand()
     @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
     @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
