@@ -440,10 +440,10 @@ function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
 end
 
 
-function Inside(Cube::HyperCube,p::AbstractVector{<:Real})::Bool
+function Inside(Cube::HyperCube,p::Union{Real,AbstractVector{<:Real}})::Bool
     length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
     for i in 1:length(Cube)
-        !(Cube.L[i] <= p[i] <= Cube.U[i]) && return false
+        !(Cube.L[i] ≤ p[i] ≤ Cube.U[i]) && return false
     end;    true
 end
 
@@ -529,7 +529,6 @@ FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM,
 
 
 
-# Always use Integreat for 1D -> Check Dim of Space to decide?
 """
     KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-15,15]); tol=2e-15, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
 Computes the Kullback-Leibler divergence between two probability distributions `p` and `q` over the `Domain`.
@@ -539,43 +538,77 @@ If the `Domain` is one-dimensional, the calculation is performed without Monte C
 D_{\\text{KL}}[p,q] \\coloneqq \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
 ```
 """
-function KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-15,15]); tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
+function KullbackLeibler(p::Function, q::Function, Domain::HyperCube; tol::Real=1e-9, N::Int=Int(3e7), Carlo::Bool=false)
     function Integrand(x)
-        P = p(x)[1];   Q = q(x)[1];   Rat = P/Q
-        (Rat <= 0. || !isfinite(Rat)) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
-        P*log(Rat)
+        P = p(x)[1];   Q = q(x)[1];   Rat = P / Q
+        (Rat ≤ 0. || !isfinite(Rat)) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
+        P * log(Rat)
     end
-    if Carlo
-        length(Domain) == 1 && return MonteCarloArea(Integrand,Domain,N)[1]
-        return MonteCarloArea(Integrand,Domain,N)
-    elseif length(Domain) == 1
-        return Integrate1D(Integrand,Domain; tol=tol)
+    if !Carlo
+        return IntegrateND(Integrand, Domain; tol=tol)
     else
-        throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
+        return length(Domain) == 1 ? MonteCarloArea(x->Integrand(x[1]),Domain,N)[1] : MonteCarloArea(Integrand,Domain,N)
     end
+    # if Carlo
+    #     length(Domain) == 1 && return MonteCarloArea(Integrand,Domain,N)[1]
+    #     return MonteCarloArea(Integrand,Domain,N)
+    # elseif length(Domain) == 1
+    #     return Integrate1D(Integrand,Domain; tol=tol)
+    # else
+    #     throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
+    # end
 end
 
-function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]);
-    tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
+
+function KullbackLeibler(p::Product{Continuous}, q::DiagNormal, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
+    sum(KullbackLeibler(p.v[i], Normal(q.μ[i],sqrt(q.Σ.diag[i])), HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
+end
+function KullbackLeibler(p::DiagNormal, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
+    sum(KullbackLeibler(Normal(p.μ[i],sqrt(p.Σ.diag[i])), q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
+end
+function KullbackLeibler(p::Product{Continuous}, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
+    sum(KullbackLeibler(p.v[i], q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
+end
+
+function KullbackLeibler(p::Distribution, q::Distribution, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-9, N::Int=Int(3e7), Carlo::Bool=false)
     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     function Integrand(x)
         P = logpdf(p,x);   Q = logpdf(q,x)
-        exp(P)*(P - Q)
+        exp(P) * (P - Q)
     end
-    function Integrand1D(x)
-        # Apparently, logpdf() without broadcast is deprecated for univariate distributions.
-        P = logpdf.(p,x);   Q = logpdf.(q,x)
-        exp.(P)*(P - Q)[1]
-    end
-    if Carlo
-        length(p) == 1 && return MonteCarloArea(Integrand1D,Domain,N)[1]
-        return MonteCarloArea(Integrand,Domain,N)
-    elseif length(Domain) == 1
-        return Integrate1D(Integrand1D,Domain; tol=tol)
+    if !Carlo
+        return IntegrateND(Integrand, Domain; tol=tol)
     else
-        throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
+        return length(p) == 1 ? MonteCarloArea(x->Integrand(x[1]),Domain,N)[1] : MonteCarloArea(Integrand,Domain,N)
     end
 end
+
+
+
+# function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]);
+#     tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
+#     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
+#     function Integrand(x)
+#         P = logpdf(p,x);   Q = logpdf(q,x)
+#         exp(P)*(P - Q)
+#     end
+#     function Integrand1D(x)
+#         # Apparently, logpdf() without broadcast is deprecated for univariate distributions.
+#         P = logpdf.(p,x);   Q = logpdf.(q,x)
+#         exp.(P)*(P - Q)[1]
+#     end
+#     if Carlo
+#         length(p) == 1 && return MonteCarloArea(Integrand1D,Domain,N)[1]
+#         return MonteCarloArea(Integrand,Domain,N)
+#     elseif length(Domain) == 1
+#         return Integrate1D(Integrand1D,Domain; tol=tol)
+#     else
+#         throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
+#     end
+# end
 
 # function KullbackLeibler(p::Product, q::Product, Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]); tol::Real=1e-14, kwargs...)
 #     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
@@ -584,19 +617,20 @@ end
 
 
 # Analytic expressions
-function KullbackLeibler(P::MvNormal,Q::MvNormal,args...;kwargs...)
-    length(P.μ) != length(Q.μ) && throw("Normals not of same dim.")
-    (1/2) * (log(det(Q.Σ.mat)/det(P.Σ.mat)) - length(P.μ) + tr(inv(Q.Σ.mat) * P.Σ.mat) + transpose(Q.μ-P.μ) * inv(Q.Σ.mat) * (Q.μ-P.μ))
+function KullbackLeibler(P::MvNormal,Q::MvNormal, Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
+    # length(P) != length(Q) && throw("Normals not of same dim.")
+    (1/2) * (logdet(Q.Σ.mat) - logdet(P.Σ.mat) - length(P.μ) + tr(inv(Q.Σ.mat) * P.Σ.mat) + transpose(Q.μ-P.μ) * inv(Q.Σ.mat) * (Q.μ-P.μ))
 end
-KullbackLeibler(P::Normal,Q::Normal,args...;kwargs...) = log(Q.σ/P.σ) + (1/2) * ((P.σ/Q.σ)^2 + (P.μ-Q.μ)^2 * Q.σ^(-2) -1.)
-KullbackLeibler(P::Cauchy,Q::Cauchy,args...;kwargs...) = log(((P.σ+Q.σ)^2 + (P.μ-Q.μ)^2) / (4P.σ*Q.σ))
-# Note the sign difference between the conventions (1/θ)exp(-x/θ) and λexp(-λx). Distributions.jl uses the first.
-KullbackLeibler(P::Exponential,Q::Exponential,args...;kwargs...) = log(Q.θ/P.θ) + P.θ/Q.θ -1
-function KullbackLeibler(P::Weibull,Q::Weibull,args...;kwargs...)
-    log(P.α/(P.θ^P.α)) - log(Q.α/(Q.θ^Q.α)) + (P.α - Q.α)*(log(P.θ) - Base.MathConstants.γ/P.α) + (P.θ/Q.θ)^Q.α * SpecialFunctions.gamma(1 + Q.α/P.α) -1
+KullbackLeibler(P::Normal,Q::Normal,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(Q.σ / P.σ) + (1/2) * ((P.σ / Q.σ)^2 + (P.μ - Q.μ)^2 * Q.σ^(-2) -1.)
+KullbackLeibler(P::Cauchy,Q::Cauchy,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(((P.σ + Q.σ)^2 + (P.μ - Q.μ)^2) / (4P.σ * Q.σ))
+
+# Note the sign difference between the conventions (1/θ)*exp(-x/θ) and λ*exp(-λx). Distributions.jl uses the former.
+KullbackLeibler(P::Exponential,Q::Exponential,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(Q.θ / P.θ) + P.θ / Q.θ - 1.
+function KullbackLeibler(P::Weibull,Q::Weibull,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
+    log(P.α / (P.θ^P.α)) - log(Q.α / (Q.θ^Q.α)) + (P.α - Q.α)*(log(P.θ) - Base.MathConstants.γ / P.α) + (P.θ / Q.θ)^Q.α * SpecialFunctions.gamma(1 + Q.α / P.α) - 1.
 end
-function KullbackLeibler(P::Distributions.Gamma,Q::Distributions.Gamma,args...;kwargs...)
-    (P.α - Q.α) * digamma(P.α) - loggamma(P.α) + loggamma(Q.α) + Q.α*log(Q.θ/P.θ) + P.α*(P.θ/Q.θ - 1)
+function KullbackLeibler(P::Distributions.Gamma,Q::Distributions.Gamma,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
+    (P.α - Q.α) * digamma(P.α) - loggamma(P.α) + loggamma(Q.α) + Q.α*log(Q.θ / P.θ) + P.α*(P.θ / Q.θ - 1.)
 end
 
 # Add Wishart, Beta, Gompertz, generalized gamma
@@ -616,13 +650,13 @@ end
 #     end
 # end
 
-"""
-    KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
-Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
-"""
-KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))
-
-KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zeros(length(ydata(DM))),inv(InvCov(DM))),NormalDist(DM,p))
+# """
+#     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
+# Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
+# """
+# KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))
+#
+# KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zeros(length(ydata(DM))),inv(InvCov(DM))),NormalDist(DM,p))
 
 
 # h(θ) ∈ Dataspace
