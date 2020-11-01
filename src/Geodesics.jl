@@ -1,92 +1,5 @@
 
 
-GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(suff(x))/10)) : 1e-6
-
-
-function signature(I::Vector,dims::Int)
-    rank = length(I)
-    (rank < 2 || dims < 2) && throw(BoundsError("Signature error: dims = $dims, rank = $rank"))
-    maximum(I) > dims && throw(BoundsError("Signature error: dims = $dims, Index value was $(maximum(I))"))
-    minimum(I) < 1 && throw(BoundsError("Sign error: Index value $(minimum(I))"))
-    rank > dims && return 0
-    !allunique(I) && return 0
-    swapped = false;    nswaps = 0;    Rightmost = rank-1
-    while Rightmost > 0
-        for i in 1:Rightmost
-            if I[i] > I[i+1]
-                store = I[i+1]; I[i+1] = I[i];  I[i] = store
-                nswaps += 1;    swapped = true
-            end
-        end
-        if !swapped  break  end
-        Rightmost -= 1;     swapped = false
-    end
-    if iseven(nswaps)   return 1    else    return -1   end
-end
-
-function GenerateEpsilonTensor(dims::Int,rank::Int=3)
-    (dims < 2) && throw(ArgumentError("dims = $dims"))
-    (rank < 2) && throw(ArgumentError("rank = $rank"))
-    if dims < rank
-        throw(ArgumentError("GenerateEpsilonTensor Error: dims: $dims, rank: $rank."))
-        println("GenerateEpsilonTensor Error: dims: $dims, rank: $rank. Returned zero tensor")
-    end
-    G = zeros(Int,(dims.*ones(Int,rank))...)
-    for indices in permutations(1:dims,rank)
-        G[Tuple(indices)...] += signature(indices, dims) |> Int
-    end
-    G
-end
-
-function Cross(A::AbstractVector{<:Real},B::AbstractVector{<:Real})
-    length(A) != length(B) && throw(ArgumentError("Cross: Dimension Mismatch: $A, $B."))
-    if length(A) > 3
-        return @tensor C[a] := GenerateEpsilonTensor(length(A),3)[a,b,c]*A[b]*B[c]
-    elseif length(A) == 3
-        return cross(A,B)
-    elseif length(A) == 2
-        println("Using Cross for $A of length 2 right now. Try not to.")
-        return cross([A...,0],[B...,0])[1:2]
-    else
-        throw(ArgumentError("Error: length(A) = $(length(A))"))
-    end
-end
-
-function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::AbstractVector{<:Real})
-    (Tuple(Int.(length(v) .*ones(3))) != size(ConnectionCoeff)) && throw(ArgumentError("Connectioncoefficients don't match vector: dim(v) = $(length(v)), size(Connection) = $(size(ConnectionCoeff))"))
-    @tensor Res[a] := (-1*ConnectionCoeff)[a,b,c]*v[b]*v[c]
-end
-
-
-# Accuracy ≈ 3e-11
-# ROUND TO 1e-10???
-# BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
-"""
-    ChristoffelSymbol(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
-    ChristoffelSymbol(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
-Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
-`BigCalc=true` increases accuracy through `BigFloat` calculation.
-"""
-ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
-function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    Finv = inv(Metric(θ))
-    function FPDVs(Metric, θ; BigCalc::Bool=false)
-        if BigCalc      θ = BigFloat.(θ)        end
-        PDV = zeros(suff(θ),length(θ),length(θ),length(θ))
-        h = GetH(θ)
-        for i in 1:length(θ)
-            PDV[:,:,i] .= (1/(2*h)).*(Metric(θ .+ h.*BasisVector(i,length(θ))) .- Metric(θ .- h.*BasisVector(i,length(θ))))
-        end
-        PDV
-    end
-    FPDV = FPDVs(Metric,θ,BigCalc=BigCalc)
-    if (suff(θ) != BigFloat) && BigCalc
-        FPDV = convert(Array{Float64,3},FPDV)
-    end
-    @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
-end
-
-
 # tol = 6e-11
 function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
@@ -106,6 +19,8 @@ function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel:
         return solve(prob,meth; reltol=tol,abstol=tol,callback=DiscreteCallback(Boundaries,terminate!))
     end
 end
+
+
 """
     ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
@@ -153,7 +68,6 @@ function GeodesicCrossing(DM::AbstractDataModel,sol::ODESolution,Conf::Real=Conf
 end
 
 
-
 """
     DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Real; tol=1e-14)
 Calculates at which parameter value of the geodesic `sol` the length `L` is reached.
@@ -178,20 +92,30 @@ function Endpoints(Geodesics::Vector{<:ODESolution})
     end;    Endpoints
 end
 
-# function GaussNewton(Metric::Function,Cost::Function,point::Vector)
-#     Ginv = inv(Metric(point))
-#     Cov = ForwardDiff.gradient(Cost,point)
-#     @tensor v[a] := Ginv[a,b] * Cov[b]
-# end
+"""
+    EvaluateEach(geos::Vector{<:ODESolution}, Ts::Vector) -> Vector
+Evalues a family `geos` of geodesics on a set of parameters `Ts`. `geos[1]` is evaluated at `Ts[1]`, `geos[2]` is evaluated at `Ts[2]` and so on.
+The second half of the values respresenting the velocities is automatically truncated.
+"""
+function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Real})
+    length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
+    n = Int(length(sols[1].u[1])/2)
+    Res = Vector{Vector{Float64}}(undef,0)
+    for i in 1:length(Ts)
+        F = sols[i]
+        push!(Res,F(Ts[i])[1:n])
+    end
+    Res
+end
 
 
-"""
-    Truncated(sol::ODESolution) -> Function
-Given a geodesic `sol`, the second half of the components which represent the velocity are truncated off.
-The result gives the position of the geodesic as a function of the parameter.
-However, since it is no longer of type `ODESolution`, one no longer has access to the fields `sol.t`, `sol.u` and so on.
-"""
-Truncated(sol::ODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
+# """
+#     Truncated(sol::ODESolution) -> Function
+# Given a geodesic `sol`, the second half of the components which represent the velocity are truncated off.
+# The result gives the position of the geodesic as a function of the parameter.
+# However, since it is no longer of type `ODESolution`, one no longer has access to the fields `sol.t`, `sol.u` and so on.
+# """
+# Truncated(sol::ODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
 
 
 ################################################################ MERGE THESE FUNCTION VARIATIONS
@@ -279,7 +203,7 @@ function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::Abstrac
         resid[(dim+1):2dim] = u[end][1:dim] .- Q
     end
     # Add a bit of randomness to initial direction:
-    tspan = (0.,10.);    initial = [P..., ((Q .- P)./tspan[2])...] .+ 1e-6 .*(rand(2dim) .-0.5)
+    tspan = (0.,10.);    initial = [P..., ((Q - P)./tspan[2])...] .+ 1e-6 .*(rand(2dim) .-0.5)
     BVP = BVProblem(GeodesicODE!, bc!, initial, tspan)
     solve(BVP, Shooting(meth), reltol=tol,abstol=tol)
 end
@@ -291,18 +215,18 @@ Computes the length of a geodesic connecting the points `P` and `Q`.
 """
 GeodesicDistance(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
 function GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10)
-    GeodesicLength(Metric,GeodesicBetween(Metric,P,Q,tol=tol))
+    GeodesicLength(Metric,GeodesicBetween(Metric,P,Q; tol=tol))
 end
 
 ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
-GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
-function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol=1e-14)
+GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange::Real=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
+function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol::Real=1e-14)
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
         FullGamma = sol(t)
         transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n]
     end
-    Integrate1D(Integrand,[sol.t[1],Endrange],fullSol=fullSol,tol=tol)
+    Integrate1D(Integrand,[sol.t[1],Endrange]; fullSol=fullSol,tol=tol)
 end
 
 
@@ -313,7 +237,7 @@ Return `true` when integration of ODE should be terminated.
 function MBAMBoundaries(u,t,int)::Bool
     A = !all(x->x < 100, u)
     B = svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < 1e-8
-    # println does is not shown for some reason -> use @warn
+    # println does not show for some reason -> use @warn
     if A
         @warn "Terminated because a position / velocity coordinate > 100."
         return true
@@ -333,323 +257,4 @@ function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing
         CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int)
         return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=CombinedBoundaries, tol=tol, meth=meth)
     end
-end
-
-
-
-"""
-    EvaluateEach(sols::Vector{<:ODESolution}, Ts::Vector) -> Vector
-Evalues a family `sols` of geodesics on a set of parameters `Ts`. `sols[1]` is evaluated at `Ts[1]`, `sols[2]` is evaluated at `Ts[2]` and so on.
-The second half of the values respresenting the velocities is automatically truncated.
-"""
-function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Real})
-    length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
-    n = Int(length(sols[1].u[1])/2)
-    Res = Vector{Vector{Float64}}(undef,0)
-    for i in 1:length(Ts)
-        F = sols[i]
-        push!(Res,F(Ts[i])[1:n])
-    end
-    Res
-end
-
-
-
-function SaveAdaptive(sol::ODESolution,N::Int=500; curvature = 0.003, Ntol=0.08)
-    Tspan = (sol.t[1],sol.t[end]);      maxiter=30
-    for _ in 1:maxiter
-        T = vcat([refine_grid(x->sol(x)[i],Tspan,max_curvature=curvature)[1] for i in 1:length(sol.u[1])]...) |> unique |> sort
-        if length(T) > N
-            curvature *= 1.2
-        elseif length(T) < (1-Ntol) * N
-            curvature *= 0.85
-        else
-            return Homogenize(T,N)
-        end
-    end
-    throw("SaveAdaptive: DNF in $maxiter iterations.")
-end
-Homogenize(sol::ODESolution,N::Int=500) = Homogenize(sol.t,N)
-function Homogenize(V::AbstractVector,N::Int=500)
-    Ts = unique(V)
-    for i in 1:(N-length(Ts))
-        s = findmax(diff(Ts))[2]
-        insert!(Ts,s+1,Ts[s] + (Ts[s+1]-Ts[s])/2)
-    end;    Ts
-end
-Dehomogenize(sol::ODESolution,N::Int=500) = Dehomogenize(sol.t,N)
-function Dehomogenize(V::AbstractVector,N::Int=500)
-    Ts = unique(V)
-    for i in 1:(length(Ts)-N)
-        s = findmin(diff(Ts))[2]
-        deleteat!(Ts,s+1)
-    end;    Ts
-end
-
-"""
-    SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
-"""
-function SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-    d = length(sols[1].u[1])
-    Res = Array{Float64}(undef,N,d*length(sols))
-    for i in 1:length(sols)
-        T = range((sols[i]).t[1],(sols[i]).t[end],length=N)
-        if adaptive
-            T = SaveAdaptive(sols[i],N)
-        end
-        Res[:,((i-1)*d+1):(d*i)] .= sols[i].(T) |> Unpack
-    end
-    round.(Res,sigdigits=sigdigits) |> DataFrame
-end
-
-
-"""
-    SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
-Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
-"""
-function SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-    d = length(sols[1].u[1])/2 |> Int
-    Res = Array{Float64}(undef,N,d*length(sols))
-    for i in 1:length(sols)
-        T = range((sols[i]).t[1],(sols[i]).t[end],length=N)
-        if adaptive
-            T = SaveAdaptive(sols[i],N)
-        end
-        Res[:,((i-1)*d+1):(d*i)] .= Unpack(sols[i].(T))[:,1:d]
-    end
-    round.(Res; sigdigits=sigdigits) |> DataFrame
-end
-
-"""
-    SaveDataSet(DS::DataSet; sigdigits::Int=0)
-Returns a `DataFrame` whose columns respectively constitute the x-values, y-values and standard distributions associated with the data points.
-For `sigdigits > 0` the values are rounded to the specified number of significant digits.
-"""
-function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
-    !(xdim(DS) == ydim(DS) == length(sigma(DS))) && throw("Not programmed yet.")
-    sig = sigma(DS)
-    typeof(sig) <: AbstractVector && throw("Sigma not a vector, but instead $(typeof(sig)).")
-    if sigdigits < 1
-        return DataFrame([xdata(DS) ydata(DS) sigma(DS)])
-    else
-        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits))
-    end
-end
-SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data; sigdigits=sigdigits)
-
-############### Curvature ################
-
-"""
-    Riemann(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
-    Riemann(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
-Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
-"""
-Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
-function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
-        if BigCalc      θ = BigFloat.(θ)        end
-        DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
-        h = GetH(θ)
-        for i in 1:length(θ)
-            DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
-        end
-        (1/(2*h))*DownUpDownDown
-    end
-    DownUpDownDown = ChristoffelPartials(Metric, θ; BigCalc=BigCalc)
-    if (suff(θ) != BigFloat) && BigCalc
-        DownUpDownDown = convert(Array{Float64,4},DownUpDownDown)
-    end
-    Gamma = ChristoffelSymbol(Metric, θ; BigCalc=BigCalc)
-    # @tensor Riem[m,i,k,p] := DownUpDownDown[k,m,i,p] - DownUpDownDown[p,m,i,k] + Gamma[a,i,p]*Gamma[m,a,k] - Gamma[a,i,k]*Gamma[m,a,p]
-    @tensor Riem[i,j,k,l] := DownUpDownDown[k,i,j,l] - DownUpDownDown[l,i,j,k] + Gamma[i,a,k]*Gamma[a,j,l] - Gamma[i,a,l]*Gamma[a,j,k]
-end
-
-"""
-    Ricci(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
-    Ricci(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
-Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
-"""
-Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
-function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    Riem = Riemann(Metric, θ; BigCalc=BigCalc)
-    # For some reason, it is necessary to prefill here.
-    RIC = zeros(suff(θ),length(θ),length(θ))
-    @tensor RIC[a,b] = Riem[c,a,c,b]
-end
-
-"""
-    RicciScalar(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false) -> Real
-    RicciScalar(Metric::Function, θ::AbstractVector; BigCalc::Bool=false) -<> Real
-Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
-"""
-RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ; BigCalc=BigCalc)
-function RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    RIC = Ricci(Metric, θ; BigCalc=BigCalc)
-    tr(transpose(RIC)*inv(Metric(θ)))
-end
-
-
-"""
-(0,4) Weyl curvature tensor.
-"""
-function Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
-    Riem = Riemann(DM,θ; BigCalc=BigCalc)
-    g = BigCalc ? FisherMetric(DM,BigFloat.(θ)) : FisherMetric(DM,θ)
-    @tensor Ric[a,b] := Riem[m,a,m,b]
-    @tensor PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
-    @tensor PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
-    g * Riem .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
-end
-
-
-"""
-    GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
-Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
-"""
-GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
-GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metric(θ)))
-
-
-# Adaptation from PlotUtils.jl
-function refine_grid(f, minmax::Tuple{Real, Real}; max_recursions = 10, max_curvature = 0.003)
-    if minmax[1] > minmax[2]
-        throw(ArgumentError("interval must be given as (min, max)"))
-    elseif minmax[1] == minmax[2]
-        x = minmax[1]
-        return [x], [f(x)]
-    end
-
-    # Initial number of points
-    n_points = 21
-    n_intervals = n_points ÷ 2
-    @assert isodd(n_points)
-
-    xs = collect(range(minmax[1]; stop=minmax[2], length=n_points))
-    # Move the first and last interior points a bit closer to the end points
-    xs[2] = xs[1] + (xs[2] - xs[1]) * 0.25
-    xs[end-1] = xs[end] - (xs[end] - xs[end-1]) * 0.25
-
-    # Wiggle interior points a bit to prevent aliasing and other degenerate cases
-    rng = MersenneTwister(1337)
-    rand_factor = 0.05
-    for i in 2:length(xs)-1
-        xs[i] += rand_factor * 2 * (rand(rng) - 0.5) * (xs[i+1] - xs[i-1])
-    end
-
-    n_tot_refinements = zeros(Int, n_intervals)
-
-    # Replace DomainErrors with NaNs
-    g = function(x)
-        local y
-        try
-            y = f(x)
-        catch err
-            if err isa DomainError
-                y = NaN
-            else
-                rethrow(err)
-            end
-        end
-        return y
-    end
-    # We evaluate the function on the whole interval
-    fs = g.(xs)
-    while true
-        curvatures = zeros(n_intervals)
-        active = falses(n_intervals)
-        isfinite_f = isfinite.(fs)
-        min_f, max_f = any(isfinite_f) ? extrema(fs[isfinite_f]) : (0.0, 0.0)
-        f_range = max_f - min_f
-        # Guard against division by zero later
-        if f_range == 0 || !isfinite(f_range)
-            f_range = one(f_range)
-        end
-        # Skip first and last interval
-        for interval in 1:n_intervals
-            p = 2 * interval
-            if n_tot_refinements[interval] >= max_recursions
-                # Skip intervals that have been refined too much
-                active[interval] = false
-            elseif !all(isfinite.(fs[[p-1,p,p+1]]))
-                active[interval] = true
-            else
-                tot_w = 0.0
-                # Do a small convolution
-                for (q,w) in ((-1, 0.25), (0, 0.5), (1, 0.25))
-                    interval == 1 && q == -1 && continue
-                    interval == n_intervals && q == 1 && continue
-                    tot_w += w
-                    i = p + q
-                    # Estimate integral of second derivative over interval, use that as a refinement indicator
-                    # https://mathformeremortals.wordpress.com/2013/01/12/a-numerical-second-derivative-from-three-points/
-                    curvatures[interval] += abs(2 * ((fs[i+1] - fs[i]) / ((xs[i+1]-xs[i]) * (xs[i+1]-xs[i-1]))
-                                                    -(fs[i] - fs[i-1]) / ((xs[i]-xs[i-1]) * (xs[i+1]-xs[i-1])))
-                                                    * (xs[i+1] - xs[i-1])^2) / f_range * w
-                end
-                curvatures[interval] /= tot_w
-                # Only consider intervals with a high enough curvature
-                active[interval] = curvatures[interval] > max_curvature
-            end
-        end
-        # Approximate end intervals as being the same curvature as those next to it.
-        # This avoids computing the function in the end points
-        curvatures[1] = curvatures[2]
-        active[1] = active[2]
-        curvatures[end] = curvatures[end-1]
-        active[end] = active[end-1]
-        if all(x -> x >= max_recursions, n_tot_refinements[active])
-            break
-        end
-        n_target_refinements = n_intervals ÷ 2
-        interval_candidates = collect(1:n_intervals)[active]
-        n_refinements = min(n_target_refinements, length(interval_candidates))
-        perm = sortperm(curvatures[active])
-        intervals_to_refine = sort(interval_candidates[perm[length(perm) - n_refinements + 1:end]])
-        n_intervals_to_refine = length(intervals_to_refine)
-        n_new_points = 2*length(intervals_to_refine)
-
-        # Do division of the intervals
-        new_xs = zeros(eltype(xs), n_points + n_new_points)
-        new_fs = zeros(eltype(fs), n_points + n_new_points)
-        new_tot_refinements = zeros(Int, n_intervals + n_intervals_to_refine)
-        k = 0
-        kk = 0
-        for i in 1:n_points
-            if iseven(i) # This is a point in an interval
-                interval = i ÷ 2
-                if interval in intervals_to_refine
-                    kk += 1
-                    new_tot_refinements[interval - 1 + kk] = n_tot_refinements[interval] + 1
-                    new_tot_refinements[interval + kk] = n_tot_refinements[interval] + 1
-
-                    k += 1
-                    new_xs[i - 1 + k] = (xs[i] + xs[i-1]) / 2
-                    new_fs[i - 1 + k] = g(new_xs[i-1 + k])
-
-                    new_xs[i + k] = xs[i]
-                    new_fs[i + k] = fs[i]
-
-                    new_xs[i + 1 + k] = (xs[i+1] + xs[i]) / 2
-                    new_fs[i + 1 + k] = g(new_xs[i + 1 + k])
-                    k += 1
-                else
-                    new_tot_refinements[interval + kk] = n_tot_refinements[interval]
-                    new_xs[i + k] = xs[i]
-                    new_fs[i + k] = fs[i]
-                end
-            else
-                new_xs[i + k] = xs[i]
-                new_fs[i + k] = fs[i]
-            end
-        end
-        xs = new_xs
-        fs = new_fs
-        n_tot_refinements = new_tot_refinements
-        n_points = n_points + n_new_points
-        n_intervals = n_points ÷ 2
-    end
-    return xs, fs
 end

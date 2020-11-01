@@ -35,7 +35,7 @@ using SafeTestsets
 end
 
 
-@safetestset "Inputting Dataset of various shapes" begin
+@safetestset "Inputting Datasets of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
 
     ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
@@ -48,10 +48,15 @@ end
     Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
     DM = DataModel(DS,model)
     @test norm(MLE(DM) - ptrue) < 5e-2
-    @test typeof(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3]))) <: AbstractDataSet
+    DME = DataModel(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3])),model)
+    P = MLE(DM) + rand(length(MLE(DM)))
+    @test loglikelihood(DM,P) ≈ loglikelihood(DME,P)
+    @test Score(DM,P) ≈ Score(DME,P)
 
     Planes, sols = ConfidenceRegion(DM,1)
     @test typeof(VisualizeSols(Planes,sols)) <: Plots.Plot
+
+    # Also test model with pdim = 1
 end
 
 
@@ -85,7 +90,7 @@ end
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); Carlo=true, N=Int(3e6)) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 2e-2
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); tol=1e-8) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 1e-5
     P = MvNormal([1,2,3.],diagm([1,2,1.5]));    Q = MvNormal([1,-2,-3.],diagm([2,1.5,1.]));     Cube = HyperCube([[-15,15] for i in 1:3])
-    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 5e-1
+    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 7e-1
 end
 
 
@@ -119,12 +124,11 @@ end
     @test abs(GeodesicDistance(S2metric,[pi/4,1],[3pi/4,1]) - pi/2) < 1e-11
     @test abs(GeodesicDistance(S2metric,[pi/2,0],[pi/2,pi/2]) - pi/2) < 3e-10
 
-    # DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    # model(x,p) = p[1].^3 .*x .+ p[2].^3
-    # DM = DataModel(DS,model);   MLE = FindMLE(DM)
-    # geo = GeodesicBetween(DM,MLE,MLE + rand(2),tol=1e-11)
-    # @test sum(abs.(MLE .- [1.829289173660125,0.942865200406147])) < 1e-7
-    # @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
+    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
+    model(x,p) = p[1]^3 *x + p[2]^3;        DM = DataModel(DS,model)
+    geo = GeodesicBetween(DM,MLE(DM),MLE(DM) + rand(2); tol=1e-11)
+    @test sum(abs.(MLE(DM) .- [1.829289173660125,0.942865200406147])) < 1e-7
+    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
 end
 
 

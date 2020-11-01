@@ -31,10 +31,6 @@ RecipesBase.@recipe function f(DS::DataSet)
     xdata(DS), ydata(DS)
 end
 
-# RecipesBase.@recipe function f(H::HyperCube)
-#     LowerUpper(H)
-# end
-
 RecipesBase.@recipe function f(LU::HyperCube)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1], rectangle(LU)[:,2]
@@ -46,6 +42,18 @@ RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
     markersize --> 1.8
     markerstrokewidth --> 0.5
     ToCols(Unpack(X))
+end
+
+"""
+    Rsquared(DM::DataModel) -> Real
+Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
+"""
+function Rsquared(DM::DataModel)
+    !(xdim(DM) == ydim(DM) == 1) && return -1
+    mean = sum(ydata(DM)) / length(ydata(DM))
+    Stot = (ydata(DM) .- mean).^2 |> sum
+    Sres = (ydata(DM) - EmbeddingMap(DM,MLE(DM))).^2 |> sum
+    1 - Sres / Stot
 end
 
 
@@ -230,7 +238,6 @@ function rectangle(LU::HyperCube)
     length(LU.L) != 2 && throw(ArgumentError("Cube not Planar."))
     rectangle((LU.L)...,(LU.U)...)
 end
-# rectangle(H::HyperCube) = rectangle(LowerUpper(H))
 
 
 """
@@ -296,8 +303,8 @@ end
 
 
 
-function Deplanarize(PL::Plane,sol::ODESolution;N::Int=500)
-    map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end],length=N)) |> Unpack
+function Deplanarize(PL::Plane,sol::ODESolution; N::Int=500)
+    map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end];length=N)) |> Unpack
 end
 
 """
@@ -307,19 +314,19 @@ Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverW
 function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSol(sol;vars=vars,leg=leg,kwargs...)
+        p = VisualizeSols(sol;vars=vars,leg=leg,kwargs...)
     end;    p
 end
-VisualizeSol(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false,kwargs...) = Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
+VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false,kwargs...) = Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
 
 
-function VisualizeSol(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
+function VisualizeSols(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
     H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
 end
 function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSol(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
+        p = VisualizeSols(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
     end;    p
 end
 function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
@@ -327,8 +334,12 @@ function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tu
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
-        p = VisualizeSol(PL[i],sols[i]; N=N,vars=vars,leg=leg, color=color, kwargs...)
+        p = VisualizeSols(PL[i],sols[i]; N=N,vars=vars,leg=leg, color=color, kwargs...)
     end;    p
+end
+
+function VisualizeGeos(sols::Union{ODESolution,Vector{<:ODESolution}}; OverWrite::Bool=true,leg::Bool=false)
+    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
 end
 
 
@@ -341,9 +352,6 @@ function VisualizeSolPoints(sols::Vector{<:ODESolution}; OverWrite::Bool=false, 
         p = VisualizeSolPoints(sol; kwargs...)
     end;    p
 end
-
-VisualizeGeo(sol::ODESolution;OverWrite::Bool=false,leg::Bool=false) = VisualizeSol(sol,vars=Tuple(1:Int(length(sol.u[1])/2)),OverWrite=OverWrite,leg=leg)
-VisualizeGeos(sols::Vector{<:ODESolution}; OverWrite::Bool=true,leg::Bool=false) = VisualizeSols(sols,vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
 
 
 """
@@ -478,6 +486,8 @@ function PlotAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:R
 end
 
 
+
+# Helper methods for creating a rectangular or triangular mesh from the outputs of MincedBoundaries()
 
 """
 Returns Array of vertex numbers where every row constitutes a trapezoid for two adjacent curves from which N samples have been drawn.

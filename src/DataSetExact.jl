@@ -1,21 +1,21 @@
 
-
-abstract type TemperedDistributions <: ContinuousMultivariateDistribution end
-struct Dirac <: TemperedDistributions
+# Define as subtype of continuous distribution to get accepted by methods more seamlessly
+# although it is actually discontinuous.
+struct Dirac <: ContinuousMultivariateDistribution
     μ::AbstractVector{<:Real}
     Dirac(μ) = new(float.(Unwind(μ)))
 end
 
 import Base.length
-length(d::TemperedDistributions) = length(d.μ)
+length(d::Dirac) = length(d.μ)
 
 import Distributions: insupport, mean, cov, invcov, pdf, logpdf
-insupport(d::TemperedDistributions,x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
-mean(d::TemperedDistributions) = d.μ
-cov(d::TemperedDistributions) = Diagonal(zeros(length(d)))
-invcov(d::TemperedDistributions) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
-logpdf(d::TemperedDistributions,x::AbstractVector{<:Real}) = log(pdf(d,x))
+insupport(d::Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
+mean(d::Dirac) = d.μ
+cov(d::Dirac) = Diagonal(zeros(length(d)))
+invcov(d::Dirac) = Diagonal([Inf for i in 1:length(d)])
+pdf(d::Dirac, x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
+logpdf(d::Dirac, x::AbstractVector{<:Real}) = log(pdf(d, x))
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
@@ -76,7 +76,9 @@ ydist(DSE::DataSetExact) = DSE.ydist
 
 
 GetMean(P::Product) = [location(P.v[i]) for i in 1:length(P)]
-GetMean(P::Distribution) = P.μ
+GetMean(P::Distribution) = mean(P)
+# GetMean(P::Distribution) = P.μ
+
 data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
 xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
@@ -100,15 +102,17 @@ InvCov(P::Distribution) = invcov(P)
 DataMetric(P::Distribution) = InvCov(P)
 function DataMetric(P::Distributions.GenericMvTDist)
     if P.df == 1
-        return 0.5 .*InvCov(P)
+        return 0.5 .* InvCov(P)
     else
         println("DataMetric: Don't know what to do for t-distribution with dof=$(P.df), just returning usual inverse covariance matrix.")
         return InvCov(P)
     end
 end
 
+
 LogLike(DSE::DataSetExact,x::AbstractVector{<:Real},y::AbstractVector{<:Real}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
 
+import Distributions: loglikelihood
 loglikelihood(DSE::DataSetExact,model::Function,θ::AbstractVector{<:Number}) = LogLike(DSE,xdata(DSE),EmbeddingMap(DSE,model,θ))
 
 function Score(DSE::DataSetExact,model::Function,dmodel::Function,θ::AbstractVector{<:Number})

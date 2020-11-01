@@ -1,15 +1,5 @@
 
 
-
-"""
-    suff(x) -> Type
-If `x` stores BigFloats, `suff` returns BigFloat, else `suff` returns `Float64`.
-"""
-suff(x::BigFloat) = BigFloat
-suff(x::Real) = Float64
-suff(x::Complex) = real(x)
-suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
-
 function HealthyData(x::AbstractVector,y::AbstractVector)::Tuple{Int,Int,Int}
     length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
     # Check that dimensions of x-values and y-values are consistent
@@ -105,17 +95,9 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     if ydim(DS) == 1
-        if xdim(DS) == 1
-            return Autodmodel
-        else
-            return NAutodmodel
-        end
+        return xdim(DS) == 1 ? Autodmodel : NAutodmodel
     else
-        if xdim(DS) == 1
-            return AutodmodelN
-        else
-            return NAutodmodelN
-        end
+        return xdim(DS) == 1 ? AutodmodelN : NAutodmodelN
     end
 end
 
@@ -170,7 +152,7 @@ struct DataModel <: AbstractDataModel
     Data::AbstractDataSet
     model::Function
     dmodel::Function
-    MLE::AbstractVector
+    MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     DataModel(DS::AbstractDataSet,model::Function,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
@@ -254,61 +236,81 @@ yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDa
 
 pdim(DM::DataModel) = length(MLE(DM))
 pdim(DM::AbstractDataModel) = pdim(DM.Data,DM.model)
-pdim(DS::AbstractDataSet,model::Function) = xdim(DS) < 2 ? pdim(model,xdata(DS)[1]) : pdim(model,xdata(DS)[1:xdim(DS)])
+pdim(DS::AbstractDataSet,model::Function) = xdim(DS) < 2 ? pdim(p->model(xdata(DS)[1],p)) : pdim(p->model(xdata(DS)[1:xdim(DS)],p))
+# pdim(model::Function,x::Union{<:Real,AbstractVector{<:Real}}=1.; max::Int=100) = pdim(θ->model(x,θ); max=max)
 
 """
-    pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=50)::Int where T<:Real -> Int
-Infers the number of parameters ``\\theta`` of the model function `model(x,θ)` by successively testing it on vectors of increasing length.
+    pdim(F::Function; max::Int=50) -> Int
+Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(model::Function,x::Union{T,Vector{T}}=1.; max::Int=100)::Int where T<:Real
+function pdim(F::Function; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
-            model(x,ones(i))
+            F(ones(i))
         catch y
-            if isa(y, BoundsError) || isa(y,DimensionMismatch)
-                continue
-            else
-                println("pdim: Encountered error in specification of model function.")
-                throw(y)
-            end
+            (isa(y, BoundsError) || isa(y,DimensionMismatch)) && continue
+            println("pdim: Encountered error in specification of model function.");       rethrow()
         end
-        i != (max+1) && return i
+        i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
     end
-    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
 end
-
-
-function Sparsify(DS::DataSet,B::Vector=rand(Bool,length(xdata(DS))))
-    length(B) != length(xdata(DS)) && throw(ArgumentError("Sparsify: Vector not same number of components as datapoints."))
-    !(length(xdata(DS)[1]) == length(ydata(DS)[1]) == length(sigma(DS)[1])) && throw("Not programmed yet.")
-    return DataSet(xdata(DS)[B],ydata(DS)[B],sigma(DS)[B])
-end
-function Sparsify(DM::AbstractDataModel,B::Vector=rand(Bool,length(xdata(DM))))
-    return DataModel(Sparsify(DM.Data,B),DM.model,DM.dmodel)
-end
-
 
 import DataFrames.DataFrame
-DataFrame(DS::DataSet) = DataFrame([xdata(DS) ydata(DS) sigma(DS)]);    DataFrame(DM::DataModel) = DataFrame(DM.Data)
+DataFrame(DM::DataModel) = DataFrame(DM.Data)
+function DataFrame(DS::DataSet)
+    !(typeof(sigma(DS)) <: AbstractVector) && throw("Cannot convert Datasets with full covariance matrix to DataFrame automatically.")
+    DataFrame([xdata(DS) ydata(DS) sigma(DS)])
+end
 
 import Base.join
-join(DS1::DataSet,DS2::DataSet) = DataSet([xdata(DS1)...,xdata(DS2)...],[ydata(DS1)...,ydata(DS2)...],[sigma(DS1)...,sigma(DS2)...])
+function join(DS1::DataSet,DS2::DataSet)
+    !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
+    if typeof(sigma(DS1)) <: AbstractVector
+        NewΣ = [sigma(DS1)...,sigma(DS2)...]
+    else
+        Σ1 = sigma(DS1);    Σ2 = sigma(DS2);    len = ydim(DS1)*(N(DS1)+N(DS2))
+        NewΣ = zeros(suff(Σ1), len, len)
+        NewΣ[1:ydim(DS1)*N(DS1),1:ydim(DS1)*N(DS1)] = Σ1
+        NewΣ[(ydim(DS1)*N(DS1) + 1):len,(ydim(DS1)*N(DS1) + 1):len] = Σ2
+    end
+    DataSet([xdata(DS1)...,xdata(DS2)...], [ydata(DS1)...,ydata(DS2)...], NewΣ, (N(DS1)+N(DS2), xdim(DS), ydim(DS)))
+end
 join(DM1::DataModel,DM2::DataModel) = DataModel(join(DM1.Data,DM2.Data),DM1.model,DM1.dmodel)
 join(DS1::T,DS2::T,args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2),args...)
 join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
 
 SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::DataModel) = DataModel(SortDataSet(DM.Data),DM.model,DM.dmodel)
-SubDataSet(DS::AbstractDataSet,ran) = DataSet(xdata(DS)[ran],ydata(DS)[ran],sigma(DS)[ran])
-SubDataModel(DM::DataModel,ran) = DataModel(SubDataSet(DM.Data,ran),DM.model,DM.dmodel)
+function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
+    N(DS) != length(range) && throw("Length of given range does not correspond to length of DataSet.")
+    X = WoundX(DS)[range] |> Unwind
+    Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
+    Σ = sigma(DS)
+    if typeof(Σ) <: AbstractVector
+        Σ = Windup(Σ,ydim(DS))[range] |> Unwind
+    elseif ydim(DS) == 1
+        Σ = Σ[range,range]
+    else
+        throw("Under construction.")
+    end
+    DataSet(X,Y,Σ)
+end
+SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(DM.Data,range),DM.model,DM.dmodel)
+
+Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,N(DS)))
+Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,N(DS)))
 
 
-function BlockDiagonal(M::AbstractMatrix,N::Int)
+"""
+    BlockDiagonal(M::AbstractMatrix, N::Int)
+Returns matrix which contains `N` many blocks of the matrix `M` along its diagonal.
+"""
+function BlockDiagonal(M::AbstractMatrix, N::Int)
     Res = zeros(size(M,1)*N,size(M,2)*N)
     for i in 1:N
         Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
-    end; Res
+    end;    Res
 end
 
 
@@ -363,6 +365,7 @@ Returns an n-dimensional vector from a tuple of two real numbers which correspon
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
 
+Shift(PlaneBegin::Plane,PlaneEnd::Plane) = TranslatePlane(PlaneEnd,PlaneEnd.stütz - PlaneBegin.stütz)
 
 IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
@@ -403,6 +406,10 @@ function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     return Basis[2]
 end
 
+"""
+    MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
+Minimizes given function in Plane and returns the optimal point in the ambient space in which the plane lies.
+"""
 function MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
     G(x) = F(PlaneCoordinates(PL,x))
     X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
@@ -487,29 +494,31 @@ end
 
 length(Cube::HyperCube) = length(Cube.L)
 
-
 """
-    Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
-Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
+    Inside(Cube::HyperCube, p::Union{Real,AbstractVector{<:Real}})
+Checks whether a point `p` lies inside `Cube`.
 """
-function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
-    N = length(Z); M = length(Z[1])
-    A = Array{suff(Z)}(undef,N,M)
-    for i in 1:N
-        for j in 1:M
-            A[i,j] = Z[i][j]
-        end
-    end;    A
+function Inside(Cube::HyperCube, p::Union{Real,AbstractVector{<:Real}})::Bool
+    length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
+    sum(!(Cube.L[i] ≤ p[i] ≤ Cube.U[i]) for i in 1:length(p)) == 0
 end
-Unpack(Z::AbstractVector{<:Number}) = Z
 
-ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
-Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat,X)
-Unwind(X::AbstractVector{<:Number}) = X
+"""
+    ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
+Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
+"""
+function ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
+    lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
+    uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
+    diff = (uppers - lowers) .* Padding
+    HyperCube(lowers - diff,uppers + diff)
+end
+ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
+ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
 
-Windup(v::AbstractVector{<:Number},n::Int) = n < 2 ? v : [v[(1+(i-1)*n):(i*n)] for i in 1:Int(length(v)/n)]
-
-
+function ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
+    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
+end
 
 """
     CubeWidths(H::HyperCube) -> Vector
@@ -554,29 +563,3 @@ function CoverCubes(A::HyperCube,B::HyperCube)
 end
 CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
-
-
-normalize(x::AbstractVector{<:Real},scaling::Float64=1.0) = (scaling / norm(x)) * x
-function normalizeVF(u::AbstractVector{<:Real},v::AbstractVector{<:Real},scaling::Float64=1.0)
-    newu = u;    newv = v
-    for i in 1:length(u)
-        factor = sqrt(u[i]^2 + v[i]^2)
-        newu[i] = (scaling/factor)*u[i]
-        newv[i] = (scaling/factor)*v[i]
-    end
-    newu, newv
-end
-function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,scaling::Float64=1.0)
-    length(PlanarCube) != 2 && throw("normalizeVF: Cube not planar.")
-    newu = u;    newv = v
-    Widths = CubeWidths(PlanarCube) |> normalize
-    for i in 1:length(u)
-        factor = sqrt(u[i]^2 + v[i]^2)
-        newu[i] = (scaling/factor)*u[i] * Widths[1]
-        newv[i] = (scaling/factor)*v[i] * Widths[2]
-    end
-    newu, newv
-end
-
-
-Submatrix(M::AbstractMatrix,inds::Union{AbstractVector,AbstractRange}) = M[inds,inds]

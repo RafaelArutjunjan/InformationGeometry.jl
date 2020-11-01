@@ -1,13 +1,12 @@
 
 
-################### Probability Stuff
 """
     likelihood(DM::DataModel,θ::AbstractVector) -> Real
 Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` and a parameter configuration ``\\theta``.
 """
 likelihood(args...) = exp(loglikelihood(args...))
 
-import Distributions.loglikelihood
+# import Distributions.loglikelihood
 """
     loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
@@ -20,35 +19,6 @@ function loglikelihood(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
 end
 
 
-"""
-    ConfAlpha(n::Real)
-Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
-"""
-ConfAlpha(n::Real) = 1.0 - ConfVol(n)
-
-"""
-    ConfVol(n::Real)
-Probability volume contained in a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
-"""
-function ConfVol(n::Real)
-    if abs(n) < 8
-        return erf(n/sqrt(2))
-    else
-        println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
-        return ConfVol(BigFloat(n))
-    end
-end
-ConfVol(n::BigFloat) = erf(n/sqrt(BigFloat(2)))
-
-InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
-InvConfVol(x::BigFloat; tol::Real=GetH(x)) = find_zero(z->(ConfVol(z)-x),one(BigFloat),Order2(),xatol=tol)
-
-ChisqCDF(k::Int,x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
-ChisqCDF(k::Int,x::Real) = gamma_inc(k/2., x/2., 0)[1]
-InvChisqCDF(k::Int,p::Real) = 2gamma_inc_inv(k/2., p, 1-p)
-
-
-# Cannot be used with DiffEq since tags conflict. Use Zygote.jl?
 AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
 AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(DM.Data,DM.model,θ)
 AutoScore(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
@@ -88,14 +58,14 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 
 function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
     n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
-    S(θ) <= S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
+    S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
 end
 Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
 function Ftest2(DM::DataModel, point::Vector{T}, MLE::Vector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
     n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
-    FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) <= ConfVol
+    FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
 end
 
 function WilksBoundary(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol=1e-15)
@@ -121,44 +91,8 @@ function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol
     MLE +  b .* BasisVector(1,length(MLE))
 end
 
-function Interval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14)
-    tol < 2e-15 || Confnum > 8 && throw("Interval1D not programmed for BigFloat yet.")
-    pdim(DM) != 1 && throw("Interval1D not defined for p != 1.")
-    A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
-    Func(p::Real) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
-    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
-    B = find_zero((Func,D(Func)),0.1,Roots.Order1(),xatol=tol)
-    A = find_zero((Func,D(Func)),-B,Roots.Order1(),xatol=tol)
-    rts = [MLE(DM)[1]+A, MLE(DM)[1]+B]
-    rts[1] < rts[2] && return rts
-    throw("Interval1D errored...")
-end
 
-
-"""
-    LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int=10000) -> Real
-Finds real number `x` where the boolean-valued `Test(x::Real)` goes from `true` to `false`.
-"""
-function LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int=10000)
-    ((suff(start) != BigFloat) && tol < 1e-15) && throw("LineSearch: start not BigFloat but tol=$tol.")
-    !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
-    stepsize = one(suff(start))/4.;  value = start
-    for i in 1:maxiter
-        if Test(value + stepsize) # inside
-            value += stepsize
-            value - start > 20 && throw("FindConfBoundary: Value larger than 20.")
-        else            #outside
-            if stepsize < tol
-                return value
-            end
-            stepsize /= 5
-        end
-    end
-    throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
-end
-
-
-function FindConfBoundary(DM::DataModel,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+function FindConfBoundary(DM::DataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
     Confvol = ConfVol(Confnum);    Test(x::Real) = WilksTest(DM, MLE(DM) .+ (x .* BasisVector(1,pdim(DM))), Confvol)
     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
@@ -225,65 +159,6 @@ function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Au
 end
 
 
-"""
-    ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
-Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
-"""
-function ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
-    lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
-    uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
-    diff = (uppers - lowers) .* Padding
-    HyperCube(lowers - diff,uppers + diff)
-end
-ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
-ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
-
-function ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
-    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
-end
-
-
-MonteCarloArea(Test::Function,Cube::HyperCube,N::Int=Int(1e7)) = CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
-function MonteCarloRatio(Test::Function,Cube::HyperCube,N::Int=Int(1e7))
-    (1/N)* @distributed (+) for i in 1:N
-        Test(rand.(Uniform.(Cube.L,Cube.U)))
-    end
-end
-
-
-function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksize::Int=Int(N/20))
-    chunksize > N && error("chunksize > N")
-    if N%chunksize != 0
-        println("N % chunksize = $(N%chunksize). Rounded N up from $N to $(N + N%chunksize + 1).")
-        N += Int(N%chunksize + 1)
-    end
-    chunks = Int(N/chunksize)
-    # Output not normalized by chunksize
-    function CarloLoop(Test::Function,LU::HyperCube,chunksize::Int)
-        tot = [rand.(Uniform.(LU.L,LU.U)) for i in 1:chunksize] .|> Test
-        res = sum(tot)
-        [res, sum((tot.-(res/chunksize)).^2)]
-    end
-    Tot = @distributed (+) for i in 1:chunks
-        CarloLoop(Test,LU,chunksize)
-    end
-    measurement(Tot[1]/N, sqrt(1/((N-1)*N) * Tot[2]))
-end
-MonteCarloAreaWE(Test::Function,Space::HyperCube,N::Int=Int(1e7)) = CubeVol(Space)*MonteCarloRatioWE(Test,Space,N)
-
-
-function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); WE::Bool=false)
-    length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
-    LogLikeBoundary = likelihood(DM,sol(0))
-    Cube = ConstructCube(sol; Padding=1e-5)
-    # Indicator function for Integral
-    InsideRegion(X::AbstractVector{<:Real})::Bool = loglikelihood(DM,X) < LogLikeBoundary
-    Test(X::AbstractVector) = InsideRegion(X) ? sqrt(det(FisherMetric(DM,X))) : 0.
-    WE && return MonteCarloAreaWE(Test,Cube,N)
-    MonteCarloArea(Test,Cube,N)
-end
-
-
 FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,convert(Vector,start))
 function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
@@ -316,6 +191,22 @@ function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractV
     end
 end
 
+"""
+    ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Vector
+Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
+"""
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14)
+    (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
+    pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
+    A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
+    Func(p::Real) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
+    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
+    B = find_zero((Func,D(Func)),0.1,Roots.Order1(); xatol=tol)
+    A = find_zero((Func,D(Func)),-B,Roots.Order1(); xatol=tol)
+    rts = [MLE(DM)[1]+A, MLE(DM)[1]+B]
+    rts[1] < rts[2] && return rts
+    throw("ConfidenceInterval1D errored...")
+end
 
 
 """
@@ -364,7 +255,7 @@ Choose method depending on dimensionality of the parameter space.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     if pdim(DM) == 1
-        return Interval1D(DM, Confnum; tol=tol)
+        return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
         return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
@@ -426,87 +317,18 @@ function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,Abstract
 end
 
 
+# function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
+#     NoPoints = Vector{Vector{suff(sol.u)}}(undef,0)
+#     for t in range(sol.t[1],sol.t[end], length=N)
+#         num = sol(t)
+#         if !Test(num)
+#             push!(NoPoints,num)
+#         end
+#     end
+#     println("CurveInsideInterval: Solution has $(length(NoPoints))/$N points outside the desired confidence interval.")
+#     return NoPoints
+# end
 
-function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
-    NoPoints = Vector{Vector{suff(sol.u)}}(undef,0)
-    for t in range(sol.t[1],sol.t[end], length=N)
-        num = sol(t)
-        if !Test(num)
-            push!(NoPoints,num)
-        end
-    end
-    println("CurveInsideInterval: Solution has $(length(NoPoints))/$N points outside the desired confidence interval.")
-    return NoPoints
-end
-
-
-function Inside(Cube::HyperCube,p::Union{Real,AbstractVector{<:Real}})::Bool
-    length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
-    for i in 1:length(Cube)
-        !(Cube.L[i] ≤ p[i] ≤ Cube.U[i]) && return false
-    end;    true
-end
-
-"""
-    Rsquared(DM::DataModel) -> Real
-Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
-"""
-function Rsquared(DM::DataModel)
-    !(xdim(DM) == ydim(DM) == 1) && return -1
-    mean = sum(ydata(DM)) / length(ydata(DM))
-    Stot = (ydata(DM) .- mean).^2 |> sum
-    Sres = (ydata(DM) - EmbeddingMap(DM,MLE(DM))).^2 |> sum
-    1 - Sres / Stot
-end
-
-
-"""
-    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
-"""
-function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-    length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
-    Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,fullSol=fullSol,meth=meth)
-end
-Integrate1D(F::Function, Interval::AbstractVector{<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
-function Integrate1D(F::Function, Interval::Tuple{<:Real,<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
-    Interval = float.(Interval)
-    !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
-    Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
-    f(u,p,t) = F(t)
-    if tol < 1e-15
-        u0 = BigFloat(0.);        Interval = BigFloat.(Interval)
-        meth = (meth == nothing) ? Vern9() : meth
-    else
-        u0 = 0.
-        meth = (meth == nothing) ? Tsit5() : meth
-    end
-    if fullSol
-        return solve(ODEProblem(f,u0,Interval),meth,reltol=tol,abstol=tol)
-    else
-        return solve(ODEProblem(f,u0,Interval),meth,reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true).u[end]
-    end
-end
-
-"""
-    IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
-Integrates the function `F` over `Cube` with the help of **HCubature.jl** to a tolerance of `tol`.
-If `WE=true`, the result is returned as a `Measurement` which also contains the estimated error in the result.
-"""
-function IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
-    if length(Cube) == 1
-        val, uncert = hquadrature(F, Cube.L[1], Cube.U[1]; rtol=tol, atol=tol, kwargs...)
-    else
-        val, uncert = hcubature(F, Cube.L, Cube.U; rtol=tol, atol=tol, kwargs...)
-    end
-    if length(val) == 1
-        return WE ? measurement(val[1],uncert[1]) : val[1]
-    else
-        return WE ? measurement.(val,uncert) : val
-    end
-end
-IntegrateND(F::Function, L::AbstractVector{<:Real}, U::AbstractVector{<:Real}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(L,U); tol=tol, WE=WE, kwargs...)
-IntegrateND(F::Function, Interval::Union{AbstractVector{<:Real},Tuple{<:Real,<:Real}}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(Interval); tol=tol, WE=WE, kwargs...)
 
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
@@ -528,112 +350,24 @@ FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM,
 # end
 
 
-
 """
-    KullbackLeibler(p::Function,q::Function,Domain::HyperCube=HyperCube([-15,15]); tol=2e-15, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
-Computes the Kullback-Leibler divergence between two probability distributions `p` and `q` over the `Domain`.
-If `Carlo=true`, this is done using a Monte Carlo Simulation with `N` samples.
-If the `Domain` is one-dimensional, the calculation is performed without Monte Carlo to a tolerance of ≈ `tol`.
-```math
-D_{\\text{KL}}[p,q] \\coloneqq \\int \\mathrm{d}^m y \\, p(y) \\, \\mathrm{ln} \\bigg( \\frac{p(y)}{q(y)} \\bigg)
-```
+    GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
+Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-function KullbackLeibler(p::Function, q::Function, Domain::HyperCube; tol::Real=1e-9, N::Int=Int(3e7), Carlo::Bool=false)
-    function Integrand(x)
-        P = p(x)[1];   Q = q(x)[1];   Rat = P / Q
-        (Rat ≤ 0. || !isfinite(Rat)) && throw(ArgumentError("Ratio p(x)/q(x) = $Rat in log(p/q) for x=$x."))
-        P * log(Rat)
-    end
-    if !Carlo
-        return IntegrateND(Integrand, Domain; tol=tol)
-    else
-        return length(Domain) == 1 ? MonteCarloArea(x->Integrand(x[1]),Domain,N)[1] : MonteCarloArea(Integrand,Domain,N)
-    end
-    # if Carlo
-    #     length(Domain) == 1 && return MonteCarloArea(Integrand,Domain,N)[1]
-    #     return MonteCarloArea(Integrand,Domain,N)
-    # elseif length(Domain) == 1
-    #     return Integrate1D(Integrand,Domain; tol=tol)
-    # else
-    #     throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
-    # end
+GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
+GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metric(θ)))
+
+
+
+function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); WE::Bool=false)
+    length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
+    LogLikeBoundary = likelihood(DM,sol(0))
+    Cube = ConstructCube(sol; Padding=1e-5)
+    # Indicator function for Integral
+    InsideRegion(X::AbstractVector{<:Real})::Bool = loglikelihood(DM,X) < LogLikeBoundary
+    Test(X::AbstractVector) = InsideRegion(X) ? sqrt(det(FisherMetric(DM,X))) : zero(X[1])
+    MonteCarloArea(Test,Cube,N; WE=WE)
 end
-
-
-function KullbackLeibler(p::Product{Continuous}, q::DiagNormal, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
-    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-    sum(KullbackLeibler(p.v[i], Normal(q.μ[i],sqrt(q.Σ.diag[i])), HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
-end
-function KullbackLeibler(p::DiagNormal, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
-    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-    sum(KullbackLeibler(Normal(p.μ[i],sqrt(p.Σ.diag[i])), q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
-end
-function KullbackLeibler(p::Product{Continuous}, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
-    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-    sum(KullbackLeibler(p.v[i], q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
-end
-
-function KullbackLeibler(p::Distribution, q::Distribution, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-9, N::Int=Int(3e7), Carlo::Bool=false)
-    !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-    function Integrand(x)
-        P = logpdf(p,x);   Q = logpdf(q,x)
-        exp(P) * (P - Q)
-    end
-    if !Carlo
-        return IntegrateND(Integrand, Domain; tol=tol)
-    else
-        return length(p) == 1 ? MonteCarloArea(x->Integrand(x[1]),Domain,N)[1] : MonteCarloArea(Integrand,Domain,N)
-    end
-end
-
-
-
-# function KullbackLeibler(p::Distribution,q::Distribution,Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]);
-#     tol::Real=1e-14, N::Int=Int(3e7), Carlo::Bool=(length(Domain)!=1))
-#     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-#     function Integrand(x)
-#         P = logpdf(p,x);   Q = logpdf(q,x)
-#         exp(P)*(P - Q)
-#     end
-#     function Integrand1D(x)
-#         # Apparently, logpdf() without broadcast is deprecated for univariate distributions.
-#         P = logpdf.(p,x);   Q = logpdf.(q,x)
-#         exp.(P)*(P - Q)[1]
-#     end
-#     if Carlo
-#         length(p) == 1 && return MonteCarloArea(Integrand1D,Domain,N)[1]
-#         return MonteCarloArea(Integrand,Domain,N)
-#     elseif length(Domain) == 1
-#         return Integrate1D(Integrand1D,Domain; tol=tol)
-#     else
-#         throw("KL: Carlo=false and dim(Domain) != 1. Aborting.")
-#     end
-# end
-
-# function KullbackLeibler(p::Product, q::Product, Domain::HyperCube=HyperCube([[-15,15] for i in 1:length(p)]); tol::Real=1e-14, kwargs...)
-#     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
-#     prod(KullbackLeibler(p.v[i], q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
-# end
-
-
-# Analytic expressions
-function KullbackLeibler(P::MvNormal,Q::MvNormal, Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
-    # length(P) != length(Q) && throw("Normals not of same dim.")
-    (1/2) * (logdet(Q.Σ.mat) - logdet(P.Σ.mat) - length(P.μ) + tr(inv(Q.Σ.mat) * P.Σ.mat) + transpose(Q.μ-P.μ) * inv(Q.Σ.mat) * (Q.μ-P.μ))
-end
-KullbackLeibler(P::Normal,Q::Normal,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(Q.σ / P.σ) + (1/2) * ((P.σ / Q.σ)^2 + (P.μ - Q.μ)^2 * Q.σ^(-2) -1.)
-KullbackLeibler(P::Cauchy,Q::Cauchy,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(((P.σ + Q.σ)^2 + (P.μ - Q.μ)^2) / (4P.σ * Q.σ))
-
-# Note the sign difference between the conventions (1/θ)*exp(-x/θ) and λ*exp(-λx). Distributions.jl uses the former.
-KullbackLeibler(P::Exponential,Q::Exponential,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...) = log(Q.θ / P.θ) + P.θ / Q.θ - 1.
-function KullbackLeibler(P::Weibull,Q::Weibull,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
-    log(P.α / (P.θ^P.α)) - log(Q.α / (Q.θ^Q.α)) + (P.α - Q.α)*(log(P.θ) - Base.MathConstants.γ / P.α) + (P.θ / Q.θ)^Q.α * SpecialFunctions.gamma(1 + Q.α / P.α) - 1.
-end
-function KullbackLeibler(P::Distributions.Gamma,Q::Distributions.Gamma,Domain::HyperCube=HyperCube([-Inf,Inf]);kwargs...)
-    (P.α - Q.α) * digamma(P.α) - loggamma(P.α) + loggamma(Q.α) + Q.α*log(Q.θ / P.θ) + P.α*(P.θ / Q.θ - 1.)
-end
-
-# Add Wishart, Beta, Gompertz, generalized gamma
 
 
 # """
@@ -827,7 +561,6 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1
 end
 
 
-Shift(PlaneBegin::Plane,PlaneEnd::Plane) = TranslatePlane(PlaneEnd,PlaneEnd.stütz - PlaneBegin.stütz)
 function Prune(DM::AbstractDataModel,Planes::Vector{<:Plane},Confnum::Real=1.)
     CF = ConfVol(Confnum)
     while length(Planes) > 0
@@ -853,6 +586,15 @@ end
 
 
 """
+Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
+"""
+function LinearCuboid(DM::DataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
+    L = sqrt(quantile(Chisq(pdim(DM)),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
+    C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
+    TranslateCube(CoverCubes(C...),MLE(DM))
+end
+
+"""
     IntersectCube(DM::AbstractDataModel,Cube::HyperCube,Confnum::Real=1.; Dirs::Vector=[1,2,3], N::Int=31) -> Vector{Plane}
 Returns a set of parallel 2D planes which intersect `Cube`. The planes span the directions corresponding to the basis vectors corresponding to the first two components of `Dirs`.
 They are separated in the direction of the basis vector associated with the third component of `Dirs`.
@@ -860,7 +602,7 @@ The keyword `N` can be used to approximately control the number of planes which 
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
 function IntersectCube(DM::AbstractDataModel,Cube::HyperCube,Confnum::Real=1.; N::Int=31, Dirs::Vector{<:Int}=[1,2,3])
-    length(Dirs) != 3 || !allunique(Dirs) || !all(x->(1 <= x <= pdim(DM)),Dirs) && throw("Invalid choice of Dirs: $Dirs.")
+    (length(Dirs) != 3 || !allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)),Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
     PL = Plane(Center(Cube),BasisVector(Dirs[1],pdim(DM)),BasisVector(Dirs[2],pdim(DM)))
     width = CubeWidths(Cube)[Dirs[3]]
     IntersectRegion(DM,PL,width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N)
@@ -898,42 +640,5 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
         return pmap(X->GenerateBoundary(DM,X,FindConfBoundaryOnPlane(DM,X,Confnum;tol=tol);tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
     else
         return map(X->GenerateBoundary(DM,X,FindConfBoundaryOnPlane(DM,X,Confnum;tol=tol);tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
-        # [GenerateBoundary(DM,Planes[i],FindConfBoundaryOnPlane(DM,Planes[i],Confnum;tol=tol);
-        #                 tol=tol, meth=meth, mfd=mfd, Auto=Auto) for i in 1:length(Planes)]
     end
 end
-
-"""
-Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
-"""
-function LinearCuboid(DM::DataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
-    L = sqrt(quantile(Chisq(pdim(DM)),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
-    C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
-    TranslateCube(CoverCubes(C...),MLE(DM))
-end
-
-
-# LSQFIT
-import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
-    X = xdata(DS);  Y = ydata(DS)
-    LsqFit.check_data_health(X, Y)
-    u = cholesky(InvCov(DS)).U
-    f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-    p0 = convert(Vector,initial);    r = f(p0)
-    R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :finite)
-    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
-end
-
-# function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
-#     X = xdata(DS);  Y = ydata(DS)
-#     LsqFit.check_data_health(X, Y)
-#     u = cholesky(InvCov(DS)).U
-#     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-#     # Using Jacobian apparently slower
-#     df(p) = ForwardDiff.jacobian(f,p)
-#     p0 = convert(Vector,initial);    r = f(p0)
-#     R = OnceDifferentiable(f, df, p0, copy(r); inplace=false)
-#     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
-# end
