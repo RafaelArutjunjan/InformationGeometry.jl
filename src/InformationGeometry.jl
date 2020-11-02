@@ -42,9 +42,8 @@ export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
 include("ConfidenceRegions.jl")
 export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, FindMLE
 export AutoScore, AutoMetric
-# Needs redo:
-# Ftest, FindFBoundary
-export ConfidenceRegion, ConfidenceRegions
+export FindConfBoundary, FCriterion, FTest, FindFBoundary
+export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export IsStructurallyIdentifiable, StructurallyIdentifiable
 export FisherMetric, GeometricDensity, ConfidenceRegionVolume
 

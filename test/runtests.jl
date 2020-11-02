@@ -43,6 +43,8 @@ using SafeTestsets
     simplermodel(x,p) = p[1]*x;    DMSimp = DataModel(DS,simplermodel)
     @test length(ConfidenceRegion(DMSimp,1.)) == 2
     @test ModelComparison(DM,DMSimp)[2] > 0.
+
+    @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
 end
 
 

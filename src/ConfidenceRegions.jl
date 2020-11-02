@@ -49,75 +49,74 @@ WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::Floa
 
 """
     WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
-Checks whether a given parameter configuration `p` is within a confidence interval of level `ConfVol` using Wilks' theorem.
+Checks whether a given parameter configuration `θ` is within a confidence interval of level `Confvol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
 """
 WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))::Bool = WilksCriterion(DM, θ, Confvol) < 0.
 
 
+# function FindConfBoundary(DM::DataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+#     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+#     Confvol = ConfVol(Confnum);    Test(x::Real) = WilksTest(DM, MLE(DM) .+ (x .* BasisVector(1,pdim(DM))), Confvol)
+#     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
+#     stepsize = one(suff(MLE(DM)))/4.;  value = zero(suff(MLE(DM)))
+#     for i in 1:maxiter
+#         if Test(value + stepsize) # inside
+#             value += stepsize
+#             value > 20 && throw("FindConfBoundary: Value larger than 10.")
+#         else            #outside
+#             if stepsize < tol
+#                 return value .* BasisVector(1,pdim(DM)) .+ MLE(DM)
+#             end
+#             stepsize /= 10
+#         end
+#     end
+#     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
+# end
 
-function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
-    n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
-    S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
+function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+    CF = ConfVol(convert(suff(MLE(DM)),Confnum))
+    Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
+    MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
-Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
+
+
+# function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
+#     n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
+#     S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
+# end
+# Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
+
+# equivalent to ResidualSquares(DM,MLE(DM))
+RS_MLE(DM::AbstractDataModel) = InformationGeometry.logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(DM.Data,DM.model,θ)
+function ResidualSquares(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Real})
+    Y = ydata(DS) - EmbeddingMap(DS,model,θ)
+    transpose(Y) * InvCov(DS) * Y
+end
+function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Float64=ConfVol(one(suff(θ))))
+    n = length(ydata(DM));  p = length(θ)
+    ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
+end
+function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Float64=ConfVol(one(suff(θ))))::Bool
+    FCriterion(DM,θ,Confvol) < 0
+end
+function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+    CF = ConfVol(convert(suff(MLE(DM)),Confnum))
+    Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
+    MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+end
+
 
 FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
-function Ftest2(DM::DataModel, point::Vector{T}, MLE::Vector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
-    n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
-    FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
-end
-
-function WilksBoundary(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol=1e-15)
-    if tol < 1e-15 || suff(MLE) == BigFloat || typeof(ConfVol(Confnum)) == BigFloat
-        return WilksBoundaryBig(DM,MLE,Confnum)
-    end
-    lMLE = loglikelihood(DM,MLE)
-    A = lMLE - (1/2)*quantile(Chisq(length(MLE)),ConfVol(Confnum))
-    Func(p::Real) = loglikelihood(DM,MLE .+ p*BasisVector(1,length(MLE))) - A
-    D(f) = x->ForwardDiff.derivative(f,x)
-    b = find_zero((Func,D(Func)),0.1,Roots.Order0(),xatol=tol)
-    MLE + b.*BasisVector(1,length(MLE))
-end
-
-function WilksBoundaryBig(DM::DataModel,MLE::Vector{<:Real},Confnum::Real=1.;tol::Real=convert(BigFloat,10 .^(-precision(BigFloat)/30)))
-    suff(MLE) != BigFloat && println("WilksBoundaryBig: You should pass the MLE as BigFloat!")
-    print("Starting WilksBoundaryBig.   ")
-    L = loglikelihood(DM,BigFloat.(MLE));    CF = ConfVol(BigFloat(Confnum))
-    f(x::Real) = ChisqCDF(length(MLE),2(L-loglikelihood(DM,MLE + (x .* BasisVector(1,length(MLE)))))) - CF
-    df(x) = ForwardDiff.gradient(f,x)
-    @time b = find_zero((f,df),BigFloat(1),Roots.Order2(),xatol=tol)
-    println("Finished.")
-    MLE +  b .* BasisVector(1,length(MLE))
-end
+# function Ftest2(DM::DataModel, point::Vector{T}, MLE::Vector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
+#     n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
+#     FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
+# end
 
 
-function FindConfBoundary(DM::DataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-    Confvol = ConfVol(Confnum);    Test(x::Real) = WilksTest(DM, MLE(DM) .+ (x .* BasisVector(1,pdim(DM))), Confvol)
-    !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
-    stepsize = one(suff(MLE(DM)))/4.;  value = zero(suff(MLE(DM)))
-    for i in 1:maxiter
-        if Test(value + stepsize) # inside
-            value += stepsize
-            value > 20 && throw("FindConfBoundary: Value larger than 10.")
-        else            #outside
-            if stepsize < tol
-                return value .* BasisVector(1,pdim(DM)) .+ MLE(DM)
-            end
-            stepsize /= 10
-        end
-    end
-    throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
-end
-
-
-function FindFBoundary(DM::DataModel,MLE::Vector,Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    S_MLE = sum(((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM)))./sigma(DM)).^2)
-    CF = ConfVol(convert(suff(MLE),Confnum))
-    Test(x::Real) = FtestPrepared(DM, MLE .+ (x .* BasisVector(1,length(MLE))), S_MLE, CF)
-    LineSearch(Test,0,tol=tol,maxiter=maxiter) .* BasisVector(1,length(MLE)) .+ MLE
-end
 
 
 inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
@@ -317,20 +316,6 @@ function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,Abstract
 end
 
 
-# function CurveInsideInterval(Test::Function, sol::ODESolution, N::Int = 1000)
-#     NoPoints = Vector{Vector{suff(sol.u)}}(undef,0)
-#     for t in range(sol.t[1],sol.t[end], length=N)
-#         num = sol(t)
-#         if !Test(num)
-#             push!(NoPoints,num)
-#         end
-#     end
-#     println("CurveInsideInterval: Solution has $(length(NoPoints))/$N points outside the desired confidence interval.")
-#     return NoPoints
-# end
-
-
-
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 """
     FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
@@ -341,15 +326,6 @@ g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}
 """
 FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(DM.Data,DM.dmodel,θ)
 FisherMetric(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
-
-# function FisherMetric(DM::DataModel, θ::Vector{<:Real})
-#     F = zeros(suff(θ),length(θ),length(θ))
-#     dmod = sigma(DM).^(-1) .* map(z->DM.dmodel(z,θ),xdata(DM))
-#     for i in 1:length(xdata(DM))
-#         F .+=  transpose(dmod[i]) * dmod[i]
-#     end;    F
-# end
-
 
 """
     GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
@@ -369,29 +345,6 @@ function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); 
     Test(X::AbstractVector) = InsideRegion(X) ? sqrt(det(FisherMetric(DM,X))) : zero(X[1])
     MonteCarloArea(Test,Cube,N; WE=WE)
 end
-
-
-# """
-#     NormalDist(DM::DataModel,p::Vector) -> Distribution
-# Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
-# This makes the assumption, that the errors associated with the data are normal.
-# """
-# function NormalDist(DM::DataModel,p::Vector)::Distribution
-#     if length(ydata(DM)[1]) == 1
-#         length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),sigma(DM)[1])
-#         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(float.(sigma(DM).^2)))
-#     else
-#         throw("Not programmed yet.")
-#     end
-# end
-
-# """
-#     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
-# Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
-# """
-# KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))
-#
-# KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zeros(length(ydata(DM))),inv(InvCov(DM))),NormalDist(DM,p))
 
 
 # h(θ) ∈ Dataspace
@@ -472,7 +425,6 @@ end
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
 """
 Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
-
 
 
 # Compute all major axes of Fisher Ellipsoid from eigensystem of Fisher metric
@@ -620,17 +572,6 @@ function IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Real},Confn
     Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
     AntiPrune(DM,Prune(DM,Planes,Confnum),Confnum)
 end
-
-# """
-#     MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; N::Int=31, tol::Real=1e-8, meth=Tsit5(), mfd::Bool=false, Auto::Bool=false)
-# Intersects the confidence region of level `Confnum` with roughly `N` many Planes which are parallel to `PL` and computes integral curves.
-# """
-# function MincedBoundaries(DM::DataModel, Dirs::Vector{<:Int}=[1,2,3], Confnum::Real=1.; Padding::Real=1/2, N::Int=31, tol::Real=1e-8,
-#                         meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, parallel::Bool=false)
-#     Cube = LinearCuboid(DM,Confnum;Padding=Padding)
-#     Planes = IntersectCube(DM,Cube,Confnum; N=N, Dirs=Dirs)
-#     MincedBoundaries(DM, Planes, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto, parallel=parallel)
-# end
 
 """
     MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Bool=false, meth=Tsit5(), mfd::Bool=false)

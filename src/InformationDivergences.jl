@@ -1,7 +1,7 @@
 
 
 # Todo:
-# 
+#
 # Abstract integrands and allow for other f-Divergences to work with the implemented methods
 # Create more elaborate method for default domain of integration: Check that both means are inside cube and then choose widths of HyperCube proportional to Σ?
 # Add other distributions with known analytical expressions for KL-divergence: Wishart, Beta, Gompertz, generalized Gamma
@@ -71,3 +71,28 @@ end
 function KullbackLeibler(P::Distributions.Gamma, Q::Distributions.Gamma, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
     (P.α - Q.α) * digamma(P.α) - loggamma(P.α) + loggamma(Q.α) + Q.α*log(Q.θ / P.θ) + P.α*(P.θ / Q.θ - 1.)
 end
+
+
+
+
+# """
+#     NormalDist(DM::DataModel,p::Vector) -> Distribution
+# Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
+# This makes the assumption, that the errors associated with the data are normal.
+# """
+# function NormalDist(DM::DataModel,p::Vector)::Distribution
+#     if length(ydata(DM)[1]) == 1
+#         length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),sigma(DM)[1])
+#         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(float.(sigma(DM).^2)))
+#     else
+#         throw("Not programmed yet.")
+#     end
+# end
+
+# """
+#     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
+# Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
+# """
+# KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))
+#
+# KullbackLeibler(DM::DataModel,p::AbstractVector) = KullbackLeibler(MvNormal(zeros(length(ydata(DM))),inv(InvCov(DM))),NormalDist(DM,p))
