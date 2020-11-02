@@ -339,7 +339,8 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Pullback(DM, InvCov(DM), θ)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(DM.Data,DM.dmodel,θ)
+FisherMetric(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
 
 # function FisherMetric(DM::DataModel, θ::Vector{<:Real})
 #     F = zeros(suff(θ),length(θ),length(θ))
@@ -447,21 +448,22 @@ end
 
 
 # M ⟵ D
-Pullback(DM::DataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
+Pullback(DM::AbstractDataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
 """
     Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.
 """
-Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<:Number}) = transpose(EmbeddingMatrix(DM,θ)) * ω
+Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<:Number}) = transpose(EmbeddingMatrix(DM,θ)) * ω
 
 
 """
     Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
-function Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number})
-    J = EmbeddingMatrix(DM,θ)
-    return transpose(J) * G * J
+Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(DM.Data,DM.dmodel,G,θ)
+function Pullback(DS::AbstractDataSet, dmodel::Function, G::AbstractMatrix, θ::AbstractVector{<:Number})
+    J = EmbeddingMatrix(DS,dmodel,θ)
+    transpose(J) * G * J
 end
 
 # M ⟶ D
@@ -469,7 +471,7 @@ end
     Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector)
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
 """
-Pushforward(DM::DataModel, X::Vector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
+Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
 
 
 
@@ -509,7 +511,7 @@ Compares the AICc values of both models at best fit and estimates probability th
 First entry of tuple returns which model is more likely to be correct (1 or 2) whereas the second entry returns the ratio of probabilities.
 """
 function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel)
-    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2)) && throw("Not comparing against same data!")
+    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2) && InvCov(DM1) == InvCov(DM2)) && throw("Not comparing against same data!")
     Mod1 = AICc(DM1,MLE(DM1));      Mod2 = AICc(DM2,MLE(DM2))
     res = (Int((Mod1 > Mod2) + 1), round(exp(0.5*abs(Mod2-Mod1)),sigdigits=5))
     println("Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values.")
