@@ -36,8 +36,8 @@ struct DataSetExact <: AbstractDataSet
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
     function DataSetExact(x::AbstractVector,xSig::AbstractVector,y::AbstractVector,ySig::AbstractVector)
         dims = HealthyData(x,y)
-        length(Unwind(xSig)) != xdim(dims)*N(dims) && throw("Problem with x errors.")
-        length(Unwind(ySig)) != ydim(dims)*N(dims) && throw("Problem with y errors.")
+        length(Unwind(xSig)) != xdim(dims)*Npoints(dims) && throw("Problem with x errors.")
+        length(Unwind(ySig)) != ydim(dims)*Npoints(dims) && throw("Problem with y errors.")
         if xSig == zeros(length(xSig))
             return DataSetExact(Dirac(x),DataDist(y,ySig),dims)
         else
@@ -55,7 +55,7 @@ struct DataSetExact <: AbstractDataSet
         DataSetExact(xd,yd,(length(xd),1,1))
     end
     function DataSetExact(xd::Distribution,yd::Distribution,dims::Tuple{Int,Int,Int})
-        !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == N(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
+        !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == Npoints(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
         if xdim(dims) == 1
             return new(xd,yd,dims,InvCov(yd),false)
         else
@@ -65,7 +65,7 @@ struct DataSetExact <: AbstractDataSet
 end
 
 
-N(DSE::DataSetExact) = N(DSE.dims)
+Npoints(DSE::DataSetExact) = Npoints(DSE.dims)
 xdim(DSE::DataSetExact) = xdim(DSE.dims)
 ydim(DSE::DataSetExact) = ydim(DSE.dims)
 InvCov(DSE::DataSetExact) = DSE.InvCov

@@ -32,6 +32,11 @@ using SafeTestsets
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
     @test size(SaveConfidence(sols,100)) == (100,4)
     @test size(SaveGeodesics(sols,100)) == (100,2)
+    @test size(SaveDataSet(DM)) == (3,3)
+
+    @test size(ConfidenceBands(DM,sols[1];N=50,plot=false)) == (50,3)
+    @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
+    @test typeof(FittedPlot(DM)) <: Plots.Plot
 end
 
 

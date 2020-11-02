@@ -69,7 +69,7 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},
                                             InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
-        !(N(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
+        !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
         if !isposdef(InvCov)
             println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
@@ -181,12 +181,12 @@ xdata(DM::AbstractDataModel) = xdata(DM.Data)
 ydata(DM::AbstractDataModel) = ydata(DM.Data)
 sigma(DM::AbstractDataModel) = sigma(DM.Data)
 InvCov(DM::AbstractDataModel) = InvCov(DM.Data)
-N(DM::AbstractDataModel) = N(DM.Data)
+Npoints(DM::AbstractDataModel) = Npoints(DM.Data)
 xdim(DM::AbstractDataModel) = xdim(DM.Data)
 ydim(DM::AbstractDataModel) = ydim(DM.Data)
 
 
-N(dims::Tuple{Int,Int,Int}) = dims[1]
+Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
 xdim(dims::Tuple{Int,Int,Int}) = dims[2]
 ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
@@ -199,7 +199,7 @@ function sigma(DS::DataSet)
 end
 
 InvCov(DS::DataSet) = DS.InvCov
-N(DS::DataSet) = N(DS.dims)
+Npoints(DS::DataSet) = Npoints(DS.dims)
 xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
 WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
@@ -211,7 +211,7 @@ logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 import Base.length
-length(DS::AbstractDataSet) = N(DS);    length(DM::AbstractDataModel) = N(DM.Data)
+length(DS::AbstractDataSet) = Npoints(DS);    length(DM::AbstractDataModel) = Npoints(DM.Data)
 
 
 """
@@ -269,12 +269,12 @@ function join(DS1::DataSet,DS2::DataSet)
     if typeof(sigma(DS1)) <: AbstractVector
         NewΣ = [sigma(DS1)...,sigma(DS2)...]
     else
-        Σ1 = sigma(DS1);    Σ2 = sigma(DS2);    len = ydim(DS1)*(N(DS1)+N(DS2))
+        Σ1 = sigma(DS1);    Σ2 = sigma(DS2);    len = ydim(DS1)*(Npoints(DS1)+Npoints(DS2))
         NewΣ = zeros(suff(Σ1), len, len)
-        NewΣ[1:ydim(DS1)*N(DS1),1:ydim(DS1)*N(DS1)] = Σ1
-        NewΣ[(ydim(DS1)*N(DS1) + 1):len,(ydim(DS1)*N(DS1) + 1):len] = Σ2
+        NewΣ[1:ydim(DS1)*Npoints(DS1),1:ydim(DS1)*Npoints(DS1)] = Σ1
+        NewΣ[(ydim(DS1)*Npoints(DS1) + 1):len,(ydim(DS1)*Npoints(DS1) + 1):len] = Σ2
     end
-    DataSet([xdata(DS1)...,xdata(DS2)...], [ydata(DS1)...,ydata(DS2)...], NewΣ, (N(DS1)+N(DS2), xdim(DS), ydim(DS)))
+    DataSet([xdata(DS1)...,xdata(DS2)...], [ydata(DS1)...,ydata(DS2)...], NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
 end
 join(DM1::DataModel,DM2::DataModel) = DataModel(join(DM1.Data,DM2.Data),DM1.model,DM1.dmodel)
 join(DS1::T,DS2::T,args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2),args...)
@@ -283,7 +283,7 @@ join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
 SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::DataModel) = DataModel(SortDataSet(DM.Data),DM.model,DM.dmodel)
 function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
-    N(DS) != length(range) && throw("Length of given range does not correspond to length of DataSet.")
+    Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
     Σ = sigma(DS)
@@ -298,8 +298,8 @@ function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
 end
 SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(DM.Data,range),DM.model,DM.dmodel)
 
-Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,N(DS)))
-Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,N(DS)))
+Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
+Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 
 
 """
@@ -475,21 +475,24 @@ CubeWidths(X)
 struct HyperCube{Q<:Real}
     L::AbstractVector{Q}
     U::AbstractVector{Q}
-    function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real})
-        lowers = float.(lowers); uppers = float.(uppers)
-        length(lowers) != length(uppers) && throw(ArgumentError("Dimensional Mismatch."))
-        for i in 1:length(lowers)
-            lowers[i] > uppers[i] && throw(ArgumentError("Wrong orientation: lowers[$i] > uppers[$i]."))
+    function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real}; Padding::Real=0.)
+        length(lowers) != length(uppers) && throw("Dimensional Mismatch.")
+        if Padding != 0.
+            diff = (uppers - lowers) .* Padding
+            lowers -= diff;     uppers += diff
         end
-        new{suff(lowers)}(lowers,uppers)
+        sum(lowers[i] > uppers[i] for i in 1:length(lowers)) != 0 && throw("First argument of HyperCube must be larger than second.")
+        new{suff(lowers)}(float.(lowers),float.(uppers))
     end
-    function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}})
+    function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}}; Padding::Real=0.)
         len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
-        M = Unpack(H);        HyperCube(M[:,1],M[:,2])
+        M = Unpack(H);        HyperCube(M[:,1],M[:,2]; Padding=Padding)
     end
-    HyperCube(vals::AbstractVector{<:Real}) = HyperCube([vals])
-    HyperCube(vals::Tuple{<:Real,<:Real}) = HyperCube([vals[1],vals[2]])
-    HyperCube(Cube::HyperCube) = Cube
+    function HyperCube(vals::AbstractVector{<:Real}; Padding::Real=0.)
+        length(vals) != 2 && throw("Input has too many components.")
+        HyperCube([vals[1]],[vals[2]]; Padding=Padding)
+    end
+    HyperCube(vals::Tuple{<:Real,<:Real}; Padding::Real=0.) = HyperCube([vals[1]],[vals[2]]; Padding=Padding)
 end
 
 length(Cube::HyperCube) = length(Cube.L)
@@ -507,16 +510,11 @@ end
     ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
 Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
 """
-function ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=1/50)
-    lowers = [minimum(M[:,i]) for i in 1:size(M,2)]
-    uppers = [maximum(M[:,i]) for i in 1:size(M,2)]
-    diff = (uppers - lowers) .* Padding
-    HyperCube(lowers - diff,uppers + diff)
-end
-ConstructCube(V::AbstractVector{<:Real}) = HyperCube(extrema(V))
-ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=1/50) = ConstructCube(Deplanarize(PL,sol;N=300); Padding=Padding)
+ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
+ConstructCube(V::AbstractVector{<:Real}; Padding::Real=0.) = HyperCube(extrema(V); Padding=Padding)
+ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
 
-function ConstructCube(sol::ODESolution,Npoints::Int=200; Padding::Real=1/50)
+function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Real=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end
 

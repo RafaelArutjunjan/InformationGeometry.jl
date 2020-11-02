@@ -13,7 +13,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel)
     seriescolor --> :red
     linestyle --> :solid
     linewidth --> 2
-    X = range(xdata(DM)[1],xdata(DM)[end],length=600)
+    Xbounds = extrema(xdata(DM))
+    X = range(Xbounds[1],Xbounds[2],length=600)
     Y = map(z->DM.model(z,MLE(DM)),X)
     ToCols([X Y])
 end
@@ -354,28 +355,96 @@ function VisualizeSolPoints(sols::Vector{<:ODESolution}; OverWrite::Bool=false, 
 end
 
 
+XCube(DS::AbstractDataSet; Padding::Real=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
+XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(DM.Data; Padding=Padding)
+Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i],Cube.U[i]; length=N) for i in 1:length(Cube)]
+
+
+# function GetExtrema(DM::AbstractDataModel,sols::Union{ODESolution,Vector{<:ODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+#     low = Inf;   up = -Inf
+#     for sol in sols
+#         Y = map(Z->DM.model(X,sol(Z)), range(sol.t[1],sol.t[end]; length=N))
+#         templow = minimum(Y);   tempup = maximum(Y)
+#         if templow < low    low = templow       end
+#         if up < tempup      up = tempup         end
+#     end;    (low, up)
+# end
+# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{ODESolution,Vector{<:ODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+#     low = Inf;   up = -Inf
+#     for sol in sols
+#         templow, tempup = map(t->DM.model(X,PlaneCoordinates(PL,sol(t))), range(sol.t[1],sol.t[end]; length=N)) |> extrema
+#         if templow < low    low = templow       end
+#         if up < tempup      up = tempup         end
+#     end;    (low, up)
+# end
+# function GetExtrema(DM::AbstractDataModel,PL::Vector{<:Plane},sols::Vector{<:ODESolution},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+#     length(PL) != length(sols) && throw("Dimensional Mismatch.")
+#     low = Inf;   up = -Inf
+#     for i in 1:length(sols)
+#         templow, tempup = GetExtrema(DM,PL[i],sols[i],X; N=N)
+#         if templow < low    low = templow       end
+#         if up < tempup      up = tempup         end
+#     end;    (low, up)
+# end
+#
+# """
+#     ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
+# Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
+# """
+# function ConfidenceBands(DM::AbstractDataModel,sols::Union{ODESolution,Vector{<:ODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
+#     !(length(domain) == xdim(DM)) && throw("Dimensionality of domain inconsistent with xdim.")
+#     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
+#     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
+#     for i in 1:length(X)
+#         low[i], up[i] = GetExtrema(DM,sols,X[i]; N=Np)
+#     end
+#     col = rand([:red,:blue,:green,:orange,:grey])
+#     Plots.plot!(X,low,color=col,label="Lower Conf. Band")
+#     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+#     return [Unpack(collect(X)) low up]
+# end
+#
+# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,Vector{<:Plane}},sols::Union{ODESolution,Vector{<:ODESolution}},
+#                                             domain::HyperCube=XCube(DM); N::Int=200, Np::Int=300)
+#     length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
+#     !(length(Planes) == 1 || length(Planes) == length(sols)) && throw("Number of Planes inconsisten with number of ODESolutions.")
+#     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
+#     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
+#     for i in 1:length(X)
+#         low[i], up[i] = GetExtrema(DM,Planes,sols,X[i]; N=Np)
+#     end
+#     col = rand([:red,:blue,:green,:orange,:grey])
+#     Plots.plot!(X,low,color=col,label="Lower Conf. Band")
+#     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+#     return [Unpack(collect(X)) low up]
+# end
+
+
 """
-    PointwiseConfidenceBand(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
-Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence interval.
+    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
+Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 """
-function PointwiseConfidenceBand(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=HyperCube([xdata(DM)[1],xdata(DM)[end]]); N::Int=300)
+function ConfidenceBands(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
     !(length(domain) == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
     if ydim(DM) == 1
         T = range(sol.t[1],sol.t[end]; length=300)
-        X = range(domain.vals[1][1],domain.vals[1][2],length=N)
+        X = range(domain.L[1],domain.U[1]; length=N)
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
         for i in 1:length(X)
             Y = map(t->DM.model(X[i],sol(t)),T)
-            up[i] = maximum(Y); low[i] = minimum(Y)
+            low[i], up[i] = extrema(Y)
         end
-        Plots.plot!(X,low)
-        Plots.plot!(X,up) |> display
+        if plot
+            col = rand([:red,:blue,:green,:orange,:grey])
+            Plots.plot!(X,low,color=col,label="Lower Conf. Band")
+            Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+        end
         return [X low up]
     else
         throw("Not programmed yet.")
-        # Evaluate on boundary of cube
     end
 end
+PointwiseConfidenceBands(args...; kwargs...) = ConfidenceBands(args...; kwargs...)
 
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
@@ -425,12 +494,13 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
     C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2pi,length=N)
     F(α::Real) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
-    display(Plots.plot!(ToCols(Data)...,label="Matrix"));   Data
+    if plot   display(Plots.plot!(ToCols(Data)...,label="Matrix"))  end
+    Data
 end
 
 

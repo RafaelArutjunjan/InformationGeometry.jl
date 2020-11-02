@@ -15,7 +15,7 @@ loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihoo
 
 function loglikelihood(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
-    -0.5*(N(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(Npoints(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -415,8 +415,8 @@ end
 
 function performMap2(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
     if ydim(DS) > 1
-        Res = Vector{suff(θ)}(undef,N(DS)*ydim(DS))
-        for i in 1:N(DS)
+        Res = Vector{suff(θ)}(undef,Npoints(DS)*ydim(DS))
+        for i in 1:Npoints(DS)
             Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
         end;    return Res
     else
@@ -438,8 +438,8 @@ performDMap(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},wo
 
 # very slightly faster apparently
 function performDMap2(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
-    Res = Array{suff(θ)}(undef,N(DS)*ydim(DS),length(θ))
-    for i in 1:N(DS)
+    Res = Array{suff(θ)}(undef,Npoints(DS)*ydim(DS),length(θ))
+    for i in 1:Npoints(DS)
         Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
     end;    Res
 end
@@ -492,14 +492,14 @@ Computes Akaike Information Criterion with an added correction term that prevent
 ``\\mathrm{AICc} = \\mathrm{AIC} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
-AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (N(DM.Data) - length(θ) - 1)
+AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM.Data) - length(θ) - 1)
 AICc(DM::DataModel) = AICc(DM,MLE(DM))
 
 """
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(N(DM.Data)) - 2loglikelihood(DM,θ)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(Npoints(DM.Data)) - 2loglikelihood(DM,θ)
 BIC(DM::DataModel) = BIC(DM,MLE(DM))
 
 

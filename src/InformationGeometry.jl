@@ -24,7 +24,7 @@ include("DataStructures.jl")
 export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
-export xdata, ydata, sigma, InvCov, N, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX
+export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export BlockDiagonal, MLEinPlane, PlanarDataModel, DetermineDmodel
 
@@ -81,7 +81,7 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 include("Plotting.jl")
 export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints
-export PointwiseConfidenceBand, PlotMatrix
+export ConfidenceBands, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 
