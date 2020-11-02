@@ -37,6 +37,8 @@ using SafeTestsets
     @test size(ConfidenceBands(DM,sols[1];N=50,plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
     @test typeof(FittedPlot(DM)) <: Plots.Plot
+
+    @test typeof(VisualizeGeos([MBAM(DM)])) <: Plots.Plot
 end
 
 
@@ -89,7 +91,10 @@ end
     # Product distributions, particularly Normal and Cauchy
     P = [Normal(0,1), Cauchy(1,2)] |> product_distribution
     Q = [Cauchy(1,1), Cauchy(2,4)] |> product_distribution
-    @test abs(KullbackLeibler(P, Q, HyperCube([[-20,20] for i in 1:2]); tol=1e-7) - 0.719771180) < 1e-4
+    R = [Normal(2,4), Normal(-1,0.5)] |> product_distribution
+    @test abs(KullbackLeibler(P, Q, HyperCube([[-20,20] for i in 1:2]); tol=1e-7) - 0.719771180) < 1e-8
+    @test abs(KullbackLeibler(R, P, HyperCube([[-20,20] for i in 1:2]); tol=1e-7) - 9.920379769) < 1e-8
+    @test abs(KullbackLeibler(P, R, HyperCube([[-20,20] for i in 1:2]); tol=1e-7) - 48.99179438) < 1e-8
 
     # Via any positive (hopefully normalized) functions
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); Carlo=true, N=Int(3e6)) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 2e-2

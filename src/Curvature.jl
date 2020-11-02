@@ -87,12 +87,14 @@ end
 """
 (0,4) Weyl curvature tensor. NEEDS TESTING.
 """
-function Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false)
+Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Weyl(z->AutoMetric(DM,z),θ; BigCalc=BigCalc)
+function Weyl(Metric::Function,θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
-    Riem = Riemann(DM,θ; BigCalc=BigCalc)
-    g = BigCalc ? FisherMetric(DM,BigFloat.(θ)) : FisherMetric(DM,θ)
+    Riem = Riemann(Metric,θ; BigCalc=BigCalc)
+    g = BigCalc ? Metric(BigFloat.(θ)) : Metric(θ)
     @tensor Ric[a,b] := Riem[m,a,m,b]
     @tensor PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
     @tensor PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
-    g * Riem .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
+    @tensor Rlow[a,b,c,d] := g[a,e] * Riem[e,b,c,d]
+    Rlow .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
 end

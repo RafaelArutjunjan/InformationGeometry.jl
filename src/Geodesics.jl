@@ -234,7 +234,7 @@ end
 """
 Return `true` when integration of ODE should be terminated.
 """
-function MBAMBoundaries(u,t,int)::Bool
+function MBAMBoundaries(u,t,int,DM)::Bool
     A = !all(x->x < 100, u)
     B = svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < 1e-8
     # println does not show for some reason -> use @warn
@@ -252,9 +252,10 @@ end
 function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     InitialVel = normalize(LeastInformativeDirection(DM,MLE(DM)))
     if typeof(Boundaries) == Nothing
-        return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=MBAMBoundaries, tol=tol, meth=meth)
+        MBAMboundary(u,t,int) = MBAMBoundaries(u,t,int,DM)
+        return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=MBAMboundary, tol=tol, meth=meth)
     else
-        CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int)
+        CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int,DM)
         return ComputeGeodesic(DM,MLE(DM),InitialVel,1e3; Boundaries=CombinedBoundaries, tol=tol, meth=meth)
     end
 end
