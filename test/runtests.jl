@@ -6,11 +6,10 @@ using SafeTestsets
 @safetestset "Probability Objects" begin
     using InformationGeometry, Test, LinearAlgebra, Distributions, Plots
 
-    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1] * x + p[2]
+    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
+    model(x,θ) = θ[1] * x + θ[2]
     DM = DataModel(DS,model)
-    XYPlane = Plane([0,0,0],[1,0,0],[0,1,0])
-    x = [0.1,0.5];    p = rand(2)
+    p = rand(2)
 
     @test IsLinear(DM)
     Dist = DataDist(ydata(DM),sigma(DM))
@@ -24,15 +23,16 @@ using SafeTestsets
 
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
+
     @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
-    @test sum(abs.(FindMLE(DM) - [6.1213483146067,0.8382022471910])) < 5e-10
+    @test sum(abs.(FindMLE(DM) - [5.01511545953636, 1.4629658803705])) < 5e-10
     # ALSO DO NONLINEAR MODEL!
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-8)
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
-    @test size(SaveConfidence(sols,100)) == (100,4)
-    @test size(SaveGeodesics(sols,100)) == (100,2)
-    @test size(SaveDataSet(DM)) == (3,3)
+    @test size(SaveConfidence(sols,50)) == (50,4)
+    @test size(SaveGeodesics(sols,50)) == (50,2)
+    @test size(SaveDataSet(DM)) == (4,3)
     @test ConfidenceRegionVolume(DM,sols[1]) < ConfidenceRegionVolume(DM,sols[2])
 
     @test size(ConfidenceBands(DM,sols[1];N=50,plot=false)) == (50,3)

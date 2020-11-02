@@ -168,6 +168,7 @@ function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Abstra
     end
 end
 
+GetStartP(DM::AbstractDataModel) = GetStartP(DM.Data,DM.model)
 function GetStartP(DS::AbstractDataSet,model::Function)
     P = pdim(DS,model)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
@@ -446,7 +447,10 @@ Computes Akaike Information Criterion with an added correction term that prevent
 ``\\mathrm{AICc} = \\mathrm{AIC} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
-AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM.Data) - length(θ) - 1)
+function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number})
+    (Npoints(DM.Data) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
+    AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM.Data) - length(θ) - 1)
+end
 AICc(DM::DataModel) = AICc(DM,MLE(DM))
 
 """

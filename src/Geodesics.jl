@@ -202,7 +202,7 @@ function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::Abstrac
         resid[1:dim] = u[1][1:dim] .- P
         resid[(dim+1):2dim] = u[end][1:dim] .- Q
     end
-    # Add a bit of randomness to initial direction:
+    # Slightly perturb initial direction:
     tspan = (0.,10.);    initial = [P..., ((Q - P)./tspan[2])...] .+ 1e-6 .*(rand(2dim) .-0.5)
     BVP = BVProblem(GeodesicODE!, bc!, initial, tspan)
     solve(BVP, Shooting(meth), reltol=tol,abstol=tol)
@@ -234,15 +234,12 @@ end
 """
 Return `true` when integration of ODE should be terminated.
 """
-function MBAMBoundaries(u,t,int,DM)::Bool
-    A = !all(x->x < 100, u)
-    B = svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < 1e-8
-    # println does not show for some reason -> use @warn
-    if A
-        @warn "Terminated because a position / velocity coordinate > 100."
+function MBAMBoundaries(u,t,int,DM; componentlim = 1e3, singularlim = 1e-8)::Bool
+    if !all(x->x < componentlim, u)
+        @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
         return true
-    elseif B
-        @warn "Terminated because Fisher metric became singular."
+    elseif svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < singularlim
+        @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
         return true
     else
         return false

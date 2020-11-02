@@ -83,10 +83,18 @@ data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
 xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
 
-sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
-sigma(P::Distribution) = P.Σ
+Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
+Sigma(P::Distribution) = P.Σ
+# Sigma(P::Distribution) = try P.Σ catch; cov(P) end
 xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
+
+
+xdist(DME::AbstractDataModel) = xdist(DME.Data)
+ydist(DME::AbstractDataModel) = ydist(DME.Data)
+xsigma(DME::AbstractDataModel) = xsigma(DME.Data)
+ysigma(DME::AbstractDataModel) = ysigma(DME.Data)
+
 
 InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)

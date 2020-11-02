@@ -1,14 +1,13 @@
 
 
-function SaveAdaptive(sol::ODESolution,N::Int=500; curvature = 0.003, Ntol=0.08)
+function SaveAdaptive(sol::ODESolution, N::Int=500; curvature = 0.003, Ntol=0.08)
     Tspan = (sol.t[1],sol.t[end]);      maxiter=30
     for _ in 1:maxiter
         T = reduce(vcat,[refine_grid(x->sol(x)[i],Tspan; max_curvature=curvature)[1] for i in 1:length(sol.u[1])]) |> unique |> sort
-        # T = vcat([refine_grid(x->sol(x)[i],Tspan,max_curvature=curvature)[1] for i in 1:length(sol.u[1])]...) |> unique |> sort
         if length(T) > N
             curvature *= 1.2
         elseif length(T) < (1-Ntol) * N
-            curvature *= 0.85
+            curvature *= 0.5
         else
             return Homogenize(T,N)
         end
@@ -35,39 +34,36 @@ function Dehomogenize(V::AbstractVector,N::Int=500)
 end
 
 """
-    SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
+    SaveConfidence(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+Returns a `Matrix` of with `N` rows corresponding to the number of evaluations of each `ODESolution` in `sols`.
+The colums correspond to the various components of the evaluated solutions.
+E.g. for an `ODESolution` with 3 components, the 4. column in the `Matrix` corresponds to the evaluated first components of `sols[2]`.
 """
-function SaveConfidence(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-    d = length(sols[1].u[1])
-    Res = Array{Float64}(undef,N,d*length(sols))
-    for i in 1:length(sols)
-        T = range((sols[i]).t[1],(sols[i]).t[end],length=N)
-        if adaptive
-            T = SaveAdaptive(sols[i],N)
-        end
-        Res[:,((i-1)*d+1):(d*i)] .= sols[i].(T) |> Unpack
-    end
-    round.(Res,sigdigits=sigdigits) |> DataFrame
+function SaveConfidence(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    d = length(sols[1].u[1]);    Res = Array{Float64}(undef,N,d*length(sols))
+    for (i,sol) in enumerate(sols)
+        Res[:,((i-1)*d+1):(d*i)] = SaveConfidence(sol, N; sigdigits=sigdigits, adaptive=adaptive)
+    end;    Res
+end
+function SaveConfidence(sol::ODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    T = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
+    round.(Unpack(sol.(T)); sigdigits=sigdigits)
 end
 
-
 """
-    SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-Returns `DataFrame` of `N` points of each `ODESolution` in `sols`. Different points correspond to different rows whereas the columns correspond to different components.
+    SaveGeodesics(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+Returns a `Matrix` of with `N` rows corresponding to the number of evaluations of each `ODESolution` in `sols`.
+The colums correspond to the various components of the evaluated solutions.
 Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
 """
 function SaveGeodesics(sols::Vector{<:ODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
-    d = length(sols[1].u[1])/2 |> Int
-    Res = Array{Float64}(undef,N,d*length(sols))
-    for i in 1:length(sols)
-        T = range((sols[i]).t[1],(sols[i]).t[end],length=N)
-        if adaptive
-            T = SaveAdaptive(sols[i],N)
-        end
-        Res[:,((i-1)*d+1):(d*i)] .= Unpack(sols[i].(T))[:,1:d]
-    end
-    round.(Res; sigdigits=sigdigits) |> DataFrame
+    d = length(sols[1].u[1])/2 |> Int;      Res = Array{Float64}(undef,N,d*length(sols))
+    for (i,sol) in enumerate(sols)
+        Res[:,((i-1)*d+1):(d*i)] = SaveGeodesics(sol, N; sigdigits=sigdigits, adaptive=adaptive)
+    end;    Res
+end
+function SaveGeodesics(sol::ODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    SaveConfidence(sol, N; sigdigits=sigdigits, adaptive=adaptive)[:, 1:Int(length(sol.u[1])/2)]
 end
 
 """

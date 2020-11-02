@@ -204,7 +204,8 @@ function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<
     u = cholesky(InvCov(DS)).U
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     p0 = convert(Vector,initial);    r = f(p0)
-    R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :finite)
+    # R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :finite)
+    R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :forward)
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
 

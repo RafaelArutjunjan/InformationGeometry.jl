@@ -32,6 +32,19 @@ RecipesBase.@recipe function f(DS::DataSet)
     xdata(DS), ydata(DS)
 end
 
+# RecipesBase.@recipe function f(DS::DataSetExact)
+#     !(typeof(sigma(DS)) <: AbstractVector) && throw("Not programmed for full covariance matrix yet.")
+#     line -->            (:scatter,1)
+#     xguide -->          "Conditions x"
+#     yguide -->          "Observations y"
+#     label -->           "Data"
+#     yerror -->          sigma(DS)
+#     linecolor   -->         :blue
+#     markercolor -->         :blue
+#     markerstrokecolor -->   :blue
+#     xdata(DS), ydata(DS)
+# end
+
 RecipesBase.@recipe function f(LU::HyperCube)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1], rectangle(LU)[:,2]

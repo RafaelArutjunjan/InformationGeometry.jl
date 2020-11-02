@@ -36,7 +36,7 @@ export Inside, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, CoverC
 
 
 include("DataSetExact.jl")
-export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike
+export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike, xdist, ydist, xsigma, ysigma
 
 
 include("ConfidenceRegions.jl")
