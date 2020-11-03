@@ -9,6 +9,8 @@ using RecipesBase, Plots, Optim
 
 # General Todos:
 # Improve ConfidenceBands
+# Implement ODR for estimating maximum likelihood with x-errors.
+# Normal distributions around data
 # Make user-facing keywords more uniform: tol, meth, Big, ...
 # Allow for specification of a domain for model function in DataModel
 # Add descriptions of how to save stuff to docs
@@ -26,7 +28,7 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
-export BlockDiagonal, MLEinPlane, PlanarDataModel, DetermineDmodel
+export MLEinPlane, PlanarDataModel, DetermineDmodel
 
 # Planes
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
@@ -57,7 +59,7 @@ include("NumericalTools.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export Integrate1D, IntegrateND, LineSearch, MonteCarloArea
-export curve_fit
+export curve_fit, BlockDiagonal, BlockMatrix
 
 
 include("InformationDivergences.jl")

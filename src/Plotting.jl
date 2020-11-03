@@ -10,40 +10,45 @@ RecipesBase.@recipe function f(DM::AbstractDataModel)
     end
     markeralpha := 0.
     label --> "Best Fit"
+    xguide --> "Conditions x"
+    yguide --> "Observations y"
     seriescolor --> :red
     linestyle --> :solid
     linewidth --> 2
     Xbounds = extrema(xdata(DM))
-    X = range(Xbounds[1],Xbounds[2],length=600)
+    X = range(Xbounds[1],Xbounds[2],length=500)
     Y = map(z->DM.model(z,MLE(DM)),X)
     ToCols([X Y])
 end
 
 RecipesBase.@recipe function f(DS::DataSet)
-    !(typeof(sigma(DS)) <: AbstractVector) && throw("Not programmed for full covariance matrix yet.")
+    Σ_y = typeof(sigma(DS)) <: AbstractVector ? sigma(DS) : sqrt.(Diagonal(sigma(DS)).diag)
     line -->            (:scatter,1)
     xguide -->          "Conditions x"
     yguide -->          "Observations y"
     label -->           "Data"
-    yerror -->          sigma(DS)
+    yerror -->          Σ_y
     linecolor   -->         :blue
     markercolor -->         :blue
     markerstrokecolor -->   :blue
     xdata(DS), ydata(DS)
 end
 
-# RecipesBase.@recipe function f(DS::DataSetExact)
-#     !(typeof(sigma(DS)) <: AbstractVector) && throw("Not programmed for full covariance matrix yet.")
-#     line -->            (:scatter,1)
-#     xguide -->          "Conditions x"
-#     yguide -->          "Observations y"
-#     label -->           "Data"
-#     yerror -->          sigma(DS)
-#     linecolor   -->         :blue
-#     markercolor -->         :blue
-#     markerstrokecolor -->   :blue
-#     xdata(DS), ydata(DS)
-# end
+RecipesBase.@recipe function f(DS::DataSetExact)
+    typeof(xdist(DS)) <: Dirac && return DataSet(xdata(DS), ydata(DS), sigma(DS), DS.dims)
+    Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
+    Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
+    line -->            (:scatter,1)
+    xguide -->          "Conditions x"
+    yguide -->          "Observations y"
+    label -->           "Data"
+    xerror -->          Σ_x
+    yerror -->          Σ_y
+    linecolor   -->         :blue
+    markercolor -->         :blue
+    markerstrokecolor -->   :blue
+    xdata(DS), ydata(DS)
+end
 
 RecipesBase.@recipe function f(LU::HyperCube)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")

@@ -294,24 +294,12 @@ function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
     else
         throw("Under construction.")
     end
-    DataSet(X,Y,Σ)
+    DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)))
 end
 SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(DM.Data,range),DM.model,DM.dmodel)
 
 Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
-
-
-"""
-    BlockDiagonal(M::AbstractMatrix, N::Int)
-Returns matrix which contains `N` many blocks of the matrix `M` along its diagonal.
-"""
-function BlockDiagonal(M::AbstractMatrix, N::Int)
-    Res = zeros(size(M,1)*N,size(M,2)*N)
-    for i in 1:N
-        Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
-    end;    Res
-end
 
 
 """

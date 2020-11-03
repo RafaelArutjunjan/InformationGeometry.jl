@@ -246,6 +246,26 @@ function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,s
 end
 
 
+"""
+    BlockDiagonal(M::AbstractMatrix, N::Int)
+Returns matrix which contains `N` many blocks of the matrix `M` along its diagonal.
+"""
+function BlockDiagonal(M::AbstractMatrix, N::Int)
+    Res = zeros(size(M,1)*N,size(M,2)*N)
+    for i in 1:N
+        Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
+    end;    Res
+end
+
+function BlockMatrix(A::AbstractMatrix,B::AbstractMatrix)
+    Res = zeros(suff(A),size(A,1)+size(B,1),size(A,2)+size(B,2))
+    Res[1:size(A,1),1:size(A,1)] = A
+    Res[size(A,1)+1:end,size(A,1)+1:end] = B
+    Res
+end
+BlockMatrix(A,B,args...) = BlockMatrix(BlockMatrix(A,B),args...)
+
+
 function signature(I::Vector,dims::Int)
     rank = length(I)
     (rank < 2 || dims < 2) && throw(BoundsError("Signature error: dims = $dims, rank = $rank"))
