@@ -15,6 +15,7 @@ HealthyCovariance(sigma::AbstractMatrix{<:Real}) = !isposdef(sigma) && throw("Co
 
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
+abstract type Cuboid end
 
 """
 The `DataSet` type is a versatile container for storing data. Typically, it is constructed by passing it three vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each y-value.
@@ -85,11 +86,19 @@ struct DataSet <: AbstractDataSet
 end
 
 
+struct ModelMap
+    Map::Function
+    Domain::Cuboid
+    targetdim::Int
+end
+(M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
+ModelOrFunction = Union{Function,ModelMap}
+
 """
     DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
+function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction)
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
@@ -102,7 +111,7 @@ function DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 end
 
 
-function CheckModelHealth(DS::AbstractDataSet,model::Function)
+function CheckModelHealth(DS::AbstractDataSet,model::ModelOrFunction)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
     try  model(X,P)   catch Err
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
@@ -150,23 +159,23 @@ The `DataSet` contained in a `DataModel` named `DM` can be accessed via `DM.Data
 """
 struct DataModel <: AbstractDataModel
     Data::AbstractDataSet
-    model::Function
-    dmodel::Function
+    model::ModelOrFunction
+    dmodel::ModelOrFunction
     MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    DataModel(DS::AbstractDataSet,model::Function,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
-    DataModel(DS::AbstractDataSet,model::Function,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,sneak::Bool=false)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,sneak::Bool=false)
         sneak ? DataModel(DS,model,dmodel,[-Inf,-Inf],true) : DataModel(DS,model,dmodel,FindMLE(DS,model))
     end
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,mle::AbstractVector{<:Number},sneak::Bool=false)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},sneak::Bool=false)
         sneak && return DataModel(DS,model,dmodel,mle,-Inf,true)
         MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
         DataModel(DS,model,dmodel,MLE,LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
-    function DataModel(DS::AbstractDataSet,model::Function,dmodel::Function,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
         sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
         CheckModelHealth(DS,model)
         norm(AutoScore(DS,model,MLE)) > 1e-5 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(AutoScore(DS,model,MLE)))."
@@ -236,14 +245,14 @@ yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDa
 
 pdim(DM::DataModel) = length(MLE(DM))
 pdim(DM::AbstractDataModel) = pdim(DM.Data,DM.model)
-pdim(DS::AbstractDataSet,model::Function) = xdim(DS) < 2 ? pdim(p->model(xdata(DS)[1],p)) : pdim(p->model(xdata(DS)[1:xdim(DS)],p))
-# pdim(model::Function,x::Union{<:Real,AbstractVector{<:Real}}=1.; max::Int=100) = pdim(θ->model(x,θ); max=max)
+pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? pdim(p->model(xdata(DS)[1],p)) : pdim(p->model(xdata(DS)[1:xdim(DS)],p))
+# pdim(model::ModelOrFunction,x::Union{<:Real,AbstractVector{<:Real}}=1.; max::Int=100) = pdim(θ->model(x,θ); max=max)
 
 """
     pdim(F::Function; max::Int=50) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(F::Function; max::Int=100)::Int
+function pdim(F::ModelOrFunction; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
@@ -460,7 +469,7 @@ TranslateCube(X,v::Vector)
 CubeWidths(X)
 ```
 """
-struct HyperCube{Q<:Real}
+struct HyperCube{Q<:Real} <: Cuboid
     L::AbstractVector{Q}
     U::AbstractVector{Q}
     function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real}; Padding::Real=0.)
@@ -549,3 +558,7 @@ function CoverCubes(A::HyperCube,B::HyperCube)
 end
 CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
+
+
+import Base: rand
+rand(Cube::HyperCube) = Cube.L + (Cube.U - Cube.L) .* rand(length(Cube.L))

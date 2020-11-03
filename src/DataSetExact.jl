@@ -121,8 +121,10 @@ end
 LogLike(DSE::DataSetExact,x::AbstractVector{<:Real},y::AbstractVector{<:Real}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
 
 import Distributions: loglikelihood
-loglikelihood(DSE::DataSetExact,model::Function,θ::AbstractVector{<:Number}) = LogLike(DSE,xdata(DSE),EmbeddingMap(DSE,model,θ))
+loglikelihood(DSE::DataSetExact,model::ModelOrFunction,θ::AbstractVector{<:Number}) = LogLike(DSE,xdata(DSE),EmbeddingMap(DSE,model,θ))
 
-function Score(DSE::DataSetExact,model::Function,dmodel::Function,θ::AbstractVector{<:Number})
+function Score(DSE::DataSetExact,model::ModelOrFunction,dmodel::ModelOrFunction,θ::AbstractVector{<:Number})
     transpose(EmbeddingMatrix(DSE,dmodel,θ)) * gradlogpdf(ydist(DSE),EmbeddingMap(DSE,model,θ))
 end
+
+# FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,DataMetric(DS),θ)

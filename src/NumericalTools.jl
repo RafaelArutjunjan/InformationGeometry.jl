@@ -170,7 +170,7 @@ MonteCarloAreaWE(Test::Function,Cube::HyperCube,N::Int=Int(1e7)) = MonteCarloAre
 
 
 # From Cuba.jl docs
-function CompactDomainTransform(F::Function, Cube::HyperCube)
+function CompactDomainTransform(F::ModelOrFunction, Cube::HyperCube)
     (!all(x->isfinite(x),Cube.L) || !all(x->isfinite(x),Cube.U)) && throw("Not applicable.")
     if length(Cube) == 1
         W = Cube.U[1] - Cube.L[1]
@@ -182,14 +182,14 @@ function CompactDomainTransform(F::Function, Cube::HyperCube)
     end
 end
 
-function HalfInfiniteTransform(F::Function, Cube::HyperCube)
+function HalfInfiniteTransform(F::ModelOrFunction, Cube::HyperCube)
     # integral over [a,∞]
     if Cube.U[1] == Inf && isfinite(Cube.L[1])
         return x -> (1-x)^-2 * F(Cube.L[1] + x/(1-x))
     end
 end
 
-function InfiniteDomainTransform(F::Function, Cube::HyperCube)
+function InfiniteDomainTransform(F::ModelOrFunction, Cube::HyperCube)
     if Cube.L[1] == -Inf && Cube.L[1] == Inf
         return x -> F((2x - 1.)/((1 - x)*x)) * (2x^2 - 2y + 1) / ((1-x^2)*x^2)
     end
@@ -198,7 +198,7 @@ end
 
 import LsqFit.curve_fit
 curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
+function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
@@ -209,7 +209,7 @@ function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
 
-# function curve_fit(DS::AbstractDataSet,model::Function,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
+# function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
 #     X = xdata(DS);  Y = ydata(DS)
 #     LsqFit.check_data_health(X, Y)
 #     u = cholesky(InvCov(DS)).U

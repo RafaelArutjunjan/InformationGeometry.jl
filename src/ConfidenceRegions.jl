@@ -13,7 +13,7 @@ Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\
 """
 loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
 
-function loglikelihood(DS::DataSet,model::Function,θ::AbstractVector{<:Number})
+function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     -0.5*(Npoints(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
@@ -21,8 +21,8 @@ end
 
 AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
 AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(DM.Data,DM.model,θ)
-AutoScore(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
-AutoMetric(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
+AutoScore(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
+AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
 
 
 """
@@ -31,12 +31,12 @@ Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(DM.Data,DM.model,DM.dmodel,θ; Auto=Auto)
 
-function Score(DS::AbstractDataSet, model::Function, dmodel::Function, θ::AbstractVector{<:Number}; Auto::Bool=false)
+function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DS,model,θ)
     Score(DS,model,dmodel,θ)
 end
 
-function Score(DS::DataSet,model::Function,dmodel::Function,θ::AbstractVector{<:Number})
+function Score(DS::DataSet,model::ModelOrFunction,dmodel::ModelOrFunction,θ::AbstractVector{<:Number})
     transpose(EmbeddingMatrix(DS,dmodel,θ)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ)))
 end
 
@@ -91,7 +91,7 @@ end
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = InformationGeometry.logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(DM.Data,DM.model,θ)
-function ResidualSquares(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Real})
+function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Real})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     transpose(Y) * InvCov(DS) * Y
 end
@@ -137,7 +137,7 @@ function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number};
     OrthVF(DM.Data,DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
 end
 
-function OrthVF(DS::AbstractDataSet, model::Function, dmodel::Function, θ::AbstractVector{<:Number};
+function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
                 alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
     S = -Score(DS,model,dmodel,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
@@ -159,7 +159,7 @@ end
 
 
 FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,convert(Vector,start))
-function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false)
+function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
         return optimize(NegEll, BigFloat.(convert(Vector,start)), BFGS(), Optim.Options(g_tol=convert(BigFloat,10^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
@@ -169,13 +169,13 @@ function FindMLEBig(DS::AbstractDataSet,model::Function,start::Union{Bool,Abstra
 end
 
 GetStartP(DM::AbstractDataModel) = GetStartP(DM.Data,DM.model)
-function GetStartP(DS::AbstractDataSet,model::Function)
+function GetStartP(DS::AbstractDataSet,model::ModelOrFunction)
     P = pdim(DS,model)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
 end
 
 FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
-function FindMLE(DS::AbstractDataSet,model::Function,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
+function FindMLE(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)
@@ -218,7 +218,7 @@ function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; to
     GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
-function GenerateBoundary(DS::AbstractDataSet,model::Function,dmodel::Function,u0::AbstractVector{<:Number}; tol::Real=1e-12,
+function GenerateBoundary(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,u0::AbstractVector{<:Number}; tol::Real=1e-12,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
@@ -326,7 +326,7 @@ g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}
 ```
 """
 FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(DM.Data,DM.dmodel,θ)
-FisherMetric(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
+FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
 
 """
     GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
@@ -358,9 +358,9 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(DM.Data,DM.model,θ)
 
-EmbeddingMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number}) = performMap(DS,model,θ,WoundX(DS))
+EmbeddingMap(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = performMap(DS,model,θ,WoundX(DS))
 
-function performMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
+function performMap(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
     if ydim(DS) > 1
         return reduce(vcat,map(x->model(x,θ),woundX))
     else
@@ -368,7 +368,7 @@ function performMap(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Num
     end
 end
 
-function performMap2(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
+function performMap2(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
     if ydim(DS) > 1
         Res = Vector{suff(θ)}(undef,Npoints(DS)*ydim(DS))
         for i in 1:Npoints(DS)
@@ -379,7 +379,7 @@ function performMap2(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Nu
     end
 end
 
-function performMap3(DS::AbstractDataSet,model::Function,θ::AbstractVector{<:Number},woundX::AbstractVector{<:SArray})
+function performMap3(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector{<:SArray})
     # if model outputs StaticArrays
     reinterpret(suff(θ),map(x->model(x,θ),woundX))
 end
@@ -387,12 +387,12 @@ end
 
 EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
 
-EmbeddingMatrix(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number}) = performDMap(DS,dmodel,float.(θ),WoundX(DS))
+EmbeddingMatrix(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number}) = performDMap(DS,dmodel,float.(θ),WoundX(DS))
 
-performDMap(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
+performDMap(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
 
 # very slightly faster apparently
-function performDMap2(DS::AbstractDataSet,dmodel::Function,θ::AbstractVector{<:Number},woundX::AbstractVector)
+function performDMap2(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
     Res = Array{suff(θ)}(undef,Npoints(DS)*ydim(DS),length(θ))
     for i in 1:Npoints(DS)
         Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
@@ -415,7 +415,7 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(DM.Data,DM.dmodel,G,θ)
-function Pullback(DS::AbstractDataSet, dmodel::Function, G::AbstractMatrix, θ::AbstractVector{<:Number})
+function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number})
     J = EmbeddingMatrix(DS,dmodel,θ)
     transpose(J) * G * J
 end

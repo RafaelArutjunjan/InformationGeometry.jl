@@ -38,6 +38,7 @@ using SafeTestsets
     @test size(ConfidenceBands(DM,sols[1];N=50,plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
     @test typeof(FittedPlot(DM)) <: Plots.Plot
+    @test typeof(ResidualPlot(DM)) <: Plots.Plot
 
     @test typeof(VisualizeGeos([MBAM(DM)])) <: Plots.Plot
     simplermodel(x,p) = p[1]*x;    DMSimp = DataModel(DS,simplermodel)

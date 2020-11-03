@@ -23,7 +23,7 @@ using RecipesBase, Plots, Optim
 
 
 include("DataStructures.jl")
-export AbstractDataSet, AbstractDataModel, DataSet, DataModel, Plane, HyperCube
+export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, Plane, HyperCube
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX

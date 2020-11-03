@@ -81,7 +81,7 @@ FittedPlot(DM::AbstractDataModel;kwargs...) = Plots.plot(DM;kwargs...)
 function ResidualPlot(DM::AbstractDataModel;kwargs...)
     !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     resid = ydata(DM) - EmbeddingMap(DM,MLE(DM))
-    Plots.plot(DataSet(xdata(DM),resid,sigma(DM));kwargs...)
+    Plots.plot(DataSetExact(xdata(DM),resid,sigma(DM));kwargs...)
     Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
     Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
 end
