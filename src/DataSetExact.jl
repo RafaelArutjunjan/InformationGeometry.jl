@@ -33,7 +33,11 @@ struct DataSetExact <: AbstractDataSet
     DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
     DataSetExact(DM::AbstractDataModel) = DataSetExact(DM.Data)
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
+    DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
+    function DataSet(x::AbstractVector{<:Measurement},y::AbstractVector{<:Measurement})
+        DataSet([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    end
     function DataSetExact(x::AbstractVector,xSig::AbstractVector,y::AbstractVector,ySig::AbstractVector)
         dims = HealthyData(x,y)
         length(Unwind(xSig)) != xdim(dims)*Npoints(dims) && throw("Problem with x errors.")

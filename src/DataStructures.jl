@@ -53,14 +53,15 @@ struct DataSet <: AbstractDataSet
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
     WoundX::Union{AbstractVector,Bool}
-    function DataSet(x::AbstractVector,y::AbstractVector)
-        println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
-        DataSet(x,y,ones(length(y)*length(y[1])))
-    end
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
         DataSet(ToCols(convert(Matrix,DF))...)
     end
+    function DataSet(x::AbstractVector,y::AbstractVector)
+        println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
+        DataSet(x,y,ones(length(y)*length(y[1])))
+    end
+    DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
     function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractVector,dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
@@ -264,6 +265,9 @@ function pdim(F::ModelOrFunction; max::Int=100)::Int
         i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
     end
 end
+
+LinearModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = dot(θ[1:end-1], x) + θ[end]
+QuadraticModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
 
 import DataFrames.DataFrame
 DataFrame(DM::DataModel) = DataFrame(DM.Data)

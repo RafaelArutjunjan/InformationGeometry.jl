@@ -27,6 +27,7 @@ export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, 
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX
+export LinearModel, QuadraticModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
