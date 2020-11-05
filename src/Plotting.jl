@@ -79,16 +79,17 @@ FittedPlot(DM::AbstractDataModel; kwargs...) = Plots.plot(DM; kwargs...)
 
 ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(DM.Data, DM.model, MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    # !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
-    # NewDS = isa(DM.Data,DataSetExact) ? DataSetExact(xdata(DM.Data),xsigma(D))
-    # Plots.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
-    # Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
-    # Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
 end
 function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
     Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
 end
+# function ResidualPlot(DM::AbstractDataModel; kwargs...)
+#     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+#     Plots.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
+#     Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
+#     Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
+# end
 
 meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 

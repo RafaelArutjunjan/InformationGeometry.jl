@@ -25,12 +25,12 @@ Examples:
 
 In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a `DataSet` consisting of four points can be constructed via
 ```julia
-DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
+DataSet([1,2,3,4], [4,5,6.5,7.8], [0.5,0.45,0.6,0.8])
 ```
 or alternatively by
 ```julia
 using LinearAlgebra
-DataSet([1,2,3,4],[4,5,6.5,7.8],Diagonal([0.5,0.45,0.6,0.8].^2))
+DataSet([1,2,3,4], [4,5,6.5,7.8], Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
 where the diagonal covariance matrix in the second line is equivalent to the vector of standard deviations supplied in the first line.
 
@@ -41,7 +41,7 @@ X = [0.9, 1.0, 1.1, 1.9, 2.0, 2.1, 2.9, 3.0, 3.1, 3.9, 4.0, 4.1]
 Y = [1.0, 5.0, 4.0, 8.0, 9.0, 13.0, 16.0, 20.0]
 Cov = Diagonal([2.0, 4.0, 2.0, 4.0, 2.0, 4.0, 2.0, 4.0])
 dims = (4, 3, 2)
-DS = DataSet(X,Y,Cov,dims)
+DS = DataSet(X, Y, Cov, dims)
 ```
 In this case, `X` is a vector consisting of the concatenated x-values (with 3 components each) for 4 different data points.
 The values of `Y` are the corresponding concatenated y-values (with 2 components each) of said 4 data points. Clearly, the covariance matrix must therefore be a positive-definite ``(m \\cdot N) \\times (m \\cdot N)`` matrix.
@@ -68,8 +68,7 @@ struct DataSet <: AbstractDataSet
         DataSet(Unwind(x),Unwind(y),Sigma,Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]),dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
-    function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},
-                                            InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
+    function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
@@ -129,29 +128,29 @@ In addition to storing a `DataSet`, a `DataModel` also contains a function `mode
 Crucially, `dmodel` contains the derivatives of the model with respect to the parameters `θ`, not the x-values.
 For example
 ```julia
-DS = DataSet([1,2,3,4],[4,5,6.5,7.8],[0.5,0.45,0.6,0.8])
-model(x::Real,θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
-DM = DataModel(DS,model)
+DS = DataSet([1,2,3,4], [4,5,6.5,7.8], [0.5,0.45,0.6,0.8])
+model(x::Real, θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
+DM = DataModel(DS, model)
 ```
 In cases where the output of the model has more than one component (i.e. `ydim > 1`), it is advisable to define the model function in such a way that it outputs static vectors using **StaticArrays.jl** for increased performance.
 For `ydim = 1`, **InformationGeometry.jl** expects the model to output a number instead of a vector with one component. In contrast, the parameter configuration `θ` must always be supplied as a vector.
 
 A starting value for the maximum likelihood estimation can be passed to the `DataModel` constructor by appending an appropriate vector, e.g.
 ```julia
-DM = DataModel(DS,model,[1.0,2.5])
+DM = DataModel(DS, model, [1.0,2.5])
 ```
 During the construction of a `DataModel` process which includes the search for the maximum likelihood estimate ``\\theta_\\text{MLE}``, multiple tests are run. If necessary, these tests can be skipped by appending `true` as the last argument in the constructor:
 ```julia
-DM = DataModel(DS,model,[-Inf,π,1+im],true)
+DM = DataModel(DS, model, [-Inf,π,1+im], true)
 ```
 
 If a `DataModel` is constructed as shown in the above examples, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
 using StaticArrays
-function dmodel(x::Real,θ::AbstractVector{<:Real})
+function dmodel(x::Real, θ::AbstractVector{<:Real})
    @SMatrix [x  1.]     # ∂(model)/∂θ₁ and ∂(model)/∂θ₂
 end
-DM = DataModel(DS,model,dmodel)
+DM = DataModel(DS, model, dmodel)
 ```
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different components of `x`.
 Again, although it is not strictly required, outputting the Jacobian in form of a static matrix is typically beneficial for the overall performance.
@@ -245,7 +244,7 @@ yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDa
 
 
 pdim(DM::DataModel) = length(MLE(DM))
-pdim(DM::AbstractDataModel) = pdim(DM.Data,DM.model)
+pdim(DM::AbstractDataModel) = pdim(DM.Data, DM.model)
 pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? pdim(p->model(xdata(DS)[1],p)) : pdim(p->model(xdata(DS)[1:xdim(DS)],p))
 # pdim(model::ModelOrFunction,x::Union{<:Real,AbstractVector{<:Real}}=1.; max::Int=100) = pdim(θ->model(x,θ); max=max)
 
@@ -277,10 +276,10 @@ function DataFrame(DS::DataSet)
 end
 
 import Base.join
-function join(DS1::DataSet,DS2::DataSet)
+function join(DS1::DataSet, DS2::DataSet)
     !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
     if typeof(sigma(DS1)) <: AbstractVector
-        NewΣ = [sigma(DS1)...,sigma(DS2)...]
+        NewΣ = [sigma(DS1)..., sigma(DS2)...]
     else
         Σ1 = sigma(DS1);    Σ2 = sigma(DS2);    len = ydim(DS1)*(Npoints(DS1)+Npoints(DS2))
         NewΣ = zeros(suff(Σ1), len, len)

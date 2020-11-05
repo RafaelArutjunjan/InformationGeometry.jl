@@ -4,7 +4,7 @@ using SafeTestsets
 
 
 @safetestset "Probability Objects" begin
-    using InformationGeometry, Test, LinearAlgebra, Distributions, Plots
+    using InformationGeometry, Test, LinearAlgebra, Distributions
 
     DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
     model(x,θ) = θ[1] * x + θ[2]
@@ -27,6 +27,14 @@ using SafeTestsets
     @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
     @test sum(abs.(FindMLE(DM) - [5.01511545953636, 1.4629658803705])) < 5e-10
     # ALSO DO NONLINEAR MODEL!
+end
+
+@safetestset "Confidence Regions" begin
+    using InformationGeometry, Test, Plots
+
+    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
+    model(x,θ) = θ[1] * x + θ[2]
+    DM = DataModel(DS,model)
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-8)
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
