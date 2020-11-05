@@ -1,33 +1,31 @@
 
 
 
-
 RecipesBase.@recipe function f(DM::AbstractDataModel)
     !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     legendtitle --> "R² ≈ $(round(Rsquared(DM),sigdigits=3))"
     @series begin
         DM.Data
     end
-    markeralpha := 0.
-    label --> "Best Fit"
-    xguide --> "Conditions x"
-    yguide --> "Observations y"
-    seriescolor --> :red
-    linestyle --> :solid
-    linewidth --> 2
+    markeralpha :=      0.
+    label -->           "Best Fit"
+    seriescolor -->     :red
+    linestyle -->       :solid
+    linewidth -->       2
     Xbounds = extrema(xdata(DM))
-    X = range(Xbounds[1],Xbounds[2],length=500)
-    Y = map(z->DM.model(z,MLE(DM)),X)
+    X = range(Xbounds[1], Xbounds[2]; length=500)
+    Y = map(z->DM.model(z,MLE(DM)), X)
     ToCols([X Y])
 end
 
 RecipesBase.@recipe function f(DS::DataSet)
+    !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     Σ_y = typeof(sigma(DS)) <: AbstractVector ? sigma(DS) : sqrt.(Diagonal(sigma(DS)).diag)
-    line -->            (:scatter,1)
-    xguide -->          "Conditions x"
-    yguide -->          "Observations y"
-    label -->           "Data"
-    yerror -->          Σ_y
+    line -->                (:scatter,1)
+    xguide -->              "Conditions x"
+    yguide -->              "Observations y"
+    label -->               "Data"
+    yerror -->              Σ_y
     linecolor   -->         :blue
     markercolor -->         :blue
     markerstrokecolor -->   :blue
@@ -35,15 +33,16 @@ RecipesBase.@recipe function f(DS::DataSet)
 end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
+    !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     typeof(xdist(DS)) <: Dirac && return DataSet(xdata(DS), ydata(DS), sigma(DS), DS.dims)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    line -->            (:scatter,1)
-    xguide -->          "Conditions x"
-    yguide -->          "Observations y"
-    label -->           "Data"
-    xerror -->          Σ_x
-    yerror -->          Σ_y
+    line -->                (:scatter,1)
+    xguide -->              "Conditions x"
+    yguide -->              "Observations y"
+    label -->               "Data"
+    xerror -->              Σ_x
+    yerror -->              Σ_y
     linecolor   -->         :blue
     markercolor -->         :blue
     markerstrokecolor -->   :blue
@@ -76,16 +75,20 @@ function Rsquared(DM::DataModel)
 end
 
 
-FittedPlot(DM::AbstractDataModel;kwargs...) = Plots.plot(DM;kwargs...)
-# ResidualPlot(args...;kwargs...) = ResidPlot(args...;kwargs...)
-function ResidualPlot(DM::AbstractDataModel;kwargs...)
-    !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-    resid = ydata(DM) - EmbeddingMap(DM,MLE(DM))
-    Plots.plot(DataSetExact(xdata(DM),resid,sigma(DM));kwargs...)
-    Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
-    Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
-end
+FittedPlot(DM::AbstractDataModel; kwargs...) = Plots.plot(DM; kwargs...)
 
+ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(DM.Data, DM.model, MLE(DM); kwargs...)
+function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
+    # !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
+    # NewDS = isa(DM.Data,DataSetExact) ? DataSetExact(xdata(DM.Data),xsigma(D))
+    # Plots.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
+    # Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
+    # Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
+end
+function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
+    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
+end
 
 meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
