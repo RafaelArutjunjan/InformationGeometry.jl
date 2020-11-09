@@ -208,6 +208,25 @@ function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractV
     R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :forward)
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
+function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
+    N = size(M,1);    M[:,1:xlen] .*= sqrt(N/xlen -1.);    return M
+end
+function curve_fit2(DSE::DataSetExact, model::Function, initial::AbstractVector{<:Number}=GetStartP(DSE,model); tol::Real=1e-13, kwargs...)
+    isa(xdist(DSE),Dirac) && return curve_fit(DataSet(xdata(DSE),ydata(DSE),ysigma(DSE)), model, initial; tol=tol, kwargs...)
+    plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
+    function predictY(ξ)
+        x = ξ[1:xlen];        p = ξ[xlen+1:end]
+        # use performMap here instead
+        vcat(x,reduce(vcat,map(z->model(z,p),x)))
+    end
+    # Get total inverse covariance matrix on the cartesian product space X^N \times Y^N = domain(P)
+    u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE),ydata(DSE))
+    f(p) = u * (predictY(p) - Ydata)
+    df(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p),xlen)
+    p0 = vcat(xdata(DSE),initial);    r = f(p0)
+    R = OnceDifferentiable(f, df, p0, copy(r); inplace = false)
+    LsqFit.lmfit(R, p0, invcov(P); x_tol=tol,g_tol=tol,kwargs...)
+end
 
 # function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
 #     X = xdata(DS);  Y = ydata(DS)
