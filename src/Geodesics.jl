@@ -155,8 +155,8 @@ function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,In
         du[(n+1):2n] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:n]),du[1:n])
     end
     WilksCond = loglikelihood(DM,MLE) - (1/2)*quantile(Chisq(length(MLE)),Conf)
-    Inside(x)::Bool = (WilksCond <= loglikelihood(DM,x))
-    terminatecondition(u,t,integrator) = !Inside(u)
+    InsideRegion(x)::Bool = (WilksCond <= loglikelihood(DM,x))
+    terminatecondition(u,t,integrator) = !InsideRegion(u)
     # Use ContinuousCallback
     cb = DiscreteCallback(terminatecondition,terminate!,save_positions=(true,true))
     tspan = (0.0,150.0)

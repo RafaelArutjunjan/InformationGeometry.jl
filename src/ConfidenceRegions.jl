@@ -482,7 +482,7 @@ This test is performed by comparing the Jacobians of the model for two random co
 """
 function IsLinearParameter(DM::AbstractDataModel)::Vector{Bool}
     P = pdim(DM);    J1 = EmbeddingMatrix(DM,rand(P));    J2 = EmbeddingMatrix(DM,rand(P))
-    [J1[:,i] == J2[:,i]  for i in 1:size(J1,2)]
+    BitArray(J1[:,i] == J2[:,i]  for i in 1:size(J1,2))
 end
 
 """
@@ -490,10 +490,7 @@ end
 Checks whether the `model(x,θ)` function is linear with respect to all of its parameters ``\\theta \\in \\mathcal{M}``.
 A componentwise check can be attained via the method `IsLinearParameter(DM)`.
 """
-function IsLinear(DM::AbstractDataModel)::Bool
-    res = IsLinearParameter(DM)
-    sum(res) == length(res)
-end
+IsLinear(DM::AbstractDataModel) = all(IsLinearParameter(DM))
 
 """
     LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}=MLE(DM)) -> Vector{Float64}

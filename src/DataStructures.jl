@@ -89,7 +89,8 @@ end
 struct ModelMap
     Map::Function
     Domain::Cuboid
-    targetdim::Int
+    Outputdim::Int
+    StaticOutput::Bool
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
@@ -252,7 +253,7 @@ pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? pdim(p->model(
     pdim(F::Function; max::Int=50) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(F::ModelOrFunction; max::Int=100)::Int
+function pdim(F::Function; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
@@ -481,7 +482,7 @@ struct HyperCube{Q<:Real} <: Cuboid
             diff = (uppers - lowers) .* Padding
             lowers -= diff;     uppers += diff
         end
-        sum(lowers[i] > uppers[i] for i in 1:length(lowers)) != 0 && throw("First argument of HyperCube must be larger than second.")
+        !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")
         new{suff(lowers)}(float.(lowers),float.(uppers))
     end
     function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}}; Padding::Real=0.)
@@ -498,13 +499,18 @@ end
 length(Cube::HyperCube) = length(Cube.L)
 
 """
-    Inside(Cube::HyperCube, p::Union{Real,AbstractVector{<:Real}})
+    Inside(Cube::HyperCube, p::AbstractVector{<:Real}) -> Bool
 Checks whether a point `p` lies inside `Cube`.
 """
-function Inside(Cube::HyperCube, p::Union{Real,AbstractVector{<:Real}})::Bool
-    length(Cube) != length(p) && throw("Inside: Dimension mismatch between Cube and point.")
-    sum(!(Cube.L[i] ≤ p[i] ≤ Cube.U[i]) for i in 1:length(p)) == 0
-end
+Inside(Cube::HyperCube, p::AbstractVector{<:Real}) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
+
+
+import Base.in
+"""
+    in(Cube::HyperCube, p::AbstractVector{<:Real}) -> Bool
+Checks whether a point `p` lies inside `Cube`.
+"""
+in(p::AbstractVector{<:Real}, Cube::HyperCube) = Inside(Cube, p)
 
 """
     ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
