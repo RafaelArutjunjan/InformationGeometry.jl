@@ -1,4 +1,21 @@
 
+MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = MetricPartials(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
+    if BigCalc      θ = BigFloat.(θ)        end
+    PDV = zeros(suff(θ), length(θ), length(θ), length(θ));    h = GetH(θ)
+    for i in 1:length(θ)
+        PDV[:,:,i] .= (1/(2*h)).*(Metric(θ .+ h.*BasisVector(i,length(θ))) .- Metric(θ .- h.*BasisVector(i,length(θ))))
+    end;        PDV
+end
+
+MetricAutoPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = MetricAutoPartials(p->FisherMetric(DM,p), θ)
+function MetricAutoPartials(Metric::Function, θ::AbstractVector{<:Number})
+    J = ForwardDiff.jacobian(Metric, θ)
+    Res = Array{suff(J)}(undef, length(θ), length(θ), length(θ))
+    for i in 1:length(θ)
+        Res[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
+    end;    Res
+end
 
 # Accuracy ≈ 3e-11
 # BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
@@ -10,20 +27,8 @@ Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a p
 """
 ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    Finv = inv(Metric(θ))
-    function FPDVs(Metric, θ; BigCalc::Bool=false)
-        if BigCalc      θ = BigFloat.(θ)        end
-        PDV = zeros(suff(θ),length(θ),length(θ),length(θ))
-        h = GetH(θ)
-        for i in 1:length(θ)
-            PDV[:,:,i] .= (1/(2*h)).*(Metric(θ .+ h.*BasisVector(i,length(θ))) .- Metric(θ .- h.*BasisVector(i,length(θ))))
-        end
-        PDV
-    end
-    FPDV = FPDVs(Metric,θ,BigCalc=BigCalc)
-    if (suff(θ) != BigFloat) && BigCalc
-        FPDV = convert(Array{Float64,3},FPDV)
-    end
+    Finv = inv(Metric(θ));    FPDV = MetricAutoPartials(Metric, θ; BigCalc=BigCalc)
+    if (suff(θ) != BigFloat) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
 
@@ -33,23 +38,23 @@ function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::AbstractVe
 end
 
 
+ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelPartials(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+function ChristoffelPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
+    if BigCalc      θ = BigFloat.(θ)        end
+    DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
+    h = GetH(θ)
+    for i in 1:length(θ)
+        DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
+    end;        (1/(2*h))*DownUpDownDown
+end
 
 """
     Riemann(DM::DataModel, θ::AbstractVector; BigCalc::Bool=false)
     Riemann(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
+Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    function ChristoffelPartials(Metric, θ; BigCalc::Bool=false)
-        if BigCalc      θ = BigFloat.(θ)        end
-        DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
-        h = GetH(θ)
-        for i in 1:length(θ)
-            DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
-        end
-        (1/(2*h))*DownUpDownDown
-    end
     DownUpDownDown = ChristoffelPartials(Metric, θ; BigCalc=BigCalc)
     if (suff(θ) != BigFloat) && BigCalc
         DownUpDownDown = convert(Array{Float64,4},DownUpDownDown)
@@ -64,7 +69,7 @@ end
     Ricci(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->AutoMetric(DM,z), θ; BigCalc=BigCalc)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Riem = Riemann(Metric, θ; BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
@@ -77,17 +82,14 @@ end
     RicciScalar(Metric::Function, θ::AbstractVector; BigCalc::Bool=false) -<> Real
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->AutoMetric(DM,z),θ; BigCalc=BigCalc)
-function RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    RIC = Ricci(Metric, θ; BigCalc=BigCalc)
-    tr(transpose(RIC)*inv(Metric(θ)))
-end
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),θ; BigCalc=BigCalc)
+RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = tr(transpose(Ricci(Metric, θ; BigCalc=BigCalc)) * inv(Metric(θ)))
 
 
 """
 (0,4) Weyl curvature tensor. NEEDS TESTING.
 """
-Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Weyl(z->AutoMetric(DM,z),θ; BigCalc=BigCalc)
+Weyl(DM::AbstractDataModel,θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Weyl(z->FisherMetric(DM,z),θ; BigCalc=BigCalc)
 function Weyl(Metric::Function,θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
     Riem = Riemann(Metric,θ; BigCalc=BigCalc)

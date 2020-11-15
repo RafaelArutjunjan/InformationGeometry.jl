@@ -246,21 +246,21 @@ yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDa
 
 pdim(DM::DataModel) = length(MLE(DM))
 pdim(DM::AbstractDataModel) = pdim(DM.Data, DM.model)
-pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? pdim(p->model(xdata(DS)[1],p)) : pdim(p->model(xdata(DS)[1:xdim(DS)],p))
-# pdim(model::ModelOrFunction,x::Union{<:Real,AbstractVector{<:Real}}=1.; max::Int=100) = pdim(θ->model(x,θ); max=max)
 
 """
     pdim(F::Function; max::Int=50) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(F::Function; max::Int=100)::Int
+pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(p->model(xdata(DS)[1],p)) : GetArgLength(p->model(xdata(DS)[1:xdim(DS)],p))
+
+function GetArgLength(F::Function; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")
     for i in 1:(max+1)
         try
             F(ones(i))
         catch y
-            (isa(y, BoundsError) || isa(y,DimensionMismatch)) && continue
-            println("pdim: Encountered error in specification of model function.");       rethrow()
+            (isa(y, BoundsError) || isa(y,MethodError) || isa(y,DimensionMismatch)) && continue
+            println("pdim: Encountered error in specification of model function.");     rethrow()
         end
         i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
     end
