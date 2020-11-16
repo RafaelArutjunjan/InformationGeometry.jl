@@ -456,17 +456,16 @@ function ConfidenceBands(DM::AbstractDataModel,sol::ODESolution,domain::HyperCub
             Y = map(t->DM.model(X[i],sol(t)),T)
             low[i], up[i] = extrema(Y)
         end
+        # plot && Plots.plot!(X,low; ribbon=(zeros(length(X)), up-low),linealpha=0,fillalpha=0.3,label="Conf. Band") |> display
         if plot
             col = rand([:red,:blue,:green,:orange,:grey])
-            Plots.plot!(X,low,color=col,label="Lower Conf. Band")
-            Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+            Plots.plot!(X,low,color=col,label="Lower Conf. Band");     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
         end
         return [X low up]
     else
         throw("Not programmed yet.")
     end
 end
-PointwiseConfidenceBands(args...; kwargs...) = ConfidenceBands(args...; kwargs...)
 
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
