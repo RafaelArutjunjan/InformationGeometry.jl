@@ -46,7 +46,7 @@ ConfAlpha(n::Real) = 1.0 - ConfVol(n)
 Probability volume contained in a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
 function ConfVol(n::Real)
-    if abs(n) < 8
+    if abs(n) ≤ 8
         return erf(n/sqrt(2))
     else
         println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
@@ -126,7 +126,7 @@ function LineSearch(Test::Function, start::Real=0.; tol::Real=8e-15, maxiter::In
             value - start > 20 && throw("FindConfBoundary: Value larger than 20.")
         else            #outside
             if stepsize < tol
-                return value
+                return value + stepsize
             end
             stepsize /= 5
         end

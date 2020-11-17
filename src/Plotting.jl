@@ -34,7 +34,7 @@ end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-    typeof(xdist(DS)) <: Dirac && return DataSet(xdata(DS), ydata(DS), sigma(DS), DS.dims)
+    typeof(xdist(DS)) <: Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     line -->                (:scatter,1)
@@ -360,6 +360,11 @@ function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tu
         p = VisualizeSols(PL[i],sols[i]; N=N,vars=vars,leg=leg, color=color, kwargs...)
     end;    p
 end
+function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
+    OverWrite ? scatter([MLE(DM)]; label="MLE") : scatter!([MLE(DM)]; label="MLE")
+    VisualizeSols(args...; OverWrite=false, kwargs...)
+end
+
 
 function VisualizeGeos(sols::Union{ODESolution,Vector{<:ODESolution}}; OverWrite::Bool=true,leg::Bool=false)
     VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
@@ -515,12 +520,12 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
     C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2pi,length=N)
     F(α::Real) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
-    if plot   display(Plots.plot!(ToCols(Data)...,label="Matrix"))  end
+    if plot   display(Plots.plot!(ToCols(Data)...;label="Matrix", kwargs...))  end
     Data
 end
 

@@ -8,8 +8,8 @@ function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc:
     end;        PDV
 end
 
-MetricAutoPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = MetricAutoPartials(p->FisherMetric(DM,p), θ)
-function MetricAutoPartials(Metric::Function, θ::AbstractVector{<:Number})
+MetricAutoPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = MetricAutoPartials(p->FisherMetric(DM,p), θ)
+function MetricAutoPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     J = ForwardDiff.jacobian(Metric, θ)
     Res = Array{suff(J)}(undef, length(θ), length(θ), length(θ))
     for i in 1:length(θ)

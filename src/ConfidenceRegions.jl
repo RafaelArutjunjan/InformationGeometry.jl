@@ -46,6 +46,8 @@ Point θ lies outside confidence region of level `Confvol` if this function > 0.
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::Float64=ConfVol(one(suff(θ)))) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
 
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::BigFloat) = WilksCriterion(DM, BigFloat.(θ), Confvol)
+
 
 """
     WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
