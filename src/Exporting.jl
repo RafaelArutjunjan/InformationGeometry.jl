@@ -40,15 +40,34 @@ The colums correspond to the various components of the evaluated solutions.
 E.g. for an `ODESolution` with 3 components, the 4. column in the `Matrix` corresponds to the evaluated first components of `sols[2]`.
 """
 function SaveConfidence(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
-    d = length(sols[1].u[1]);    Res = Array{Float64}(undef,N,d*length(sols))
-    for (i,sol) in enumerate(sols)
-        Res[:,((i-1)*d+1):(d*i)] = SaveConfidence(sol, N; sigdigits=sigdigits, adaptive=adaptive)
-    end;    Res
+    mapreduce(sol->SaveConfidence(sol,N; sigdigits=sigdigits,adaptive=adaptive), hcat, sols)
 end
 function SaveConfidence(sol::ODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
-    T = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
-    round.(Unpack(sol.(T)); sigdigits=sigdigits)
+    Ts = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
+    round.(Unpack(map(sol,Ts)); sigdigits=sigdigits)
 end
+
+function SaveConfidence(Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    length(Planes) != length(sols) && throw("Dimensional Mismatch: length(Planes)=$(length(Planes)), length(sols)=$(length(sols)).")
+    mapreduce((PL,sol)->SaveConfidence(PL, sol, N; sigdigits=sigdigits,adaptive=adaptive), hcat, Planes, sols)
+end
+function SaveConfidence(PL::Plane, sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    mapreduce(sol->SaveConfidence(PL,sol,N; sigdigits=sigdigits,adaptive=adaptive), hcat, sols)
+end
+function SaveConfidence(PL::Plane, sol::ODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+    Ts = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
+    round.(Deplanarize(PL,sol,Ts); sigdigits=sigdigits)
+end
+# function SaveConfidence(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+#     d = length(sols[1].u[1]);    Res = Array{Float64}(undef,N,d*length(sols))
+#     for (i,sol) in enumerate(sols)
+#         Res[:,((i-1)*d+1):(d*i)] = SaveConfidence(sol, N; sigdigits=sigdigits, adaptive=adaptive)
+#     end;    Res
+# end
+# function SaveConfidence(sol::ODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+#     T = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
+#     round.(Unpack(sol.(T)); sigdigits=sigdigits)
+# end
 
 """
     SaveGeodesics(sols::Vector{<:ODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix

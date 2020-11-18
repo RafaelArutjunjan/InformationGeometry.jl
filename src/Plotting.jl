@@ -323,12 +323,13 @@ function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane,size::Float64=0.5,
     Plot2DVF(DM,V, PlotPlane, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
 end
 
-
-
-
-function Deplanarize(PL::Plane,sol::ODESolution; N::Int=500)
-    map(t->PlaneCoordinates(PL,sol(t)),range(sol.t[1],sol.t[end];length=N)) |> Unpack
-end
+"""
+    Deplanarize(PL::Plane,sol::ODESolution; N::Int=500) -> Matrix
+    Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Real},AbstractRange}) -> Matrix
+Converts the 2D outputs of `sol` from planar coordinates associated with `PL` to the coordinates of the ambient space of `PL`.
+"""
+Deplanarize(PL::Plane,sol::ODESolution; N::Int=500) = Deplanarize(PL,sol,range(sol.t[1],sol.t[end]; length=N))
+Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Real},AbstractRange}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
 
 """
     VisualizeSols(sols::Vector{<:ODESolution}; OverWrite::Bool=true)
