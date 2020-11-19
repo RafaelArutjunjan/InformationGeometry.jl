@@ -8,14 +8,16 @@ function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc:
     end;        PDV
 end
 
-MetricAutoPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = MetricAutoPartials(p->FisherMetric(DM,p), θ)
-function MetricAutoPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    J = ForwardDiff.jacobian(Metric, θ)
-    Res = Array{suff(θ)}(undef, length(θ), length(θ), length(θ))
-    for i in 1:length(θ)
-        Res[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
-    end;    Res
-end
+# For Float64, use AD to compute partial derivatives of metric, else use finite difference with BigFloat.
+# Optimize this in the future.
+# MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Float64}; BigCalc::Bool=false) = MetricPartials(p->FisherMetric(DM,p), θ)
+# function MetricPartials(Metric::Function, θ::AbstractVector{<:Float64}; BigCalc::Bool=false)
+#     J = ForwardDiff.jacobian(Metric, θ)
+#     Res = Array{Float64}(undef, length(θ), length(θ), length(θ))
+#     for i in 1:length(θ)
+#         Res[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
+#     end;    Res
+# end
 
 # Accuracy ≈ 3e-11
 # BigCalc for using BigFloat Calculation in finite differencing step but outputting Float64 again.
@@ -27,7 +29,7 @@ Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a p
 """
 ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
-    Finv = inv(Metric(θ));    FPDV = MetricAutoPartials(Metric, θ; BigCalc=BigCalc)
+    Finv = inv(Metric(θ));    FPDV = MetricPartials(Metric, θ; BigCalc=BigCalc)
     if (suff(θ) != BigFloat) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end

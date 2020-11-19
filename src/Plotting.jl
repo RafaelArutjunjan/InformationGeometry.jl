@@ -96,32 +96,29 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
 function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool = false, parallel::Bool=false)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube
-    A = range(Lims.L[1], Lims.U[1], length=N)
-    B = range(Lims.L[2], Lims.U[2], length=N)
+    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
+    func(args...) = F([args...])
     if Save
         X,Y = meshgrid(A,B)
         Z = similar(X)
         if parallel
-            Z = pmap(F,X,Y)
+            Z = pmap(func,X,Y)
         else
-            Z = map(F,X,Y)
+            Z = map(func,X,Y)
         end
         p = contour(X,Y,Z, fill=true, nlevels=40)
         display(p)
         return [X Y Z]
     else
-        p = contour(A,B,F, fill=true, nlevels=40)
+        p = contour(A,B,func, fill=true, nlevels=40)
         return p
     end
 end
 
 function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
-    Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube
-    A = range(Lims.L[1], Lims.U[1], length=N)
-    B = range(Lims.L[2], Lims.U[2], length=N)
+    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
+    Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
     if Save
         X,Y = meshgrid(A,B)
         Z = similar(X)
@@ -449,7 +446,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i],Cube.U[i]; length=N) for i in
 
 
 """
-    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=200)
+    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=300)
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
@@ -471,6 +468,10 @@ function ConfidenceBands(DM::AbstractDataModel,sol::ODESolution,domain::HyperCub
     else
         throw("Not programmed yet.")
     end
+end
+
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
+    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), domain; N=N, plot=plot)
 end
 
 

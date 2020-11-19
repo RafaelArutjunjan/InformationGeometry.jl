@@ -11,7 +11,8 @@ using RecipesBase, Plots, Optim
 # Improve ConfidenceBands
 # Implement ODR for estimating maximum likelihood with x-errors.
 # Normal distributions around data
-# Use ModelingToolkit
+# Use ModelingToolkit for dmodel, preferably inplace
+# Allow for inplace models
 # Make user-facing keywords more uniform: tol, meth, Big, ...
 # Allow for specification of a domain for model function in DataModel
 # Add descriptions of how to save stuff to docs
