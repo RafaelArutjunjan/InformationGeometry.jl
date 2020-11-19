@@ -11,7 +11,7 @@ end
 MetricAutoPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = MetricAutoPartials(p->FisherMetric(DM,p), θ)
 function MetricAutoPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     J = ForwardDiff.jacobian(Metric, θ)
-    Res = Array{suff(J)}(undef, length(θ), length(θ), length(θ))
+    Res = Array{suff(θ)}(undef, length(θ), length(θ), length(θ))
     for i in 1:length(θ)
         Res[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
     end;    Res
