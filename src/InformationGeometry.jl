@@ -13,6 +13,7 @@ using RecipesBase, Plots, Optim
 # Normal distributions around data
 # Use ModelingToolkit for dmodel, preferably inplace
 # Allow for inplace models
+# Create method which integrates regions up to structural unidentifiability and then backwards for half-open confidence regions
 # Make user-facing keywords more uniform: tol, meth, Big, ...
 # Allow for specification of a domain for model function in DataModel
 # Add descriptions of how to save stuff to docs

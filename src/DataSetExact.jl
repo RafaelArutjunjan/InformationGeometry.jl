@@ -31,7 +31,7 @@ struct DataSetExact <: AbstractDataSet
     InvCov::AbstractMatrix
     WoundX::Union{AbstractVector,Bool}
     DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
-    DataSetExact(DM::AbstractDataModel) = DataSetExact(DM.Data)
+    DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
     DataSetExact(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
@@ -94,10 +94,10 @@ xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 
 
-xdist(DME::AbstractDataModel) = xdist(DME.Data)
-ydist(DME::AbstractDataModel) = ydist(DME.Data)
-xsigma(DME::AbstractDataModel) = xsigma(DME.Data)
-ysigma(DME::AbstractDataModel) = ysigma(DME.Data)
+xdist(DM::AbstractDataModel) = xdist(Data(DM))
+ydist(DM::AbstractDataModel) = ydist(Data(DM))
+xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
+ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
 
 
 InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
@@ -105,7 +105,7 @@ function InvCov(P::Distributions.GenericMvTDist)
     if P.df < 3
         return inv(P.Σ).mat
     else
-        return Diagonal([Inf for i in 1:length(P)])
+        return invcov(P)
     end
 end
 InvCov(P::Distribution) = invcov(P)
@@ -121,6 +121,13 @@ function DataMetric(P::Distributions.GenericMvTDist)
     end
 end
 
+# Needs testing!!!!
+isCauchy(P::Distribution{Univariate,Continuous}) = false;    isCauchy(P::Cauchy) = true
+function DataMetric(P::Product)
+    icov = InvCov(P).diag
+    [isCauchy(P.v[i]) ? 0.5 : 1. for i in 1:length(P)] .* icov |> Diagonal
+end
+
 
 LogLike(DSE::DataSetExact,x::AbstractVector{<:Real},y::AbstractVector{<:Real}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
 
@@ -131,4 +138,4 @@ function Score(DSE::DataSetExact,model::ModelOrFunction,dmodel::ModelOrFunction,
     transpose(EmbeddingMatrix(DSE,dmodel,θ)) * gradlogpdf(ydist(DSE),EmbeddingMap(DSE,model,θ))
 end
 
-# FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,DataMetric(DS),θ)
+# FisherMetric(DS::DataSetExact, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,DataMetric(DS),θ)

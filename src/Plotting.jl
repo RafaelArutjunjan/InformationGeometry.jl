@@ -1,20 +1,21 @@
 
 
+RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
 
-RecipesBase.@recipe function f(DM::AbstractDataModel)
-    !(xdim(DM) == ydim(DM) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number})
+    (!(xdim(DM) == ydim(DM) == 1) && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     legendtitle --> "R² ≈ $(round(Rsquared(DM),sigdigits=3))"
     @series begin
-        DM.Data
+        Data(DM)
     end
     markeralpha :=      0.
-    label -->           "Best Fit"
+    label -->           "Fit"
     seriescolor -->     :red
     linestyle -->       :solid
     linewidth -->       2
     Xbounds = extrema(xdata(DM))
     X = range(Xbounds[1], Xbounds[2]; length=500)
-    Y = map(z->DM.model(z,MLE(DM)), X)
+    Y = map(z->DM.model(z,MLE), X)
     ToCols([X Y])
 end
 
@@ -75,9 +76,9 @@ function Rsquared(DM::DataModel)
 end
 
 
-FittedPlot(DM::AbstractDataModel; kwargs...) = Plots.plot(DM; kwargs...)
+FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; kwargs...)
 
-ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(DM.Data, DM.model, MLE(DM); kwargs...)
+ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), DM.model, MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
     Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
 end
@@ -381,7 +382,7 @@ end
 
 
 XCube(DS::AbstractDataSet; Padding::Real=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
-XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(DM.Data; Padding=Padding)
+XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(Data(DM); Padding=Padding)
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i],Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 

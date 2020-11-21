@@ -100,7 +100,7 @@ function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
         return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits))
     end
 end
-SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(DM.Data; sigdigits=sigdigits)
+SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(Data(DM); sigdigits=sigdigits)
 
 
 

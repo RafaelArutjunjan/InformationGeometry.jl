@@ -11,7 +11,7 @@ likelihood(args...) = exp(loglikelihood(args...))
     loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(DM.Data,DM.model,θ)
+loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(Data(DM),DM.model,θ)
 
 function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
@@ -19,8 +19,8 @@ function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:N
 end
 
 
-AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(DM.Data,DM.model,θ)
-AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(DM.Data,DM.model,θ)
+AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(Data(DM),DM.model,θ)
+AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(Data(DM),DM.model,θ)
 AutoScore(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
 AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
 
@@ -29,7 +29,7 @@ AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Numbe
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Bool=false)
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=true` uses automatic differentiation.
 """
-Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(DM.Data,DM.model,DM.dmodel,θ; Auto=Auto)
+Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(Data(DM),DM.model,DM.dmodel,θ; Auto=Auto)
 
 function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DS,model,θ)
@@ -58,7 +58,7 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 
 
 # function FindConfBoundary(DM::DataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-#     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+#     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
 #     Confvol = ConfVol(Confnum);    Test(x::Real) = WilksTest(DM, MLE(DM) .+ (x .* BasisVector(1,pdim(DM))), Confvol)
 #     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
 #     stepsize = one(suff(MLE(DM)))/4.;  value = zero(suff(MLE(DM)))
@@ -77,7 +77,7 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 # end
 
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
     CF = ConfVol(convert(suff(MLE(DM)),Confnum))
     Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
     MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
@@ -92,7 +92,7 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = InformationGeometry.logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(DM.Data,DM.model,θ)
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(Data(DM),DM.model,θ)
 function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Real})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     transpose(Y) * InvCov(DS) * Y
@@ -105,7 +105,7 @@ function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Float
     FCriterion(DM,θ,Confvol) < 0
 end
 function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(DM.Data,DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
+    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
     CF = ConfVol(convert(suff(MLE(DM)),Confnum))
     Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
     MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
@@ -136,7 +136,7 @@ Calculates a direction (in parameter space) in which the value of the log-likeli
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number};
                 alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
-    OrthVF(DM.Data,DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
+    OrthVF(Data(DM),DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
 end
 
 function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
@@ -160,7 +160,7 @@ function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Au
 end
 
 
-FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(DM.Data,DM.model,convert(Vector,start))
+FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(Data(DM),DM.model,convert(Vector,start))
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
@@ -170,7 +170,7 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool
     end
 end
 
-GetStartP(DM::AbstractDataModel) = GetStartP(DM.Data,DM.model)
+GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM),DM.model)
 function GetStartP(DS::AbstractDataSet,model::ModelOrFunction)
     P = pdim(DS,model)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
@@ -217,7 +217,7 @@ Basic method for constructing a curve lying on the confidence region associated 
 """
 function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-12,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
-    GenerateBoundary(DM.Data,DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+    GenerateBoundary(Data(DM),DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
 function GenerateBoundary(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,u0::AbstractVector{<:Number}; tol::Real=1e-12,
@@ -327,7 +327,7 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(DM.Data,DM.dmodel,θ)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(Data(DM),DM.dmodel,θ)
 FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
 
 """
@@ -358,7 +358,7 @@ Returns a vector of the collective predictions of the `model` as evaluated at th
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
 """
-EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(DM.Data,DM.model,θ)
+EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM),DM.model,θ)
 
 EmbeddingMap(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = performMap(DS,model,θ,WoundX(DS))
 
@@ -387,7 +387,7 @@ function performMap3(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVect
 end
 
 
-EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM.Data,DM.dmodel,θ)
+EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM),DM.dmodel,θ)
 
 EmbeddingMatrix(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number}) = performDMap(DS,dmodel,float.(θ),WoundX(DS))
 
@@ -416,7 +416,7 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<
     Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
-Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(DM.Data,DM.dmodel,G,θ)
+Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(Data(DM),DM.dmodel,G,θ)
 function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number})
     J = EmbeddingMatrix(DS,dmodel,θ)
     transpose(J) * G * J
@@ -450,8 +450,8 @@ Computes Akaike Information Criterion with an added correction term that prevent
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
 function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number})
-    (Npoints(DM.Data) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
-    AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM.Data) - length(θ) - 1)
+    (Npoints(DM) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
+    AIC(DM,θ) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM) - length(θ) - 1)
 end
 AICc(DM::DataModel) = AICc(DM,MLE(DM))
 
@@ -459,7 +459,7 @@ AICc(DM::DataModel) = AICc(DM,MLE(DM))
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(Npoints(DM.Data)) - 2loglikelihood(DM,θ)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM,θ)
 BIC(DM::DataModel) = BIC(DM,MLE(DM))
 
 
@@ -512,7 +512,7 @@ If such a point cannot be found (i.e. does not seem to exist), the method return
 function FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM,PL; tol=1e-8)
     planarmod(x,p::AbstractVector{<:Number}) = DM.model(x,PlaneCoordinates(PL,p))
-    Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(DM.Data,planarmod, mle + [x,0.])))) - CF < 0.
+    Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM),planarmod, mle + [x,0.])))) - CF < 0.
     !Test(0.) && return false
     [LineSearch(Test,0.;tol=tol,maxiter=maxiter), 0.] + mle
 end

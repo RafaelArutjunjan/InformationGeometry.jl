@@ -156,7 +156,7 @@ DM = DataModel(DS, model, dmodel)
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different components of `x`.
 Again, although it is not strictly required, outputting the Jacobian in form of a static matrix is typically beneficial for the overall performance.
 
-The `DataSet` contained in a `DataModel` named `DM` can be accessed via `DM.Data`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
+The `DataSet` contained in a `DataModel` named `DM` can be accessed via `Data(DM)`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
 """
 struct DataModel <: AbstractDataModel
     Data::AbstractDataSet
@@ -187,13 +187,30 @@ struct DataModel <: AbstractDataModel
     end
 end
 
-xdata(DM::AbstractDataModel) = xdata(DM.Data)
-ydata(DM::AbstractDataModel) = ydata(DM.Data)
-sigma(DM::AbstractDataModel) = sigma(DM.Data)
-InvCov(DM::AbstractDataModel) = InvCov(DM.Data)
-Npoints(DM::AbstractDataModel) = Npoints(DM.Data)
-xdim(DM::AbstractDataModel) = xdim(DM.Data)
-ydim(DM::AbstractDataModel) = ydim(DM.Data)
+Data(DM::AbstractDataModel) = DM.Data
+Predictor(DM::AbstractDataModel) = DM.model
+dPredictor(DM::AbstractDataModel) = DM.dmodel
+
+"""
+    MLE(DM::DataModel) -> Vector
+Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data (under the assumption that the specified model captures the true relationship present in the data).
+For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
+"""
+MLE(DM::DataModel) = DM.MLE
+"""
+    LogLikeMLE(DM::DataModel) -> Real
+Returns the value of the log-likelihood ``\\ell`` when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
+For performance reasons, this value is stored as a part of the `DataModel` type.
+"""
+LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
+
+xdata(DM::AbstractDataModel) = xdata(Data(DM))
+ydata(DM::AbstractDataModel) = ydata(Data(DM))
+sigma(DM::AbstractDataModel) = sigma(Data(DM))
+InvCov(DM::AbstractDataModel) = InvCov(Data(DM))
+Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
+xdim(DM::AbstractDataModel) = xdim(Data(DM))
+ydim(DM::AbstractDataModel) = ydim(Data(DM))
 
 
 Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
@@ -214,38 +231,24 @@ xdim(DS::DataSet) = xdim(DS.dims)
 ydim(DS::DataSet) = ydim(DS.dims)
 WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
-WoundX(DM::AbstractDataModel) = WoundX(DM.Data)
+WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
 
-logdetInvCov(DM::AbstractDataModel) = logdetInvCov(DM.Data)
+logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 import Base.length
-length(DS::AbstractDataSet) = Npoints(DS);    length(DM::AbstractDataModel) = Npoints(DM.Data)
-
-
-"""
-    MLE(DM::DataModel) -> Vector
-Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data (under the assumption that the specified model captures the true relationship present in the data).
-For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
-"""
-MLE(DM::DataModel) = DM.MLE
-"""
-    LogLikeMLE(DM::DataModel) -> Real
-Returns the value of the log-likelihood ``\\ell`` when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
-For performance reasons, this value is stored as a part of the `DataModel` type.
-"""
-LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
+length(DS::AbstractDataSet) = Npoints(DS);    length(DM::AbstractDataModel) = Npoints(Data(DM))
 
 DataDist(Y::AbstractVector,Sig::AbstractVector,dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
 DataDist(Y::AbstractVector,Sig::AbstractMatrix,dist=MvNormal) = dist(Y,Sig)
 yDataDist(DS::DataSet) = DataDist(ydata(DS),sigma(DS))
 xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
-yDataDist(DM::DataModel) = yDataDist(DM.Data);    xDataDist(DM::DataModel) = xDataDist(DM.Data)
+yDataDist(DM::DataModel) = yDataDist(Data(DM));    xDataDist(DM::DataModel) = xDataDist(Data(DM))
 
 
 pdim(DM::DataModel) = length(MLE(DM))
-pdim(DM::AbstractDataModel) = pdim(DM.Data, DM.model)
+pdim(DM::AbstractDataModel) = pdim(Data(DM), DM.model)
 
 """
     pdim(F::Function; max::Int=50) -> Int
@@ -270,7 +273,7 @@ LinearModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = 
 QuadraticModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
 
 import DataFrames.DataFrame
-DataFrame(DM::DataModel) = DataFrame(DM.Data)
+DataFrame(DM::DataModel) = DataFrame(Data(DM))
 function DataFrame(DS::DataSet)
     !(typeof(sigma(DS)) <: AbstractVector) && throw("Cannot convert Datasets with full covariance matrix to DataFrame automatically.")
     DataFrame([xdata(DS) ydata(DS) sigma(DS)])
@@ -289,12 +292,12 @@ function join(DS1::DataSet, DS2::DataSet)
     end
     DataSet([xdata(DS1)...,xdata(DS2)...], [ydata(DS1)...,ydata(DS2)...], NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
 end
-join(DM1::DataModel,DM2::DataModel) = DataModel(join(DM1.Data,DM2.Data),DM1.model,DM1.dmodel)
+join(DM1::DataModel,DM2::DataModel) = DataModel(join(Data(DM1),Data(DM2)),DM1.model,DM1.dmodel)
 join(DS1::T,DS2::T,args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2),args...)
 join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
 
 SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
-SortDataModel(DM::DataModel) = DataModel(SortDataSet(DM.Data),DM.model,DM.dmodel)
+SortDataModel(DM::DataModel) = DataModel(SortDataSet(Data(DM)),DM.model,DM.dmodel)
 function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
@@ -309,7 +312,7 @@ function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
     end
     DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)))
 end
-SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(DM.Data,range),DM.model,DM.dmodel)
+SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(Data(DM),range),DM.model,DM.dmodel)
 
 Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
@@ -342,14 +345,14 @@ length(PL::Plane) = length(PL.stütz)
 function MLEinPlane(DM::AbstractDataModel,PL::Plane,start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
     planarmod(x,p::AbstractVector{<:Number}) = DM.model(x,PlaneCoordinates(PL,p))
-    curve_fit(DM.Data,planarmod,start;tol=tol).param
+    curve_fit(Data(DM),planarmod,start;tol=tol).param
 end
 
 function PlanarDataModel(DM::DataModel,PL::Plane)
     newmod = (x,p::AbstractVector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
     dnewmod = (x,p::AbstractVector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
     mle = MLEinPlane(DM,PL)
-    DataModel(DM.Data,newmod,dnewmod,mle,loglikelihood(DM,PlaneCoordinates(mle)),true)
+    DataModel(Data(DM),newmod,dnewmod,mle,loglikelihood(DM,PlaneCoordinates(mle)),true)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32

@@ -197,7 +197,7 @@ end
 
 
 import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(DM.Data,DM.model,initial;tol=tol,kwargs...)
+curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(Data(DM),DM.model,initial;tol=tol,kwargs...)
 function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
