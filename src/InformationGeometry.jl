@@ -1,7 +1,7 @@
 module InformationGeometry
 
 using Distributed, LinearAlgebra, StaticArrays, SparseArrays
-using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
+using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit
 using ForwardDiff, BenchmarkTools, LsqFit, Random, Measurements, HCubature
 using Distributions, SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots, Optim
@@ -29,7 +29,7 @@ include("DataStructures.jl")
 export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, Plane, HyperCube
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
-export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, MLE, LogLikeMLE, WoundX
+export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
 export LinearModel, QuadraticModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
@@ -81,6 +81,10 @@ include("Curvature.jl")
 export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 # export Weyl
 # Also add Kretschmann, Schouten?
+
+
+include("SymbolicComputations.jl")
+export GetModel, Optimize, EvaluateSol
 
 
 include("Plotting.jl")

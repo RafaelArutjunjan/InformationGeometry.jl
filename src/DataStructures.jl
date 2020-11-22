@@ -100,6 +100,9 @@ ModelOrFunction = Union{Function,ModelMap}
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
 function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction)
+    # Try to use symbolic dmodel:
+    Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
+    Symbolic_dmodel != nothing && return Symbolic_dmodel
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
@@ -118,7 +121,7 @@ function CheckModelHealth(DS::AbstractDataSet,model::ModelOrFunction)
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
     !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
-    !(typeof(model(X,P)) <: SVector) && ydim(DS) > 1 && @warn "To increase overall performance, it is advisable to define the model function such that it outputs static vectors, i.e. SVectors."
+    !(typeof(model(X,P)) <: SVector) && ydim(DS) > 1 && @warn "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return
 end
 

@@ -7,7 +7,10 @@ GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(suff(x))/10)) 
 If `x` stores BigFloats, `suff` returns BigFloat, else `suff` returns `Float64`.
 """
 suff(x::BigFloat) = BigFloat
+suff(x::Float32) = Float32
+# suff(x::Float16) = Float16
 suff(x::Real) = Float64
+suff(x::Num) = Num
 suff(x::Complex) = real(x)
 suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
 

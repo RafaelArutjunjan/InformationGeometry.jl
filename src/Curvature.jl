@@ -30,7 +30,7 @@ Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a p
 ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Finv = inv(Metric(θ));    FPDV = MetricPartials(Metric, θ; BigCalc=BigCalc)
-    if (suff(θ) != BigFloat) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
+    if (suff(θ) == Float64) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
 
@@ -58,7 +58,7 @@ Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing
 Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
 function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     DownUpDownDown = ChristoffelPartials(Metric, θ; BigCalc=BigCalc)
-    if (suff(θ) != BigFloat) && BigCalc
+    if (suff(θ) == Float64) && BigCalc
         DownUpDownDown = convert(Array{Float64,4},DownUpDownDown)
     end
     Gamma = ChristoffelSymbol(Metric, θ; BigCalc=BigCalc)
