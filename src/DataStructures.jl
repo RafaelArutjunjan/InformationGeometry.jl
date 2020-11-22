@@ -101,8 +101,8 @@ Returns appropriate function which constitutes the automatic derivative of the `
 """
 function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction)
     # Try to use symbolic dmodel:
-    Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
-    Symbolic_dmodel != nothing && return Symbolic_dmodel
+    # Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
+    # Symbolic_dmodel != nothing && return Symbolic_dmodel
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
