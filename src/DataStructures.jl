@@ -71,6 +71,7 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
+        x = float.(x);  y = float.(y);  InvCov = float.(InvCov)
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
         if !isposdef(InvCov)
             println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
@@ -99,10 +100,12 @@ ModelOrFunction = Union{Function,ModelMap}
     DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction)
+function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction; TryOptimize::Bool=true)
     # Try to use symbolic dmodel:
-    # Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
-    # Symbolic_dmodel != nothing && return Symbolic_dmodel
+    if TryOptimize
+        Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
+        Symbolic_dmodel != nothing && return Symbolic_dmodel
+    end
     Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
@@ -257,7 +260,7 @@ pdim(DM::AbstractDataModel) = pdim(Data(DM), DM.model)
     pdim(F::Function; max::Int=50) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-pdim(DS::AbstractDataSet,model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(p->model(xdata(DS)[1],p)) : GetArgLength(p->model(xdata(DS)[1:xdim(DS)],p))
+pdim(DS::AbstractDataSet, model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(p->model(xdata(DS)[1],p)) : GetArgLength(p->model(xdata(DS)[1:xdim(DS)],p))
 
 function GetArgLength(F::Function; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")

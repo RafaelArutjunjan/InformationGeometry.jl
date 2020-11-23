@@ -18,16 +18,16 @@ end
 # GetDModel here!!!
 
 
-Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5) = Optimize(DM.model, (xdim(DS),ydim(DS),pdim(DM)); inplace=inplace, timeout=timeout)
+Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5) = Optimize(DM.model, (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout)
 function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5)
     Optimize(model, (xdim(DS),ydim(DS),pdim(DS,model)); inplace=inplace, timeout=timeout)
 end
 function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
-    @variables x₁ x[1:xyp[1]] y₁ y[1:xyp[2]] θ[1:xyp[3]]
-    X = xyp[1] == 1 ? x₁ : x;         Y = xyp[2] == 1 ? y₁ : y
+    @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
+    X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
 
     # Add option for models which are already inplace
-    function TryOptim()
+    function TryOptim(model,X,θ)
         try
             model(X,θ)
         catch;
@@ -36,19 +36,20 @@ function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool
      end
 
     modelexpr = nothing
-    task = @async(TryOptim())
+    task = @async(TryOptim(model,X,θ))
     if timedwait(()->istaskdone(task), timeout) == :timed_out
         @async(Base.throwto(task, DivideError())) # kill task
     else
         modelexpr = fetch(task)
     end
     modelexpr == nothing && return nothing, nothing
-    modelexpr = simplify(modelexpr)
-    derivative = xyp[2] == 1 ? ModelingToolkit.gradient(modelexpr,θ; simplify=true) : ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
+    # Need to make sure that modelexpr is of type Vector{Num}, not just Num
+    modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
+    derivative = ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
 
     # Add option for parallel=ModelingToolkit.MultithreadedForm()
-    OptimizedModel = inplace ? eval(build_function(modelexpr,X,θ)[2]) : eval(build_function(modelexpr,X,θ)[1])
-    OptimizedDModel = inplace ? eval(build_function(derivative,X,θ)[2]) : eval(build_function(derivative,X,θ)[1])
+    OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
 
     OptimizedModel, OptimizedDModel
 end
