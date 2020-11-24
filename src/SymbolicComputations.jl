@@ -54,6 +54,13 @@ function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool
     OptimizedModel, OptimizedDModel
 end
 
+function OptimizedDM(DM::AbstractDataModel)
+    dmodel = Optimize(DM)[2]
+    if dmodel != nothing
+        return DataModel(Data(DM), DM.model, dmodel, MLE(DM), LogLikeMLE(DM))
+    end
+end
+
 """
 Convert Vector{Number} to Vector{Pair{Num,Number}} for u0s and ps.
 """
