@@ -1,13 +1,13 @@
 
 
 
-function DataModel(DS::AbstractDataSet, odesys::ODESystem,
-    observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}, args...)
-    # DataModel(DS, GetModel(odesys,observables), GetDModel(odesys,observables), args...)
-    DataModel(DS, GetModel(odesys,observables), args...)
+function DataModel(DS::AbstractDataSet, odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}},
+                    tspan::Tuple{Real,Real}, observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}, args...)
+    DataModel(DS, GetModel(odesys,u₀map,tspan,observables), args...)
 end
 
-function GetModel(odesys::ODESystem, observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}=Base.OneTo(length(odesys.states)); inplace::Bool=false)
+function GetModel(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, tspan::Tuple{Real,Real},
+                    observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}=Base.OneTo(length(odesys.states)); inplace::Bool=false)
     function Model(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; tol::Real=1e-6)
         sol = EvaluateSol(odesys, u₀map, tspan, odesys.ps .=> θ; tol=tol)
         mapreduce(t->sol(t)[observables], vcat, ts)
@@ -58,20 +58,20 @@ end
 Convert Vector{Number} to Vector{Pair{Num,Number}} for u0s and ps.
 """
 function EvaluateSol(odesys::ODESystem, u0::AbstractVector{<:Number}, ts::Union{Number,AbstractVector{<:Number}},
-    θ::AbstractVector{<:Number}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5())
-    EvaluateSol(odesys, odesys.states .=> u0, ts, odesys.ps .=> θ; meth=meth, tol=tol)
+    θ::AbstractVector{<:Number}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    EvaluateSol(odesys, odesys.states .=> u0, ts, odesys.ps .=> θ; meth=meth, tol=tol, kwargs...)
 end
 """
 Convert ts from Vector{Number} to Tuple{Real,Real}. KEEP INITIAL TIME AT ZERO.
 """
 function EvaluateSol(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, ts::Union{Number,AbstractVector{<:Number}},
-    parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5())
-    EvaluateSol(odesys, u₀map, (0.,maximum(ts)), parammap; meth=meth, tol=tol)
+    parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    EvaluateSol(odesys, u₀map, (0.,maximum(ts)), parammap; meth=meth, tol=tol, kwargs...)
 end
 """
 Actually return solution object.
 """
 function EvaluateSol(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, tspan::Tuple{Real,Real},
-    parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5())
-    solve(ODEProblem(odesys, u₀map, tspan, parammap), meth; reltol=tol, abstol=tol)
+    parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    solve(ODEProblem(odesys, u₀map, tspan, parammap), meth; reltol=tol, abstol=tol, kwargs...)
 end
