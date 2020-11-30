@@ -81,7 +81,8 @@ struct DataSet <: AbstractDataSet
         if xdim(dims) == 1
             return new(x,y,InvCov,dims,logdet(InvCov),false)
         else
-            return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
+            # return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
 end
@@ -246,10 +247,10 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 import Base.length
 length(DS::AbstractDataSet) = Npoints(DS);    length(DM::AbstractDataModel) = Npoints(Data(DM))
 
-DataDist(Y::AbstractVector,Sig::AbstractVector,dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
-DataDist(Y::AbstractVector,Sig::AbstractMatrix,dist=MvNormal) = dist(Y,Sig)
-yDataDist(DS::DataSet) = DataDist(ydata(DS),sigma(DS))
-xDataDist(DS::DataSet) = DataDist(xdata(DS),sigma(DS))
+DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
+DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, Symmetric(Sig))
+yDataDist(DS::DataSet) = DataDist(ydata(DS), sigma(DS))
+xDataDist(DS::DataSet) = Dirac(xdata(DS))
 yDataDist(DM::DataModel) = yDataDist(Data(DM));    xDataDist(DM::DataModel) = xDataDist(Data(DM))
 
 

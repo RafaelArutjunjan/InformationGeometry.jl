@@ -22,7 +22,7 @@ One of the primary goals of **InformationGeometry.jl** is to enable the user to 
 Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model shown above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect ellipses around the maximum likelihood estimate as expected:
 ```@example 1
 sols = ConfidenceRegions(DM, 1:2; tol=1e-9)
-VisualizeSols(sols)
+VisualizeSols(DM, sols)
 #plot(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
 #plot!(sols[2],vars=(1,2),label="2σ CR") # hide
 #scatter!([MLE(DM)[1]],[MLE(DM)[2]],marker=:c,label="MLE") # hide
@@ -36,7 +36,7 @@ For a non-linearly parametrized model, the confidence regions are no longer elli
 model2(x::Real, θ::AbstractVector{<:Real}) = θ[1]^3 * x + exp(θ[1] + θ[2])
 DM2 = DataModel(DS, model2)
 sols2 = ConfidenceRegions(DM2, 1:2; tol=1e-9)
-VisualizeSols(sols2)
+VisualizeSols(DM2, sols2)
 #plot(sols2[1],vars=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
 #plot!(sols2[2],vars=(1,2),label="2σ CR") # hide
 #scatter!([MLE(DM2)[1]],[MLE(DM2)[2]],marker=:c,label="MLE") # hide

@@ -30,8 +30,8 @@ struct DataSetExact <: AbstractDataSet
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix
     WoundX::Union{AbstractVector,Bool}
-    DataSetExact(DS::DataSet) = DataSetExact(xdata(DS),zeros(length(xdata(DS))*length(xdata(DS)[1])),ydata(DS),sigma(DS))
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
+    DataSetExact(DS::DataSet) = DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS)))
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
     DataSetExact(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
@@ -63,7 +63,8 @@ struct DataSetExact <: AbstractDataSet
         if xdim(dims) == 1
             return new(xd,yd,dims,InvCov(yd),false)
         else
-            return new(xd,yd,dims,InvCov(yd),[SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
+            return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
+            # return new(xd,yd,dims,InvCov(yd),[SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
 end
