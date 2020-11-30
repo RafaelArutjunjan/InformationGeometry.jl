@@ -100,7 +100,7 @@ ModelOrFunction = Union{Function,ModelMap}
     DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet,model::ModelOrFunction; TryOptimize::Bool=true)
+function DetermineDmodel(DS::AbstractDataSet, model::ModelOrFunction, TryOptimize::Bool=false)
     # Try to use symbolic dmodel:
     if TryOptimize
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]

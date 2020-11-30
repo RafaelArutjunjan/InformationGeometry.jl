@@ -3,6 +3,7 @@ language: julia
 os:
   - linux
 julia:
+  - 1.0
   - 1.5
   - nightly
 notifications:
@@ -11,6 +12,7 @@ after_success:
   - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
 jobs:
   allow_failures:
+    - julia: 1.0
     - julia: nightly
   fast_finish: true
 
