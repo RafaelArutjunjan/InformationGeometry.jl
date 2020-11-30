@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.2.2"
+version = "1.2.3"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -46,7 +46,7 @@ Plots = "1"
 RecipesBase = "1"
 Roots = "1"
 SpecialFunctions = "0.9, 0.10, 1"
-StaticArrays = "0.11, 0.12"
+StaticArrays = "0.11, 0.12, 1"
 TensorOperations = "2.2, 3.0"
 julia = "1"
 
