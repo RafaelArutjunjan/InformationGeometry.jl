@@ -174,15 +174,14 @@ end
 
 function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
-    Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2pi,length=N)]
-    solving = 0
+    Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2pi,length=N)];    solving = 0
+    Map = parallel ? pmap : map
     function Constructor(Initial)
         solving += 1
         println("Computing Geodesic $(solving) / $N")
         ComputeGeodesic(Metric,MLE,Initial,Endtime;tol=tol,Boundaries=Boundaries)
     end
-    parallel && return pmap(Constructor,Initials)
-    map(Constructor,Initials)
+    Map(Constructor,Initials)
 end
 
 """

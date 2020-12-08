@@ -255,7 +255,8 @@ end
 """
 Choose method depending on dimensionality of the parameter space.
 """
-function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true,
+    Auto::Bool=false, parallel::Bool=false, kwargs...)
     if pdim(DM) == 1
         return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
@@ -264,17 +265,19 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
         println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM,Confnum)
         Planes = IntersectCube(DM,Cube,Confnum; Dirs=[1,2,3], N=30)
-        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Auto=Auto, meth=meth, mfd=false)
+        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Auto=Auto, meth=meth, mfd=false, parallel=parallel)
     end
 end
 
 
-IsStructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)::Bool = length(StructurallyIdentifiable(DM,sol)) == 0
+IsStructurallyIdentifiable(DM::AbstractDataModel, sol::ODESolution)::Bool = length(StructurallyIdentifiable(DM,sol)) == 0
 
-function StructurallyIdentifiable(DM::AbstractDataModel,sol::ODESolution)
+function StructurallyIdentifiable(DM::AbstractDataModel, sol::ODESolution)
     find_zeros(t->GeometricDensity(x->FisherMetric(DM,x),sol(t)), sol.t[1], sol.t[end])
 end
-StructurallyIdentifiable(DM::AbstractDataModel,sols::Vector{<:ODESolution}) = map(x->StructurallyIdentifiable(DM,x), sols)
+function StructurallyIdentifiable(DM::AbstractDataModel, sols::Vector{<:ODESolution}; parallel::Bool=false)
+    parallel ? pmap(x->StructurallyIdentifiable(DM,x), sols) : map(x->StructurallyIdentifiable(DM,x), sols)
+end
 
 
 
@@ -297,16 +300,17 @@ Keyword arguments:
 """
 function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false,
-                        CheckSols::Bool=true, kwargs...)
+                        CheckSols::Bool=true, parallel::Bool=false, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
+    Map = parallel ? pmap : map
     if pdim(DM) == 1
-        return map(x->ConfidenceRegion(DM,x; tol=tol), Range)
+        return Map(x->ConfidenceRegion(DM,x; tol=tol), Range)
     elseif pdim(DM) == 2
-        sols = map(x->ConfidenceRegion(DM,x; tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
+        sols = Map(x->ConfidenceRegion(DM,x; tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
         if CheckSols
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
-            roots = StructurallyIdentifiable(DM,sols)
+            roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)
             for i in 1:length(roots)
                 length(roots[i]) != 0 && println("Solution $i hits chart boundary at t = $(roots[i]) and is therefore invalid.")
@@ -578,7 +582,7 @@ end
 
 
 function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
-                                meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, parallel::Bool=false)
+                                meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false)
     GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto)
 end
 
@@ -588,14 +592,6 @@ Intersects the confidence boundary of level `Confnum` with `Planes` and computes
 """
 function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
                                 meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, parallel::Bool=false)
-    # if parallel
-    #     return pmap(X->GenerateBoundary(DM,X,FindConfBoundaryOnPlane(DM,X,Confnum;tol=tol);tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
-    # else
-    #     return map(X->GenerateBoundary(DM,X,FindConfBoundaryOnPlane(DM,X,Confnum;tol=tol);tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
-    # end
-    if parallel
-        return pmap(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
-    else
-        return map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
-    end
+    Map = parallel ? pmap : map
+    Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end

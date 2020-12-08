@@ -99,14 +99,10 @@ function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     func(args...) = F([args...])
+    Map = parallel ? pmap : map
     if Save
         X,Y = meshgrid(A,B)
-        Z = similar(X)
-        if parallel
-            Z = pmap(func,X,Y)
-        else
-            Z = map(func,X,Y)
-        end
+        Z = Map(func,X,Y)
         p = contour(X,Y,Z, fill=true, nlevels=40)
         display(p)
         return [X Y Z]
@@ -120,14 +116,10 @@ function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
+    Map = parallel ? pmap : map
     if Save
         X,Y = meshgrid(A,B)
-        Z = similar(X)
-        if parallel
-            Z = pmap(Lcomp,X,Y)
-        else
-            Z = map(Lcomp,X,Y)
-        end
+        Z = Map(Lcomp,X,Y)
         p = contour(X,Y,Z, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
         p = scatter!([0],[0],lab="Center", marker=:hex)
@@ -150,14 +142,10 @@ function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::Hyper
     Lcomp(args...) = loglikelihood(DM,[args...])
     Lims = TranslateCube(PlanarCube,MLE)
     A = range(Lims.L[1], Lims.U[1], length=N);  B = range(Lims.L[2], Lims.U[2], length=N)
+    Map = parallel ? pmap : map
     if Save
         X,Y = meshgrid(A,B)
-        Z = similar(X)
-        if parallel
-            Z = pmap(Lcomp,X,Y)
-        else
-            Z = map(Lcomp,X,Y)
-        end
+        Z = Map(Lcomp,X,Y)
         p = contour(X,Y,Z, fill=true, leg=false, nlevels=40)
         p = scatter!([MLE[1]],[MLE[2]], lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
         display(p)
@@ -177,14 +165,10 @@ function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCub
     Lims = PlanarCube
     A = range(Lims.L[1], Lims.U[1], length=N)
     B = range(Lims.L[2], Lims.U[2], length=N)
+    Map = parallel ? pmap : map
     if Save
         X,Y = meshgrid(A,B)
-        Z = similar(X)
-        if parallel
-            Z = pmap(Lcomp,X,Y)
-        else
-            Z = map(Lcomp,X,Y)
-        end
+        Z = Map(Lcomp,X,Y)
         p = contour(X,Y,Z, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
         p = scatter!([0],[0],lab="Center", marker=:hex)
