@@ -9,6 +9,7 @@ using RecipesBase, Plots, Optim
 
 # General Todos:
 # Improve ConfidenceBands
+# Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
 # Implement ODR for estimating maximum likelihood with x-errors.
 # Normal distributions around data
 # Use ModelingToolkit for dmodel, preferably inplace
