@@ -95,9 +95,9 @@ function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
     sig = sigma(DS)
     !(typeof(sig) <: AbstractVector) && throw("Sigma not a vector, but instead $(typeof(sig)).")
     if sigdigits < 1
-        return DataFrame([xdata(DS) ydata(DS) sigma(DS)])
+        return DataFrame([xdata(DS) ydata(DS) sigma(DS)], :auto)
     else
-        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits))
+        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits), :auto)
     end
 end
 SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(Data(DM); sigdigits=sigdigits)

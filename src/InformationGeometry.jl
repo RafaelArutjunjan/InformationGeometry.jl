@@ -39,7 +39,7 @@ export MLEinPlane, PlanarDataModel, DetermineDmodel
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 # HyperCubes
-export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, CoverCubes
+export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, CoverCubes, rand
 
 
 include("DataSetExact.jl")

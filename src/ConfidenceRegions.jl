@@ -176,8 +176,10 @@ function GetStartP(DS::AbstractDataSet,model::ModelOrFunction)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
 end
 
-FindMLE(DM::DataModel,args...;kwargs...) = MLE(DM)
-function FindMLE(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
+function FindMLE(DM::AbstractDataModel, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
+    FindMLE(Data(DM), Predictor(DM), start; Big=Big, tol=tol)
+end
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
     (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start,Bool)

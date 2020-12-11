@@ -87,6 +87,25 @@ struct DataSet <: AbstractDataSet
     end
 end
 
+# Specialized methods for DataSet
+Npoints(DS::DataSet) = Npoints(DS.dims)
+xdim(DS::DataSet) = xdim(DS.dims)
+ydim(DS::DataSet) = ydim(DS.dims)
+
+xdata(DS::DataSet) = DS.x
+ydata(DS::DataSet) = DS.y
+function sigma(DS::DataSet)
+    sig = !issparse(InvCov(DS)) ? inv(InvCov(DS)) : inv(convert(Matrix,InvCov(DS)))
+    return isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
+end
+xsigma(DS::DataSet) = zeros(length(DS))
+ysigma(DS::DataSet) = sigma(DS)
+
+InvCov(DS::DataSet) = DS.InvCov
+WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+logdetInvCov(DS::DataSet) = DS.logdetInvCov
+
+
 
 struct ModelMap
     Map::Function
@@ -194,9 +213,11 @@ struct DataModel <: AbstractDataModel
     end
 end
 
-Data(DM::AbstractDataModel) = DM.Data
-Predictor(DM::AbstractDataModel) = DM.model
-dPredictor(DM::AbstractDataModel) = DM.dmodel
+# Specialized methods for DataModel
+
+Data(DM::DataModel) = DM.Data
+Predictor(DM::DataModel) = DM.model
+dPredictor(DM::DataModel) = DM.dmodel
 
 """
     MLE(DM::DataModel) -> Vector
@@ -204,6 +225,8 @@ Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` wh
 For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
 """
 MLE(DM::DataModel) = DM.MLE
+FindMLE(DM::DataModel, args...; kwargs...) = MLE(DM)
+
 """
     LogLikeMLE(DM::DataModel) -> Real
 Returns the value of the log-likelihood ``\\ell`` when evaluated at the maximum likelihood estimate, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta_\\text{MLE})``.
@@ -211,43 +234,57 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 """
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
+pdim(DM::DataModel) = length(MLE(DM))
+
+
+
+# Need to implement for each DataSet:   xdata, ydata, sigma, xsigma, ysigma, InvCov, Npoints, xdim, ydim,
+#                                       WoundX (already generic), logdetInvCov (already generic), length (already generic)
+# Need to implement for each DataModel: the above and: Data, model (Predictor), dmodel (dPredictor),
+#                                       pdim, MLE, LogLikeMLE,
+#                                       EmbeddingMap (already (kind of) generic), EmbeddingMatrix (already (kind of) generic)
+#                                       Score (already (kind of) generic), FisherMetric (already (kind of) generic)
+
+
+
+# Generic passthrough of queries from AbstractDataModel to AbstractDataSet
 xdata(DM::AbstractDataModel) = xdata(Data(DM))
 ydata(DM::AbstractDataModel) = ydata(Data(DM))
 sigma(DM::AbstractDataModel) = sigma(Data(DM))
+xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
+ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
 InvCov(DM::AbstractDataModel) = InvCov(Data(DM))
 Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
 xdim(DM::AbstractDataModel) = xdim(Data(DM))
 ydim(DM::AbstractDataModel) = ydim(Data(DM))
 
-# Need to implement for each DataSet: xdata, ydata, sigma, xsigma, ysigma, InvCov, Npoints, xdim, ydim, WoundX, logdetInvCov, length
-# Need to implement for each DataModel: the above and: pdim, MLE, LogLikeMLE, model (Predictor), dmodel (dPredictor), EmbeddingMap, EmbeddingMatrix
+logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
+WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
+
+import Base.length
+length(DM::AbstractDataModel) = Npoints(Data(DM))
+
+xdist(DM::AbstractDataModel) = xdist(Data(DM))
+ydist(DM::AbstractDataModel) = ydist(Data(DM))
+
+
+# Generic Methods for AbstractDataSets      -----       May be superceded by more specialized functions!
+length(DS::AbstractDataSet) = Npoints(DS)
+# Data(DS::AbstractDataSet) = DS
+WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
+logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
+
+
+# Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
+pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
+MLE(DM::AbstractDataModel) = FindMLE(DM)
+LogLikeMLE(DM::AbstractDataModel) = loglikelihood(DM, MLE(DM))
 
 Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
 xdim(dims::Tuple{Int,Int,Int}) = dims[2]
 ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
-xdata(DS::DataSet) = DS.x
-ydata(DS::DataSet) = DS.y
-function sigma(DS::DataSet)
-    sig = !issparse(InvCov(DS)) ? inv(InvCov(DS)) : inv(convert(Matrix,InvCov(DS)))
-    sig = isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
-    return sig
-end
 
-InvCov(DS::DataSet) = DS.InvCov
-Npoints(DS::DataSet) = Npoints(DS.dims)
-xdim(DS::DataSet) = xdim(DS.dims)
-ydim(DS::DataSet) = ydim(DS.dims)
-WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
-WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
-WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
-
-logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
-logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
-logdetInvCov(DS::DataSet) = DS.logdetInvCov
-
-import Base.length
-length(DS::AbstractDataSet) = Npoints(DS);    length(DM::AbstractDataModel) = Npoints(Data(DM))
 
 DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
 DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, Symmetric(Sig))
@@ -256,8 +293,6 @@ xDataDist(DS::DataSet) = Dirac(xdata(DS))
 yDataDist(DM::DataModel) = yDataDist(Data(DM));    xDataDist(DM::DataModel) = xDataDist(Data(DM))
 
 
-pdim(DM::DataModel) = length(MLE(DM))
-pdim(DM::AbstractDataModel) = pdim(Data(DM), DM.model)
 
 """
     pdim(F::Function; max::Int=50) -> Int
@@ -283,10 +318,12 @@ QuadraticModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real})
 
 import DataFrames.DataFrame
 DataFrame(DM::DataModel) = DataFrame(Data(DM))
-function DataFrame(DS::DataSet)
-    !(typeof(sigma(DS)) <: AbstractVector) && throw("Cannot convert Datasets with full covariance matrix to DataFrame automatically.")
-    DataFrame([xdata(DS) ydata(DS) sigma(DS)])
-end
+DataFrame(DS::DataSet) = SaveDataSet(DS)
+# function DataFrame(DS::DataSet)
+#     !(typeof(sigma(DS)) <: AbstractVector) && throw("Cannot convert Datasets with full covariance matrix to DataFrame automatically.")
+#     DataFrame([xdata(DS) ydata(DS) sigma(DS)], :auto)
+# end
+
 
 import Base.join
 function join(DS1::DataSet, DS2::DataSet)

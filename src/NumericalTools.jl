@@ -12,7 +12,7 @@ suff(x::Float32) = Float32
 suff(x::Real) = Float64
 suff(x::Num) = Num
 suff(x::Complex) = real(x)
-suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
+suff(x::Union{AbstractArray,Tuple,AbstractRange}) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 
 
@@ -20,7 +20,7 @@ suff(x::DataFrame) = suff(x[1,1])
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
-function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple}
+function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple,AbstractRange}
     N = length(Z);      M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
     for i in 1:N

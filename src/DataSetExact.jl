@@ -95,11 +95,6 @@ xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 
 
-xdist(DM::AbstractDataModel) = xdist(Data(DM))
-ydist(DM::AbstractDataModel) = ydist(Data(DM))
-xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
-ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
-
 
 InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)

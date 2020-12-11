@@ -67,7 +67,7 @@ end
                                                         sinh(p[2]) * (x[1] + x[2]), exp(p[1]*x[1] + p[1]*x[2])]
     Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
     Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
-    Sig = BlockDiagonal(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
+    Sig = BlockMatrix(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
     DM = DataModel(DS,model)
     @test norm(MLE(DM) - ptrue) < 5e-2
     DME = DataModel(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3])),model)
