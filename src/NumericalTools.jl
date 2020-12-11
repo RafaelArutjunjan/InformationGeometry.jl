@@ -13,6 +13,7 @@ suff(x::Real) = Float64
 suff(x::Num) = Num
 suff(x::Complex) = real(x)
 suff(x::Union{AbstractArray,Tuple}) = suff(x[1])
+suff(x::DataFrame) = suff(x[1,1])
 
 
 """
@@ -269,23 +270,28 @@ end
 
 
 """
-    BlockDiagonal(M::AbstractMatrix, N::Int)
+    BlockMatrix(M::AbstractMatrix, N::Int)
 Returns matrix which contains `N` many blocks of the matrix `M` along its diagonal.
 """
-function BlockDiagonal(M::AbstractMatrix, N::Int)
+function BlockMatrix(M::AbstractMatrix, N::Int)
     Res = zeros(size(M,1)*N,size(M,2)*N)
     for i in 1:N
         Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
     end;    Res
 end
 
-function BlockMatrix(A::AbstractMatrix,B::AbstractMatrix)
-    Res = zeros(suff(A),size(A,1)+size(B,1),size(A,2)+size(B,2))
-    Res[1:size(A,1),1:size(A,1)] = A
-    Res[size(A,1)+1:end,size(A,1)+1:end] = B
+"""
+    BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
+Constructs blockdiagonal matrix from `A` and `B`.
+"""
+function BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
+    Res = zeros(suff(A), size(A,1)+size(B,1), size(A,2)+size(B,2))
+    Res[1:size(A,1), 1:size(A,1)] = A
+    Res[size(A,1)+1:end, size(A,1)+1:end] = B
     Res
 end
-BlockMatrix(A,B,args...) = BlockMatrix(BlockMatrix(A,B),args...)
+BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
+BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
 
 
 function signature(I::Vector,dims::Int)

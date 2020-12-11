@@ -64,7 +64,7 @@ include("NumericalTools.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export Integrate1D, IntegrateND, LineSearch, MonteCarloArea
-export curve_fit, BlockDiagonal, BlockMatrix
+export curve_fit, BlockMatrix
 
 
 include("InformationDivergences.jl")

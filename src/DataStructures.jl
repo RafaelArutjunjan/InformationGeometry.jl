@@ -219,6 +219,8 @@ Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
 xdim(DM::AbstractDataModel) = xdim(Data(DM))
 ydim(DM::AbstractDataModel) = ydim(Data(DM))
 
+# Need to implement for each DataSet: xdata, ydata, sigma, xsigma, ysigma, InvCov, Npoints, xdim, ydim, WoundX, logdetInvCov, length
+# Need to implement for each DataModel: the above and: pdim, MLE, LogLikeMLE, model (Predictor), dmodel (dPredictor), EmbeddingMap, EmbeddingMatrix
 
 Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
 xdim(dims::Tuple{Int,Int,Int}) = dims[2]
@@ -376,7 +378,7 @@ Returns an n-dimensional vector from a tuple of two real numbers which correspon
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
 
-Shift(PlaneBegin::Plane,PlaneEnd::Plane) = TranslatePlane(PlaneEnd,PlaneEnd.stütz - PlaneBegin.stütz)
+Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
 IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
@@ -575,7 +577,7 @@ function CoverCubes(A::HyperCube,B::HyperCube)
     end
     HyperCube(lower,upper)
 end
-CoverCubes(A::HyperCube,B::HyperCube,args...) = CoverCubes(CoverCubes(A,B),args...)
+CoverCubes(A::HyperCube, B::HyperCube, args...) = CoverCubes(CoverCubes(A,B), args...)
 CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
 
