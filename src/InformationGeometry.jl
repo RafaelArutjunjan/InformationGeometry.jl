@@ -1,13 +1,24 @@
 module InformationGeometry
 
-using Distributed, LinearAlgebra, StaticArrays, SparseArrays
+using Reexport
+@reexport using LinearAlgebra, Random, Distributions, DataFrames
+
+using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit
-using ForwardDiff, BenchmarkTools, LsqFit, Random, Measurements, HCubature
-using Distributions, SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
+using ForwardDiff, BenchmarkTools, LsqFit, Measurements, HCubature
+using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots, Optim
+using TreeViews
 
 
-# General Todos:
+######### General Todos:
+# Fix FindConfBoundary() for Confnum > 8, i.e. BigFloat
+# Fix GenerateBoundary for MLE and LogLikeMLE of type BigFloat.
+# Extend GenerateBoundary() to employ a Boundaries function. -> Allow for specification
+# Use information contained in ModelMap type to build Boundaries function
+# Implement formula to obtain bounding box of hyperellipse exactly.
+# Use try catch; to recognize automatically when solution runs into chart boundary.
+# Use IntegrateND() instead of MonteCarloArea()
 # Improve ConfidenceBands
 # Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
 # Implement ODR for estimating maximum likelihood with x-errors.
@@ -23,6 +34,7 @@ using RecipesBase, Plots, Optim
 # Use Cuba.jl for Monte Carlo integration
 # Redo F-test and ConstParamGeodesics
 # Generalize FisherMetric to other error distributions
+# Custom data type for confidence boundaries with suitable IO functions
 
 
 
@@ -31,6 +43,7 @@ export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, 
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
+export Predictor, dPredictor
 export LinearModel, QuadraticModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
@@ -100,5 +113,101 @@ include("Exporting.jl")
 export SaveAdaptive, SaveConfidence, SaveGeodesics, SaveDataSet
 # export Homogenize, Dehomogenize
 
+
+
+####### IO stuff
+
+macro CSI_str(str)
+    return :(string("\x1b[", $(esc(str)), "m"))
+end
+const TYPE_COLOR = CSI"36"
+# const RED_COLOR = CSI"35"
+# const BLUE_COLOR = CSI"34;1"
+# const YELLOW_COLOR = CSI"33"
+const ORANGE_COLOR = CSI"38;5;208"
+const NO_COLOR = CSI"0"
+
+import Base: summary
+Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)), NO_COLOR, " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
+
+###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
+function Base.summary(DM::AbstractDataModel)
+    auto = occursin("Autodmodel", string(nameof(typeof(dPredictor(DM)))))
+    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
+    string(TYPE_COLOR, nameof(typeof(DM)),
+    NO_COLOR, " containing ",
+    TYPE_COLOR, nameof(typeof(Data(DM))),
+    NO_COLOR, ". Model jacobian: ",
+    ORANGE_COLOR, (auto ? "automatic differentiation" : "symbolically provided"), NO_COLOR)
+end
+
+# http://docs.junolab.org/stable/man/info_developer/#
+# hastreeview, numberofnodes, treelabel, treenode
+TreeViews.hastreeview(x::Union{AbstractDataSet,AbstractDataModel}) = true
+TreeViews.numberofnodes(x::AbstractDataSet) = 4
+TreeViews.numberofnodes(x::AbstractDataModel) = 4
+function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel}, mime::MIME"text/plain" = MIME"text/plain"())
+    show(io, mime, Text(Base.summary(DS)))
+end
+# To hide the treenode display, simply return missing:
+# treenode(x::Foo, i::Int) = missing
+
+
+import Base: show
+#### Need proper show() methods for DataSet, DataModel, ModelMap
+function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
+    println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
+    print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
+    if typeof(DS) == DataSetExact
+        if typeof(xsigma(DS)) <: AbstractVector
+            println(io, "Standard deviation associated with x-data:")
+            show(io, mime, xsigma(DS))
+        else
+            println(io, "Covariance Matrix associated with x-data:")
+            show(io, mime, xsigma(DS))
+        end
+    end
+    if typeof(sigma(DS)) <: AbstractVector
+        println(io, "Standard deviation associated with y-data:")
+        show(io, mime, ysigma(DS))
+    else
+        println(io, "Covariance Matrix associated with y-data:")
+        show(io, mime, ysigma(DS))
+    end
+end
+
+function Base.show(io::IO, DS::AbstractDataSet)
+    println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
+    print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
+    if typeof(DS) == DataSetExact
+        if typeof(xsigma(DS)) <: AbstractVector
+            println(io, "Standard deviation associated with x-data:")
+            show(io, xsigma(DS))
+        else
+            println(io, "Covariance Matrix associated with x-data:")
+            show(io, xsigma(DS))
+        end
+    end
+    if typeof(sigma(DS)) <: AbstractVector
+        println(io, "Standard deviation associated with y-data:")
+        show(io, ysigma(DS))
+    else
+        println(io, "Covariance Matrix associated with y-data:")
+        show(io, ysigma(DS))
+    end
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
+    auto = occursin("Auto", string(nameof(typeof(dPredictor(DM)))))
+    println("$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
+    println("Model jacobian ", auto ? "obtained via automatic differentiation" : "symbolically provided")
+    if typeof(DM) == DataModel
+        println("Maximum Likelihood Estimate: $(MLE(DM))")
+        println("Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+    end
+    println("Model parametrization linear in n-th parameter: $(IsLinearParameter(DM))")
+end
 
 end # module

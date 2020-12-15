@@ -47,9 +47,11 @@ function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool
     modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
     derivative = ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
 
-    # Add option for parallel=ModelingToolkit.MultithreadedForm()
-    OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
-    OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    ## Add option for parallel=ModelingToolkit.MultithreadedForm()
+    # OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    # OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    OptimizedModel = build_function(modelexpr, X, θ)[inplace ? 2 : 1] |> eval
+    OptimizedDModel = build_function(derivative, X, θ)[inplace ? 2 : 1] |> eval
 
     OptimizedModel, OptimizedDModel
 end
@@ -58,6 +60,9 @@ function OptimizedDM(DM::AbstractDataModel)
     dmodel = Optimize(DM)[2]
     if dmodel != nothing
         return DataModel(Data(DM), DM.model, dmodel, MLE(DM), LogLikeMLE(DM))
+    else
+        # Get warning from Optimize() that symbolic optimization was unsuccessful
+        return DM
     end
 end
 

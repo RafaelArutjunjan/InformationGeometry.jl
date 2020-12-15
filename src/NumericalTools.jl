@@ -1,6 +1,6 @@
 
 
-GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(suff(x))/10)) : 1e-6
+GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(BigFloat)/10)) : 1e-6
 
 """
     suff(x) -> Type
@@ -14,13 +14,14 @@ suff(x::Num) = Num
 suff(x::Complex) = real(x)
 suff(x::Union{AbstractArray,Tuple,AbstractRange}) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
+suff(args...) = suff(promote(args...))
 
 
 """
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
-function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple,AbstractRange}
+@inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple,AbstractRange}
     N = length(Z);      M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
     for i in 1:N
@@ -31,10 +32,11 @@ function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple,Abst
 end
 Unpack(Z::AbstractVector{<:Number}) = Z
 
-Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat,X)
+Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 Unwind(X::AbstractVector{<:Number}) = X
 
-Windup(X::AbstractVector{<:Number},n::Int) = n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:Int(length(X)/n)]
+Windup(X::AbstractVector{<:Number}, n::Int) = n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:Int(length(X)/n)]
+# Windup(X::AbstractMatrix{<:Number}) = reduce(vcat, collect(eachrow(X)))
 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 
@@ -43,7 +45,7 @@ ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
     ConfAlpha(n::Real)
 Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-ConfAlpha(n::Real) = 1.0 - ConfVol(n)
+ConfAlpha(n::Real) = 1 - ConfVol(n)
 
 """
     ConfVol(n::Real)
@@ -51,13 +53,13 @@ Probability volume contained in a confidence interval of level n⋅σ where σ i
 """
 function ConfVol(n::Real)
     if abs(n) ≤ 8
-        return erf(n/sqrt(2))
+        return erf(n / sqrt(2))
     else
         println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
         return ConfVol(BigFloat(n))
     end
 end
-ConfVol(n::BigFloat) = erf(n/sqrt(BigFloat(2)))
+ConfVol(n::BigFloat) = erf(n / sqrt(BigFloat(2)))
 
 InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = find_zero(z->(ConfVol(z)-x),one(BigFloat),Order2(),xatol=tol)
@@ -121,7 +123,10 @@ IntegrateND(F::Function, Interval::Union{AbstractVector{<:Real},Tuple{<:Real,<:R
 Finds real number `x` where the boolean-valued `Test(x::Real)` goes from `true` to `false`.
 """
 function LineSearch(Test::Function, start::Real=0.; tol::Real=8e-15, maxiter::Int=10000)
-    ((suff(start) != BigFloat) && tol < 1e-15) && throw("LineSearch: start not BigFloat but tol=$tol.")
+    if ((suff(start) != BigFloat) && tol < 1e-15)
+        println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
+        start = BigFloat(start)
+    end
     !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     stepsize = one(suff(start))/4.;  value = start
     for i in 1:maxiter
@@ -169,8 +174,6 @@ function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksi
     end
     measurement(Tot[1]/N, sqrt(1/((N-1)*N) * Tot[2]))
 end
-MonteCarloAreaWE(Test::Function,Cube::HyperCube,N::Int=Int(1e7)) = MonteCarloArea(Test,Cube,N; WE=true)
-@deprecate MonteCarloAreaWE(Test,Cube,N) MonteCarloArea(Test,Cube,N; WE=true)
 
 
 # From Cuba.jl docs

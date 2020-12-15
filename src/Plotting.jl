@@ -323,8 +323,10 @@ function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(s
         p = VisualizeSols(sol;vars=vars,leg=leg,kwargs...)
     end;    p
 end
-VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false,kwargs...) = Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
-
+function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false, kwargs...)
+    OverWrite && Plots.plot()
+    Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
+end
 
 function VisualizeSols(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
     H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
@@ -357,7 +359,7 @@ end
 
 
 function VisualizeSolPoints(sol::ODESolution; kwargs...)
-    Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex,markersize=2, kwargs...)
+    Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex, markersize=2, kwargs...)
 end
 function VisualizeSolPoints(sols::Vector{<:ODESolution}; OverWrite::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()

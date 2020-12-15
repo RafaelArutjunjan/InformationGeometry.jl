@@ -13,7 +13,7 @@ Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\
 """
 loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(Data(DM),DM.model,θ)
 
-function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:Number})
+@inline function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     -0.5*(Npoints(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
@@ -36,18 +36,19 @@ function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunct
     Score(DS,model,dmodel,θ)
 end
 
-function Score(DS::DataSet,model::ModelOrFunction,dmodel::ModelOrFunction,θ::AbstractVector{<:Number})
+@inline function Score(DS::DataSet,model::ModelOrFunction,dmodel::ModelOrFunction,θ::AbstractVector{<:Number})
     transpose(EmbeddingMatrix(DS,dmodel,θ)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ)))
 end
 
 """
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
 """
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::Float64=ConfVol(one(suff(θ)))) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+@inline WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+@inline WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.)) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
 
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{Float64}, Confvol::BigFloat) = WilksCriterion(DM, BigFloat.(θ), Confvol)
-
+# Do not give default to third argument here such as to not overrule the defaults from above
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat) = WilksCriterion(DM, BigFloat.(θ), Confvol)
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::Float64) = WilksCriterion(DM, θ, BigFloat(Confvol))
 
 """
     WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
@@ -78,9 +79,9 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-    CF = ConfVol(convert(suff(MLE(DM)),Confnum))
+    CF = ConfVol(Confnum)
     Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
-    MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    MLE(DM) .+ LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
 
 
@@ -122,7 +123,7 @@ FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)
 
 
 inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
-function GetAlpha(n::Int)
+@inline function GetAlpha(n::Int)
     V = Vector{Float64}(undef,n)
     fill!(V,-inversefactor(n))
     V[end] = (n-1) * inversefactor(n)
@@ -196,10 +197,10 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,
 end
 
 """
-    ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Vector
+    ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Real,Real}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
-function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14)
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-13)
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
@@ -207,9 +208,8 @@ function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real
     D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
     B = find_zero((Func,D(Func)),0.1,Roots.Order1(); xatol=tol)
     A = find_zero((Func,D(Func)),-B,Roots.Order1(); xatol=tol)
-    rts = [MLE(DM)[1]+A, MLE(DM)[1]+B]
-    rts[1] < rts[2] && return rts
-    throw("ConfidenceInterval1D errored...")
+    rts = (MLE(DM)[1]+A, MLE(DM)[1]+B)
+    rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored...") : return rts
 end
 
 
@@ -217,57 +217,59 @@ end
     GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
-function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-12,
-                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
-    GenerateBoundary(Data(DM),DM.model,DM.dmodel,u0; tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
+    GenerateBoundary(Data(DM),DM.model,DM.dmodel,u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
-function GenerateBoundary(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,u0::AbstractVector{<:Number}; tol::Real=1e-12,
-                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+function GenerateBoundary(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,u0::AbstractVector{<:Number}; tol::Real=1e-9,
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
-    cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
+    CB = ContinuousCallback(terminatecondition,terminate!,nothing)
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=cb,kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing),kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
 end
 
-function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number};
-                    tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
+function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Auto::Bool=false, kwargs...)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
-    cb = CallbackSet(ManifoldProjection(g!),ContinuousCallback(terminatecondition,terminate!,nothing))
+    CB = ContinuousCallback(terminatecondition,terminate!,nothing)
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=cb, kwargs...)
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=ContinuousCallback(terminatecondition,terminate!,nothing), kwargs...)
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=CB, kwargs...)
     end
 end
 
 """
 Choose method depending on dimensionality of the parameter space.
 """
-function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true,
-    Auto::Bool=false, parallel::Bool=false, kwargs...)
+function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false,
+                            Boundaries::Union{Function,Nothing}=nothing, Auto::Bool=false, parallel::Bool=false, kwargs...)
     if pdim(DM) == 1
         return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
-        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
         println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM,Confnum)
         Planes = IntersectCube(DM,Cube,Confnum; Dirs=[1,2,3], N=30)
-        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Auto=Auto, meth=meth, mfd=false, parallel=parallel)
+        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
     end
 end
 
@@ -301,21 +303,21 @@ Keyword arguments:
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
 function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
-                        tol::Real=1e-12, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false,
-                        CheckSols::Bool=true, parallel::Bool=false, kwargs...)
+                        tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false,
+                        Boundaries::Union{Function,Nothing}=nothing, CheckSols::Bool=true, parallel::Bool=false, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     Map = parallel ? pmap : map
     if pdim(DM) == 1
         return Map(x->ConfidenceRegion(DM,x; tol=tol), Range)
     elseif pdim(DM) == 2
-        sols = Map(x->ConfidenceRegion(DM,x; tol=tol,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
+        sols = Map(x->ConfidenceRegion(DM,x; tol=tol,Boundaries=Boundaries,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
         if CheckSols
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
             roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)
             for i in 1:length(roots)
-                length(roots[i]) != 0 && println("Solution $i hits chart boundary at t = $(roots[i]) and is therefore invalid.")
+                length(roots[i]) != 0 && println("Solution $i hits chart boundary at t = $(roots[i]) and should therefore be considered invalid.")
             end
         end
         return sols
@@ -341,6 +343,7 @@ FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
+GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = GeometricDensity(x->FisherMetric(DS,dmodel,x), θ)
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metric(θ)))
 
 
@@ -364,38 +367,39 @@ Returns a vector of the collective predictions of the `model` as evaluated at th
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
 """
-EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM),DM.model,θ)
+EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM), DM.model,θ)
 
-EmbeddingMap(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = performMap(DS,model,θ,WoundX(DS))
+EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}) = performMap(DS, model, θ, WoundX(DS))
 
-function performMap(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
+function performMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
     if ydim(DS) > 1
-        return reduce(vcat,map(x->model(x,θ),woundX))
+        return reduce(vcat, map(x->model(x,θ),woundX))
     else
-        return map(x->model(x,θ),woundX)
+        return map(x->model(x,θ), woundX)
     end
 end
 
-function performMap2(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
+# Typically slower than reduce(vcat,...)
+function performMap2(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
     if ydim(DS) > 1
-        Res = Vector{suff(θ)}(undef,Npoints(DS)*ydim(DS))
+        Res = Vector{suff(θ)}(undef, Npoints(DS)*ydim(DS))
         for i in 1:Npoints(DS)
             Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
         end;    return Res
     else
-        return map(x->model(x,θ),woundX)
+        return map(x->model(x,θ), woundX)
     end
 end
 
-function performMap3(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector{<:SArray})
+function performMap3(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector{<:SArray})
     # if model outputs StaticArrays
-    reinterpret(suff(θ),map(x->model(x,θ),woundX))
+    reinterpret(suff(θ), map(x->model(x,θ),woundX))
 end
 
 
-EmbeddingMatrix(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM),DM.dmodel,θ)
+EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM), DM.dmodel,θ)
 
-EmbeddingMatrix(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number}) = performDMap(DS,dmodel,float.(θ),WoundX(DS))
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = performDMap(DS, dmodel, float.(θ), WoundX(DS))
 
 performDMap(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
 
@@ -422,8 +426,8 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<
     Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
-Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(Data(DM),DM.dmodel,G,θ)
-function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number})
+Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(Data(DM), DM.dmodel, G, θ)
+@inline function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number})
     J = EmbeddingMatrix(DS,dmodel,θ)
     transpose(J) * G * J
 end
@@ -584,8 +588,8 @@ end
 
 
 function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
-                                meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false)
-    GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, meth=meth, mfd=mfd, Auto=Auto)
+                                Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false)
+    GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto)
 end
 
 """
@@ -593,7 +597,7 @@ end
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
 function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
-                                meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, parallel::Bool=false)
+                        Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, parallel::Bool=false)
     Map = parallel ? pmap : map
-    Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, meth=meth, mfd=mfd, Auto=Auto), Planes)
+    Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end

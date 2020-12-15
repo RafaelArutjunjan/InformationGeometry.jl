@@ -109,9 +109,12 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 struct ModelMap
     Map::Function
-    Domain::Cuboid
-    Outputdim::Int
-    StaticOutput::Bool
+    Domain::Union{Cuboid,Bool}
+    InDomain::Function
+    xyp::Tuple{Int,Int,Int}
+    AutoDiff::Bool
+    StaticOutput::Val
+    inplace::Val
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
@@ -235,6 +238,9 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 pdim(DM::DataModel) = length(MLE(DM))
+
+import Base: BigFloat
+BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), BigFloat.(MLE(DM)))
 
 
 
