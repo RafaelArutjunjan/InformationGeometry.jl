@@ -155,10 +155,10 @@ end
 
 import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
+#### Show Distribution types for DataSetExact
 function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
     println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
-    print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
     if typeof(DS) == DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
             println(io, "Standard deviation associated with x-data:")
@@ -168,7 +168,8 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
             show(io, mime, xsigma(DS))
         end
     end
-    if typeof(sigma(DS)) <: AbstractVector
+    print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
+    if typeof(ysigma(DS)) <: AbstractVector
         println(io, "Standard deviation associated with y-data:")
         show(io, mime, ysigma(DS))
     else
@@ -199,6 +200,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
     end
 end
 
+##### StaticOutput?
 function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
     auto = occursin("Auto", string(nameof(typeof(dPredictor(DM)))))
     println("$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
