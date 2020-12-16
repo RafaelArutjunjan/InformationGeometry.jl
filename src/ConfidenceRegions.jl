@@ -11,16 +11,16 @@ likelihood(args...) = exp(loglikelihood(args...))
     loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-loglikelihood(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = loglikelihood(Data(DM),DM.model,θ)
+loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = loglikelihood(Data(DM), Predictor(DM), θ)
 
-@inline function loglikelihood(DS::DataSet,model::ModelOrFunction,θ::AbstractVector{<:Number})
-    Y = ydata(DS) - EmbeddingMap(DS,model,θ)
+@inline function loglikelihood(DS::DataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
+    Y = ydata(DS) - EmbeddingMap(DS, model, θ)
     -0.5*(Npoints(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
-AutoScore(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoScore(Data(DM),DM.model,θ)
-AutoMetric(DM::AbstractDataModel,θ::AbstractVector{<:Number}) = AutoMetric(Data(DM),DM.model,θ)
+AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AutoScore(Data(DM), Predictor(DM), θ)
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = AutoMetric(Data(DM), Predictor(DM), θ)
 AutoScore(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.gradient(x->loglikelihood(DS,model,x),θ)
 AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x)),θ)
 
@@ -29,7 +29,7 @@ AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Numbe
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Bool=false)
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=true` uses automatic differentiation.
 """
-Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(Data(DM),DM.model,DM.dmodel,θ; Auto=Auto)
+Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = Score(Data(DM),Predictor(DM),dPredictor(DM),θ; Auto=Auto)
 
 function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DS,model,θ)
@@ -93,23 +93,23 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = InformationGeometry.logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(Data(DM),DM.model,θ)
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(Data(DM), Predictor(DM), θ)
 function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Real})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     transpose(Y) * InvCov(DS) * Y
 end
-function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Float64=ConfVol(one(suff(θ))))
+function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Real=ConfVol(one(suff(θ))))
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
 end
-function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Float64=ConfVol(one(suff(θ))))::Bool
+function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Real=ConfVol(one(suff(θ))))::Bool
     FCriterion(DM,θ,Confvol) < 0
 end
 function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-    CF = ConfVol(convert(suff(MLE(DM)),Confnum))
+    CF = ConfVol(Confnum)
     Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
-    MLE(DM) + LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    MLE(DM) .+ LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
 
 
@@ -118,8 +118,6 @@ FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)
 #     n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./sigma(DM)).^2)
 #     FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
 # end
-
-
 
 
 inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
@@ -135,15 +133,14 @@ end
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number};
-                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
-    OrthVF(Data(DM),DM.model,DM.dmodel,θ; alpha=alpha, Auto=Auto)
+function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
+    OrthVF(Data(DM), Predictor(DM), dPredictor(DM), θ; alpha=alpha, Auto=Auto)
 end
 
 function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
                 alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-    S = -Score(DS,model,dmodel,θ; Auto=Auto);    P = prod(S);    VF = P ./ S
+    S = -Score(DS, model, dmodel, θ; Auto=Auto);    P = prod(S);    VF = P ./ S
     alpha .* VF |> normalize
 end
 
@@ -155,13 +152,13 @@ If a `Plane` is specified, the direction will be specified in the planar coordin
 `Auto=true` uses automatic differentiation to calculate the score.
 """
 function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Bool=false)
-    S = transpose([PL.Vx PL.Vy]) * (-Score(DM,PlaneCoordinates(PL,θ);Auto=Auto))
+    S = transpose([PL.Vx PL.Vy]) * (-Score(DM, PlaneCoordinates(PL,θ); Auto=Auto))
     P = prod(S)
     return SA[-P/S[1],P/S[2]] |> normalize
 end
 
 
-FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(Data(DM),DM.model,convert(Vector,start))
+FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start))
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false)
     if isa(start,Vector)
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
@@ -171,8 +168,8 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool
     end
 end
 
-GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM),DM.model)
-function GetStartP(DS::AbstractDataSet,model::ModelOrFunction)
+GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
+function GetStartP(DS::AbstractDataSet, model::ModelOrFunction)
     P = pdim(DS,model)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
 end
@@ -219,12 +216,12 @@ Basic method for constructing a curve lying on the confidence region associated 
 """
 function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
-    GenerateBoundary(Data(DM),DM.model,DM.dmodel,u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+    GenerateBoundary(Data(DM),Predictor(DM),dPredictor(DM),u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
-function GenerateBoundary(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,u0::AbstractVector{<:Number}; tol::Real=1e-9,
+function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
-    LogLikeOnBoundary = loglikelihood(DS,model,u0)
+    LogLikeOnBoundary = loglikelihood(DS, model, u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
@@ -335,26 +332,26 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(Data(DM),DM.dmodel,θ)
-FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS,dmodel,InvCov(DS),θ)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric(Data(DM), dPredictor(DM), θ)
+FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS, dmodel, InvCov(DS), θ)
 
 """
     GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(x->AutoMetric(DM,x), θ)
-GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = GeometricDensity(x->FisherMetric(DS,dmodel,x), θ)
+GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(Data(DM), dPredictor(DM), θ)
+GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = FisherMetric(DS, dmodel, θ) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metric(θ)))
 
 
 
-function ConfidenceRegionVolume(DM::DataModel,sol::ODESolution,N::Int=Int(1e5); WE::Bool=false)
+function ConfidenceRegionVolume(DM::DataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false)
     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
     LogLikeBoundary = likelihood(DM,sol(0))
     Cube = ConstructCube(sol; Padding=1e-5)
-    # Indicator function for Integral
+    # Indicator function for Integral, USE HCubature INSTEAD OF MONTECARLO
     InsideRegion(X::AbstractVector{<:Real})::Bool = loglikelihood(DM,X) < LogLikeBoundary
-    Test(X::AbstractVector) = InsideRegion(X) ? sqrt(det(FisherMetric(DM,X))) : zero(X[1])
+    Test(X::AbstractVector) = InsideRegion(X) ? GeometricDensity(DM,X) : zero(suff(X))
     MonteCarloArea(Test,Cube,N; WE=WE)
 end
 
@@ -367,7 +364,7 @@ Returns a vector of the collective predictions of the `model` as evaluated at th
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
 """
-EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM), DM.model,θ)
+EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM), Predictor(DM), θ)
 
 EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}) = performMap(DS, model, θ, WoundX(DS))
 
@@ -397,7 +394,7 @@ function performMap3(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVe
 end
 
 
-EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM), DM.dmodel,θ)
+EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ)
 
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = performDMap(DS, dmodel, float.(θ), WoundX(DS))
 
@@ -426,7 +423,7 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<
     Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
-Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(Data(DM), DM.dmodel, G, θ)
+Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}) = Pullback(Data(DM), dPredictor(DM), G, θ)
 @inline function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number})
     J = EmbeddingMatrix(DS,dmodel,θ)
     transpose(J) * G * J
@@ -520,8 +517,8 @@ Computes point inside the plane `PL` which lies on the boundary of a confidence 
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
 function FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
-    CF = ConfVol(Confnum);      mle = MLEinPlane(DM,PL; tol=1e-8)
-    planarmod(x,p::AbstractVector{<:Number}) = DM.model(x,PlaneCoordinates(PL,p))
+    CF = ConfVol(Confnum);      mle = MLEinPlane(DM,PL; tol=1e-8);      model = Predictor(DM)
+    planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
     Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM),planarmod, mle + [x,0.])))) - CF < 0.
     !Test(0.) && return false
     [LineSearch(Test,0.;tol=tol,maxiter=maxiter), 0.] + mle
@@ -553,10 +550,11 @@ end
 
 
 """
+    LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200) -> HyperCube
 Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
 """
-function LinearCuboid(DM::DataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
-    L = sqrt(quantile(Chisq(pdim(DM)),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
+function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
+    L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
     TranslateCube(CoverCubes(C...),MLE(DM))
 end

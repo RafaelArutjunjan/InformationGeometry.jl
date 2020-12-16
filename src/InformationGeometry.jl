@@ -43,8 +43,7 @@ export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, 
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
-export Predictor, dPredictor
-export LinearModel, QuadraticModel
+export Predictor, dPredictor, LinearModel, QuadraticModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
@@ -98,7 +97,7 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 
 
 include("SymbolicComputations.jl")
-export GetModel, Optimize, EvaluateSol
+export GetModel, Optimize, OptimizedDM, EvaluateSol
 
 
 include("Plotting.jl")
@@ -181,7 +180,6 @@ end
 function Base.show(io::IO, DS::AbstractDataSet)
     println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
-    print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
     if typeof(DS) == DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
             println(io, "Standard deviation associated with x-data:")
@@ -191,7 +189,8 @@ function Base.show(io::IO, DS::AbstractDataSet)
             show(io, xsigma(DS))
         end
     end
-    if typeof(sigma(DS)) <: AbstractVector
+    print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
+    if typeof(ysigma(DS)) <: AbstractVector
         println(io, "Standard deviation associated with y-data:")
         show(io, ysigma(DS))
     else

@@ -12,9 +12,10 @@ suff(x::Float32) = Float32
 suff(x::Real) = Float64
 suff(x::Num) = Num
 suff(x::Complex) = real(x)
-suff(x::Union{AbstractArray,Tuple,AbstractRange}) = suff(x[1])
+suff(x::Union{AbstractArray,AbstractRange}) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
-suff(args...) = suff(promote(args...))
+suff(x::Tuple) = suff(x...)
+suff(args...) = suff(promote(args...)[1])
 
 
 """
@@ -42,6 +43,15 @@ ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 
 
 """
+    invert(F::Function, x::Real; tol::Real=GetH(x)) -> Real
+Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol`. Ideally, F should be monotone and there should only be one correct result.
+"""
+function invert(F::Function, x::Real; tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Order1())
+    find_zero(z-> F(z) - x, one(suff(x)), meth; xatol=tol)
+end
+
+
+"""
     ConfAlpha(n::Real)
 Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
@@ -62,12 +72,13 @@ end
 ConfVol(n::BigFloat) = erf(n / sqrt(BigFloat(2)))
 
 InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
-InvConfVol(x::BigFloat; tol::Real=GetH(x)) = find_zero(z->(ConfVol(z)-x),one(BigFloat),Order2(),xatol=tol)
+InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
-ChisqCDF(k::Int,x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
-ChisqCDF(k::Int,x::Real) = gamma_inc(k/2., x/2., 0)[1]
-InvChisqCDF(k::Int,p::Real) = 2gamma_inc_inv(k/2., p, 1-p)
+ChisqCDF(k::Int, x::Real) = gamma_inc(k/2., x/2., 0)[1]
+ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 
+InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
+InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 """
     Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
