@@ -377,40 +377,41 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
-    function Plane(stütz::AbstractVector{<:Real},Vx::AbstractVector{<:Real},Vy::AbstractVector{<:Real})
+    function Plane(stütz::AbstractVector{<:Real}, Vx::AbstractVector{<:Real}, Vy::AbstractVector{<:Real})
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         if !(length(stütz) == length(Vx) == length(Vy))
             throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
         elseif dot(Vx,Vy) != 0
             println("Plane: Making Vy orthogonal to Vx.")
-            return Plane(stütz,Vx,Make2ndOrthogonal(Vx,Vy))
+            return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
         else
             stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
             Vy = SVector{length(Vx)}(float.(Vy))
-            return new(stütz,Vx,Vy)
+            return new(stütz, Vx, Vy)
         end
     end
 end
 
 length(PL::Plane) = length(PL.stütz)
 
-function MLEinPlane(DM::AbstractDataModel,PL::Plane,start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
-    length(start) != 2 && throw("Dimensional Mismatch.")
-    planarmod(x,p::AbstractVector{<:Number}) = DM.model(x,PlaneCoordinates(PL,p))
-    curve_fit(Data(DM),planarmod,start;tol=tol).param
+function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
+    length(start) != 2 && throw("Dimensional Mismatch.");      model = Predictor(DM)
+    planarmod(x, θ::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,θ))
+    curve_fit(Data(DM), planarmod, start; tol=tol).param
 end
 
-function PlanarDataModel(DM::DataModel,PL::Plane)
-    newmod = (x,p::AbstractVector{<:Number}) -> DM.model(x,PlaneCoordinates(PL,p))
-    dnewmod = (x,p::AbstractVector{<:Number}) -> DM.dmodel(x,PlaneCoordinates(PL,p)) * [PL.Vx PL.Vy]
-    mle = MLEinPlane(DM,PL)
-    DataModel(Data(DM),newmod,dnewmod,mle,loglikelihood(DM,PlaneCoordinates(mle)),true)
+function PlanarDataModel(DM::DataModel, PL::Plane)
+    model = Predictor(DM);      dmodel = dPredictor(DM)
+    newmod = (x,θ::AbstractVector{<:Number}) -> model(x, PlaneCoordinates(PL,θ))
+    dnewmod = (x,θ::AbstractVector{<:Number}) -> dmodel(x, PlaneCoordinates(PL,θ)) * [PL.Vx PL.Vy]
+    mle = MLEinPlane(DM, PL)
+    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM,PlaneCoordinates(mle)), true)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32
-BasisVectorSV(Slot::Int,dims::Int) = dims < 33 ? BasisVectorSVdo(Slot,dims) : BasisVector(Slot,dims)
-BasisVectorSVdo(Slot::Int,dims::Int) = Slot > dims ? throw("Dimensional Mismatch.") : SVector{dims}(Float64(i == Slot) for i in 1:dims)
-function BasisVector(Slot::Int,dims::Int)
+BasisVectorSV(Slot::Int, dims::Int) = dims < 33 ? BasisVectorSVdo(Slot,dims) : BasisVector(Slot,dims)
+BasisVectorSVdo(Slot::Int, dims::Int) = Slot > dims ? throw("Dimensional Mismatch.") : SVector{dims}(Float64(i == Slot) for i in 1:dims)
+function BasisVector(Slot::Int, dims::Int)
     Res = zeros(dims);    Res[Slot] = 1.;    Res
 end
 
@@ -607,7 +608,7 @@ TranslateCube(Cube::HyperCube, x::AbstractVector{<:Real}) = HyperCube(Cube.L + x
     CoverCubes(A::HyperCube,B::HyperCube)
 Return a new HyperCube which covers two other given HyperCubes.
 """
-function CoverCubes(A::HyperCube,B::HyperCube)
+function CoverCubes(A::HyperCube, B::HyperCube)
     length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
     lower = A.L; upper = A.U
     for i in 1:length(A)

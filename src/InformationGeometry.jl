@@ -13,6 +13,7 @@ using TreeViews
 
 ######### General Todos:
 # Fix FindConfBoundary() for Confnum > 8, i.e. BigFloat
+# Employ MultistartOptimization for obtaining the MLE.
 # Fix GenerateBoundary for MLE and LogLikeMLE of type BigFloat.
 # Extend GenerateBoundary() to employ a Boundaries function. -> Allow for specification
 # Use information contained in ModelMap type to build Boundaries function
@@ -166,6 +167,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
             println(io, "Covariance Matrix associated with x-data:")
             show(io, mime, xsigma(DS))
         end
+        print(io, "\n")
     end
     print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
     if typeof(ysigma(DS)) <: AbstractVector
@@ -188,6 +190,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
             println(io, "Covariance Matrix associated with x-data:")
             show(io, xsigma(DS))
         end
+        print(io, "\n")
     end
     print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
     if typeof(ysigma(DS)) <: AbstractVector
