@@ -12,6 +12,8 @@ using TreeViews
 
 
 ######### General Todos:
+# General Parameter Space Transformations: return new model where `log` has been applied to some / all θ compoents
+# Try to recognize which components of θ are inside an exponential such that `log` leads to linear parametrization -> i.e. compare EmbeddingMatrices
 # Fix FindConfBoundary() for Confnum > 8, i.e. BigFloat
 # Employ MultistartOptimization for obtaining the MLE.
 # Fix GenerateBoundary for MLE and LogLikeMLE of type BigFloat.
@@ -40,11 +42,11 @@ using TreeViews
 
 
 include("DataStructures.jl")
-export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, Plane, HyperCube
+export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, Plane, HyperCube, Cuboid
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
-export Predictor, dPredictor, LinearModel, QuadraticModel
+export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
@@ -63,7 +65,7 @@ include("ConfidenceRegions.jl")
 export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, FindMLE
 export AutoScore, AutoMetric
 export FindConfBoundary, FCriterion, FTest, FindFBoundary
-export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
+export GenerateBoundary, GenerateInterruptedBoundary, ConfidenceRegion, ConfidenceRegions
 export IsStructurallyIdentifiable, StructurallyIdentifiable
 export FisherMetric, GeometricDensity, ConfidenceRegionVolume
 
@@ -130,15 +132,18 @@ const NO_COLOR = CSI"0"
 import Base: summary
 Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)), NO_COLOR, " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
 
+GeneratedFromAutoDiff(F::Function) = occursin("Autodmodel", string(nameof(typeof(F))))
+GeneratedFromAutoDiff(F::ModelMap) = GeneratedFromAutoDiff(F.Map)
+
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
-    auto = occursin("Autodmodel", string(nameof(typeof(dPredictor(DM)))))
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
     NO_COLOR, " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, ". Model jacobian: ",
-    ORANGE_COLOR, (auto ? "automatic differentiation" : "symbolically provided"), NO_COLOR)
+    NO_COLOR, ". Model jacobian via AutoDiff: ",
+    ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "true" : "false"),
+    NO_COLOR)
 end
 
 # http://docs.junolab.org/stable/man/info_developer/#

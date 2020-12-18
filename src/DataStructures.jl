@@ -319,17 +319,14 @@ function GetArgLength(F::Function; max::Int=100)::Int
     end
 end
 
-LinearModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = dot(θ[1:end-1], x) + θ[end]
-QuadraticModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
+LinearModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = dot(θ[1:end-1], x) + θ[end]
+QuadraticModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
+ExponentialModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = exp(LinearModel(x,θ))
+SumExponentialsModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = sum(exp.(θ .* x))
 
 import DataFrames.DataFrame
 DataFrame(DM::DataModel) = DataFrame(Data(DM))
 DataFrame(DS::DataSet) = SaveDataSet(DS)
-# function DataFrame(DS::DataSet)
-#     !(typeof(sigma(DS)) <: AbstractVector) && throw("Cannot convert Datasets with full covariance matrix to DataFrame automatically.")
-#     DataFrame([xdata(DS) ydata(DS) sigma(DS)], :auto)
-# end
-
 
 import Base.join
 function join(DS1::DataSet, DS2::DataSet)

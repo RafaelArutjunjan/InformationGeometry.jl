@@ -323,6 +323,49 @@ function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,Abstract
     end
 end
 
+"""
+    GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...) -> ODESolution
+Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
+1. structurally identifiable via `det(g) < tol`
+2. the given `Boundaries(u,t,int)` method evaluates to `true`.
+It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
+"""
+function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+    GenerateInterruptedBoundary(Data(DM), Predictor(DM), dPredictor(DM), u0;
+                    Boundaries=Boundaries, tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+end
+
+function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-12,
+                                redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+    LogLikeOnBoundary = loglikelihood(DS,model,u0)
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+    BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS, model, u)
+
+    terminatecondition(u,t,integrator) = u[2] - u0[2]
+    Singularity(u,t,integrator) = det(FisherMetric(DS, dmodel, u)) - tol
+
+    ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
+    nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
+    nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+    mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
+
+    tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
+    sol1 = mfd ? solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+    if norm(sol1.u[end] - sol1.u[1]) < 10tol
+        return sol1
+    else
+        nonmfdCB = ContinuousCallback(Singularity, terminate!)
+        nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+        mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
+        Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
+        sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+    end
+    return redo ? sol2 : [sol1, sol2]
+end
+
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 """

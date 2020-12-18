@@ -56,8 +56,12 @@ function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool
     OptimizedModel, OptimizedDModel
 end
 
+# SPECIALIZED METHOD OF Optimize() FOR ModelMap which carries over the available info for both the model and dmodel!!!!
+
+
 function OptimizedDM(DM::AbstractDataModel)
     dmodel = Optimize(DM)[2]
+    # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl
     if dmodel != nothing
         return DataModel(Data(DM), DM.model, dmodel, MLE(DM), LogLikeMLE(DM))
     else
@@ -65,6 +69,8 @@ function OptimizedDM(DM::AbstractDataModel)
         return DM
     end
 end
+
+
 
 """
 Convert Vector{Number} to Vector{Pair{Num,Number}} for u0s and ps.
