@@ -42,7 +42,9 @@ using TreeViews
 
 
 include("DataStructures.jl")
-export AbstractDataSet, AbstractDataModel, ModelOrFunction, DataSet, DataModel, Plane, HyperCube, Cuboid
+export AbstractDataSet, AbstractDataModel, DataSet, DataModel
+export ModelMap, ModelOrFunction
+export Plane, HyperCube, Cuboid
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX

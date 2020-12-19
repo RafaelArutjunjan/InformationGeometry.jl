@@ -107,17 +107,44 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 
 
+# Callback triggers when Boundaries is `true`.
+"""
+Container for model functions which carries additional information, e.g. about the parameter domain on which it is valid.
+"""
 struct ModelMap
     Map::Function
-    Domain::Union{Cuboid,Bool}
     InDomain::Function
+    Domain::Union{Cuboid,Bool}
     xyp::Tuple{Int,Int,Int}
-    AutoDiff::Bool
     StaticOutput::Val
     inplace::Val
+    function ModelMap(model::Function, Domain::Cuboid)
+        InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
+        ModelMap(model, InDomain, Domain)
+    end
+    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false)
+        xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen));   StaticOutput = typeof(testout) <: SVector
+        return new(model, InDomain, false, (xlen, size(testout,1), plen), Val(StaticOutput), Val(false))
+    end
+    "Construct new ModelMap from function `F` with data from `M`."
+    ModelMap(F::Function, M::ModelMap) = new(F, M.InDomain, M.Domain, M.xyp, M.StaticOutput, M.inplace)
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
+
+ModelMap(F::Nothing, M::ModelMap) = nothing
+
+# For dmodels, the output dim is ydim × pdim, i.e. xyp[2] × xyp[3].
+
+function GetArgSize(model::ModelOrFunction; max::Int=100)::Tuple{Int,Int}
+    try         return (1, InformationGeometry.GetArgLength(p->model(1.,p); max=max))       catch; end
+    for i in 2:(max + 1)
+        plen = try      InformationGeometry.GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
+        i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
+    end
+end
+
+
 
 """
     DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
@@ -141,7 +168,7 @@ function DetermineDmodel(DS::AbstractDataSet, model::ModelOrFunction, TryOptimiz
 end
 
 
-function CheckModelHealth(DS::AbstractDataSet,model::ModelOrFunction)
+function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
     try  model(X,P)   catch Err
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")

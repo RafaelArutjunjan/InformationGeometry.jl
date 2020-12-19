@@ -14,15 +14,17 @@ function GetModel(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,
     end
 end
 
+function GetDModel(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, tspan::Tuple{Real,Real},
+                    observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}=Base.OneTo(length(odesys.states)); inplace::Bool=false)
+    DetermineDmodel(GetModel(odesys, u₀map, tspan, observables; inplace=inplace))
+end
 
-# GetDModel here!!!
 
-
-Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5) = Optimize(DM.model, (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout)
+Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5) = Optimize(Predictor(DM), (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout)
 function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5)
     Optimize(model, (xdim(DS),ydim(DS),pdim(DS,model)); inplace=inplace, timeout=timeout)
 end
-function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
+function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
     @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
     X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
 
@@ -56,14 +58,17 @@ function Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool
     OptimizedModel, OptimizedDModel
 end
 
-# SPECIALIZED METHOD OF Optimize() FOR ModelMap which carries over the available info for both the model and dmodel!!!!
+function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
+    model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout)
+    ModelMap(model, M), ModelMap(dmodel, M)
+end
 
 
 function OptimizedDM(DM::AbstractDataModel)
-    dmodel = Optimize(DM)[2]
+    model, dmodel = Optimize(DM)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl
     if dmodel != nothing
-        return DataModel(Data(DM), DM.model, dmodel, MLE(DM), LogLikeMLE(DM))
+        return DataModel(Data(DM), model, dmodel, MLE(DM), LogLikeMLE(DM))
     else
         # Get warning from Optimize() that symbolic optimization was unsuccessful
         return DM
