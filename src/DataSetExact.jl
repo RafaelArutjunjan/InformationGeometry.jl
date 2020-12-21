@@ -63,8 +63,8 @@ struct DataSetExact <: AbstractDataSet
         if xdim(dims) == 1
             return new(xd,yd,dims,InvCov(yd),false)
         else
-            return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
-            # return new(xd,yd,dims,InvCov(yd),[SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
+            # return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
+            return new(xd,yd,dims,InvCov(yd),[SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
 end

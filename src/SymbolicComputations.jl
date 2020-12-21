@@ -68,7 +68,7 @@ function OptimizedDM(DM::AbstractDataModel)
     model, dmodel = Optimize(DM)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl
     if dmodel != nothing
-        return DataModel(Data(DM), model, dmodel, MLE(DM), LogLikeMLE(DM))
+        return DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM))
     else
         # Get warning from Optimize() that symbolic optimization was unsuccessful
         return DM

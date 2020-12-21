@@ -81,8 +81,8 @@ struct DataSet <: AbstractDataSet
         if xdim(dims) == 1
             return new(x,y,InvCov,dims,logdet(InvCov),false)
         else
-            return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
-            # return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            # return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
+            return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
 end
@@ -132,18 +132,29 @@ end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
 
-ModelMap(F::Nothing, M::ModelMap) = nothing
+function ModelMap(F::Nothing, M::ModelMap)
+    println("ModelMap: Got nothing instead of function to build new ModelMap")
+    nothing
+end
+
+pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
+ModelMappize(DM::DataModel) = DataModel(Data(DM), ModelMap(Predictor(DM)), ModelMap(dPredictor(DM)), MLE(DM))
+ModelMap(M::ModelMap) = M
 
 # For dmodels, the output dim is ydim × pdim, i.e. xyp[2] × xyp[3].
 
-function GetArgSize(model::ModelOrFunction; max::Int=100)::Tuple{Int,Int}
+"""
+    GetArgSize(model::ModelOrFunction; max::Int=100)::Tuple{Int,Int}
+Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
+"""
+function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
     try         return (1, InformationGeometry.GetArgLength(p->model(1.,p); max=max))       catch; end
     for i in 2:(max + 1)
         plen = try      InformationGeometry.GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
         i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
     end
 end
-
+GetArgSize(model::ModelMap; max::Int) = (model.xyp[1], model.xyp[3])
 
 
 """
@@ -328,7 +339,7 @@ yDataDist(DM::DataModel) = yDataDist(Data(DM));    xDataDist(DM::DataModel) = xD
 
 
 """
-    pdim(F::Function; max::Int=50) -> Int
+    pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
 pdim(DS::AbstractDataSet, model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(p->model(xdata(DS)[1],p)) : GetArgLength(p->model(xdata(DS)[1:xdim(DS)],p))
