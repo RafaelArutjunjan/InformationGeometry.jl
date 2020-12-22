@@ -35,7 +35,7 @@ end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-    typeof(xdist(DS)) <: Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
+    typeof(xdist(DS)) <: InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     line -->                (:scatter,1)

@@ -124,10 +124,11 @@ struct ModelMap
     end
     function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false)
         xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen));   StaticOutput = typeof(testout) <: SVector
-        return new(model, InDomain, false, (xlen, size(testout,1), plen), Val(StaticOutput), Val(false))
+        ModelMap(model, InDomain, false, (xlen, size(testout,1), plen), Val(StaticOutput), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap) = new(F, M.InDomain, M.Domain, M.xyp, M.StaticOutput, M.inplace)
+    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.StaticOutput, M.inplace)
+    ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int}, StaticOutput::Val, inplace::Val) = new(Map, InDomain, Domain, xyp, StaticOutput, inplace)
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
@@ -138,8 +139,19 @@ function ModelMap(F::Nothing, M::ModelMap)
 end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
-ModelMappize(DM::DataModel) = DataModel(Data(DM), ModelMap(Predictor(DM)), ModelMap(dPredictor(DM)), MLE(DM))
+ModelMappize(DM::AbstractDataModel) = DataModel(Data(DM), ModelMap(Predictor(DM)), ModelMap(dPredictor(DM)), MLE(DM))
 ModelMap(M::ModelMap) = M
+
+LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log)
+
+Transform(F::Function, indxs::BitVector, Transform::Function) = _Transform(F, indxs, Transform)
+Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F.InDomain, Intersect(PositiveDomain(indxs), F.Domain), F.xyp, F.StaticOutput, F.inplace)
+function _Transform(F::Function, indxs::BitVector, Transform::Function=log)
+    function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}, F::Function, indxs::BitVector, Transform::Function=log)
+        F(x, [(indxs[i] ? Transform(p[i]) : p[i]) for i in eachindex(indxs)])
+    end
+    (x, θ) -> TransformedModel(x, θ, F, indxs, Transform)
+end
 
 # For dmodels, the output dim is ydim × pdim, i.e. xyp[2] × xyp[3].
 
@@ -154,14 +166,14 @@ function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
         i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
     end
 end
-GetArgSize(model::ModelMap; max::Int) = (model.xyp[1], model.xyp[3])
+GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 
 
 """
-    DetermineDmodel(DS::AbstractDataSet,model::Function)::Function
+    DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet, model::ModelOrFunction, TryOptimize::Bool=false)
+function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false)
     # Try to use symbolic dmodel:
     if TryOptimize
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
@@ -177,6 +189,8 @@ function DetermineDmodel(DS::AbstractDataSet, model::ModelOrFunction, TryOptimiz
         return xdim(DS) == 1 ? AutodmodelN : NAutodmodelN
     end
 end
+DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false) = ModelMap(DetermineDmodel(DS, M.Map, TryOptimize), M)
+
 
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
@@ -333,7 +347,7 @@ ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
 DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, Symmetric(Sig))
 yDataDist(DS::DataSet) = DataDist(ydata(DS), sigma(DS))
-xDataDist(DS::DataSet) = Dirac(xdata(DS))
+xDataDist(DS::DataSet) = InformationGeometry.Dirac(xdata(DS))
 yDataDist(DM::DataModel) = yDataDist(Data(DM));    xDataDist(DM::DataModel) = xDataDist(Data(DM))
 
 
@@ -639,26 +653,64 @@ Returns a `HyperCube` object which has been translated by `x`.
 """
 TranslateCube(Cube::HyperCube, x::AbstractVector{<:Real}) = HyperCube(Cube.L + x, Cube.U + x)
 
+
+### Slower than union
+# """
+#     CoverCubes(A::HyperCube, B::HyperCube)
+# Return a new HyperCube which covers two other given HyperCubes.
+# """
+# function CoverCubes(A::HyperCube, B::HyperCube)
+#     length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
+#     lower = A.L; upper = A.U
+#     for i in 1:length(A)
+#         if A.L[i] > B.L[i]
+#             lower[i] = B.L[i]
+#         end
+#         if A.U[i] < B.U[i]
+#             upper[i] = B.U[i]
+#         end
+#     end
+#     HyperCube(lower,upper)
+# end
+# CoverCubes(A::HyperCube, B::HyperCube) = Union(A, B)
+# CoverCubes(args...) = CoverCubes([args...])
+# CoverCubes(V::Vector{<:HyperCube}) = Union(V)
+
 """
-    CoverCubes(A::HyperCube,B::HyperCube)
-Return a new HyperCube which covers two other given HyperCubes.
+    Intersect(A::HyperCube, B::HyperCube) -> HyperCube
+    Intersect(Cubes::Vector{<:HyperCube}) -> HyperCube
+Returns new `HyperCube` which is the intersection of the given `HyperCube`s.
 """
-function CoverCubes(A::HyperCube, B::HyperCube)
-    length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
-    lower = A.L; upper = A.U
-    for i in 1:length(A)
-        if A.L[i] > B.L[i]
-            lower[i] = B.L[i]
-        end
-        if A.U[i] < B.U[i]
-            upper[i] = B.U[i]
-        end
-    end
-    HyperCube(lower,upper)
+Intersect(A::HyperCube, B::HyperCube) = Intersect([A, B])
+function Intersect(Cubes::Vector{<:HyperCube})
+    LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
+    UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
+    HyperCube([maximum(col) for col in eachcol(LowerMatrix)], [minimum(col) for col in eachcol(UpperMatrix)])
 end
-CoverCubes(A::HyperCube, B::HyperCube, args...) = CoverCubes(CoverCubes(A,B), args...)
-CoverCubes(V::Vector{<:HyperCube}) = CoverCubes(V...)
 
+"""
+    Union(A::HyperCube, B::HyperCube) -> HyperCube
+    Union(Cubes::Vector{<:HyperCube}) -> HyperCube
+Returns new `HyperCube` which is the union of the given `HyperCube`s.
+"""
+Union(A::HyperCube, B::HyperCube) = Union([A, B])
+function Union(Cubes::Vector{<:HyperCube})
+    LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
+    UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
+    HyperCube([minimum(col) for col in eachcol(LowerMatrix)], [maximum(col) for col in eachcol(UpperMatrix)])
+end
 
-import Base: rand
+import Base: union, intersect
+union(A::HyperCube, B::HyperCube) = Union(A, B)
+intersect(A::HyperCube, B::HyperCube) = Intersect(A, B)
+
+import Base.==
+==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
+==(A::Plane, B::Plane) = A.stütz == B.stütz && A.Vx == B.Vx && A.Vy == B.Vy
+
+PositiveDomain(n::Int) = HyperCube(zeros(n), fill(Inf,n))
+PositiveDomain(indxs::BitVector) = HyperCube([(indxs[i] ? 0. : -Inf) for i in eachindex(indxs)], fill(Inf,length(indxs)))
+FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
+
+import Base.rand
 rand(Cube::HyperCube) = Cube.L + (Cube.U - Cube.L) .* rand(length(Cube.L))

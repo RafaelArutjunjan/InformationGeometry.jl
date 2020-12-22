@@ -599,7 +599,7 @@ Returns `HyperCube` which bounds the linearized confidence region of level `Conf
 function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
     L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
-    TranslateCube(CoverCubes(C...),MLE(DM))
+    TranslateCube(Union(C), MLE(DM))
 end
 
 """
@@ -609,7 +609,7 @@ They are separated in the direction of the basis vector associated with the thir
 The keyword `N` can be used to approximately control the number of planes which are returned.
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
-function IntersectCube(DM::AbstractDataModel,Cube::HyperCube,Confnum::Real=1.; N::Int=31, Dirs::Vector{<:Int}=[1,2,3])
+function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Vector{<:Int}=[1,2,3])
     (length(Dirs) != 3 || !allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)),Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
     PL = Plane(Center(Cube),BasisVector(Dirs[1],pdim(DM)),BasisVector(Dirs[2],pdim(DM)))
     width = CubeWidths(Cube)[Dirs[3]]
@@ -621,7 +621,7 @@ end
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
-function IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Real},Confnum::Real=1.; N::Int=31)
+function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::Vector{<:Real},Confnum::Real=1.; N::Int=31)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
     AntiPrune(DM,Prune(DM,Planes,Confnum),Confnum)

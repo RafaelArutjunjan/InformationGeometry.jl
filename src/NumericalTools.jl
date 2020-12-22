@@ -230,7 +230,7 @@ function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
     N = size(M,1);    M[:,1:xlen] .*= sqrt(N/xlen -1.);    return M
 end
 function curve_fit2(DSE::DataSetExact, model::Function, initial::AbstractVector{<:Number}=GetStartP(DSE,model); tol::Real=1e-13, kwargs...)
-    isa(xdist(DSE),Dirac) && return curve_fit(DataSet(xdata(DSE),ydata(DSE),ysigma(DSE)), model, initial; tol=tol, kwargs...)
+    isa(xdist(DSE),InformationGeometry.Dirac) && return curve_fit(DataSet(xdata(DSE),ydata(DSE),ysigma(DSE)), model, initial; tol=tol, kwargs...)
     plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
     function predictY(ξ)
         x = ξ[1:xlen];        p = ξ[xlen+1:end]

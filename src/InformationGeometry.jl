@@ -1,7 +1,8 @@
 module InformationGeometry
 
-using Reexport
-@reexport using LinearAlgebra, Random, Distributions, DataFrames
+# using Reexport
+# @reexport
+using LinearAlgebra, Random, Distributions, DataFrames
 
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit
@@ -50,13 +51,13 @@ export Plane, HyperCube, Cuboid
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
 export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
-export MLEinPlane, PlanarDataModel, DetermineDmodel
+export MLEinPlane, PlanarDataModel, DetermineDmodel, Transform
 
 # Planes
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 # HyperCubes
-export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, CoverCubes, rand
+export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, FullDomain, rand
 
 
 include("DataSetExact.jl")

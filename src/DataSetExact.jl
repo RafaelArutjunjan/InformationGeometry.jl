@@ -7,15 +7,15 @@ struct Dirac <: ContinuousMultivariateDistribution
 end
 
 import Base.length
-length(d::Dirac) = length(d.μ)
+length(d::InformationGeometry.Dirac) = length(d.μ)
 
 import Distributions: insupport, mean, cov, invcov, pdf, logpdf
-insupport(d::Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
-mean(d::Dirac) = d.μ
-cov(d::Dirac) = Diagonal(zeros(length(d)))
-invcov(d::Dirac) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::Dirac, x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
-logpdf(d::Dirac, x::AbstractVector{<:Real}) = log(pdf(d, x))
+insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
+mean(d::InformationGeometry.Dirac) = d.μ
+cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
+invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
+pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
+logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Real}) = log(pdf(d, x))
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
@@ -43,7 +43,7 @@ struct DataSetExact <: AbstractDataSet
         length(Unwind(xSig)) != xdim(dims)*Npoints(dims) && throw("Problem with x errors.")
         length(Unwind(ySig)) != ydim(dims)*Npoints(dims) && throw("Problem with y errors.")
         if (xSig == zeros(length(xSig))) || (xSig == Diagonal([Inf for i in 1:length(xSig)]))
-            return DataSetExact(Dirac(x),DataDist(y,ySig),dims)
+            return DataSetExact(InformationGeometry.Dirac(x),DataDist(y,ySig),dims)
         else
             return DataSetExact(DataDist(x,xSig),DataDist(y,ySig),dims)
         end
@@ -90,7 +90,7 @@ ydata(DSE::DataSetExact) = data(DSE,ydist)
 
 Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
 Sigma(P::Distribution) = P.Σ
-Sigma(P::Dirac) = cov(P)
+Sigma(P::InformationGeometry.Dirac) = cov(P)
 # Sigma(P::Distribution) = try P.Σ catch; cov(P) end
 xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))

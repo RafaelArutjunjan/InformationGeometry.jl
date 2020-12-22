@@ -70,7 +70,7 @@ end
     Sig = BlockMatrix(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
     DM = DataModel(DS,model)
     @test norm(MLE(DM) - ptrue) < 5e-2
-    DME = DataModel(DataSetExact(Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3])),model)
+    DME = DataModel(DataSetExact(InformationGeometry.Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3])),model)
     P = MLE(DM) + rand(length(MLE(DM)))
     @test loglikelihood(DM,P) ≈ loglikelihood(DME,P)
     @test Score(DM,P) ≈ Score(DME,P)
