@@ -13,9 +13,9 @@ Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\
 """
 loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = loglikelihood(Data(DM), Predictor(DM), θ)
 
-@inline function loglikelihood(DS::DataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
+@inline function loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS, model, θ)
-    -0.5*(Npoints(DS)*ydim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(DataspaceDim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -33,10 +33,14 @@ Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false) = S
 
 function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Bool=false)
     Auto && return AutoScore(DS,model,θ)
-    Score(DS,model,dmodel,θ)
+    _Score(DS,model,dmodel,θ)
 end
 
-@inline function Score(DS::DataSet,model::ModelOrFunction,dmodel::ModelOrFunction,θ::AbstractVector{<:Number})
+### Use Auto::Val instead
+# Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}) = _Score(DS,model,dmodel,θ)
+# Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}) = AutoScore(DS,model,θ)
+
+@inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number})
     transpose(EmbeddingMatrix(DS,dmodel,θ)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ)))
 end
 
@@ -299,7 +303,7 @@ Keyword arguments:
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
-function ConfidenceRegions(DM::DataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
+function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false,
                         Boundaries::Union{Function,Nothing}=nothing, CheckSols::Bool=true, parallel::Bool=false, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
@@ -379,7 +383,7 @@ FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = FisherMetric
 FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = Pullback(DS, dmodel, InvCov(DS), θ)
 
 """
-    GeometricDensity(DM::DataModel, θ::AbstractVector) -> Real
+    GeometricDensity(DM::AbstractDataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = GeometricDensity(Data(DM), dPredictor(DM), θ)
@@ -388,7 +392,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}) = sqrt(det(Metr
 
 
 
-function ConfidenceRegionVolume(DM::DataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false)
+function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false)
     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
     LogLikeBoundary = likelihood(DM,sol(0))
     Cube = ConstructCube(sol; Padding=1e-5)
@@ -401,7 +405,7 @@ end
 
 # h(θ) ∈ Dataspace
 """
-    EmbeddingMap(DM::DataModel,θ::AbstractVector{<:Number})
+    EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number})
 Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
 ```
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
@@ -456,7 +460,7 @@ end
 # M ⟵ D
 Pullback(DM::AbstractDataModel,F::Function,θ::AbstractVector{<:Number}) = F(EmbeddingMap(DM,θ))
 """
-    Pullback(DM::DataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
+    Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<:Number}) = transpose(EmbeddingMatrix(DM,θ)) * ω
@@ -477,7 +481,7 @@ end
     Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector)
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
 """
-Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
+Pushforward(DM::AbstractDataModel, X::AbstractVector, θ::AbstractVector{<:Number}) = EmbeddingMatrix(DM,θ) * X
 
 
 # Compute all major axes of Fisher Ellipsoid from eigensystem of Fisher metric

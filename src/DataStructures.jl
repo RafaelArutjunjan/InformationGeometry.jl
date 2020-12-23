@@ -318,6 +318,7 @@ ydim(DM::AbstractDataModel) = ydim(Data(DM))
 
 logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
 WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
+DataspaceDim(DM::AbstractDataModel) = DataspaceDim(Data(DM))
 
 import Base.length
 length(DM::AbstractDataModel) = Npoints(Data(DM))
@@ -331,6 +332,7 @@ length(DS::AbstractDataSet) = Npoints(DS)
 # Data(DS::AbstractDataSet) = DS
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
+DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
