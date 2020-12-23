@@ -103,7 +103,7 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 
 
 include("SymbolicComputations.jl")
-export GetModel, Optimize, OptimizedDM, EvaluateSol
+export GetModel, GetDModel, Optimize, OptimizedDM, EvaluateSol
 
 
 include("Plotting.jl")

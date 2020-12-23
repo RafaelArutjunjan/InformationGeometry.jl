@@ -5,6 +5,8 @@ RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
 RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number})
     (!(xdim(DM) == ydim(DM) == 1) && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     legendtitle --> "R² ≈ $(round(Rsquared(DM),sigdigits=3))"
+    xguide -->              xnames(DM)[1]
+    yguide -->              ynames(DM)[1]
     @series begin
         Data(DM)
     end
@@ -23,8 +25,8 @@ RecipesBase.@recipe function f(DS::DataSet)
     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
     Σ_y = typeof(sigma(DS)) <: AbstractVector ? sigma(DS) : sqrt.(Diagonal(sigma(DS)).diag)
     line -->                (:scatter,1)
-    xguide -->              "Conditions x"
-    yguide -->              "Observations y"
+    xguide -->              xnames(DS)[1]
+    yguide -->              ynames(DS)[1]
     label -->               "Data"
     yerror -->              Σ_y
     linecolor   -->         :blue
@@ -39,8 +41,8 @@ RecipesBase.@recipe function f(DS::DataSetExact)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     line -->                (:scatter,1)
-    xguide -->              "Conditions x"
-    yguide -->              "Observations y"
+    xguide -->              xnames(DS)[1]
+    yguide -->              ynames(DS)[1]
     label -->               "Data"
     xerror -->              Σ_x
     yerror -->              Σ_y
@@ -185,7 +187,7 @@ end
 PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, size::Float64=0.5,N::Int=100;Save::Bool=true) = PlotLoglikelihood(DM, PlotPlane, HyperCube([[-size,size],[-size,size]]), N, Save=Save)
 
 
-function ConstructBox(fit::LsqFit.LsqFitResult,Confnum::Real; AxisCS::Bool=true)
+function ConstructBox(fit::LsqFit.LsqFitResult, Confnum::Real; AxisCS::Bool=true)
     E = Confnum * stderror(fit)
     HyperCube(fit.param - E, fit.param + E)
 end
@@ -286,7 +288,7 @@ function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,size::Float64=0.
 end
 
 
-function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
+function Plot2DVF(DM::DataModel, V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube
     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
@@ -327,7 +329,7 @@ function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), 
                                         ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     OverWrite && Plots.plot()
     if typeof(ModelMapMeta) <: ModelMap
-        names = ModelMapMeta.ParamNames
+        names = pnames(ModelMapMeta)
         if length(vars) == 2
             return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
         elseif length(vars) == 3
@@ -338,15 +340,15 @@ function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), 
     Plots.plot!(sol; vars=vars, leg=leg, kwargs...)
 end
 
-function VisualizeSols(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500,
+function VisualizeSols(PL::Plane, sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500,
                             ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
-    H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
+    H = Deplanarize(PL, sol; N=N);    Plots.plot!(H[:,1], H[:,2], H[:,3]; leg=leg, kwargs...)
 end
-function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
+function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
                             ModelMapMeta::Union{ModelMap,Bool}=false, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSols(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
+        p = VisualizeSols(PL, sol; N=N, vars=vars, leg=leg, kwargs...)
     end;    p
 end
 
@@ -356,7 +358,7 @@ function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tu
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
-        p = VisualizeSols(PL[i],sols[i]; N=N,vars=vars,leg=leg, color=color, kwargs...)
+        p = VisualizeSols(PL[i], sols[i]; N=N, vars=vars, leg=leg, color=color, kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
@@ -387,7 +389,7 @@ end
 
 XCube(DS::AbstractDataSet; Padding::Real=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
 XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(Data(DM); Padding=Padding)
-Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i],Cube.U[i]; length=N) for i in 1:length(Cube)]
+Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
 # function GetExtrema(DM::AbstractDataModel,sols::Union{ODESolution,Vector{<:ODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)

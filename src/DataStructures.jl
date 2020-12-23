@@ -53,6 +53,8 @@ struct DataSet <: AbstractDataSet
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
     WoundX::Union{AbstractVector,Bool}
+    xnames::Vector{String}
+    ynames::Vector{String}
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
         DataSet(ToCols(convert(Matrix,DF))...)
@@ -61,11 +63,11 @@ struct DataSet <: AbstractDataSet
         println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
         DataSet(x,y,ones(length(y)*length(y[1])))
     end
-    DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
-    DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
-    function DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractVector,dims::Tuple{Int,Int,Int})
+    DataSet(x::AbstractVector{<:Real}, y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
+    function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
-        DataSet(Unwind(x),Unwind(y),Sigma,Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]),dims)
+        DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
     function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
@@ -76,22 +78,27 @@ struct DataSet <: AbstractDataSet
         if !isposdef(InvCov)
             println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
             !isposdef(Symmetric(InvCov)) && throw("Inverse covariance matrix still not positive-definite after symmetrization.")
-            InvCov = convert(Matrix,Symmetric(InvCov))
+            InvCov = convert(Matrix, Symmetric(InvCov))
         end
         if xdim(dims) == 1
-            return new(x,y,InvCov,dims,logdet(InvCov),false)
+            return DataSet(x, y, InvCov, dims, logdet(InvCov), false)
         else
             # return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
-            return new(x,y,InvCov,dims,logdet(InvCov),[SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            return DataSet(x, y, InvCov, dims, logdet(InvCov), [SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
+    end
+    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Bool})
+        DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, CreateSymbolNames(xdim(dims),"x"), CreateSymbolNames(ydim(dims),"y"))
+    end
+    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Bool}, xnames::Vector{String}, ynames::Vector{String})
+        new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
     end
 end
 
-# Specialized methods for DataSet
-Npoints(DS::DataSet) = Npoints(DS.dims)
-xdim(DS::DataSet) = xdim(DS.dims)
-ydim(DS::DataSet) = ydim(DS.dims)
 
+# Specialized methods for DataSet
+dims(DS::DataSet) = DS.dims
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 function sigma(DS::DataSet)
@@ -105,6 +112,13 @@ InvCov(DS::DataSet) = DS.InvCov
 WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
+xnames(DS::DataSet) = DS.xnames
+ynames(DS::DataSet) = DS.ynames
+
+function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
+    (length(xnames) != xdim(DS) || length(ynames) != ydim(DS)) && throw("Error.")
+    DataSet(xdata(DS), ydata(DS), InvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
+end
 
 
 # Callback triggers when Boundaries is `true`.
@@ -143,7 +157,7 @@ struct ModelMap
     end
     function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int}; ParamNames::Union{Vector{String},Bool}=false)
         Domain = typeof(Domain) == Bool ? FullDomain(xyp[3]) : Domain
-        ParamNames = typeof(ParamNames) == Bool ? CreateSymbolNames(xyp[3]) : ParamNames
+        ParamNames = typeof(ParamNames) == Bool ? CreateSymbolNames(xyp[3],"θ") : ParamNames
         StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
         ModelMap(model, InDomain, Domain, xyp, ParamNames, Val(StaticOutput), Val(false))
     end
@@ -157,13 +171,17 @@ end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
 
+pnames(M::ModelMap) = M.ParamNames
+Domain(M::ModelMap) = M.Domain
+
 function ModelMap(F::Nothing, M::ModelMap)
     println("ModelMap: Got nothing instead of function to build new ModelMap")
     nothing
 end
-function CreateSymbolNames(n::Int)
-    @variables θ[1:n]
-    θ .|> z->string(z.val.name)
+function CreateSymbolNames(n::Int, base::String="θ")
+    n == 1 && return [base]
+    D = Dict(string.(0:9) .=> ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"])
+    base .* [prod(get(D,"$x","Q") for x in string(digit)) for digit in 1:n]
 end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
@@ -333,34 +351,23 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 
 
-# Generic passthrough of queries from AbstractDataModel to AbstractDataSet
-xdata(DM::AbstractDataModel) = xdata(Data(DM))
-ydata(DM::AbstractDataModel) = ydata(Data(DM))
-sigma(DM::AbstractDataModel) = sigma(Data(DM))
-xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
-ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
-InvCov(DM::AbstractDataModel) = InvCov(Data(DM))
-Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
-xdim(DM::AbstractDataModel) = xdim(Data(DM))
-ydim(DM::AbstractDataModel) = ydim(Data(DM))
-
-logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
-WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
-DataspaceDim(DM::AbstractDataModel) = DataspaceDim(Data(DM))
-
-import Base.length
-length(DM::AbstractDataModel) = Npoints(Data(DM))
-
-xdist(DM::AbstractDataModel) = xdist(Data(DM))
-ydist(DM::AbstractDataModel) = ydist(Data(DM))
-
-
 # Generic Methods for AbstractDataSets      -----       May be superceded by more specialized functions!
+import Base.length
 length(DS::AbstractDataSet) = Npoints(DS)
-# Data(DS::AbstractDataSet) = DS
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
+# Data(DS::AbstractDataSet) = DS
+
+xdist(DS::AbstractDataSet) = xDataDist(DS)
+ydist(DS::AbstractDataSet) = yDataDist(DS)
+
+Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
+xdim(DS::AbstractDataSet) = xdim(dims(DS))
+ydim(DS::AbstractDataSet) = ydim(dims(DS))
+Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
+xdim(dims::Tuple{Int,Int,Int}) = dims[2]
+ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
@@ -368,10 +375,40 @@ pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
 MLE(DM::AbstractDataModel) = FindMLE(DM)
 LogLikeMLE(DM::AbstractDataModel) = loglikelihood(DM, MLE(DM))
 
-Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
-xdim(dims::Tuple{Int,Int,Int}) = dims[2]
-ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 
+# Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
+# for F in [xdata, ydata, sigma, xsigma, ysigma, InvCov, dims, Npoints, length, xdim, ydim,
+#                     logdetInvCov, WoundX, DataspaceDim, xnames, ynames, xdist, ydist]
+#     F(DM::AbstractDataModel) = F(Data(DM))
+# end
+xdata(DM::AbstractDataModel) = xdata(Data(DM))
+ydata(DM::AbstractDataModel) = ydata(Data(DM))
+sigma(DM::AbstractDataModel) = sigma(Data(DM))
+xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
+ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
+InvCov(DM::AbstractDataModel) = InvCov(Data(DM))
+
+Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
+length(DM::AbstractDataModel) = length(Data(DM))
+xdim(DM::AbstractDataModel) = xdim(Data(DM))
+ydim(DM::AbstractDataModel) = ydim(Data(DM))
+dims(DM::AbstractDataModel) = dims(Data(DM))
+
+logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
+WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
+DataspaceDim(DM::AbstractDataModel) = DataspaceDim(Data(DM))
+
+xnames(DM::AbstractDataModel) = xnames(Data(DM))
+ynames(DM::AbstractDataModel) = ynames(Data(DM))
+
+xdist(DM::AbstractDataModel) = xdist(Data(DM))
+ydist(DM::AbstractDataModel) = ydist(Data(DM))
+
+
+# Generic Methods which are not simply passed through
+pnames(DM::AbstractDataModel) = pnames(DM, Predictor(DM))
+pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
+pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
 
 DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
@@ -414,23 +451,20 @@ DataFrame(DS::DataSet) = SaveDataSet(DS)
 import Base.join
 function join(DS1::DataSet, DS2::DataSet)
     !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
-    if typeof(sigma(DS1)) <: AbstractVector
-        NewΣ = [sigma(DS1)..., sigma(DS2)...]
+    NewΣ = if typeof(sigma(DS1)) <: AbstractVector && typeof(sigma(DS2)) <: AbstractVector
+        vcat(sigma(DS1), sigma(DS2))
     else
-        Σ1 = sigma(DS1);    Σ2 = sigma(DS2);    len = ydim(DS1)*(Npoints(DS1)+Npoints(DS2))
-        NewΣ = zeros(suff(Σ1), len, len)
-        NewΣ[1:ydim(DS1)*Npoints(DS1),1:ydim(DS1)*Npoints(DS1)] = Σ1
-        NewΣ[(ydim(DS1)*Npoints(DS1) + 1):len,(ydim(DS1)*Npoints(DS1) + 1):len] = Σ2
+        BlockMatrix(sigma(DS1), sigma(DS2))
     end
-    DataSet([xdata(DS1)...,xdata(DS2)...], [ydata(DS1)...,ydata(DS2)...], NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
+    DataSet(vcat(xdata(DS1), xdata(DS2)), vcat(ydata(DS1), ydata(DS2)), NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
 end
-join(DM1::DataModel,DM2::DataModel) = DataModel(join(Data(DM1),Data(DM2)),DM1.model,DM1.dmodel)
-join(DS1::T,DS2::T,args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2),args...)
+join(DM1::DataModel, DM2::DataModel) = DataModel(join(Data(DM1),Data(DM2)), Predictor(DM1), dPredictor(DM1))
+join(DS1::T, DS2::T, args...) where T <: Union{DataSet,DataModel} = join(join(DS1,DS2), args...)
 join(DSVec::Vector{T}) where T <: Union{DataSet,DataModel} = join(DSVec...)
 
 SortDataSet(DS::DataSet) = DS |> DataFrame |> sort |> DataSet
-SortDataModel(DM::DataModel) = DataModel(SortDataSet(Data(DM)),DM.model,DM.dmodel)
-function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
+SortDataModel(DM::DataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM))
+function SubDataSet(DS::DataSet, range::Union{AbstractRange,AbstractVector})
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
@@ -444,7 +478,7 @@ function SubDataSet(DS::DataSet,range::Union{AbstractRange,AbstractVector})
     end
     DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)))
 end
-SubDataModel(DM::DataModel,range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(Data(DM),range),DM.model,DM.dmodel)
+SubDataModel(DM::DataModel, range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM))
 
 Sparsify(DS::DataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::DataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
