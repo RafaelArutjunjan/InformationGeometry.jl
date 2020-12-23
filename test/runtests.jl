@@ -54,6 +54,8 @@ end
     @test ModelComparison(DM,DMSimp)[2] > 0.
 
     @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
+
+    # Test GenerateInterruptedBoundary()
 end
 
 
@@ -77,6 +79,9 @@ end
 
     Planes, sols = ConfidenceRegion(DM,1)
     @test typeof(VisualizeSols(Planes,sols)) <: Plots.Plot
+
+    ODM = OptimizedDM(DME)
+    @test sum(abs.(EmbeddingMatrix(DME,MLE(DME)) - EmbeddingMatrix(ODM,MLE(DME)))) < 1e-9
 end
 
 

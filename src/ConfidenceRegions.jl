@@ -47,8 +47,8 @@ end
 """
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
 """
-@inline WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
-@inline WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.)) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.))) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.)) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ))) - Confvol
 
 # Do not give default to third argument here such as to not overrule the defaults from above
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat) = WilksCriterion(DM, BigFloat.(θ), Confvol)
@@ -176,6 +176,12 @@ GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
 function GetStartP(DS::AbstractDataSet, model::ModelOrFunction)
     P = pdim(DS,model)
     ones(P) .+ 0.01*(rand(P) .- 0.5)
+end
+function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
+    Res = Vector{Float64}(undef, length(M.Domain))
+    @inbounds for i in eachindex(Res)
+        Res[i] = 0.5 * (max(M.Domain.L[i], -substitute) + min(M.Domain.U[i], substitute)) * (1. + 0.05 * (rand() - 0.5))
+    end;    Res
 end
 
 function FindMLE(DM::AbstractDataModel, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)

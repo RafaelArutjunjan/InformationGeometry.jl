@@ -137,6 +137,8 @@ Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)), NO_CO
 
 GeneratedFromAutoDiff(F::Function) = occursin("Autodmodel", string(nameof(typeof(F))))
 GeneratedFromAutoDiff(F::ModelMap) = GeneratedFromAutoDiff(F.Map)
+GeneratedFromSymbolic(F::Function) = occursin("SymbolicModel", string(nameof(typeof(F))))
+GeneratedFromSymbolic(F::ModelMap) = GeneratedFromSymbolic(F.Map)
 
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)

@@ -112,7 +112,7 @@ end
 Integrates the function `F` over `Cube` with the help of **HCubature.jl** to a tolerance of `tol`.
 If `WE=true`, the result is returned as a `Measurement` which also contains the estimated error in the result.
 """
-function IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
+function IntegrateND(F::Function, Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)
     if length(Cube) == 1
         val, uncert = hquadrature(F, Cube.L[1], Cube.U[1]; rtol=tol, atol=tol, kwargs...)
     else
@@ -215,8 +215,14 @@ end
 
 
 import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(Data(DM),DM.model,initial;tol=tol,kwargs...)
-function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15,kwargs...)
+curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(Data(DM),Predictor(DM),initial;tol=tol,kwargs...)
+
+function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=6e-15, kwargs...)
+    # Use bounds from HyperCube for curve_fit
+    curve_fit(DS, M.Map, initial; tol=tol, lower=M.Domain.L, upper=M.Domain.U, kwargs...)
+end
+
+function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15, kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
@@ -226,10 +232,11 @@ function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractV
     R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :forward)
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
+
 function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
-    N = size(M,1);    M[:,1:xlen] .*= sqrt(N/xlen -1.);    return M
+    M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
 end
-function curve_fit2(DSE::DataSetExact, model::Function, initial::AbstractVector{<:Number}=GetStartP(DSE,model); tol::Real=1e-13, kwargs...)
+function curve_fit2(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE,model); tol::Real=1e-13, kwargs...)
     isa(xdist(DSE),InformationGeometry.Dirac) && return curve_fit(DataSet(xdata(DSE),ydata(DSE),ysigma(DSE)), model, initial; tol=tol, kwargs...)
     plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
     function predictY(ξ)
@@ -343,7 +350,7 @@ function GenerateEpsilonTensor(dims::Int,rank::Int=3)
     G
 end
 
-function Cross(A::AbstractVector{<:Real},B::AbstractVector{<:Real})
+function Cross(A::AbstractVector{<:Real}, B::AbstractVector{<:Real})
     length(A) != length(B) && throw(ArgumentError("Cross: Dimension Mismatch: $A, $B."))
     if length(A) > 3
         return @tensor C[a] := GenerateEpsilonTensor(length(A),3)[a,b,c]*A[b]*B[c]

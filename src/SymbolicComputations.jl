@@ -20,13 +20,22 @@ function GetDModel(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num
 end
 
 
-Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5) = Optimize(Predictor(DM), (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout)
-function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5)
-    Optimize(model, (xdim(DS),ydim(DS),pdim(DS,model)); inplace=inplace, timeout=timeout)
+function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
+    Optimize(Predictor(DM), (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout, parallel=parallel)
 end
-function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
+function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
+    Optimize(model, (xdim(DS),ydim(DS),pdim(DS,model)); inplace=inplace, timeout=timeout, parallel=parallel)
+end
+function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
+    xyp != M.xyp && throw("xyp inconsistent.")
+    model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout, parallel=parallel)
+    ModelMap(model, M), ModelMap(dmodel, M)
+end
+function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
     X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
+
+    parallel && println("Parallel functionality not implemented yet.")
 
     # Add option for models which are already inplace
     function TryOptim(model,X,θ)
@@ -49,19 +58,27 @@ function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false,
     modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
     derivative = ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
 
-    ## Add option for parallel=ModelingToolkit.MultithreadedForm()
-    # OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
-    # OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
-    OptimizedModel = build_function(modelexpr, X, θ)[inplace ? 2 : 1] |> eval
-    OptimizedDModel = build_function(derivative, X, θ)[inplace ? 2 : 1] |> eval
-
-    OptimizedModel, OptimizedDModel
+    # Pass through keyword "parallel" later
+    ExprToModelMap(X,θ, modelexpr; inplace=inplace, IsJacobian=false), ExprToModelMap(X,θ, derivative; inplace=inplace, IsJacobian=true)
 end
 
-function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5)
-    model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout)
-    ModelMap(model, M), ModelMap(dmodel, M)
+function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}}; inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
+    # ParamNames = P .|> z->string(z.val.name)
+    # xyp = (length(X), length(modelexpr), length(P))
+    if parallel
+        throw("Not programmed yet")
+        ## Add option for parallel=ModelingToolkit.MultithreadedForm()
+        # OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
+        # OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    else
+        OptimizedModel = try eval(build_function(modelexpr, X, P)[inplace ? 2 : 1]) catch; eval(build_function(modelexpr, X, P)) end
+
+        ### Pretty Function names
+        SymbolicModel(x, θ) = OptimizedModel(x, θ);        SymbolicModelJacobian(x, θ) = OptimizedModel(x, θ)
+        return IsJacobian ? SymbolicModelJacobian : SymbolicModel
+    end
 end
+
 
 
 function OptimizedDM(DM::AbstractDataModel)
