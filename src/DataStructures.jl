@@ -116,19 +116,43 @@ struct ModelMap
     InDomain::Function
     Domain::Union{Cuboid,Bool}
     xyp::Tuple{Int,Int,Int}
+    ParamNames::Vector{String}
     StaticOutput::Val
     inplace::Val
-    function ModelMap(model::Function, Domain::Cuboid)
-        InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
-        ModelMap(model, InDomain, Domain)
+    # Given: Bool-valued domain function
+    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; ParamNames::Union{Vector{String},Bool}=false)
+        ModelMap(model, InDomain, false, xyp; ParamNames=ParamNames)
     end
-    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false)
-        xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen));   StaticOutput = typeof(testout) <: SVector
-        ModelMap(model, InDomain, false, (xlen, size(testout,1), plen), Val(StaticOutput), Val(false))
+    # Given: HyperCube
+    function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; ParamNames::Union{Vector{String},Bool}=false)
+        # Change this to θ -> true to avoid double checking cuboid. Obviously make sure Boundaries() is constructed using both the function test
+        # and the Cuboid test first before changing this.
+        InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
+        typeof(xyp) == Bool ? ModelMap(model, InDomain, Domain; ParamNames=ParamNames) : ModelMap(model, InDomain, Domain, xyp; ParamNames=ParamNames)
+    end
+    # Given: Function only (potentially) -> Find xyp
+    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false; ParamNames::Union{Vector{String},Bool}=false)
+        xyp = if typeof(Domain) == Bool
+            xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen))
+            (xlen, size(testout,1), plen)
+        else
+            plen = length(Domain);      xlen = GetArgLength(x->model(x,ones(plen)));    testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen))
+            (xlen, size(testout,1), plen)
+        end
+        ModelMap(model, InDomain, Domain, xyp; ParamNames=ParamNames)
+    end
+    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int}; ParamNames::Union{Vector{String},Bool}=false)
+        Domain = typeof(Domain) == Bool ? FullDomain(xyp[3]) : Domain
+        ParamNames = typeof(ParamNames) == Bool ? CreateSymbolNames(xyp[3]) : ParamNames
+        StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
+        ModelMap(model, InDomain, Domain, xyp, ParamNames, Val(StaticOutput), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.StaticOutput, M.inplace)
-    ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int}, StaticOutput::Val, inplace::Val) = new(Map, InDomain, Domain, xyp, StaticOutput, inplace)
+    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.ParamNames, M.StaticOutput, M.inplace)
+    function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int},
+                        ParamNames::Vector{String}, StaticOutput::Val, inplace::Val)
+        new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace)
+    end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
 ModelOrFunction = Union{Function,ModelMap}
@@ -136,6 +160,10 @@ ModelOrFunction = Union{Function,ModelMap}
 function ModelMap(F::Nothing, M::ModelMap)
     println("ModelMap: Got nothing instead of function to build new ModelMap")
     nothing
+end
+function CreateSymbolNames(n::Int)
+    @variables θ[1:n]
+    θ .|> z->string(z.val.name)
 end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
@@ -145,7 +173,7 @@ ModelMap(M::ModelMap) = M
 LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log)
 
 Transform(F::Function, indxs::BitVector, Transform::Function) = _Transform(F, indxs, Transform)
-Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F.InDomain, Intersect(PositiveDomain(indxs), F.Domain), F.xyp, F.StaticOutput, F.inplace)
+Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F.InDomain, Intersect(PositiveDomain(indxs), F.Domain), F.xyp, F.ParamNames, F.StaticOutput, F.inplace)
 function _Transform(F::Function, indxs::BitVector, Transform::Function=log)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}, F::Function, indxs::BitVector, Transform::Function=log)
         F(x, [(indxs[i] ? Transform(p[i]) : p[i]) for i in eachindex(indxs)])
@@ -160,9 +188,9 @@ end
 Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
 """
 function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
-    try         return (1, InformationGeometry.GetArgLength(p->model(1.,p); max=max))       catch; end
+    try         return (1, GetArgLength(p->model(1.,p); max=max))       catch; end
     for i in 2:(max + 1)
-        plen = try      InformationGeometry.GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
+        plen = try      GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
         i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
     end
 end
@@ -362,11 +390,12 @@ pdim(DS::AbstractDataSet, model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(
 
 function GetArgLength(F::Function; max::Int=100)::Int
     max < 1 && throw("pdim: max = $max too small.")
+    try     F(1.);  return 1    catch; end
     for i in 1:(max+1)
         try
             F(ones(i))
         catch y
-            (isa(y, BoundsError) || isa(y,MethodError) || isa(y,DimensionMismatch)) && continue
+            (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError)) && continue
             println("pdim: Encountered error in specification of model function.");     rethrow()
         end
         i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i

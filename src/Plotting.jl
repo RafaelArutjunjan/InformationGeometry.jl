@@ -317,21 +317,33 @@ Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Real},Abstract
     VisualizeSols(sols::Vector{<:ODESolution}; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true,leg::Bool=false,kwargs...)
+function VisualizeSols(sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
-        p = VisualizeSols(sol;vars=vars,leg=leg,kwargs...)
+        p = VisualizeSols(sol; vars=vars, leg=leg, kwargs...)
     end;    p
 end
-function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false, kwargs...)
+function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
+                                        ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     OverWrite && Plots.plot()
-    Plots.plot!(sol;vars=vars,leg=leg,kwargs...)
+    if typeof(ModelMapMeta) <: ModelMap
+        names = ModelMapMeta.ParamNames
+        if length(vars) == 2
+            return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
+        elseif length(vars) == 3
+            return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], vars=vars, leg=leg, kwargs...)
+        end
+        # What if vars > 3? Does Plots.jl throw an error?
+    end
+    Plots.plot!(sol; vars=vars, leg=leg, kwargs...)
 end
 
-function VisualizeSols(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500, kwargs...)
+function VisualizeSols(PL::Plane,sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500,
+                            ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     H = Deplanarize(PL,sol;N=N);    Plots.plot!(H[:,1],H[:,2],H[:,3];leg=leg, kwargs...)
 end
-function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500, OverWrite::Bool=true,leg::Bool=false, kwargs...)
+function VisualizeSols(PL::Plane,sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
+                            ModelMapMeta::Union{ModelMap,Bool}=false, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSols(PL,sol; N=N,vars=vars,leg=leg, kwargs...)
@@ -340,7 +352,7 @@ end
 
 VisualizeSols(X::Tuple{Vector{<:Plane},Vector{<:ODESolution}}, args...; kwargs...) = VisualizeSols(X[1], X[2], args...; kwargs...)
 function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
-            OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
+            OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
@@ -349,12 +361,16 @@ function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tu
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
     OverWrite ? scatter([MLE(DM)]; label="MLE") : scatter!([MLE(DM)]; label="MLE")
-    VisualizeSols(args...; OverWrite=false, kwargs...)
+    if typeof(Predictor(DM)) <: ModelMap
+        return VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
+    else
+        return VisualizeSols(args...; OverWrite=false, kwargs...)
+    end
 end
 
 
-function VisualizeGeos(sols::Union{ODESolution,Vector{<:ODESolution}}; OverWrite::Bool=true,leg::Bool=false)
-    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)),OverWrite=OverWrite,leg=leg)
+function VisualizeGeos(sols::Union{ODESolution,Vector{<:ODESolution}}; OverWrite::Bool=true, leg::Bool=false)
+    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg)
 end
 
 

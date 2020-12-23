@@ -151,9 +151,10 @@ end
 
 # http://docs.junolab.org/stable/man/info_developer/#
 # hastreeview, numberofnodes, treelabel, treenode
-TreeViews.hastreeview(x::Union{AbstractDataSet,AbstractDataModel}) = true
+TreeViews.hastreeview(x::Union{AbstractDataSet,AbstractDataModel,ModelMap}) = true
 TreeViews.numberofnodes(x::AbstractDataSet) = 4
 TreeViews.numberofnodes(x::AbstractDataModel) = 4
+TreeViews.numberofnodes(x::ModelMap) = 4
 function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel}, mime::MIME"text/plain" = MIME"text/plain"())
     show(io, mime, Text(Base.summary(DS)))
 end
@@ -165,7 +166,7 @@ import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
 #### Show Distribution types for DataSetExact
 function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
-    println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
     if typeof(DS) == DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
@@ -188,7 +189,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
 end
 
 function Base.show(io::IO, DS::AbstractDataSet)
-    println("$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
     if typeof(DS) == DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
@@ -212,14 +213,14 @@ end
 
 ##### StaticOutput?
 function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
-    auto = occursin("Auto", string(nameof(typeof(dPredictor(DM)))))
-    println("$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-    println("Model jacobian ", auto ? "obtained via automatic differentiation" : "symbolically provided")
+    auto = GeneratedFromAutoDiff(Predictor(DM))
+    println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
+    println(io, "Model jacobian ", auto ? "obtained via automatic differentiation" : "symbolically provided")
     if typeof(DM) == DataModel
-        println("Maximum Likelihood Estimate: $(MLE(DM))")
-        println("Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+        println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
+        println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
-    println("Model parametrization linear in n-th parameter: $(IsLinearParameter(DM))")
+    println(io, "Model parametrization linear in n-th parameter: $(IsLinearParameter(DM))")
 end
 
 end # module
