@@ -133,6 +133,7 @@ struct ModelMap
     ParamNames::Vector{String}
     StaticOutput::Val
     inplace::Val
+    CustomEmbedding::Val
     # Given: Bool-valued domain function
     function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; ParamNames::Union{Vector{String},Bool}=false)
         ModelMap(model, InDomain, false, xyp; ParamNames=ParamNames)
@@ -159,13 +160,15 @@ struct ModelMap
         Domain = typeof(Domain) == Bool ? FullDomain(xyp[3]) : Domain
         ParamNames = typeof(ParamNames) == Bool ? CreateSymbolNames(xyp[3],"θ") : ParamNames
         StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
-        ModelMap(model, InDomain, Domain, xyp, ParamNames, Val(StaticOutput), Val(false))
+        ModelMap(model, InDomain, Domain, xyp, ParamNames, Val(StaticOutput), Val(false), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.ParamNames, M.StaticOutput, M.inplace)
+    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.ParamNames, M.StaticOutput)
+
+    # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int},
-                        ParamNames::Vector{String}, StaticOutput::Val, inplace::Val)
-        new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace)
+                        ParamNames::Vector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
+        new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
     end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)

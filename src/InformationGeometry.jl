@@ -46,6 +46,7 @@ using TreeViews
 
 #### Performance / Optimization
 
+# Make Auto into type "Val" instead of Bool
 # Optimize GetModel() for ODEs for performance by only executing ODEFunction once
 # Use IntegrateND() instead of MonteCarloArea()
 # Implement formula to obtain bounding box of hyperellipse exactly.
@@ -60,6 +61,7 @@ using TreeViews
 
 # GenerateInterruptedBoundary
 # F-Boundary
+# Constructors of ModelMap, DataSet, DataModel, etc
 # ..... make full list
 
 

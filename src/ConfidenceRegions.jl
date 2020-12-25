@@ -418,48 +418,47 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 ```
 """
 EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMap(Data(DM), Predictor(DM), θ)
-
 EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}) = performMap(DS, model, θ, WoundX(DS))
 
-function performMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
-    if ydim(DS) > 1
-        return reduce(vcat, map(x->model(x,θ),woundX))
-    else
-        return map(x->model(x,θ), woundX)
-    end
-end
+performMap(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector) = Reduction(map(x->model(x,θ), woundX))
+### Apparently curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
+# Reduction(X::AbstractVector{<:SVector}) = reinterpret(suff(X), X)
+Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
+Reduction(X::AbstractVector{<:Number}) = X
 
-# Typically slower than reduce(vcat,...)
-function performMap2(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
-    if ydim(DS) > 1
-        Res = Vector{suff(θ)}(undef, Npoints(DS)*ydim(DS))
-        for i in 1:Npoints(DS)
-            Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
-        end;    return Res
-    else
-        return map(x->model(x,θ), woundX)
-    end
-end
+# Allow for custom Embedding methods for overloaded ModelMaps
+performMap(DS::AbstractDataSet, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding)
+_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}) = performMap(DS, model, θ, woundX)
+_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}) = model(woundX, θ)
 
-function performMap3(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector{<:SArray})
-    # if model outputs StaticArrays
-    reinterpret(suff(θ), map(x->model(x,θ),woundX))
-end
+
+### Typically slower than reduce(vcat, ...)
+# function performMap2(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
+#     if ydim(DS) > 1
+#         Res = Vector{suff(θ)}(undef, Npoints(DS)*ydim(DS))
+#         for i in 1:Npoints(DS)
+#             Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
+#         end;    return Res
+#     else
+#         return map(x->model(x,θ), woundX)
+#     end
+# end
 
 
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ)
-
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = performDMap(DS, dmodel, float.(θ), WoundX(DS))
 
-performDMap(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector) = reduce(vcat,map(x->dmodel(x,θ),woundX))
+performDMap(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector) = reduce(vcat, map(x->dmodel(x,θ),woundX))
+performDMap(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector) = performDMap(DS, dM.Map, θ, woundX)
 
-# very slightly faster apparently
-function performDMap2(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
-    Res = Array{suff(θ)}(undef,Npoints(DS)*ydim(DS),length(θ))
-    for i in 1:Npoints(DS)
-        Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
-    end;    Res
-end
+
+### very slightly faster apparently
+# function performDMap2(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
+#     Res = Array{suff(θ)}(undef,Npoints(DS)*ydim(DS),length(θ))
+#     for i in 1:Npoints(DS)
+#         Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
+#     end;    Res
+# end
 
 
 
