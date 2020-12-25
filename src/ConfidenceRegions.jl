@@ -173,14 +173,16 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool
 end
 
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
-function GetStartP(DS::AbstractDataSet, model::ModelOrFunction)
-    P = pdim(DS,model)
-    ones(P) .+ 0.01*(rand(P) .- 0.5)
-end
+GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
+
 function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
-    Res = Vector{Float64}(undef, length(M.Domain))
+    Res = GetStartP(DS, M.Map, length(M.Domain))
+    (Res ∈ M.Domain && M.InDomain(Res)) && return Res
+
     @inbounds for i in eachindex(Res)
-        Res[i] = 0.5 * (max(M.Domain.L[i], -substitute) + min(M.Domain.U[i], substitute)) * (1. + 0.05 * (rand() - 0.5))
+        val = 0.5 * (max(M.Domain.L[i], -substitute) + min(M.Domain.U[i], substitute))
+        if abs(val) < 1e-4      val = sign(val)*0.1     end
+        Res[i] = val * (1. + 0.05 * (rand() - 0.5))
     end;    Res
 end
 
@@ -449,7 +451,10 @@ EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = Embedding
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}) = performDMap(DS, dmodel, float.(θ), WoundX(DS))
 
 performDMap(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector) = reduce(vcat, map(x->dmodel(x,θ),woundX))
-performDMap(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector) = performDMap(DS, dM.Map, θ, woundX)
+
+performDMap(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector) = _CustomOrNotdM(DS, dM.Map, θ, woundX, dM.CustomEmbedding)
+_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}) = performDMap(DS, dmodel, θ, woundX)
+_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}) = dmodel(woundX, θ)
 
 
 ### very slightly faster apparently
