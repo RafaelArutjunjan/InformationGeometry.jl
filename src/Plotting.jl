@@ -17,7 +17,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
     linewidth -->       2
     Xbounds = extrema(xdata(DM))
     X = range(Xbounds[1], Xbounds[2]; length=500)
-    Y = map(z->DM.model(z,MLE), X)
+    Y = reduce(vcat,map(z->Predictor(DM)(z,MLE), X))
     ToCols([X Y])
 end
 
@@ -37,7 +37,7 @@ end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-    typeof(xdist(DS)) <: InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
+    xdist(DS) isa InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     line -->                (:scatter,1)
@@ -328,7 +328,7 @@ end
 function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
                                         ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     OverWrite && Plots.plot()
-    if typeof(ModelMapMeta) <: ModelMap
+    if ModelMapMeta isa ModelMap
         names = pnames(ModelMapMeta)
         if length(vars) == 2
             return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
@@ -340,11 +340,17 @@ function VisualizeSols(sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), 
     Plots.plot!(sol; vars=vars, leg=leg, kwargs...)
 end
 
-function VisualizeSols(PL::Plane, sol::ODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, N::Int=500,
+function VisualizeSols(PL::Plane, sol::ODESolution; vars::Tuple=Tuple(1:length(PL)), leg::Bool=false, N::Int=500,
                             ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
-    H = Deplanarize(PL, sol; N=N);    Plots.plot!(H[:,1], H[:,2], H[:,3]; leg=leg, kwargs...)
+    H = Deplanarize(PL, sol; N=N)
+    if ModelMapMeta isa ModelMap
+        names = pnames(ModelMapMeta)
+        return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], leg=leg, kwargs...)
+    else
+        return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
+    end
 end
-function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
+function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500,
                             ModelMapMeta::Union{ModelMap,Bool}=false, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
@@ -353,7 +359,7 @@ function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple
 end
 
 VisualizeSols(X::Tuple{Vector{<:Plane},Vector{<:ODESolution}}, args...; kwargs...) = VisualizeSols(X[1], X[2], args...; kwargs...)
-function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), N::Int=500,
+function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
             OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
@@ -363,7 +369,7 @@ function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tu
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
     OverWrite ? scatter([MLE(DM)]; label="MLE") : scatter!([MLE(DM)]; label="MLE")
-    if typeof(Predictor(DM)) <: ModelMap
+    if Predictor(DM) isa ModelMap
         return VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
     else
         return VisualizeSols(args...; OverWrite=false, kwargs...)

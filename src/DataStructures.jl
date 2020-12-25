@@ -163,16 +163,15 @@ struct ModelMap
         ModelMap(model, InDomain, Domain, xyp, ParamNames, Val(StaticOutput), Val(false), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.ParamNames, M.StaticOutput, M.inplace)
+    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
-    function ModelMap(Map::Function, indomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int},
+    function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int},
                         ParamNames::Vector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
-        InDomain(θ::AbstractVector{<:Number}) = indomain(θ)
         new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
     end
 end
-(M::ModelMap)(x, θ::AbstractVector{<:Number}) = M.Map(x,θ)
+(M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
 ModelOrFunction = Union{Function,ModelMap}
 
 pnames(M::ModelMap) = M.ParamNames
@@ -192,10 +191,22 @@ pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 ModelMappize(DM::AbstractDataModel) = DataModel(Data(DM), ModelMap(Predictor(DM)), ModelMap(dPredictor(DM)), MLE(DM))
 ModelMap(M::ModelMap) = M
 
+function OutsideBoundariesFunction(M::ModelMap)
+    OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
+end
+
 LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log)
 
+# Negative Transform:
+reflect(x) = -x
+ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, reflect)
+
+ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Real) = Transform(F, indxs, x->factor*x)
+
 Transform(F::Function, indxs::BitVector, Transform::Function) = _Transform(F, indxs, Transform)
-Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F.InDomain, Intersect(PositiveDomain(indxs), F.Domain), F.xyp, F.ParamNames, F.StaticOutput, F.inplace)
+
+# Try to do a bit of inference for the new domain here!
+Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F)
 function _Transform(F::Function, indxs::BitVector, Transform::Function=log)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}, F::Function, indxs::BitVector, Transform::Function=log)
         F(x, [(indxs[i] ? Transform(p[i]) : p[i]) for i in eachindex(indxs)])
@@ -223,7 +234,7 @@ GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
     DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false)
+function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false; custom::Bool=false)
     # Try to use symbolic dmodel:
     if TryOptimize
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
@@ -233,13 +244,20 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
+    # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(p->model(x,p),θ))
+    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
     if ydim(DS) == 1
+        custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
     else
+        custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? AutodmodelN : NAutodmodelN
     end
 end
-DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false) = ModelMap(DetermineDmodel(DS, M.Map, TryOptimize), M)
+function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=isa(M.CustomEmbedding,Val{true}))
+    ModelMap(DetermineDmodel(DS, M.Map, TryOptimize; custom=custom), M)
+end
 
 
 
@@ -249,7 +267,7 @@ function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
     !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
-    !(typeof(model(X,P)) <: SVector) && ydim(DS) > 1 && @warn "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
+    !(model(X,P) isa SVector) && ydim(DS) > 1 && @warn "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return
 end
 
@@ -779,6 +797,8 @@ import Base.==
 
 PositiveDomain(n::Int) = HyperCube(zeros(n), fill(Inf,n))
 PositiveDomain(indxs::BitVector) = HyperCube([(indxs[i] ? 0. : -Inf) for i in eachindex(indxs)], fill(Inf,length(indxs)))
+NegativeDomain(n::Int) = HyperCube(fill(-Inf,n), zeros(n))
+NegativeDomain(indxs::BitVector) = HyperCube(fill(-Inf,length(indxs)), [(indxs[i] ? 0. : Inf) for i in eachindex(indxs)])
 FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
 
 import Base.rand

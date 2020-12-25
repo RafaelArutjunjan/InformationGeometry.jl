@@ -22,13 +22,15 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
     end
 
     function Model(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=t,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol([t], θ; observables=observables, tol=tol, max_t=t, meth=meth, save_everystep=false,save_start=false,save_end=true, kwargs...)
+        FullSol && return sol
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, kwargs...)
+        FullSol && return sol
         reduce(vcat, map(t->sol(t)[observables], ts))
     end
 

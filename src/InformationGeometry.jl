@@ -93,7 +93,7 @@ export MLEinPlane, PlanarDataModel, DetermineDmodel, Transform
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 # HyperCubes
-export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, FullDomain, rand
+export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, NegativeDomain, FullDomain, rand
 
 
 include("DataSetExact.jl")
@@ -139,7 +139,7 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 
 
 include("SymbolicComputations.jl")
-export GetModel, GetDModel, Optimize, OptimizedDM, EvaluateSol
+export GetModel, Optimize, OptimizedDM
 
 
 include("Plotting.jl")

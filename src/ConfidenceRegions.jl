@@ -183,7 +183,14 @@ function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
         val = 0.5 * (max(M.Domain.L[i], -substitute) + min(M.Domain.U[i], substitute))
         if abs(val) < 1e-4      val = sign(val)*0.1     end
         Res[i] = val * (1. + 0.05 * (rand() - 0.5))
-    end;    Res
+    end
+    # (Res ∈ M.Domain && M.InDomain(Res)) && return Res
+    Res
+    # ElaborateGetStartP(DS, M; substitute=substitute)
+end
+
+function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
+    throw("Not programmed yet.")
 end
 
 function FindMLE(DM::AbstractDataModel, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
