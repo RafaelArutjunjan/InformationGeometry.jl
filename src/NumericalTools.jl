@@ -143,7 +143,7 @@ function LineSearch(Test::Function, start::Real=0.; tol::Real=8e-15, maxiter::In
     for i in 1:maxiter
         if Test(value + stepsize) # inside
             value += stepsize
-            value - start > 20 && throw("FindConfBoundary: Value larger than 20.")
+            value - start > 200 && throw("FindConfBoundary: Value larger than 200.")
         else            #outside
             if stepsize < tol
                 return value + stepsize

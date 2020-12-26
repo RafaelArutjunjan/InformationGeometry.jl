@@ -195,23 +195,66 @@ function OutsideBoundariesFunction(M::ModelMap)
     OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
 end
 
-LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log)
 
-# Negative Transform:
-reflect(x) = -x
-ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, reflect)
+Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
+ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 
-ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Real) = Transform(F, indxs, x->factor*x)
+MonotoneIncreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :increasing
+MonotoneDecreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :decreasing
+function Monotonicity(F::Function, Interval::Tuple{Real,Real})
+    derivs = map(x->ForwardDiff.derivative(F, x), range(Interval[1], Interval[2]; length=200))
+    all(x-> x≥0., derivs) && return :increasing
+    all(x-> x≤0., derivs) && return :decreasing
+    :neither
+end
 
-Transform(F::Function, indxs::BitVector, Transform::Function) = _Transform(F, indxs, Transform)
+Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(F, indxs, Transform, InverseTransform)
 
 # Try to do a bit of inference for the new domain here!
-Transform(F::ModelMap, indxs::BitVector, Transform::Function) = ModelMap(_Transform(F.Map, indxs, Transform), F)
-function _Transform(F::Function, indxs::BitVector, Transform::Function=log)
-    function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}, F::Function, indxs::BitVector, Transform::Function=log)
-        F(x, [(indxs[i] ? Transform(p[i]) : p[i]) for i in eachindex(indxs)])
+function Transform(M::ModelMap, indxs::BitVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+    TranslatedDomain(θ::AbstractVector{<:Number}) = M.InDomain(Apply(θ, Transform, indxs))
+    mono = Monotonicity(Transform, (1e-12,50.))
+    NewCube = if mono == :increasing
+        HyperCube(Apply(M.Domain.L, InverseTransform, indxs), Apply(M.Domain.U, InverseTransform, indxs))
+    elseif mono == :decreasing
+        println("Detected monotone decreasing transformation.")
+        HyperCube(Apply(M.Domain.U, InverseTransform, indxs), Apply(M.Domain.L, InverseTransform, indxs))
+    else
+        FullDomain(length(indxs))
+        @warn "Transformation does not appear to be monotone."
     end
-    (x, θ) -> TransformedModel(x, θ, F, indxs, Transform)
+    ModelMap(_Transform(M.Map, indxs, Transform, InverseTransform), TranslatedDomain, NewCube,
+                        M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
+end
+
+function _Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function)
+    function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
+        F(x, Apply(θ, Transform, indxs); kwargs...)
+    end
+end
+
+LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log, exp)
+Log10Transform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log10, x->10^x)
+ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, x-> -x, x-> -x)
+ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Real) = Transform(F, indxs, x->factor*x, x->x/factor)
+
+function TranslationTransform(F::Function, v::AbstractVector{<:Number})
+    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)
+end
+function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
+    ModelMap(TranslationTransform(M.Map, v), θ->M.InDomain(θ + v), TranslateCube(M.Domain, -v), M.xyp, M.ParamNames, M.StaticOutput,
+                                    M.inplace, M.CustomEmbedding)
+end
+
+function LinearTransform(F::Function, A::AbstractMatrix{<:Number})
+    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ; kwargs...)
+end
+
+function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
+    !isposdef(A) && println("Matrix in linear transform not positive definite.")
+    Ainv = inv(A)
+    ModelMap(LinearTransform(M.Map, A), θ->M.InDomain(A*θ), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
+    M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 
 # For dmodels, the output dim is ydim × pdim, i.e. xyp[2] × xyp[3].
@@ -260,7 +303,6 @@ function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=fal
 end
 
 
-
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
     try  model(X,P)   catch Err
@@ -270,8 +312,6 @@ function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
     !(model(X,P) isa SVector) && ydim(DS) > 1 && @warn "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return
 end
-
-
 
 """
 In addition to storing a `DataSet`, a `DataModel` also contains a function `model(x,θ)` and its derivative `dmodel(x,θ)` where `x` denotes the x-value of the data and `θ` is a vector of parameters on which the model depends.

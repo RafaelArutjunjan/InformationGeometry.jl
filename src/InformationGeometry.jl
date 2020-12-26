@@ -83,6 +83,8 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel
 export ModelMap, ModelOrFunction
 export Plane, HyperCube, Cuboid
 
+export Transform, LogTransform, TranslationTransform, LinearTransform
+
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
 export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel

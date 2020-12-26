@@ -350,8 +350,7 @@ function VisualizeSols(PL::Plane, sol::ODESolution; vars::Tuple=Tuple(1:length(P
         return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
     end
 end
-function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500,
-                            ModelMapMeta::Union{ModelMap,Bool}=false, OverWrite::Bool=true, leg::Bool=false, kwargs...)
+function VisualizeSols(PL::Plane, sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSols(PL, sol; N=N, vars=vars, leg=leg, kwargs...)
@@ -360,7 +359,7 @@ end
 
 VisualizeSols(X::Tuple{Vector{<:Plane},Vector{<:ODESolution}}, args...; kwargs...) = VisualizeSols(X[1], X[2], args...; kwargs...)
 function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:ODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
-            OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
+                OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
     for i in 1:length(sols)
