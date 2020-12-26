@@ -254,7 +254,18 @@ function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
     !isposdef(A) && println("Matrix in linear transform not positive definite.")
     Ainv = inv(A)
     ModelMap(LinearTransform(M.Map, A), θ->M.InDomain(A*θ), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
-    M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
+                    M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
+end
+
+function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ + v; kwargs...)
+end
+
+function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+    !isposdef(A) && println("Matrix in linear transform not positive definite.")
+    Ainv = inv(A)
+    ModelMap(AffineTransform(M.Map, A, v), θ->M.InDomain(A*θ+v), HyperCube(Ainv * (M.Domain.L-v), Ainv * (M.Domain.U-v)),
+                    M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 
 # For dmodels, the output dim is ydim × pdim, i.e. xyp[2] × xyp[3].

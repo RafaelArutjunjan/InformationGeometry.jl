@@ -10,9 +10,10 @@ end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; Domain::Union{HyperCube,Bool}=false)
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize() or something?
-    func = ODEFunction(sys)
+    func = ODEFunction{inplace}(sys)
+    u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
     # Do not need ts
     function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
@@ -31,7 +32,17 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, kwargs...)
         FullSol && return sol
-        reduce(vcat, map(t->sol(t)[observables], ts))
+        Reduction(map(t->sol(t)[observables], ts))
+    end
+    function FastModel(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=t,
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+        Model(t, θ; observables=observables, tol=tol, max_t=max_t, meth=meth,FullSol=FullSol, kwargs)
+    end
+    function FastModel(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+        sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
+        FullSol && return sol
+        [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
     end
 
     pnames = [string(x.name) for x in sys.ps]
@@ -39,7 +50,7 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
     Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
 
     # new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
-    ModelMap(Model, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
+    ModelMap(FastModel, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
 

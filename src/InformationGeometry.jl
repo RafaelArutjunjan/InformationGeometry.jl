@@ -16,6 +16,7 @@ using TreeViews
 
 #### Functionality
 
+# Allow passthrough of keywords from important commands to model map such as: loglikelihood, Score, OrthVF, FisherMetric, EmbeddingMap, EmbeddingMatrix
 # General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
 # Finish Boundaries() specification methods in confidence boundary and geodesic construction
@@ -23,7 +24,7 @@ using TreeViews
 # Add CompositeDataSet to master
 # Test F-Boundaries in more detail
 # Reactivate TryOptimize
-# Integrate along structural unidentifiability
+# Integrate along structural unidentifiability -- Switching ODE functions mid-integration: https://diffeq.sciml.ai/stable/basics/faq/
 # Symbolic Fisher? Christoffel?
 
 # Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
@@ -83,7 +84,7 @@ export AbstractDataSet, AbstractDataModel, DataSet, DataModel
 export ModelMap, ModelOrFunction
 export Plane, HyperCube, Cuboid
 
-export Transform, LogTransform, TranslationTransform, LinearTransform
+export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
