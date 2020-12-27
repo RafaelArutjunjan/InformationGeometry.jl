@@ -26,23 +26,28 @@ AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Numbe
 
 
 """
-    Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Bool=false)
+    Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false))
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=true` uses automatic differentiation.
 """
-Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Bool=false, kwargs...) = Score(Data(DM),Predictor(DM),dPredictor(DM),θ; Auto=Auto, kwargs...)
+Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ; Auto=Auto, kwargs...)
 
-function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Bool=false, kwargs...)
-    Auto && return AutoScore(DS,model,θ; kwargs...)
-    _Score(DS,model,dmodel,θ; kwargs...)
+# function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
+#     Auto && return AutoScore(DS,model,θ; kwargs...)
+#     _Score(DS,model,dmodel,θ; kwargs...)
+# end
+# @inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+#     transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
+# end
+
+function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
+    Score(DS, model, dmodel, θ, Auto; kwargs...)
 end
 
-### Use Auto::Val instead
-# Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}) = _Score(DS,model,dmodel,θ)
-# Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}) = AutoScore(DS,model,θ)
-
-@inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}; kwargs...) = AutoScore(DS,model,θ; kwargs...)
+@inline function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
     transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
+
 
 """
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
@@ -133,16 +138,16 @@ inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
 end
 
 """
-    OrthVF(DM::DataModel, θ::AbstractVector{<:Real}; Auto::Bool=false) -> Vector
+    OrthVF(DM::DataModel, θ::AbstractVector{<:Real}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false, kwargs...)
+function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
     OrthVF(Data(DM), Predictor(DM), dPredictor(DM), θ; alpha=alpha, Auto=Auto, kwargs...)
 end
 
 function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
-                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Bool=false, kwargs...)
+                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
     S = -Score(DS, model, dmodel, θ; Auto=Auto, kwargs...);    P = prod(S);    VF = P ./ S
     alpha .* VF |> normalize
@@ -150,12 +155,12 @@ end
 
 
 """
-    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Bool=false) -> Vector
+    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 If a `Plane` is specified, the direction will be specified in the planar coordinates using a 2-component vector.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Bool=false, kwargs...)
+function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(DM, PlaneCoordinates(PL,θ); Auto=Auto, kwargs...))
     P = prod(S)
     return SA[-P/S[1],P/S[2]] |> normalize
@@ -234,12 +239,12 @@ end
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
-                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
+                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
     GenerateBoundary(Data(DM),Predictor(DM),dPredictor(DM),u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
 function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
     LogLikeOnBoundary = loglikelihood(DS, model, u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
@@ -256,7 +261,7 @@ function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::M
 end
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Auto::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Auto::Val=Val(false), kwargs...)
     length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
     LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
@@ -276,7 +281,7 @@ end
 Choose method depending on dimensionality of the parameter space.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, Auto::Bool=false, parallel::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, kwargs...)
     if pdim(DM) == 1
         return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
@@ -319,7 +324,7 @@ Keyword arguments:
 * `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
-                        tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Bool=false,
+                        tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, CheckSols::Bool=true, parallel::Bool=false, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     Map = parallel ? pmap : map
@@ -345,32 +350,32 @@ end
 
 """
     InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...) -> ODESolution
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
 2. the given `Boundaries(u,t,int)` method evaluates to `true`.
 It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
 """
 function InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...)
     GenerateInterruptedBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); Boundaries=Boundaries, tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
 """
     GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...) -> ODESolution
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
 2. the given `Boundaries(u,t,int)` method evaluates to `true`.
 It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
 """
 function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...)
     GenerateInterruptedBoundary(Data(DM), Predictor(DM), dPredictor(DM), u0; Boundaries=Boundaries, tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end
 
 function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-                                redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Bool=false, kwargs...)
+                                redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
@@ -564,11 +569,11 @@ end
 
 
 """
-    IsLinearParameter(DM::DataModel) -> Vector{Bool}
+    IsLinearParameter(DM::DataModel) -> BitVector
 Checks with respect to which parameters the model function `model(x,θ)` is linear and returns vector of booleans where `true` indicates linearity.
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
-function IsLinearParameter(DM::AbstractDataModel; kwargs...)::Vector{Bool}
+function IsLinearParameter(DM::AbstractDataModel; kwargs...)
     P = pdim(DM);    J1 = EmbeddingMatrix(DM,rand(P); kwargs...);    J2 = EmbeddingMatrix(DM,rand(P); kwargs...)
     BitArray(J1[:,i] == J2[:,i]  for i in 1:size(J1,2))
 end
@@ -664,16 +669,16 @@ function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::Vector{<:Real},Con
 end
 
 
-function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
+function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, Auto::Val=Val(false),
                                 Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false)
     GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto)
 end
 
 """
-    MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Bool=false, meth=Tsit5(), mfd::Bool=false)
+    MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Val=Val(false), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Bool=false,
+function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, parallel::Bool=false)
     Map = parallel ? pmap : map
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
