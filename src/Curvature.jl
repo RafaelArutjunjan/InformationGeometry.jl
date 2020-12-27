@@ -1,5 +1,5 @@
 
-MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = MetricPartials(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = MetricPartials(z->FisherMetric(DM,z; kwargs...), θ; BigCalc=BigCalc)
 function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     if BigCalc      θ = BigFloat.(θ)        end
     PDV = zeros(suff(θ), length(θ), length(θ), length(θ));    h = GetH(θ)
@@ -27,7 +27,7 @@ end
 Calculates the components of the ``(1,2)`` Christoffel symbol ``\\Gamma`` at a point ``\\theta`` (i.e. the Christoffel symbol "of the second kind") through finite differencing of the `Metric`. Accurate to ≈ 3e-11.
 `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelSymbol(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = ChristoffelSymbol(z->FisherMetric(DM,z; kwargs...), θ; BigCalc=BigCalc)
 function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Finv = inv(Metric(θ));    FPDV = MetricPartials(Metric, θ; BigCalc=BigCalc)
     if (suff(θ) == Float64) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
@@ -40,7 +40,7 @@ function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::AbstractVe
 end
 
 
-ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = ChristoffelPartials(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = ChristoffelPartials(z->FisherMetric(DM,z; kwargs...), θ; BigCalc=BigCalc)
 function ChristoffelPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     if BigCalc      θ = BigFloat.(θ)        end
     DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
@@ -55,7 +55,7 @@ end
     Riemann(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(1,3)`` Riemann tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through BigFloat calculation.
 """
-Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Riemann(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = Riemann(z->FisherMetric(DM,z; kwargs...), θ; BigCalc=BigCalc)
 function Riemann(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     DownUpDownDown = ChristoffelPartials(Metric, θ; BigCalc=BigCalc)
     if (suff(θ) == Float64) && BigCalc
@@ -71,7 +71,7 @@ end
     Ricci(Metric::Function, θ::AbstractVector; BigCalc::Bool=false)
 Calculates the components of the ``(0,2)`` Ricci tensor by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = Ricci(z->FisherMetric(DM,z), θ; BigCalc=BigCalc)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = Ricci(z->FisherMetric(DM,z; kwargs...), θ; BigCalc=BigCalc)
 function Ricci(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
     Riem = Riemann(Metric, θ; BigCalc=BigCalc)
     # For some reason, it is necessary to prefill here.
@@ -84,7 +84,7 @@ end
     RicciScalar(Metric::Function, θ::AbstractVector; BigCalc::Bool=false) -<> Real
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
-RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = RicciScalar(z->FisherMetric(DM,z),θ; BigCalc=BigCalc)
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = RicciScalar(z->FisherMetric(DM,z; kwargs...),θ; BigCalc=BigCalc)
 RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false) = tr(transpose(Ricci(Metric, θ; BigCalc=BigCalc)) * inv(Metric(θ)))
 
 

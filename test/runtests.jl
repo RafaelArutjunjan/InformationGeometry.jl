@@ -58,6 +58,15 @@ end
     # Test GenerateInterruptedBoundary()
 end
 
+@safetestset "More Boundary tests" begin
+    using InformationGeometry, Test, Random, Distributions, OrdinaryDiffEq
+
+    Random.seed!(31415);    normerr(sig::Number) = rand(Normal(0,sig));     quarticlin(x,p) = p[1]*x.^4 .+ p[2]
+    X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
+    ToyDM = DataModel(DataSet(X,Y,err),(x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
+
+    @test InterruptedConfidenceRegion(ToyDM, 8; tol=1e-9) isa ODESolution
+end
 
 @safetestset "Inputting Datasets of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
@@ -176,4 +185,6 @@ end
 
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
+
+    # Test invert() method for Float64 and BigFloat
 end

@@ -294,13 +294,13 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
         Symbolic_dmodel != nothing && return Symbolic_dmodel
     end
-    Autodmodel(x::Number,θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
-    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(z->model(x,z),θ))
-    AutodmodelN(x::Number,θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
-    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
+    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
+    AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
+    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
     # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
     # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(p->model(x,p),θ))
-    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = ForwardDiff.jacobian(p->model(x,p),θ)
+    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
     if ydim(DS) == 1
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
@@ -583,14 +583,14 @@ length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.");      model = Predictor(DM)
-    planarmod(x, θ::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,θ))
+    planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = model(x, PlaneCoordinates(PL,θ); kwargs...)
     curve_fit(Data(DM), planarmod, start; tol=tol).param
 end
 
 function PlanarDataModel(DM::DataModel, PL::Plane)
     model = Predictor(DM);      dmodel = dPredictor(DM)
-    newmod = (x,θ::AbstractVector{<:Number}) -> model(x, PlaneCoordinates(PL,θ))
-    dnewmod = (x,θ::AbstractVector{<:Number}) -> dmodel(x, PlaneCoordinates(PL,θ)) * [PL.Vx PL.Vy]
+    newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
+    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
     mle = MLEinPlane(DM, PL)
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM,PlaneCoordinates(mle)), true)
 end
@@ -829,7 +829,8 @@ end
 """
     Union(A::HyperCube, B::HyperCube) -> HyperCube
     Union(Cubes::Vector{<:HyperCube}) -> HyperCube
-Returns new `HyperCube` which is the union of the given `HyperCube`s.
+Returns new `HyperCube` which contains both given `HyperCube`s.
+That is, the returned cube is strictly speaking not the union, but a cover (which contains the union).
 """
 Union(A::HyperCube, B::HyperCube) = Union([A, B])
 function Union(Cubes::Vector{<:HyperCube})

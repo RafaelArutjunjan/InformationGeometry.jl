@@ -1,3 +1,4 @@
+
 module InformationGeometry
 
 # using Reexport
@@ -13,6 +14,8 @@ using TreeViews
 
 
 ############## TODOs ##############
+
+# How can kwargs be consistently added to FindConfBoundary(), FindMLE(), ... such that tols are not messed up?
 
 #### Functionality
 
@@ -107,7 +110,8 @@ include("ConfidenceRegions.jl")
 export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, FindMLE
 export AutoScore, AutoMetric
 export FindConfBoundary, FCriterion, FTest, FindFBoundary
-export GenerateBoundary, GenerateInterruptedBoundary, ConfidenceRegion, ConfidenceRegions
+export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
+export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable
 export FisherMetric, GeometricDensity, ConfidenceRegionVolume
 

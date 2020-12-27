@@ -4,8 +4,8 @@
 InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{Int}) = InformNames(DS, [string(sys.iv.name)], string.(sys.states[observables]))
 
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...)
-    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables), args...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...; kwargs...)
+    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables), args...; kwargs...)
 end
 
 
@@ -115,7 +115,6 @@ function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{N
 end
 
 
-
 function OptimizedDM(DM::AbstractDataModel)
     model, dmodel = Optimize(DM)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl
@@ -126,39 +125,3 @@ function OptimizedDM(DM::AbstractDataModel)
         return DM
     end
 end
-
-
-
-
-# function GetDModel(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, tspan::Tuple{Real,Real},
-#                     observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}=Base.OneTo(length(odesys.states)); inplace::Bool=false)
-#     DetermineDmodel(GetModel(odesys, u₀map, tspan, observables; inplace=inplace))
-# end
-
-
-# function DataModel(DS::AbstractDataSet, odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}},
-#                     tspan::Tuple{Real,Real}, observables::Union{AbstractVector{<:Int},AbstractRange{<:Int}}, args...)
-#     DataModel(DS, GetModel(odesys,u₀map,tspan,observables), args...)
-# end
-
-# """
-# Convert Vector{Number} to Vector{Pair{Num,Number}} for u0s and ps.
-# """
-# function EvaluateSol(odesys::ODESystem, u0::AbstractVector{<:Number}, ts::Union{Number,AbstractVector{<:Number}},
-#     θ::AbstractVector{<:Number}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
-#     EvaluateSol(odesys, odesys.states .=> u0, ts, odesys.ps .=> θ; meth=meth, tol=tol, kwargs...)
-# end
-# """
-# Convert ts from Vector{Number} to Tuple{Real,Real}. KEEP INITIAL TIME AT ZERO.
-# """
-# function EvaluateSol(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, ts::Union{Number,AbstractVector{<:Number}},
-#     parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
-#     EvaluateSol(odesys, u₀map, (0.,maximum(ts)), parammap; meth=meth, tol=tol, kwargs...)
-# end
-# """
-# Actually return solution object.
-# """
-# function EvaluateSol(odesys::ODESystem, u₀map::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}, tspan::Tuple{Real,Real},
-#     parammap::AbstractVector{<:Pair{<:Union{Num,Sym},<:Number}}; tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
-#     solve(ODEProblem(odesys, u₀map, tspan, parammap), meth; reltol=tol, abstol=tol, kwargs...)
-# end

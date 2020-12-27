@@ -33,6 +33,7 @@ Converts vector of vectors to a matrix whose n-th column corresponds to the n-th
 end
 Unpack(Z::AbstractVector{<:Number}) = Z
 
+# Same as Reduction()
 Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 Unwind(X::AbstractVector{<:Number}) = X
 
