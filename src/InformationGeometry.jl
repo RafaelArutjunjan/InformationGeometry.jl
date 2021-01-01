@@ -19,7 +19,6 @@ using TreeViews
 
 #### Functionality
 
-# Allow passthrough of keywords from important commands to model map such as: loglikelihood, Score, OrthVF, FisherMetric, EmbeddingMap, EmbeddingMatrix
 # General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
 # Finish Boundaries() specification methods in confidence boundary and geodesic construction
@@ -28,7 +27,9 @@ using TreeViews
 # Test F-Boundaries in more detail
 # Reactivate TryOptimize
 # Integrate along structural unidentifiability -- Switching ODE functions mid-integration: https://diffeq.sciml.ai/stable/basics/faq/
-# Symbolic Fisher? Christoffel?
+# Symbolic Fisher? Christoffel (from 2nd derivatives)?
+# Use OrdinaryDiffEq.build_solution() to translate planar 2D solution to ambient space as new solution object
+# Use vector-callback with domain hypercube for continuous boundary detection
 
 # Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
 # Employ MultistartOptimization for obtaining the MLE.

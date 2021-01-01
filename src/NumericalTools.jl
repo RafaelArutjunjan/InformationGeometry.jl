@@ -188,31 +188,31 @@ function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksi
 end
 
 
-# From Cuba.jl docs
-function CompactDomainTransform(F::ModelOrFunction, Cube::HyperCube)
-    (!all(x->isfinite(x),Cube.L) || !all(x->isfinite(x),Cube.U)) && throw("Not applicable.")
-    if length(Cube) == 1
-        W = Cube.U[1] - Cube.L[1]
-        return x -> W * F(Cube.L[1] + W * x)
-        # Use mul! or something like that?
-    else
-        W = CubeWidths(Cube);   V = prod(CubeWidths)
-        return x -> V * F(Cube.L + W * x)
-    end
-end
-
-function HalfInfiniteTransform(F::ModelOrFunction, Cube::HyperCube)
-    # integral over [a,∞]
-    if Cube.U[1] == Inf && isfinite(Cube.L[1])
-        return x -> (1-x)^-2 * F(Cube.L[1] + x/(1-x))
-    end
-end
-
-function InfiniteDomainTransform(F::ModelOrFunction, Cube::HyperCube)
-    if Cube.L[1] == -Inf && Cube.L[1] == Inf
-        return x -> F((2x - 1.)/((1 - x)*x)) * (2x^2 - 2y + 1) / ((1-x^2)*x^2)
-    end
-end
+# # From Cuba.jl docs
+# function CompactDomainTransform(F::ModelOrFunction, Cube::HyperCube)
+#     (!all(x->isfinite(x),Cube.L) || !all(x->isfinite(x),Cube.U)) && throw("Not applicable.")
+#     if length(Cube) == 1
+#         W = Cube.U[1] - Cube.L[1]
+#         return x -> W * F(Cube.L[1] + W * x)
+#         # Use mul! or something like that?
+#     else
+#         W = CubeWidths(Cube);   V = prod(CubeWidths)
+#         return x -> V * F(Cube.L + W * x)
+#     end
+# end
+#
+# function HalfInfiniteTransform(F::ModelOrFunction, Cube::HyperCube)
+#     # integral over [a,∞]
+#     if Cube.U[1] == Inf && isfinite(Cube.L[1])
+#         return x -> (1-x)^-2 * F(Cube.L[1] + x/(1-x))
+#     end
+# end
+#
+# function InfiniteDomainTransform(F::ModelOrFunction, Cube::HyperCube)
+#     if Cube.L[1] == -Inf && Cube.L[1] == Inf
+#         return x -> F((2x - 1.)/((1 - x)*x)) * (2x^2 - 2y + 1) / ((1-x^2)*x^2)
+#     end
+# end
 
 
 import LsqFit.curve_fit
@@ -233,6 +233,7 @@ function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector
     R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :forward)
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
 end
+
 
 function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
     M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
@@ -314,53 +315,3 @@ function BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
 end
 BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
-
-
-function signature(I::Vector,dims::Int)
-    rank = length(I)
-    (rank < 2 || dims < 2) && throw(BoundsError("Signature error: dims = $dims, rank = $rank"))
-    maximum(I) > dims && throw(BoundsError("Signature error: dims = $dims, Index value was $(maximum(I))"))
-    minimum(I) < 1 && throw(BoundsError("Sign error: Index value $(minimum(I))"))
-    rank > dims && return 0
-    !allunique(I) && return 0
-    swapped = false;    nswaps = 0;    Rightmost = rank-1
-    while Rightmost > 0
-        for i in 1:Rightmost
-            if I[i] > I[i+1]
-                store = I[i+1]; I[i+1] = I[i];  I[i] = store
-                nswaps += 1;    swapped = true
-            end
-        end
-        if !swapped  break  end
-        Rightmost -= 1;     swapped = false
-    end
-    if iseven(nswaps)   return 1    else    return -1   end
-end
-
-function GenerateEpsilonTensor(dims::Int,rank::Int=3)
-    (dims < 2) && throw(ArgumentError("dims = $dims"))
-    (rank < 2) && throw(ArgumentError("rank = $rank"))
-    if dims < rank
-        throw(ArgumentError("GenerateEpsilonTensor Error: dims: $dims, rank: $rank."))
-        println("GenerateEpsilonTensor Error: dims: $dims, rank: $rank. Returned zero tensor")
-    end
-    G = zeros(Int,(dims.*ones(Int,rank))...)
-    for indices in permutations(1:dims,rank)
-        G[Tuple(indices)...] += signature(indices, dims) |> Int
-    end
-    G
-end
-
-function Cross(A::AbstractVector{<:Real}, B::AbstractVector{<:Real})
-    length(A) != length(B) && throw(ArgumentError("Cross: Dimension Mismatch: $A, $B."))
-    if length(A) > 3
-        return @tensor C[a] := GenerateEpsilonTensor(length(A),3)[a,b,c]*A[b]*B[c]
-    elseif length(A) == 3
-        return cross(A,B)
-    elseif length(A) == 2
-        println("Using Cross for $A of length 2 right now. Try not to.")
-        return cross([A...,0],[B...,0])[1:2]
-    else
-        throw(ArgumentError("Error: length(A) = $(length(A))"))
-    end
-end
