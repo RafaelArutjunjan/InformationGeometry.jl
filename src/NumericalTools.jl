@@ -302,6 +302,7 @@ function BlockMatrix(M::AbstractMatrix, N::Int)
         Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
     end;    Res
 end
+BlockMatrix(M::Diagonal, N::Int) = Diagonal(repeat(M.diag, N))
 
 """
     BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
@@ -314,4 +315,6 @@ function BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
     Res
 end
 BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
+
+
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)

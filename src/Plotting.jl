@@ -3,53 +3,64 @@
 RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
 
 RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number})
-    (!(xdim(DM) == ydim(DM) == 1) && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-    legendtitle --> "R² ≈ $(round(Rsquared(DM),sigdigits=3))"
+    (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
+    # legendtitle --> "RSE ≈ $(round(ResidualStandardError(DM, MLE), sigdigits=3))"
     xguide -->              xnames(DM)[1]
-    yguide -->              ynames(DM)[1]
+    yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
     @series begin
         Data(DM)
     end
     markeralpha :=      0.
-    label -->           "Fit"
-    seriescolor -->     :red
-    linestyle -->       :solid
     linewidth -->       2
+    if ydim(DM) == 1
+        seriescolor -->     :red
+        linestyle -->       :solid
+    end
+    label -->   if ydim(DM) == 1
+        "Fit with RSE≈$(round(ResidualStandardError(DM, MLE), sigdigits=3))"
+    else
+        RSEs = round.(ResidualStandardError(DM, MLE), sigdigits=3)
+        reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
+    end
     Xbounds = extrema(xdata(DM))
-    X = range(Xbounds[1], Xbounds[2]; length=500)
-    Y = reduce(vcat,map(z->Predictor(DM)(z,MLE), X))
-    ToCols([X Y])
+    X = range(Xbounds[1], Xbounds[2]; length=500) |> collect
+    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE, X)
+    X, (ydim(DM) ==1 ? Y : Unpack(Windup(Y, ydim(DM))))
 end
 
 RecipesBase.@recipe function f(DS::DataSet)
-    !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+    xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     Σ_y = typeof(sigma(DS)) <: AbstractVector ? sigma(DS) : sqrt.(Diagonal(sigma(DS)).diag)
-    line -->                (:scatter,1)
+    line -->                (:scatter, 1)
     xguide -->              xnames(DS)[1]
-    yguide -->              ynames(DS)[1]
-    label -->               "Data"
-    yerror -->              Σ_y
-    linecolor   -->         :blue
-    markercolor -->         :blue
-    markerstrokecolor -->   :blue
-    xdata(DS), ydata(DS)
+    yguide -->              (ydim(DS) ==1 ? ynames(DS)[1] : "Observations")
+    label -->               (ydim(DS) ==1 ? "Data" : reshape("Data: " .* ynames(DS), 1, ydim(DS)))
+    yerror -->              (ydim(DS) ==1 ? Σ_y : Unpack(Windup(Σ_y, ydim(DS))))
+    if ydim(DS) == 1
+        linecolor   -->         :blue
+        markercolor -->         :blue
+        markerstrokecolor -->   :blue
+    end
+    xdata(DS), (ydim(DS) ==1 ? ydata(DS) : Unpack(Windup(ydata(DS), ydim(DS))))
 end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
-    !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
+    xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     xdist(DS) isa InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    line -->                (:scatter,1)
+    line -->                (:scatter, 1)
     xguide -->              xnames(DS)[1]
-    yguide -->              ynames(DS)[1]
-    label -->               "Data"
+    yguide -->              (ydim(DS) ==1 ? ynames(DS)[1] : "Observations")
+    label -->               (ydim(DS) ==1 ? "Data" : reshape("Data: " .* ynames(DS), 1, ydim(DS)))
+    yerror -->              (ydim(DS) ==1 ? Σ_y : Unpack(Windup(Σ_y, ydim(DS))))
     xerror -->              Σ_x
-    yerror -->              Σ_y
-    linecolor   -->         :blue
-    markercolor -->         :blue
-    markerstrokecolor -->   :blue
-    xdata(DS), ydata(DS)
+    if ydim(DS) == 1
+        linecolor   -->         :blue
+        markercolor -->         :blue
+        markerstrokecolor -->   :blue
+    end
+    xdata(DS), (ydim(DS) ==1 ? ydata(DS) : Unpack(Windup(ydata(DS), ydim(DS))))
 end
 
 RecipesBase.@recipe function f(LU::HyperCube)
@@ -69,18 +80,26 @@ end
     Rsquared(DM::DataModel) -> Real
 Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
 """
-function Rsquared(DM::DataModel)
+function Rsquared(DM::DataModel, MLE::AbstractVector{<:Number})
     !(xdim(DM) == ydim(DM) == 1) && return -1
     mean = sum(ydata(DM)) / length(ydata(DM))
     Stot = (ydata(DM) .- mean).^2 |> sum
-    Sres = (ydata(DM) - EmbeddingMap(DM,MLE(DM))).^2 |> sum
+    Sres = (ydata(DM) - EmbeddingMap(DM,MLE)).^2 |> sum
     1 - Sres / Stot
 end
+Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
+
+function ResidualStandardError(DM::DataModel, MLE::AbstractVector{<:Number})
+    Mapped = EmbeddingMap(DM, MLE)
+    Res = [sqrt(sum((ydata(DM)[i:ydim(DM):end] - Mapped[i:ydim(DM):end]).^2) / (Npoints(DM) - 2)) for i in 1:ydim(DM)]
+    ydim(DM) == 1 ? Res[1] : Res
+end
+ResidualStandardError(DM::DataModel) = ResidualStandardError(DM, MLE(DM))
 
 FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; kwargs...)
 
-ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), DM.model, MLE(DM); kwargs...)
+ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
     Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
 end
@@ -392,6 +411,19 @@ function VisualizeSolPoints(sols::Vector{<:ODESolution}; OverWrite::Bool=false, 
 end
 
 
+function ConstructAmbientSolution(PL::Plane, sol::ODESolution{T,N}) where {T,N}
+    ODESolution{T,N,typeof(sol.u),typeof(sol.u_analytic),typeof(sol.errors),
+                 typeof(sol.t),typeof(sol.k),
+                 typeof(sol.prob),typeof(sol.alg),typeof(sol.interp),typeof(sol.destats)}(
+                 map(x->PlaneCoordinates(PL,x), sol.u), #sol.u[I],
+                 sol.u_analytic === nothing ? nothing : throw("Not programmed for u_analytic yet."), # Also translate u_analytic??
+                 sol.errors, sol.t,
+                 [map(x->PlaneCoordinates(PL,x), k) for k in sol.k], #sol.dense ? sol.k[I] : sol.k,
+                 sol.prob,
+                 sol.alg,sol.interp,false,sol.tslocation,sol.destats,sol.retcode)
+end
+
+
 XCube(DS::AbstractDataSet; Padding::Real=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
 XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(Data(DM); Padding=Padding)
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
@@ -458,32 +490,54 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 
 
 """
-    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=300)
+    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=300) -> Matrix
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 """
-function ConfidenceBands(DM::AbstractDataModel,sol::ODESolution,domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
-    !(length(domain) == xdim(DM) == 1) && throw("Dimensionality of domain inconsistent with xdim.")
-    if ydim(DM) == 1
-        T = range(sol.t[1],sol.t[end]; length=300)
-        X = range(domain.L[1],domain.U[1]; length=N)
-        low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
-        for i in 1:length(X)
-            Y = map(t->DM.model(X[i],sol(t)),T)
-            low[i], up[i] = extrema(Y)
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, domain::HyperCube=XCube(DM);
+                            N::Int=300, plot::Bool=true)
+    length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
+    if xdim(DM) == 1
+        X = range(domain.L[1], domain.U[1]; length=N)
+        Res = Array{Float64,2}(undef, N, 2*ydim(DM))
+        for col in 1:2:2ydim(DM)
+            fill!(view(Res,:,col), Inf)
+            fill!(view(Res,:,col+1), -Inf)
         end
-        # plot && Plots.plot!(X,low; ribbon=(zeros(length(X)), up-low),linealpha=0,fillalpha=0.3,label="Conf. Band") |> display
+        for sol in sols
+            for t in range(sol.t[1], sol.t[end]; length=200)
+                # Do it like this to exploit CustomEmbeddings
+                Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), sol(t), X), ydim(DM)) |> Unpack
+                for col in 1:2:2ydim(DM)
+                    Ycol = Int(ceil(col/2))
+                    for row in 1:size(Res,1)
+                        Res[row, col] = min(Res[row, col], Y[row,Ycol])
+                        Res[row, col+1] = max(Res[row, col+1], Y[row,Ycol])
+                    end
+                end
+            end
+        end
         if plot
-            col = rand([:red,:blue,:green,:orange,:grey])
-            Plots.plot!(X,low,color=col,label="Lower Conf. Band");     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+            for col in 1:2:2ydim(DM)
+                PlotConfidenceBands(hcat(X,view(Res,:,col:col+1)))
+            end
         end
-        return [X low up]
+        return hcat(X, Res)
     else
-        throw("Not programmed yet.")
+        throw("Not programmed for xdim != 1 yet.")
     end
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
     ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), domain; N=N, plot=plot)
+end
+
+function PlotConfidenceBands(M::AbstractMatrix)
+    size(M,2) != 3 && throw("Matrix dimensions inconsistent: $(size(M)).")
+    X = view(M,:,1);    low = view(M,:,2);      up = view(M,:,3)
+    col = rand([:red,:blue,:green,:orange,:grey])
+    # Plots.plot!(X, low; ribbon=(zeros(length(X)), up-low), linealpha=0, color=col, fillalpha=0.25, label="")
+    Plots.plot!(X, low; color=col, label="")
+    Plots.plot!(X, up; color=col, label="Conf. Band") |> display
 end
 
 
@@ -495,7 +549,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::Abstrac
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
         X = range(Cube.L[1],Cube.U[1],length=N)
         for i in 1:length(X)
-            Y = DM.model(X[i],MLE)
+            Y = Predictor(DM)(X[i],MLE)
             up[i] = maximum(Y); low[i] = minimum(Y)
         end
         LogLikeMLE = loglikelihood(DM,MLE)
@@ -504,7 +558,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::ODESolution,MLE::Abstrac
             num = rand.(Uniform.(Lims.L,Lims.U))
             if WilksTestPrepared(DM,num,LogLikeMLE,Confvol)
                 for i in 1:length(X)
-                    Y = DM.model(X[i],num)
+                    Y = Predictor(DM)(X[i],num)
                     if Y > up[i]
                         up[i] = Y
                     end

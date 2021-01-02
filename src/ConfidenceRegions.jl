@@ -445,7 +445,8 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 ```
 """
 EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ; kwargs...)
-EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = performMap(DS, model, θ, WoundX(DS); kwargs...)
+EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(DS, model, θ, WoundX(DS); kwargs...)
+EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = performMap(DS, model, θ, woundX; kwargs...)
 
 function performMap(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     Reduction(map(x->model(x,θ; kwargs...), woundX))
@@ -475,7 +476,8 @@ _CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number},
 
 
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ; kwargs...)
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = performDMap(DS, dmodel, float.(θ), WoundX(DS); kwargs...)
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DS, dmodel, θ, WoundX(DS); kwargs...)
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = performDMap(DS, dmodel, float.(θ), woundX; kwargs...)
 
 performDMap(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...),woundX))
 

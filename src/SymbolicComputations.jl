@@ -1,7 +1,11 @@
 
 
 
-InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{Int}) = InformNames(DS, [string(sys.iv.name)], string.(sys.states[observables]))
+function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{Int})
+    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(sys.iv.name)] : xnames(DS)
+    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(sys.states[observables]) : ynames(DS)
+    InformNames(DS, newxnames, newynames)
+end
 
 
 function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...; kwargs...)
