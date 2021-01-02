@@ -325,14 +325,14 @@ Keyword arguments:
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false),
-                        Boundaries::Union{Function,Nothing}=nothing, CheckSols::Bool=true, parallel::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     Map = parallel ? pmap : map
     if pdim(DM) == 1
         return Map(x->ConfidenceRegion(DM,x; tol=tol), Range)
     elseif pdim(DM) == 2
         sols = Map(x->ConfidenceRegion(DM,x; tol=tol,Boundaries=Boundaries,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
-        if CheckSols
+        if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
             roots = StructurallyIdentifiable(DM, sols; parallel=parallel)

@@ -8,41 +8,41 @@ function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{In
 end
 
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...; kwargs...)
-    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables), args...; kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...; tol::Real=1e-6, kwargs...)
+    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol), args...; kwargs...)
 end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize() or something?
     func = ODEFunction{inplace}(sys)
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
     # Do not need ts
-    function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
+    function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
-    function Model(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=t,
+    function Model(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol([t], θ; observables=observables, tol=tol, max_t=t, meth=meth, save_everystep=false,save_start=false,save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
+    function Model(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, kwargs...)
         FullSol && return sol
         Reduction(map(t->sol(t)[observables], ts))
     end
-    function FastModel(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=t,
+    function FastModel(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         Model(t, θ; observables=observables, tol=tol, max_t=max_t, meth=meth,FullSol=FullSol, kwargs)
     end
-    function FastModel(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=1e-6, max_t::Real=maximum(ts)+1e-5,
+    function FastModel(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
         FullSol && return sol
