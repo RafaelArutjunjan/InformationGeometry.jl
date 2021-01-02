@@ -93,9 +93,15 @@ end
 
 ##### StaticOutput?
 function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
-    auto = GeneratedFromAutoDiff(Predictor(DM))
     println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-    println(io, "Model jacobian ", auto ? "obtained via automatic differentiation" : "symbolically provided")
+    Jac = if GeneratedFromAutoDiff(Predictor(DM))
+        "generated via automatic differentiation"
+    elseif GeneratedFromSymbolic(Predictor(DM))
+        "symbolically provided"
+    else
+        "manually provided by user"
+    end
+    println(io, "Model jacobian " * Jac)
     if typeof(DM) == DataModel
         println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
