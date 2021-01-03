@@ -69,8 +69,9 @@ struct DataSetExact <: AbstractDataSet
             return DataSetExact(xd, yd, dims, InvCov(yd), [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
-    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Real}, WoundX::Union{AbstractVector,Bool})
-        new(xd, yd, dims, InvCov, WoundX, CreateSymbolNames(xdim(dims),"x"), CreateSymbolNames(ydim(dims),"y"))
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Real}, WoundX::Union{AbstractVector,Bool},
+                    xnames::Vector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::Vector{String}=CreateSymbolNames(xdim(dims),"y"))
+        new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
     end
 end
 

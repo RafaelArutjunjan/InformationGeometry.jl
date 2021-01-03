@@ -94,9 +94,9 @@ end
 ##### StaticOutput?
 function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
     println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-    Jac = if GeneratedFromAutoDiff(Predictor(DM))
+    Jac = if GeneratedFromAutoDiff(dPredictor(DM))
         "generated via automatic differentiation"
-    elseif GeneratedFromSymbolic(Predictor(DM))
+    elseif GeneratedFromSymbolic(dPredictor(DM))
         "symbolically provided"
     else
         "manually provided by user"
