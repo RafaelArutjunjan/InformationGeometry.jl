@@ -228,44 +228,44 @@ function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-    p0 = convert(Vector,initial);    r = f(p0)
+    p0 = convert(Vector, initial);    r = f(p0)
     # R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :finite)
     R = OnceDifferentiable(f, p0, copy(r); inplace = false, autodiff = :forward)
-    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
+    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
 
 function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
     M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
 end
-function curve_fit2(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE,model); tol::Real=1e-13, kwargs...)
-    isa(xdist(DSE),InformationGeometry.Dirac) && return curve_fit(DataSet(xdata(DSE),ydata(DSE),ysigma(DSE)), model, initial; tol=tol, kwargs...)
+
+"""
+    TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial:AbstractVector{<:Number}}; tol::Real=1e-13, kwargs...) -> Vector
+Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
+Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
+"""
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::Union{Nothing,AbstractVector{<:Number}}=nothing; tol::Real=1e-13, kwargs...)
+    # Improve starting values by fitting normally with simple least squares
+    initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, (initial == nothing ? GetStartP(DSE, model) : initial); tol=tol, kwargs...).param
+    if isa(xdist(DSE),InformationGeometry.Dirac)
+        println("xdist of given data is Dirac, can only use ordinary least squares.")
+        return xdata(DSE), initial
+    end
+
     plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
     function predictY(ξ)
         x = ξ[1:xlen];        p = ξ[xlen+1:end]
-        # use performMap here instead
-        vcat(x,reduce(vcat,map(z->model(z,p),x)))
+        vcat(x, EmbeddingMap(DSE, model, p, Windup(x,xdim(DSE))))
     end
     # Get total inverse covariance matrix on the cartesian product space X^N \times Y^N = domain(P)
-    u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE),ydata(DSE))
+    u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE), ydata(DSE))
     f(p) = u * (predictY(p) - Ydata)
-    df(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p),xlen)
+    df(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p), xlen)
     p0 = vcat(xdata(DSE),initial);    r = f(p0)
     R = OnceDifferentiable(f, df, p0, copy(r); inplace = false)
-    LsqFit.lmfit(R, p0, invcov(P); x_tol=tol,g_tol=tol,kwargs...)
+    fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
+    Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
 end
-
-# function curve_fit(DS::AbstractDataSet,model::ModelOrFunction,initial::AbstractVector{<:Number}=rand(pdim(DS,model));tol::Real=6e-15,kwargs...)
-#     X = xdata(DS);  Y = ydata(DS)
-#     LsqFit.check_data_health(X, Y)
-#     u = cholesky(InvCov(DS)).U
-#     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
-#     # Using Jacobian apparently slower
-#     df(p) = ForwardDiff.jacobian(f,p)
-#     p0 = convert(Vector,initial);    r = f(p0)
-#     R = OnceDifferentiable(f, df, p0, copy(r); inplace=false)
-#     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol,g_tol=tol,kwargs...)
-# end
 
 
 

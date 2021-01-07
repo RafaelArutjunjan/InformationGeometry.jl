@@ -195,6 +195,10 @@ function OutsideBoundariesFunction(M::ModelMap)
     OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
 end
 
+ValToBool(x::Val{true}) = true
+ValToBool(x::Val{false}) = false
+isinplace(M::ModelMap) = ValToBool(M.inplace)
+
 
 Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
 ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)

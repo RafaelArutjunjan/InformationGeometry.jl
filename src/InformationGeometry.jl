@@ -43,7 +43,6 @@ using TreeViews
 # Redo DataSet constructors to allow matrix inputs
 # Show distribution types for DataSetExact
 # Infer variable names from DataFrames
-# Make curve_fit2() functionality more easily available for fits which respect x-errors.
 # Save Symbolic Expressions for models (if available) and display them
 # IO methods for ModelMaps in general
 # Add measures of practical unidentifiability (eigenvalues of Fisher?)
@@ -126,7 +125,7 @@ include("NumericalTools.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export Integrate1D, IntegrateND, LineSearch, MonteCarloArea
-export curve_fit, BlockMatrix
+export curve_fit, TotalLeastSquares, BlockMatrix
 
 
 include("InformationDivergences.jl")
