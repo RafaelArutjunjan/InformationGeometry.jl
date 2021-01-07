@@ -110,11 +110,23 @@ function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{N
         # OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
         # OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
     else
-        OptimizedModel = try eval(build_function(modelexpr, X, P)[inplace ? 2 : 1]) catch; eval(build_function(modelexpr, X, P)) end
 
+        # OptimizedModel = try eval(build_function(modelexpr, X, P)[inplace ? 2 : 1]) catch; eval(build_function(modelexpr, X, P)) end
+        OptimizedModel = try
+            build_function(modelexpr, X, P; expression=Val{false})[inplace ? 2 : 1]
+        catch;
+            build_function(modelexpr, X, P; expression=Val{false})
+        end
         ### Pretty Function names
-        SymbolicModel(x, θ) = OptimizedModel(x, θ);        SymbolicModelJacobian(x, θ) = OptimizedModel(x, θ)
-        return IsJacobian ? SymbolicModelJacobian : SymbolicModel
+        if IsJacobian
+            # THROWING AWAY KWARGS HERE!
+            SymbolicModelJacobian(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
+            return SymbolicModelJacobian
+        else
+            # THROWING AWAY KWARGS HERE!
+            SymbolicModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
+            return SymbolicModel
+        end
     end
 end
 
