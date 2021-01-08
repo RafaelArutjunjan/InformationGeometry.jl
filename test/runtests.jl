@@ -41,9 +41,9 @@ end
     @test size(SaveConfidence(sols,50)) == (50,4)
     @test size(SaveGeodesics(sols,50)) == (50,2)
     @test size(SaveDataSet(DM)) == (4,3)
-    @test ConfidenceRegionVolume(DM,sols[1]) < ConfidenceRegionVolume(DM,sols[2])
+    @test ConfidenceRegionVolume(DM,sols[1],5000) < ConfidenceRegionVolume(DM,sols[2],5000)
 
-    @test size(ConfidenceBands(DM,sols[1];N=50,plot=false)) == (50,3)
+    @test size(ConfidenceBands(DM,sols[1]; N=50, plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
     @test typeof(FittedPlot(DM)) <: Plots.Plot
     @test typeof(ResidualPlot(DM)) <: Plots.Plot

@@ -200,8 +200,8 @@ ValToBool(x::Val{false}) = false
 isinplace(M::ModelMap) = ValToBool(M.inplace)
 
 
-Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
-ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
+_Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
+_ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 
 MonotoneIncreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :increasing
 MonotoneDecreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :decreasing
@@ -216,13 +216,13 @@ Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::
 
 # Try to do a bit of inference for the new domain here!
 function Transform(M::ModelMap, indxs::BitVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
-    TranslatedDomain(θ::AbstractVector{<:Number}) = M.InDomain(Apply(θ, Transform, indxs))
+    TranslatedDomain(θ::AbstractVector{<:Number}) = M.InDomain(_Apply(θ, Transform, indxs))
     mono = Monotonicity(Transform, (1e-12,50.))
     NewCube = if mono == :increasing
-        HyperCube(Apply(M.Domain.L, InverseTransform, indxs), Apply(M.Domain.U, InverseTransform, indxs))
+        HyperCube(_Apply(M.Domain.L, InverseTransform, indxs), _Apply(M.Domain.U, InverseTransform, indxs))
     elseif mono == :decreasing
         println("Detected monotone decreasing transformation.")
-        HyperCube(Apply(M.Domain.U, InverseTransform, indxs), Apply(M.Domain.L, InverseTransform, indxs))
+        HyperCube(_Apply(M.Domain.U, InverseTransform, indxs), _Apply(M.Domain.L, InverseTransform, indxs))
     else
         FullDomain(length(indxs))
         @warn "Transformation does not appear to be monotone."
@@ -233,7 +233,7 @@ end
 
 function _Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
-        F(x, Apply(θ, Transform, indxs); kwargs...)
+        F(x, _Apply(θ, Transform, indxs); kwargs...)
     end
 end
 

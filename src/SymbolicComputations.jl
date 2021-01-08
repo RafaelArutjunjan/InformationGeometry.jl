@@ -59,7 +59,7 @@ end
 
 
 
-function _SymbolicArguments(xyp::Tuple{Int,Int,Int})
+function SymbolicArguments(xyp::Tuple{Int,Int,Int})
     @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
     X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
     X, Y, θ
@@ -70,7 +70,7 @@ ToExpr(DS::AbstractDataSet, M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp;
 ToExpr(M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
 
 function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
-    X, Y, θ = _SymbolicArguments(xyp)
+    X, Y, θ = SymbolicArguments(xyp)
 
     # Add option for models which are already inplace
     function TryOptim(model,X,θ)
@@ -107,13 +107,13 @@ function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false,
     modelexpr = ToExpr(model, xyp; timeout=timeout)
     modelexpr == nothing && return nothing, nothing
 
-    X, Y, θ = _SymbolicArguments(xyp)
+    X, Y, θ = SymbolicArguments(xyp)
 
     # Need to make sure that modelexpr is of type Vector{Num}, not just Num
     modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
-    derivative = ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
+    derivative = ModelingToolkit.jacobian(modelexpr, θ; simplify=true)
 
-    ExprToModelMap(X,θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X,θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
+    ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
 end
 
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}}; inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
