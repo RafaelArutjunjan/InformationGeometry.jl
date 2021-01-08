@@ -288,16 +288,8 @@ end
 GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 
 
-"""
-    DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
-Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
-"""
-function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false; custom::Bool=false)
-    # Try to use symbolic dmodel:
-    if TryOptimize
-        Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
-        Symbolic_dmodel != nothing && return Symbolic_dmodel
-    end
+
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false)
     Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
@@ -313,7 +305,21 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool
         return xdim(DS) == 1 ? AutodmodelN : NAutodmodelN
     end
 end
-function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=isa(M.CustomEmbedding,Val{true}))
+
+
+"""
+    DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
+Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
+"""
+function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false; custom::Bool=false)
+    # Try to use symbolic dmodel:
+    if TryOptimize
+        Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
+        Symbolic_dmodel != nothing && return Symbolic_dmodel
+    end
+    AutoDiffDmodel(DS, model; custom=custom)
+end
+function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=ValToBool(M.CustomEmbedding))
     ModelMap(DetermineDmodel(DS, M.Map, TryOptimize; custom=custom), M)
 end
 
@@ -371,24 +377,24 @@ struct DataModel <: AbstractDataModel
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,sneak::Bool=false)
-        sneak ? DataModel(DS,model,dmodel,[-Inf,-Inf],true) : DataModel(DS,model,dmodel,FindMLE(DS,model))
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, sneak::Bool=false)
+        sneak ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model))
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},sneak::Bool=false)
-        sneak && return DataModel(DS,model,dmodel,mle,-Inf,true)
-        MLE = FindMLE(DS,model,mle);        LogLikeMLE = loglikelihood(DS,model,MLE)
-        DataModel(DS,model,dmodel,MLE,LogLikeMLE)
+        sneak && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle) catch; -Inf end), true)
+        MLE = FindMLE(DS, model, mle);        LogLikeMLE = loglikelihood(DS, model, MLE)
+        DataModel(DS, model, dmodel, MLE, LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
-        sneak && return new(DS,model,dmodel,MLE,LogLikeMLE)
-        CheckModelHealth(DS,model)
-        S = Score(DS,model,dmodel,MLE)
+        sneak && return new(DS, model, dmodel, MLE, LogLikeMLE)
+        CheckModelHealth(DS, model)
+        S = Score(DS, model, dmodel, MLE)
         norm(S) > 1e-5 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(S))."
-        g = FisherMetric(DS,dmodel,MLE)
+        g = FisherMetric(DS, dmodel, MLE)
         det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
-        new(DS,model,dmodel,MLE,LogLikeMLE)
+        new(DS, model, dmodel, MLE, LogLikeMLE)
     end
 end
 

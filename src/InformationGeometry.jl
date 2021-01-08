@@ -90,7 +90,7 @@ export Plane, HyperCube, Cuboid
 export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform, InformNames
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
-export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, length, Data, MLE, LogLikeMLE, WoundX
+export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, length, Data, MLE, LogLikeMLE, WoundX
 export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel

@@ -235,7 +235,7 @@ function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector
 end
 
 
-function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int=length(x))
+function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int)
     M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
 end
 
@@ -254,7 +254,9 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::U
 
     plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
     function predictY(ξ)
-        x = ξ[1:xlen];        p = ξ[xlen+1:end]
+        x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
+        # x = ξ[1:xlen];        p = ξ[xlen+1:end]
+        # INPLACE EmbeddingMap! would be great here!
         vcat(x, EmbeddingMap(DSE, model, p, Windup(x,xdim(DSE))))
     end
     # Get total inverse covariance matrix on the cartesian product space X^N \times Y^N = domain(P)
@@ -269,8 +271,8 @@ end
 
 
 
-normalize(x::AbstractVector{<:Real},scaling::Float64=1.0) = (scaling / norm(x)) * x
-function normalizeVF(u::AbstractVector{<:Real},v::AbstractVector{<:Real},scaling::Float64=1.0)
+normalize(x::AbstractVector{<:Real}, scaling::Float64=1.0) = (scaling / norm(x)) * x
+function normalizeVF(u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, scaling::Float64=1.0)
     newu = u;    newv = v
     for i in 1:length(u)
         factor = sqrt(u[i]^2 + v[i]^2)

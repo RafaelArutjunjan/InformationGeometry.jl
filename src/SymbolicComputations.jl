@@ -59,11 +59,44 @@ end
 
 
 
+function _SymbolicArguments(xyp::Tuple{Int,Int,Int})
+    @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
+    X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
+    X, Y, θ
+end
+
+ToExpr(DS::AbstractDataSet, model::Function; timeout::Real=5) = ToExpr(model, (xdim(DS),ydim(DS),pdim(DS,model)); timeout=timeout)
+ToExpr(DS::AbstractDataSet, M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
+ToExpr(M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
+
+function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
+    X, Y, θ = _SymbolicArguments(xyp)
+
+    # Add option for models which are already inplace
+    function TryOptim(model,X,θ)
+        try
+            model(X,θ)
+        catch;
+            @warn "Unable to convert given function to symbolic expression."
+        end
+    end
+    modelexpr = nothing
+    task = @async(TryOptim(model,X,θ))
+    if timedwait(()->istaskdone(task), timeout) == :timed_out
+        @async(Base.throwto(task, DivideError())) # kill task
+    else
+        modelexpr = fetch(task)
+    end;    modelexpr
+end
+
+
+
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    Optimize(Predictor(DM), (xdim(DM),ydim(DM),pdim(DM)); inplace=inplace, timeout=timeout, parallel=parallel)
+    Optimize(Data(DM), Predictor(DM); inplace=inplace, timeout=timeout, parallel=parallel)
 end
 function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    Optimize(model, (xdim(DS),ydim(DS),pdim(DS,model)); inplace=inplace, timeout=timeout, parallel=parallel)
+    xyp = isa(model, ModelMap) ? model.xyp : (xdim(DS),ydim(DS),pdim(DS,model))
+    Optimize(model, xyp; inplace=inplace, timeout=timeout, parallel=parallel)
 end
 function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     xyp != M.xyp && throw("xyp inconsistent.")
@@ -71,62 +104,38 @@ function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, tim
     ModelMap(model, M), ModelMap(dmodel, M)
 end
 function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
-    X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
-
-    parallel && println("Parallel functionality not implemented yet.")
-
-    # Add option for models which are already inplace
-    function TryOptim(model,X,θ)
-        try
-            model(X,θ)
-        catch;
-            @warn "Automated symbolic optimization of given model failed. Continuing without optimization."
-        end
-     end
-
-    modelexpr = nothing
-    task = @async(TryOptim(model,X,θ))
-    if timedwait(()->istaskdone(task), timeout) == :timed_out
-        @async(Base.throwto(task, DivideError())) # kill task
-    else
-        modelexpr = fetch(task)
-    end
+    modelexpr = ToExpr(model, xyp; timeout=timeout)
     modelexpr == nothing && return nothing, nothing
+
+    X, Y, θ = _SymbolicArguments(xyp)
+
     # Need to make sure that modelexpr is of type Vector{Num}, not just Num
     modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
     derivative = ModelingToolkit.jacobian(modelexpr,θ; simplify=true)
 
-    # Pass through keyword "parallel" later
-    ExprToModelMap(X,θ, modelexpr; inplace=inplace, IsJacobian=false), ExprToModelMap(X,θ, derivative; inplace=inplace, IsJacobian=true)
+    ExprToModelMap(X,θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X,θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
 end
 
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}}; inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
-    # ParamNames = P .|> z->string(z.val.name)
-    # xyp = (length(X), length(modelexpr), length(P))
-    if parallel
-        throw("Not programmed yet")
-        ## Add option for parallel=ModelingToolkit.MultithreadedForm()
-        # OptimizedModel = build_function(modelexpr, X, θ; expression=Val{false})[inplace ? 2 : 1]
-        # OptimizedDModel = build_function(derivative, X, θ; expression=Val{false})[inplace ? 2 : 1]
+    parallelization = parallel ? ModelingToolkit.MultithreadedForm() : ModelingToolkit.SerialForm()
+    OptimizedModel = try
+        build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
+    catch;
+        build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
+    end
+    ### Pretty Function names
+    if IsJacobian
+        # THROWING AWAY KWARGS HERE!
+        SymbolicModelJacobian(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
+        function SymbolicModelJacobian!(y::Union{Number,AbstractMatrix{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
+            OptimizedModel(y, x, θ)
+        end
+        return inplace ? SymbolicModelJacobian! : SymbolicModelJacobian
     else
-
-        # OptimizedModel = try eval(build_function(modelexpr, X, P)[inplace ? 2 : 1]) catch; eval(build_function(modelexpr, X, P)) end
-        OptimizedModel = try
-            build_function(modelexpr, X, P; expression=Val{false})[inplace ? 2 : 1]
-        catch;
-            build_function(modelexpr, X, P; expression=Val{false})
-        end
-        ### Pretty Function names
-        if IsJacobian
-            # THROWING AWAY KWARGS HERE!
-            SymbolicModelJacobian(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
-            return SymbolicModelJacobian
-        else
-            # THROWING AWAY KWARGS HERE!
-            SymbolicModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
-            return SymbolicModel
-        end
+        # THROWING AWAY KWARGS HERE!
+        SymbolicModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
+        SymbolicModel!(y::Union{Number,AbstractVector{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(y, x, θ)
+        return inplace ? SymbolicModel! : SymbolicModel
     end
 end
 
