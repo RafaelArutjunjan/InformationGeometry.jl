@@ -118,7 +118,7 @@ export FisherMetric, GeometricDensity, ConfidenceRegionVolume
 export EmbeddingMap, EmbeddingMatrix, Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
-export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries
+export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
 
 
 include("NumericalTools.jl")

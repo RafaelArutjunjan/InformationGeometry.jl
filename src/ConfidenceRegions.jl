@@ -101,7 +101,7 @@ end
 # Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 # equivalent to ResidualSquares(DM,MLE(DM))
-RS_MLE(DM::AbstractDataModel) = InformationGeometry.logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
+RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(Data(DM), Predictor(DM), θ)
 function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Real})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
@@ -281,7 +281,7 @@ end
 Choose method depending on dimensionality of the parameter space.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, Dirs::Vector{Int}=[1,2,3], N::Int=30, kwargs...)
     if pdim(DM) == 1
         return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
@@ -289,7 +289,7 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
     else
         println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM,Confnum)
-        Planes = IntersectCube(DM,Cube,Confnum; Dirs=[1,2,3], N=30)
+        Planes = IntersectCube(DM,Cube,Confnum; Dirs=Dirs, N=N)
         return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
     end
 end
@@ -686,3 +686,47 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
     Map = parallel ? pmap : map
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end
+
+
+
+
+struct ConfidenceBoundary
+    sols::Vector{<:ODESolution}
+    Confnum::Real
+    MLE::AbstractVector{<:Number}
+    pnames::Vector{String}
+end
+
+GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = InvConfVol(ChisqCDF(length(θ), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
+GetConfnum(DM::AbstractDataModel, sol::ODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
+GetConfnum(DM::AbstractDataModel, PL::Plane, sol::ODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
+
+function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; kwargs...)
+    Nums = [GetConfnum(DM, Planes[i], sols[i]; kwargs...) for i in eachindex(Planes)]
+    mean = sum(Nums) / length(Nums)
+    !all(x->abs(x-mean) < 1e-5, Nums) && @warn "High Variance in given Confnums, continuing anyway with arithmetic mean."
+    return mean
+end
+
+ConfidenceBoundary(DM::AbstractDataModel, PL::Plane, sol::ODESolution) = ConfidenceBoundary(DM, [PL], [sol])
+function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution})
+    @assert length(Planes) == length(sols)
+    AmbientDim = length(Planes[1])
+    !all(x->length(x)==AmbientDim, Planes) && throw("Inconsistent Planes.")
+    !all(x->length(x.u[1])==2, sols) && throw("Not all solutions planar.")
+    ConfidenceBoundary([ConstructAmbientSolution(Planes[i], sols[i]) for i in eachindex(Planes)], GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
+end
+
+function isplanar(sol::ODESolution)::Bool
+    p1 = sol.u[1];      p2 = sol.u[Int(ceil(length(sol.t)/3))];     p3 = sol.u[Int(ceil(2length(sol.t)/3))]
+    PL = Plane(p1, p2-p1, Make2ndOrthogonal(p2-p1,p3-p1));    all(x->DistanceToPlane(PL,x) < 1e-12, sol.u)
+end
+
+GetPlane(CB::ConfidenceBoundary) = GetPlane(CB.sols[1], CB.MLE)
+GetPlane(DM::AbstractDataModel, sol::ODESolution) = GetPlane(sol, MLE(DM))
+# function GetPlane(sol::ODESolution, MLE::AbstractVector{<:Number})
+#     @assert isplanar(sol)
+#     # Assuming that the initial point was located at [a,0,0...,0] relative to MLE
+#     # return sol, MLE
+#     Plane(MLE, sol.u[1] .- MLE, sol.u[end÷4] - MLE)
+# end

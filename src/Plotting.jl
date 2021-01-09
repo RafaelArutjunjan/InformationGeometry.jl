@@ -395,6 +395,29 @@ function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwa
 end
 
 
+function VisualizeSols(CB::ConfidenceBoundary; vars::Tuple=Tuple(1:length(CB.MLE)), OverWrite::Bool=true, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
+    p = OverWrite ? scatter([CB.MLE]; label="MLE") : []
+    if length(vars) == 2
+        VisualizeSols(CB.sols[1]; vars=vars, color=color, OverWrite=false, label="$(round(CB.Confnum, sigdigits=3))σ Conf. Boundary",
+                        xlabel=CB.pnames[vars[1]], ylabel=CB.pnames[vars[2]], leg=true, kwargs...)
+    else
+        VisualizeSols(CB.sols[1]; vars=vars, color=color, OverWrite=false, label="$(round(CB.Confnum, sigdigits=3))σ Conf. Boundary",
+                        xlabel=CB.pnames[vars[1]], ylabel=CB.pnames[vars[2]], zlabel=CB.pnames[vars[3]],leg=true, kwargs...)
+    end
+    for sol in CB.sols[2:end]
+        p = VisualizeSols(sol; vars=vars, color=color, OverWrite=false, label="", leg=true, kwargs...)
+    end; p
+end
+
+function VisualizeSols(CBs::Vector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:length(CBs[1].MLE)), OverWrite::Bool=true, kwargs...)
+    @assert all(x->x.MLE==CBs[1].MLE, CBs)
+    @assert allunique(map(x->x.Confnum,CBs))
+    p = OverWrite ? Plots.scatter([CBs[1].MLE]; label="MLE") : []
+    for CB in CBs
+        VisualizeSols(CB; vars=vars, OverWrite=false, kwargs...)
+    end; p
+end
+
 function VisualizeGeos(sols::Union{ODESolution,Vector{<:ODESolution}}; OverWrite::Bool=true, leg::Bool=false)
     VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg)
 end
@@ -420,7 +443,9 @@ function ConstructAmbientSolution(PL::Plane, sol::ODESolution{T,N}) where {T,N}
                  sol.errors, sol.t,
                  [map(x->PlaneCoordinates(PL,x), k) for k in sol.k], #sol.dense ? sol.k[I] : sol.k,
                  sol.prob,
-                 sol.alg,sol.interp,false,sol.tslocation,sol.destats,sol.retcode)
+                 sol.alg,
+                 sol.interp, #(args...)->PlaneCoordinates(PL,sol.interp(args...)),
+                 false,sol.tslocation,sol.destats,sol.retcode)
 end
 
 
