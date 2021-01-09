@@ -58,7 +58,11 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
 end
 
 
+Getxyp(DM::AbstractDataModel) = Getxyp(Data(DM), Predictor(DM))
+Getxyp(DS::AbstractDataSet, model::Function) = (xdim(DS),ydim(DS),pdim(DS,model))
+Getxyp(DS::AbstractDataSet, M::ModelMap) = M.xyp
 
+SymbolicArguments(args...) = SymbolicArguments(Getxyp(args...))
 function SymbolicArguments(xyp::Tuple{Int,Int,Int})
     @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
     X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
@@ -90,13 +94,11 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
 end
 
 
-
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     Optimize(Data(DM), Predictor(DM); inplace=inplace, timeout=timeout, parallel=parallel)
 end
 function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    xyp = isa(model, ModelMap) ? model.xyp : (xdim(DS),ydim(DS),pdim(DS,model))
-    Optimize(model, xyp; inplace=inplace, timeout=timeout, parallel=parallel)
+    Optimize(model, Getxyp(DS, model); inplace=inplace, timeout=timeout, parallel=parallel)
 end
 function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     xyp != M.xyp && throw("xyp inconsistent.")
