@@ -575,17 +575,20 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
-    function Plane(stütz::AbstractVector{<:Real}, Vx::AbstractVector{<:Real}, Vy::AbstractVector{<:Real})
+    function Plane(stütz::AbstractVector{<:Real}, Vx::AbstractVector{<:Real}, Vy::AbstractVector{<:Real}; Make2ndOrthogonal::Bool=true)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         if !(length(stütz) == length(Vx) == length(Vy))
             throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
-        elseif dot(Vx,Vy) != 0
-            println("Plane: Making Vy orthogonal to Vx.")
-            return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
+        elseif Make2ndOrthogonal
+            abs(dot(Vx,Vy)) > 4e-15 && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
         else
-            stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
-            Vy = SVector{length(Vx)}(float.(Vy))
-            return new(stütz, Vx, Vy)
+            if length(stütz) < 20
+                stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
+                Vy = SVector{length(Vx)}(float.(Vy))
+                return new(stütz, Vx, Vy)
+            else
+                return new(float.(stütz), float.(Vx), float.(Vy))
+            end
         end
     end
 end
@@ -603,11 +606,11 @@ function PlanarDataModel(DM::DataModel, PL::Plane)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
     mle = MLEinPlane(DM, PL)
-    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM,PlaneCoordinates(mle)), true)
+    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM,PlaneCoordinates(PL, mle)), true)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32
-BasisVectorSV(Slot::Int, dims::Int) = dims < 33 ? BasisVectorSVdo(Slot,dims) : BasisVector(Slot,dims)
+BasisVectorSV(Slot::Int, dims::Int) = dims < 20 ? BasisVectorSVdo(Slot,dims) : BasisVector(Slot,dims)
 BasisVectorSVdo(Slot::Int, dims::Int) = Slot > dims ? throw("Dimensional Mismatch.") : SVector{dims}(Float64(i == Slot) for i in 1:dims)
 function BasisVector(Slot::Int, dims::Int)
     Res = zeros(dims);    Res[Slot] = 1.;    Res
@@ -644,8 +647,8 @@ function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
     [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
 end
 
-DistanceToPlane(PL::Plane,x::AbstractVector) = (diagm(ones(Float64,length(x))) - ProjectionOperator(PL)) * (x - PL.stütz) |> norm
-ProjectOntoPlane(PL::Plane,x::AbstractVector) = ProjectionOperator(PL) * (x - PL.stütz) + PL.stütz
+DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm
+ProjectOntoPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = ProjectionOp * (x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::AbstractMatrix)
     size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")
@@ -653,7 +656,7 @@ function ProjectionOperator(A::AbstractMatrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
 
-IsNormalToPlane(PL::Plane,v::AbstractVector)::Bool = (dot(PL.Vx,v) == dot(PL.Vy,v) == 0.)
+IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = (dot(PL.Vx, v) == dot(PL.Vy, v) == 0.)
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(float.([X,Y]))
@@ -731,13 +734,17 @@ struct HyperCube{Q<:Real} <: Cuboid
     L::AbstractVector{Q}
     U::AbstractVector{Q}
     function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real}; Padding::Real=0.)
-        length(lowers) != length(uppers) && throw("Dimensional Mismatch.")
+        @assert length(lowers) == length(uppers)
         if Padding != 0.
             diff = (uppers - lowers) .* Padding
             lowers -= diff;     uppers += diff
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")
-        new{suff(lowers)}(float.(lowers),float.(uppers))
+        if length(lowers) < 20
+            return new{suff(lowers)}(SVector{length(lowers)}(float.(lowers)), SVector{length(uppers)}(float.(uppers)))
+        else
+            return new{suff(lowers)}(float.(lowers),float.(uppers))
+        end
     end
     function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}}; Padding::Real=0.)
         len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
@@ -772,7 +779,7 @@ Returns a `HyperCube` which encloses the extrema of the columns of the input mat
 """
 ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Real}; Padding::Real=0.) = HyperCube(extrema(V); Padding=Padding)
-ConstructCube(PL::Plane,sol::ODESolution; Padding::Real=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
+ConstructCube(PL::Plane, sol::ODESolution; Padding::Real=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
 
 function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Real=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
