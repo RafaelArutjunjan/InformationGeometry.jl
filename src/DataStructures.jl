@@ -577,18 +577,16 @@ struct Plane
     Vy::AbstractVector
     function Plane(stütz::AbstractVector{<:Real}, Vx::AbstractVector{<:Real}, Vy::AbstractVector{<:Real}; Make2ndOrthogonal::Bool=true)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
-        if !(length(stütz) == length(Vx) == length(Vy))
-            throw(ArgumentError("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))"))
-        elseif Make2ndOrthogonal
-            abs(dot(Vx,Vy)) > 4e-15 && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
+        !(length(stütz) == length(Vx) == length(Vy)) && throw("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))")
+
+        (Make2ndOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
+
+        if length(stütz) < 20
+            stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
+            Vy = SVector{length(Vx)}(float.(Vy))
+            return new(stütz, Vx, Vy)
         else
-            if length(stütz) < 20
-                stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
-                Vy = SVector{length(Vx)}(float.(Vy))
-                return new(stütz, Vx, Vy)
-            else
-                return new(float.(stütz), float.(Vx), float.(Vy))
-            end
+            return new(float.(stütz), float.(Vx), float.(Vy))
         end
     end
 end
@@ -621,30 +619,30 @@ end
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Real})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
-PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy]*v
+PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy] * v
 
 Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
-IsOnPlane(PL::Plane,x::AbstractVector)::Bool = (DistanceToPlane(PL,x) == 0)
+IsOnPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL))::Bool = DistanceToPlane(PL, x, ProjectionOp) < 4e-15
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
 RotatePlane(PL::Plane, rads::Real=pi/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
-function RotationMatrix(PL::Plane,rads::Real)
+function RotationMatrix(PL::Plane, rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
     W = PL.Vx*transpose(PL.Vy) - PL.Vy*transpose(PL.Vx)
     Diagonal(ones(length(PL.stütz))) + (cos(rads)-1.)*V -sin(rads)*W
 end
-RotateVector(PL::Plane,v::AbstractVector,rads::Real) = RotationMatrix(PL,rads)*v
+RotateVector(PL::Plane, v::AbstractVector, rads::Real) = RotationMatrix(PL,rads) * v
 
-function RotatedVector(α::Real,n1::Int,n2::Int,tot::Int)
-    !(n1 <= tot && n2 <= tot && n1 != n2 && all(x->(x>0),[n1,n2,tot])) && throw("Error")
+function RotatedVector(α::Real, n1::Int, n2::Int, tot::Int)
+    @assert (n1 ≤ tot && n2 ≤ tot && n1 != n2 && all(x->(x>0), [n1,n2,tot]))
     res = zeros(tot);   res[n1] = cos(α);   res[n2] = sin(α);   res
 end
 
 
-function DecomposeWRTPlane(PL::Plane,x::AbstractVector)
-    !IsOnPlane(PL,x) && throw(ArgumentError("Decompose Error: Vector not on Plane."))
+function DecomposeWRTPlane(PL::Plane, x::AbstractVector)
+    @assert IsOnPlane(PL,x)
     V = x - PL.stütz
-    [ProjectOnto(V,PL.Vx), ProjectOnto(V,PL.Vy)]
+    [dot(V, PL.Vx), dot(V, PL.Vy)]
 end
 
 DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm
@@ -656,7 +654,7 @@ function ProjectionOperator(A::AbstractMatrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
 
-IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = (dot(PL.Vx, v) == dot(PL.Vy, v) == 0.)
+IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = abs(dot(PL.Vx, v)) < 4e-15 && abs(dot(PL.Vy, v)) < 4e-15
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(float.([X,Y]))
@@ -668,7 +666,7 @@ end
     MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
 Minimizes given function in Plane and returns the optimal point in the ambient space in which the plane lies.
 """
-function MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
+function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
     G(x) = F(PlaneCoordinates(PL,x))
     X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)

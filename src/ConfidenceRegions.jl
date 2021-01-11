@@ -245,6 +245,7 @@ end
 
 function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
+    u0 = MVector{length(u0)}(u0)
     LogLikeOnBoundary = loglikelihood(DS, model, u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
@@ -262,10 +263,11 @@ end
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Auto::Val=Val(false), kwargs...)
-    length(u0) != 2 && throw("length(u0) != 2 although a Plane was specified.")
-    LogLikeOnBoundary = loglikelihood(DM,PlaneCoordinates(PL,u0))
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM,PL,u; Auto=Auto)
-    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM,PlaneCoordinates(PL,u))
+    @assert length(u0) == 2
+    u0 = MVector{length(u0)}(u0)
+    LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0))
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u; Auto=Auto)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
@@ -288,9 +290,9 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
         return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
         println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
-        Cube = LinearCuboid(DM,Confnum)
-        Planes = IntersectCube(DM,Cube,Confnum; Dirs=Dirs, N=N)
-        return Planes, MincedBoundaries(DM,Planes,Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
+        Cube = LinearCuboid(DM, Confnum)
+        Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N)
+        return Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
     end
 end
 
@@ -376,6 +378,7 @@ end
 
 function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
                                 redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...)
+    u0 = MVector{length(u0)}(u0)
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
@@ -603,35 +606,35 @@ end
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
-    CF = ConfVol(Confnum);      mle = MLEinPlane(DM,PL; tol=1e-8);      model = Predictor(DM)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
+    CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
-    Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM),planarmod, mle + [x,0.])))) - CF < 0.
+    Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.])))) - CF < 0.
     !Test(0.) && return false
-    [LineSearch(Test,0.;tol=tol,maxiter=maxiter), 0.] + mle
+    [LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
 end
 
 
-function Prune(DM::AbstractDataModel,Planes::Vector{<:Plane},Confnum::Real=1.)
+function Prune(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.)
     CF = ConfVol(Confnum)
     while length(Planes) > 0
-        !WilksTest(DM,PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1])),CF) ? popfirst!(Planes) : break
+        !WilksTest(DM, PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1])), CF) ? popfirst!(Planes) : break
     end
     while length(Planes) > 0
-        !WilksTest(DM,PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end])),CF) ? pop!(Planes) : break
+        !WilksTest(DM, PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end])), CF) ? pop!(Planes) : break
     end;    Planes
 end
 
-function AntiPrune(DM::AbstractDataModel,Planes::Vector{<:Plane},Confnum::Real=1.)
+function AntiPrune(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.)
     length(Planes) < 2 && throw("Not enough Planes to infer translation direction.")
     CF = ConfVol(Confnum)
     while true
-        TestPlane = Shift(Planes[2],Planes[1])
-        WilksTest(DM,PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)),CF) ? pushfirst!(Planes,TestPlane) : break
+        TestPlane = Shift(Planes[2], Planes[1])
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)), CF) ? pushfirst!(Planes,TestPlane) : break
     end
     while true
-        TestPlane = Shift(Planes[end-1],Planes[end])
-        WilksTest(DM,PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)),CF) ? push!(Planes,TestPlane) : break
+        TestPlane = Shift(Planes[end-1], Planes[end])
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)), CF) ? push!(Planes,TestPlane) : break
     end;    Planes
 end
 
@@ -654,10 +657,10 @@ The keyword `N` can be used to approximately control the number of planes which 
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
 function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3))
-    (length(Dirs) != 3 || !allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)),Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
-    PL = Plane(Center(Cube),BasisVector(Dirs[1],pdim(DM)),BasisVector(Dirs[2],pdim(DM)))
+    (!allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
+    PL = Plane(Center(Cube), BasisVector(Dirs[1],pdim(DM)), BasisVector(Dirs[2],pdim(DM)))
     width = CubeWidths(Cube)[Dirs[3]]
-    IntersectRegion(DM,PL,width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N)
+    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N)
 end
 
 """
@@ -665,10 +668,10 @@ end
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
-function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::Vector{<:Real},Confnum::Real=1.; N::Int=31)
+function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Real}, Confnum::Real=1.; N::Int=31)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
-    AntiPrune(DM,Prune(DM,Planes,Confnum),Confnum)
+    AntiPrune(DM, Prune(DM,Planes,Confnum), Confnum)
 end
 
 
