@@ -80,20 +80,21 @@ using TreeViews
 # Make user-facing keywords (even) more uniform: tol, meth, Big, ...
 
 
+import Base: length, rand, BigFloat, in, union, intersect, join, ==
 
 
-include("DataStructures.jl")
+include("GeneralDataStructures.jl")
 export AbstractDataSet, AbstractDataModel, DataSet, DataModel
-export ModelMap, ModelOrFunction
 export Plane, HyperCube, Cuboid
 
-export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform, InformNames
 
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, length, Data, MLE, LogLikeMLE, WoundX
 export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
 export MLEinPlane, PlanarDataModel, DetermineDmodel
+
+
 
 # Planes
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
@@ -102,8 +103,25 @@ export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, Para
 export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, NegativeDomain, FullDomain, rand
 
 
-include("DataSetExact.jl")
+
+
+
+include("ModelMaps.jl")
+export ModelMap, ModelOrFunction
+export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform, InformNames
+
+
+
+include("DataStructures/DataSet.jl")
+
+include("DataStructures/DataModel.jl")
+
+
+include("DataStructures/DataSetExact.jl")
 export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike, xdist, ydist, xsigma, ysigma
+
+
+
 
 
 include("ConfidenceRegions.jl")
@@ -119,6 +137,7 @@ export EmbeddingMap, EmbeddingMatrix, Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
+
 
 
 include("NumericalTools.jl")
@@ -160,6 +179,7 @@ export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCu
 include("Exporting.jl")
 export SaveAdaptive, SaveConfidence, SaveGeodesics, SaveDataSet
 # export Homogenize, Dehomogenize
+
 
 include("CustomIO.jl")
 # export GeneratedFromAutoDiff, GeneratedFromSymbolic

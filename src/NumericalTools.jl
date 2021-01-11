@@ -43,6 +43,10 @@ Windup(X::AbstractVector{<:Number}, n::Int) = n < 2 ? X : [X[(1+(i-1)*n):(i*n)] 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 
 
+ValToBool(x::Val{true}) = true
+ValToBool(x::Val{false}) = false
+
+
 """
     invert(F::Function, x::Real; tol::Real=GetH(x)) -> Real
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol`. Ideally, F should be monotone and there should only be one correct result.
@@ -220,7 +224,7 @@ curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::R
 
 function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=6e-15, kwargs...)
     # Use bounds from HyperCube for curve_fit
-    curve_fit(DS, M.Map, initial; tol=tol, lower=M.Domain.L, upper=M.Domain.U, kwargs...)
+    curve_fit(DS, M.Map, initial; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
 end
 
 function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15, kwargs...)

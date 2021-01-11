@@ -15,8 +15,8 @@ function SaveAdaptive(sol::ODESolution, N::Int=500; curvature = 0.003, Ntol=0.08
     throw("SaveAdaptive: DNF in $maxiter iterations.")
 end
 
-Homogenize(sol::ODESolution,N::Int=500) = Homogenize(sol.t,N)
-function Homogenize(V::AbstractVector,N::Int=500)
+Homogenize(sol::ODESolution, N::Int=500) = Homogenize(sol.t, N)
+function Homogenize(V::AbstractVector, N::Int=500)
     Ts = unique(V)
     for i in 1:(N-length(Ts))
         s = findmax(diff(Ts))[2]
@@ -24,8 +24,8 @@ function Homogenize(V::AbstractVector,N::Int=500)
     end;    Ts
 end
 
-Dehomogenize(sol::ODESolution,N::Int=500) = Dehomogenize(sol.t,N)
-function Dehomogenize(V::AbstractVector,N::Int=500)
+Dehomogenize(sol::ODESolution, N::Int=500) = Dehomogenize(sol.t, N)
+function Dehomogenize(V::AbstractVector, N::Int=500)
     Ts = unique(V)
     for i in 1:(length(Ts)-N)
         s = findmin(diff(Ts))[2]
