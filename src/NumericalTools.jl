@@ -243,6 +243,12 @@ function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int)
     M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
 end
 
+
+
+function TotalLeastSquares(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); tol::Real=1e-13, kwargs...)
+    TotalLeastSquares(Data(DM), Predictor(DM), initial; tol=tol, kwargs...)
+end
+
 """
     TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial:AbstractVector{<:Number}}; tol::Real=1e-13, kwargs...) -> Vector
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.

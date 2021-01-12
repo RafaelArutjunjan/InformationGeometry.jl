@@ -120,7 +120,7 @@ end
 DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
 DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, Symmetric(Sig))
 yDataDist(DS::AbstractDataSet) = DataDist(ydata(DS), ysigma(DS))
-xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(length(xdata(DS))) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), xsigma(DS))
+xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), xsigma(DS))
 yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 

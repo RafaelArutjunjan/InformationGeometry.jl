@@ -101,7 +101,7 @@ function sigma(DS::DataSet)
     sig = !issparse(InvCov(DS)) ? inv(InvCov(DS)) : inv(convert(Matrix,InvCov(DS)))
     return isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
 end
-xsigma(DS::DataSet) = zeros(length(DS))
+xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 ysigma(DS::DataSet) = sigma(DS)
 
 InvCov(DS::DataSet) = DS.InvCov

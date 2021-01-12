@@ -63,9 +63,16 @@ end
 
     Random.seed!(31415);    normerr(sig::Number) = rand(Normal(0,sig));     quarticlin(x,p) = p[1]*x.^4 .+ p[2]
     X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
-    ToyDM = DataModel(DataSet(X,Y,err),(x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
+    ToyDME = DataModel(DataSetExact(X,0.1ones(length(X)),Y,err), (x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
 
-    @test InterruptedConfidenceRegion(ToyDM, 8; tol=1e-9) isa ODESolution
+    @test InterruptedConfidenceRegion(ToyDME, 8.5; tol=1e-9) isa ODESolution
+
+
+    NewX, NewP = TotalLeastSquares(ToyDME)
+    @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))
+
+    @test ModelMap(Predictor(ToyDME), PositiveDomain(2)) isa ModelMap
+
 end
 
 @safetestset "Inputting Datasets of various shapes" begin
@@ -81,7 +88,7 @@ end
     Sig = BlockMatrix(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
     DM = DataModel(DS,model)
     @test norm(MLE(DM) - ptrue) < 5e-2
-    DME = DataModel(DataSetExact(InformationGeometry.Dirac(Unwind(Xdata)),MvNormal(Unwind(Ydata),Sig),Tuple([26,2,3])),model)
+    DME = DataModel(DataSetExact(DS), model)
     P = MLE(DM) + rand(length(MLE(DM)))
     @test loglikelihood(DM,P) ≈ loglikelihood(DME,P)
     @test Score(DM,P) ≈ Score(DME,P)
