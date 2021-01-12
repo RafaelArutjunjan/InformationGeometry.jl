@@ -80,47 +80,51 @@ using TreeViews
 # Make user-facing keywords (even) more uniform: tol, meth, Big, ...
 
 
+abstract type AbstractDataSet end
+abstract type AbstractDataModel end
+abstract type Cuboid end
+
+export AbstractDataSet, AbstractDataModel, Cuboid
+
+
+
 import Base: length, rand, BigFloat, in, union, intersect, join, ==
+import DataFrames.DataFrame
 
 
-include("GeneralDataStructures.jl")
-export AbstractDataSet, AbstractDataModel, DataSet, DataModel
-export Plane, HyperCube, Cuboid
-
-
-# export HealthyData, HealthyCovariance, CheckModelHealth
-export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, length, Data, MLE, LogLikeMLE, WoundX
-export Predictor, dPredictor, LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
-export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, join, DataFrame
-export MLEinPlane, PlanarDataModel, DetermineDmodel
-
-
-
-# Planes
+include("Subspaces.jl")
+export Plane
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
-# HyperCubes
+export HyperCube
 export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, NegativeDomain, FullDomain, rand
-
-
-
 
 
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction
 export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform, InformNames
+export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 
+
+include("GeneralDataStructures.jl")
+# export HealthyData, HealthyCovariance, CheckModelHealth
+export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
+export Predictor, dPredictor
+export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
+export MLEinPlane, PlanarDataModel, DetermineDmodel
 
 
 include("DataStructures/DataSet.jl")
+export DataSet
+
 
 include("DataStructures/DataModel.jl")
+export DataModel
 
 
 include("DataStructures/DataSetExact.jl")
-export Dirac, DataSetExact, Cov, Sigma, xSigma, ySigma, LogLike, xdist, ydist, xsigma, ysigma
-
-
+export DataSetExact, Dirac
+export Cov, LogLike, xdist, ydist, xsigma, ysigma
 
 
 
@@ -147,7 +151,7 @@ export Integrate1D, IntegrateND, LineSearch, MonteCarloArea
 export curve_fit, TotalLeastSquares, BlockMatrix
 
 
-include("InformationDivergences.jl")
+include("Divergences.jl")
 export KullbackLeibler
 
 

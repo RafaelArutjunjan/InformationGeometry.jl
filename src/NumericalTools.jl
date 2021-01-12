@@ -275,6 +275,36 @@ end
 
 
 
+"""
+    GetArgSize(model::ModelOrFunction; max::Int=100)::Tuple{Int,Int}
+Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
+"""
+function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
+    try         return (1, GetArgLength(p->model(1.,p); max=max))       catch; end
+    for i in 2:(max + 1)
+        plen = try      GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
+        i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
+    end
+end
+GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
+
+
+function GetArgLength(F::Function; max::Int=100)::Int
+    max < 1 && throw("pdim: max = $max too small.")
+    try     F(1.);  return 1    catch; end
+    for i in 1:(max+1)
+        try
+            F(ones(i))
+        catch y
+            (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError)) && continue
+            println("pdim: Encountered error in specification of model function.");     rethrow()
+        end
+        i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
+    end
+end
+
+
+
 normalize(x::AbstractVector{<:Real}, scaling::Float64=1.0) = (scaling / norm(x)) * x
 function normalizeVF(u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, scaling::Float64=1.0)
     newu = u;    newv = v

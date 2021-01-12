@@ -52,6 +52,8 @@ struct ModelMap
     end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
+ModelOrFunction = Union{Function,ModelMap}
+
 
 pnames(M::ModelMap) = M.ParamNames
 Domain(M::ModelMap) = M.Domain

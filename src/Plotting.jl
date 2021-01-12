@@ -46,7 +46,7 @@ end
 
 RecipesBase.@recipe function f(DS::DataSetExact)
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    xdist(DS) isa InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), DS.dims)
+    xdist(DS) isa InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), dims(DS))
     Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     line -->                (:scatter, 1)
@@ -101,10 +101,10 @@ FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; 
 
 ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
+    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), dims(DS)), (x,p)->0., mle, true); kwargs...)
 end
 function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), DS.dims), (x,p)->0., mle, true); kwargs...)
+    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)), (x,p)->0., mle, true); kwargs...)
 end
 # function ResidualPlot(DM::AbstractDataModel; kwargs...)
 #     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
