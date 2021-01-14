@@ -108,6 +108,10 @@ function Transform(M::ModelMap, indxs::BitVector, Transform::Function, InverseTr
     ModelMap(_Transform(M.Map, indxs, Transform, InverseTransform), TranslatedDomain, NewCube,
                         M.xyp, M.ParamNames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
+function Transform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+    Transform(M, trues(M.xyp[3]), Transform, InverseTransform)
+end
+
 
 function _Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
@@ -116,9 +120,16 @@ function _Transform(F::Function, indxs::BitVector, Transform::Function, InverseT
 end
 
 LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log, exp)
+LogTransform(M::ModelMap) = LogTransform(M, trues(M.xyp[3]))
+
 Log10Transform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log10, x->10^x)
+Log10Transform(M::ModelMap) = Log10Transform(M, trues(M.xyp[3]))
+
 ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, x-> -x, x-> -x)
+ReflectionTransform(M::ModelMap) = ReflectionTransform(M, trues(M.xyp[3]))
+
 ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Real) = Transform(F, indxs, x->factor*x, x->x/factor)
+ScaleTransform(M::ModelMap, factor::Real) = ScaleTransform(M, trues(M.xyp[3]), factor)
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
     TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)

@@ -67,6 +67,7 @@ pnames(DM::AbstractDataModel) = pnames(DM, Predictor(DM))
 pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
+Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
 
 

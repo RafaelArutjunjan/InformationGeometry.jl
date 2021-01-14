@@ -67,13 +67,27 @@ end
 
     @test InterruptedConfidenceRegion(ToyDME, 8.5; tol=1e-9) isa ODESolution
 
-
     NewX, NewP = TotalLeastSquares(ToyDME)
     @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))
 
     @test ModelMap(Predictor(ToyDME), PositiveDomain(2)) isa ModelMap
-
 end
+
+@safetestset "Model Transformations" begin
+    using InformationGeometry, Test
+
+    PiDM = DataModel(DataSet([0,1], [0.5pi,1.5pi], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]>1, HyperCube([[0,5]])))
+    @test !PiDM.model.InDomain([0.9]) && PiDM.model.InDomain([1.1])
+
+    # Translation
+    PiDM2 = DataModel(Data(PiDM), TranslationTransform(Predictor(PiDM),[1.]))
+    @test !PiDM2.model.InDomain([-0.1]) && PiDM2.model.InDomain([0.1])
+
+    # LogTransform
+    PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
+    @test !PiDM3.model.InDomain(exp.([1])-[0.1]) && PiDM3.model.InDomain(exp.([1])+[0.1])
+end
+
 
 @safetestset "Inputting Datasets of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
