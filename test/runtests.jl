@@ -35,6 +35,7 @@ end
     DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
     model(x,θ) = θ[1] * x + θ[2]
     DM = DataModel(DS,model)
+    DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), model)
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-8)
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
@@ -46,6 +47,7 @@ end
     @test size(ConfidenceBands(DM,sols[1]; N=50, plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
     @test typeof(FittedPlot(DM)) <: Plots.Plot
+    @test typeof(FittedPlot(DME)) <: Plots.Plot
     @test typeof(ResidualPlot(DM)) <: Plots.Plot
 
     @test typeof(VisualizeGeos([MBAM(DM)])) <: Plots.Plot

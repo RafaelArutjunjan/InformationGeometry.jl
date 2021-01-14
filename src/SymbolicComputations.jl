@@ -13,10 +13,9 @@ function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Num
 end
 
 
-# Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
-    # Is there some optimization that can be applied here? Modollingtoolkitize() or something?
-    func = ODEFunction{inplace}(sys)
+
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+    @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
     # Do not need ts
@@ -38,6 +37,7 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
         FullSol && return sol
         Reduction(map(t->sol(t)[observables], ts))
     end
+
     function FastModel(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         Model(t, θ; observables=observables, tol=tol, max_t=max_t, meth=meth,FullSol=FullSol, kwargs)
@@ -48,6 +48,16 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
         FullSol && return sol
         [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
     end
+    FastModel
+end
+
+
+
+
+# Allow option of passing Domain for parameters as keyword
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+    # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
+    FastModel = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
 
     pnames = [string(x.name) for x in sys.ps]
     xyp = (1, length(observables), length(sys.ps))
