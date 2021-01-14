@@ -91,3 +91,7 @@ pdim(DM::DataModel) = length(MLE(DM))
 
 import Base: BigFloat
 BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), BigFloat.(MLE(DM)))
+
+
+
+InformNames(DM::AbstractDataModel, xnames::Vector{String}, ynames::Vector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), true)

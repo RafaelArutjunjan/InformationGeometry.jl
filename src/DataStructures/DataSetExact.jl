@@ -103,7 +103,7 @@ xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
 
 function InformNames(DS::DataSetExact, xnames::Vector{String}, ynames::Vector{String})
-    (length(xnames) != xdim(DS) || length(ynames) != ydim(DS)) && throw("Error.")
+    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), InvCov(DS), WoundX(DS), xnames, ynames)
 end
 

@@ -220,14 +220,14 @@ end
 
 
 import LsqFit.curve_fit
-curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=6e-15,kwargs...) = curve_fit(Data(DM),Predictor(DM),initial;tol=tol,kwargs...)
+curve_fit(DM::AbstractDataModel,initial::AbstractVector{<:Number}=MLE(DM);tol::Real=1e-14,kwargs...) = curve_fit(Data(DM),Predictor(DM),initial;tol=tol,kwargs...)
 
-function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=6e-15, kwargs...)
+function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=1e-14, kwargs...)
     # Use bounds from HyperCube for curve_fit
     curve_fit(DS, M.Map, initial; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=6e-15, kwargs...)
+function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS)
     LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U

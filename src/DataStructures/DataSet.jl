@@ -112,6 +112,6 @@ xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
 
 function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
-    (length(xnames) != xdim(DS) || length(ynames) != ydim(DS)) && throw("Error.")
+    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
     DataSet(xdata(DS), ydata(DS), InvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
 end
