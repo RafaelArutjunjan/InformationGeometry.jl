@@ -202,17 +202,30 @@ function FindMLE(DM::AbstractDataModel, start::Union{Bool,AbstractVector}=false;
     FindMLE(Data(DM), Predictor(DM), start; Big=Big, tol=tol)
 end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
-    (Big || tol < 2.3e-15) && return FindMLEBig(DS,model,start)
+    (Big || tol < 2.3e-15) && return FindMLEBig(DS, model, start)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-    if isa(start,Bool)
-        return curve_fit(DS,model,GetStartP(DS,model); tol=tol).param
+    if isa(start, Bool)
+        return curve_fit(DS, model, GetStartP(DS,model); tol=tol).param
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-    elseif isa(start,AbstractVector)
+    elseif isa(start, AbstractVector)
         if suff(start) == BigFloat
-            return FindMLEBig(DS,model,convert(Vector,start))
+            return FindMLEBig(DS, model, convert(Vector,start))
         else
-            return curve_fit(DS,model,start; tol=tol).param
+            return curve_fit(DS, model, start; tol=tol).param
             # return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+        end
+    end
+end
+# Slower than using curve_fit(; autodiff = :forward) but less prone to errors.
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
+    (Big || tol < 2.3e-15) && return FindMLEBig(DS, model, start)
+    if isa(start,Bool)
+        return curve_fit(DS, model, dmodel, GetStartP(DS,model); tol=tol).param
+    elseif isa(start, AbstractVector)
+        if suff(start) == BigFloat
+            return FindMLEBig(DS, model, convert(Vector,start))
+        else
+            return curve_fit(DS, model, dmodel, start; tol=tol).param
         end
     end
 end

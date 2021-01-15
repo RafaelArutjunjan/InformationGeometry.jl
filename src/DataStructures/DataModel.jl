@@ -45,11 +45,11 @@ struct DataModel <: AbstractDataModel
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, sneak::Bool=false)
-        sneak ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model))
+        sneak ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},sneak::Bool=false)
         sneak && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle) catch; -Inf end), true)
-        MLE = FindMLE(DS, model, mle);        LogLikeMLE = loglikelihood(DS, model, MLE)
+        MLE = FindMLE(DS, model, dmodel, mle);        LogLikeMLE = loglikelihood(DS, model, MLE)
         DataModel(DS, model, dmodel, MLE, LogLikeMLE)
     end
     # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.

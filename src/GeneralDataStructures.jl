@@ -14,7 +14,7 @@ length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
-# Data(DS::AbstractDataSet) = DS
+sigma(DS::AbstractDataSet) = ysigma(DS)
 
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
