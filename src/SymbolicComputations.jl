@@ -14,6 +14,26 @@ end
 
 
 
+
+# Allow option of passing Domain for parameters as keyword
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+    # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
+    FastModel = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+
+    pnames = [string(x.name) for x in sys.ps]
+    xyp = (1, length(observables), length(sys.ps))
+    Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
+
+    # new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
+    ModelMap(FastModel, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
+end
+
+
+function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+    GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+end
+
+
 function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
@@ -52,20 +72,6 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
 end
 
 
-
-
-# Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
-    # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
-    FastModel = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
-
-    pnames = [string(x.name) for x in sys.ps]
-    xyp = (1, length(observables), length(sys.ps))
-    Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
-
-    # new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
-    ModelMap(FastModel, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
-end
 
 
 Getxyp(DM::AbstractDataModel) = Getxyp(Data(DM), Predictor(DM))
