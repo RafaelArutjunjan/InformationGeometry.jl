@@ -7,7 +7,7 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
-    function Plane(stütz::AbstractVector{<:Real}, Vx::AbstractVector{<:Real}, Vy::AbstractVector{<:Real}; Make2ndOrthogonal::Bool=true)
+    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; Make2ndOrthogonal::Bool=true)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         !(length(stütz) == length(Vx) == length(Vy)) && throw("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))")
 
@@ -49,7 +49,7 @@ end
 
 
 """
-    PlaneCoordinates(PL::Plane, v::AbstractVector{<:Real})
+    PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy] * v
@@ -161,10 +161,10 @@ TranslateCube(X,v::Vector)
 CubeWidths(X)
 ```
 """
-struct HyperCube{Q<:Real} <: Cuboid
+struct HyperCube{Q<:Number} <: Cuboid
     L::AbstractVector{Q}
     U::AbstractVector{Q}
-    function HyperCube(lowers::AbstractVector{<:Real},uppers::AbstractVector{<:Real}; Padding::Real=0.)
+    function HyperCube(lowers::AbstractVector{<:Number},uppers::AbstractVector{<:Number}; Padding::Number=0.)
         @assert length(lowers) == length(uppers)
         if Padding != 0.
             diff = (uppers - lowers) .* Padding
@@ -177,42 +177,42 @@ struct HyperCube{Q<:Real} <: Cuboid
             return new{suff(lowers)}(float.(lowers),float.(uppers))
         end
     end
-    function HyperCube(H::AbstractVector{<:AbstractVector{<:Real}}; Padding::Real=0.)
+    function HyperCube(H::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.)
         len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
         M = Unpack(H);        HyperCube(M[:,1],M[:,2]; Padding=Padding)
     end
-    function HyperCube(vals::AbstractVector{<:Real}; Padding::Real=0.)
+    function HyperCube(vals::AbstractVector{<:Number}; Padding::Number=0.)
         length(vals) != 2 && throw("Input has too many components.")
         HyperCube([vals[1]],[vals[2]]; Padding=Padding)
     end
-    HyperCube(vals::Tuple{<:Real,<:Real}; Padding::Real=0.) = HyperCube([vals[1]],[vals[2]]; Padding=Padding)
+    HyperCube(vals::Tuple{<:Number,<:Number}; Padding::Number=0.) = HyperCube([vals[1]],[vals[2]]; Padding=Padding)
 end
 
 length(Cube::HyperCube) = length(Cube.L)
 
 """
-    Inside(Cube::HyperCube, p::AbstractVector{<:Real}) -> Bool
+    Inside(Cube::HyperCube, p::AbstractVector{<:Number}) -> Bool
 Checks whether a point `p` lies inside `Cube`.
 """
-Inside(Cube::HyperCube, p::AbstractVector{<:Real}) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
+Inside(Cube::HyperCube, p::AbstractVector{<:Number}) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
 
 
 import Base.in
 """
-    in(Cube::HyperCube, p::AbstractVector{<:Real}) -> Bool
+    in(Cube::HyperCube, p::AbstractVector{<:Number}) -> Bool
 Checks whether a point `p` lies inside `Cube`.
 """
-in(p::AbstractVector{<:Real}, Cube::HyperCube) = Inside(Cube, p)
+in(p::AbstractVector{<:Number}, Cube::HyperCube) = Inside(Cube, p)
 
 """
-    ConstructCube(M::Matrix{<:Real}; Padding::Real=1/50) -> HyperCube
+    ConstructCube(M::Matrix{<:Number}; Padding::Number=1/50) -> HyperCube
 Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
 """
-ConstructCube(M::AbstractMatrix{<:Real}; Padding::Real=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
-ConstructCube(V::AbstractVector{<:Real}; Padding::Real=0.) = HyperCube(extrema(V); Padding=Padding)
-ConstructCube(PL::Plane, sol::ODESolution; Padding::Real=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
+ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
+ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
+ConstructCube(PL::Plane, sol::ODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
 
-function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Real=0.)
+function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Number=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end
 
@@ -235,10 +235,10 @@ Returns center of mass of `Cube`.
 Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
 
 """
-    TranslateCube(Cube::HyperCube,x::Vector{<:Real}) -> HyperCube
+    TranslateCube(Cube::HyperCube,x::Vector{<:Number}) -> HyperCube
 Returns a `HyperCube` object which has been translated by `x`.
 """
-TranslateCube(Cube::HyperCube, x::AbstractVector{<:Real}) = HyperCube(Cube.L + x, Cube.U + x)
+TranslateCube(Cube::HyperCube, x::AbstractVector{<:Number}) = HyperCube(Cube.L + x, Cube.U + x)
 
 
 ### Slower than union

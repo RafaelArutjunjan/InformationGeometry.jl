@@ -1,7 +1,7 @@
 
 
 # tol = 6e-11
-function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
+function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Number=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     function GeodesicODE!(du,u,p,t)
         n = length(u)
@@ -22,27 +22,27 @@ end
 
 
 """
-    ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Float64=50.;
+    ComputeGeodesic(DM::DataModel,InitialPos::Vector,InitialVel::Vector, Endtime::Number=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth=Tsit5())
 Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process when it returns `true`.
 """
-function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Real=50.;
+function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Number=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime; Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
 
 """
-    GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
-    GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
 Calculates the length of a geodesic `sol` using the `Metric` up to parameter value `Endrange`.
 ```math
 L[\\gamma] \\coloneqq \\int_a^b \\mathrm{d} t \\, \\sqrt{g_{\\gamma(t)} \\big(\\dot{\\gamma}(t), \\dot{\\gamma}(t)\\big)}
 ```
 """
-GeodesicLength(DM::AbstractDataModel,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
-function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Real=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14)
+GeodesicLength(DM::AbstractDataModel,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
+function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14)
     # GET RID OF ENDRANGE PARAMETER?
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
@@ -69,10 +69,10 @@ end
 
 
 """
-    DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Real; tol=1e-14)
+    DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Number; tol=1e-14)
 Calculates at which parameter value of the geodesic `sol` the length `L` is reached.
 """
-function DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Real; tol::Real=1e-14)
+function DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Number; tol::Real=1e-14)
     L < 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
     # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], fullSol=true, tol=tol)
@@ -97,7 +97,7 @@ end
 Evalues a family `geos` of geodesics on a set of parameters `Ts`. `geos[1]` is evaluated at `Ts[1]`, `geos[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
-function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Real})
+function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Number})
     length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
     n = Int(length(sols[1].u[1])/2)
     Res = Vector{Vector{Float64}}(undef,0)
@@ -167,12 +167,12 @@ end
 ###############################################################
 
 
-function pConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::Int=100;
+function pConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=true)
     ConstParamGeodesics(Metric,MLE,Endtime,N;Boundaries=Boundaries, tol=tol, parallel=parallel)
 end
 
-function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::Int=100;
+function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
     Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2pi,length=N)];    solving = 0
     Map = parallel ? pmap : map
@@ -185,8 +185,8 @@ function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Real=10.,N::I
 end
 
 """
-    GeodesicBetween(DM::DataModel,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10, meth=Tsit5())
-    GeodesicBetween(Metric::Function,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicBetween(DM::DataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
 GeodesicBetween(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
@@ -208,8 +208,8 @@ function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::Abstrac
 end
 
 """
-    GeodesicDistance(DM::DataModel,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10)
-    GeodesicDistance(Metric::Function,P::AbstractVector{<:Real},Q::AbstractVector{<:Real}; tol::Real=1e-10)
+    GeodesicDistance(DM::DataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10)
+    GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10)
 Computes the length of a geodesic connecting the points `P` and `Q`.
 """
 GeodesicDistance(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
@@ -218,7 +218,7 @@ function GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::Abstra
 end
 
 ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
-GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange::Real=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
+GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange::Number=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
 function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol::Real=1e-14)
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)

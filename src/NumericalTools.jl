@@ -48,10 +48,10 @@ ValToBool(x::Val{false}) = false
 
 
 """
-    invert(F::Function, x::Real; tol::Real=GetH(x)) -> Real
+    invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol`. Ideally, F should be monotone and there should only be one correct result.
 """
-function invert(F::Function, x::Real; tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Order1())
+function invert(F::Function, x::Number; tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Order1())
     find_zero(z-> F(z) - x, one(suff(x)), meth; xatol=tol)
 end
 
@@ -93,8 +93,8 @@ function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Boo
     length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
     Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,fullSol=fullSol,meth=meth)
 end
-Integrate1D(F::Function, Interval::AbstractVector{<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
-function Integrate1D(F::Function, Interval::Tuple{<:Real,<:Real}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
+function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
     Interval = float.(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
@@ -129,16 +129,16 @@ function IntegrateND(F::Function, Cube::HyperCube; tol::Real=1e-12, WE::Bool=fal
         return WE ? measurement.(val,uncert) : val
     end
 end
-IntegrateND(F::Function, L::AbstractVector{<:Real}, U::AbstractVector{<:Real}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(L,U); tol=tol, WE=WE, kwargs...)
-IntegrateND(F::Function, Interval::Union{AbstractVector{<:Real},Tuple{<:Real,<:Real}}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(Interval); tol=tol, WE=WE, kwargs...)
+IntegrateND(F::Function, L::AbstractVector{<:Number}, U::AbstractVector{<:Number}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(L,U); tol=tol, WE=WE, kwargs...)
+IntegrateND(F::Function, Interval::Union{AbstractVector{<:Number},Tuple{<:Number,<:Number}}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(Interval); tol=tol, WE=WE, kwargs...)
 
 
 
 """
-    LineSearch(Test::Function, start::Real=0; tol::Real=8e-15, maxiter::Int=10000) -> Real
-Finds real number `x` where the boolean-valued `Test(x::Real)` goes from `true` to `false`.
+    LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000) -> Number
+Finds real number `x` where the boolean-valued `Test(x::Number)` goes from `true` to `false`.
 """
-function LineSearch(Test::Function, start::Real=0.; tol::Real=8e-15, maxiter::Int=10000)
+function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000)
     if ((suff(start) != BigFloat) && tol < 1e-15)
         println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
         start = BigFloat(start)
@@ -322,8 +322,8 @@ end
 
 
 
-normalize(x::AbstractVector{<:Real}, scaling::Float64=1.0) = (scaling / norm(x)) * x
-function normalizeVF(u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, scaling::Float64=1.0)
+normalize(x::AbstractVector{<:Number}, scaling::Float64=1.0) = (scaling / norm(x)) * x
+function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, scaling::Float64=1.0)
     newu = u;    newv = v
     for i in 1:length(u)
         factor = sqrt(u[i]^2 + v[i]^2)
@@ -332,7 +332,7 @@ function normalizeVF(u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, scali
     end
     newu, newv
 end
-function normalizeVF(u::Vector{<:Real},v::Vector{<:Real},PlanarCube::HyperCube,scaling::Float64=1.0)
+function normalizeVF(u::AbstractVector{<:Number},v::AbstractVector{<:Number},PlanarCube::HyperCube,scaling::Float64=1.0)
     length(PlanarCube) != 2 && throw("normalizeVF: Cube not planar.")
     newu = u;    newv = v
     Widths = CubeWidths(PlanarCube) |> normalize

@@ -267,10 +267,10 @@ end
 
 
 """
-    VFRescale(ZeilenVecs::Array{<:Real,2},C::HyperCube;scaling=0.85)
+    VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
 Rescale vector to look good in 2D plot.
 """
-function VFRescale(ZeilenVecs::Array{<:Real,2},C::HyperCube;scaling=0.85)
+function VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
     VecsPerLine = sqrt(size(ZeilenVecs)[1])
     SpacePerVec = scaling/VecsPerLine .* CubeWidths(C)
     for i in 1:size(ZeilenVecs)[1]
@@ -328,11 +328,11 @@ end
 
 """
     Deplanarize(PL::Plane,sol::ODESolution; N::Int=500) -> Matrix
-    Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Real},AbstractRange}) -> Matrix
+    Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Number},AbstractRange}) -> Matrix
 Converts the 2D outputs of `sol` from planar coordinates associated with `PL` to the coordinates of the ambient space of `PL`.
 """
 Deplanarize(PL::Plane,sol::ODESolution; N::Int=500) = Deplanarize(PL,sol,range(sol.t[1],sol.t[end]; length=N))
-Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Real},AbstractRange}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
+Deplanarize(PL::Plane,sol::ODESolution,Ts::Union{AbstractVector{<:Number},AbstractRange}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
 
 """
     VisualizeSols(sols::Vector{<:ODESolution}; OverWrite::Bool=true)
@@ -449,8 +449,8 @@ function ConstructAmbientSolution(PL::Plane, sol::ODESolution{T,N}) where {T,N}
 end
 
 
-XCube(DS::AbstractDataSet; Padding::Real=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
-XCube(DM::AbstractDataModel; Padding::Real=0.) = XCube(Data(DM); Padding=Padding)
+XCube(DS::AbstractDataSet; Padding::Number=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
+XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Padding)
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
@@ -616,7 +616,7 @@ PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
     C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2pi,length=N)
-    F(α::Real) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
+    F(α::Number) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
     if plot   display(Plots.plot!(ToCols(Data)...;label="Matrix", kwargs...))  end
     Data
@@ -635,8 +635,8 @@ function PlotCurves(Curves::Vector{<:ODESolution}; N::Int=100)
     p
 end
 
-EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+EvaluateAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
     Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
     if length(Z[1]) == 1
         if OverWrite
@@ -647,8 +647,8 @@ function PlotAlongGeodesic(F::Function,sol::ODESolution, Interval::Tuple{<:Real,
     end
     [collect(range(Interval[1],Interval[2],length=N)) Z]
 end
-EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
+function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
     Z = EvaluateAlongGeodesic(F,sol,Interval; N=N)
     Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; fullSol=true, Auto=true, tol=1e-14)
     Ls = map(Geo,range(Interval[1],Interval[2],length=N))
@@ -661,8 +661,8 @@ function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::ODESolut
     end
     [Ls Z]
 end
-EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Real,<:Real}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+EvaluateAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongCurve(F::Function,sol::ODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
     Z = EvaluateAlongCurve(F,sol,Interval, N=N)
     if length(Z[1]) == 1
         if OverWrite

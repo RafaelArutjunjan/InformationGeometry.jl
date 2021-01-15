@@ -102,16 +102,16 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Real}) = ResidualSquares(Data(DM), Predictor(DM), θ)
-function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Real})
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = ResidualSquares(Data(DM), Predictor(DM), θ)
+function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
     transpose(Y) * InvCov(DS) * Y
 end
-function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Real=ConfVol(one(suff(θ))))
+function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
 end
-function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Real}, Confvol::Real=ConfVol(one(suff(θ))))::Bool
+function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))::Bool
     FCriterion(DM,θ,Confvol) < 0
 end
 function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
@@ -129,7 +129,7 @@ FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)
 # end
 
 
-inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
+inversefactor(m) = 1. / sqrt((m - 1.) + (m - 1.)^2)
 @inline function GetAlpha(n::Int)
     V = Vector{Float64}(undef,n)
     fill!(V,-inversefactor(n))
@@ -138,7 +138,7 @@ inversefactor(m::Real) = 1. / sqrt((m - 1.) + (m - 1.)^2)
 end
 
 """
-    OrthVF(DM::DataModel, θ::AbstractVector{<:Real}; Auto::Val=Val(false)) -> Vector
+    OrthVF(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 `Auto=true` uses automatic differentiation to calculate the score.
 """
@@ -155,7 +155,7 @@ end
 
 
 """
-    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Real}; Auto::Val=Val(false)) -> Vector
+    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 If a `Plane` is specified, the direction will be specified in the planar coordinates using a 2-component vector.
 `Auto=true` uses automatic differentiation to calculate the score.
@@ -180,7 +180,7 @@ end
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
 GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
-function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
+function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
     Res = GetStartP(DS, M.Map, length(M.Domain))
     (Res ∈ M.Domain && M.InDomain(Res)) && return Res
 
@@ -194,7 +194,7 @@ function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
     # ElaborateGetStartP(DS, M; substitute=substitute)
 end
 
-function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Real=3000.)
+function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
     throw("Not programmed yet.")
 end
 
@@ -231,14 +231,14 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFun
 end
 
 """
-    ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Real,Real}
+    ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Number,Number}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
 function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-13)
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
-    Func(p::Real) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
+    Func(p::Number) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
     D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
     B = find_zero((Func,D(Func)),0.1,Roots.Order1(); xatol=tol)
     A = find_zero((Func,D(Func)),-B,Roots.Order1(); xatol=tol)
@@ -446,7 +446,7 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution, N::Int=
     LogLikeBoundary = likelihood(DM,sol(0); kwargs...)
     Cube = ConstructCube(sol; Padding=1e-5)
     # Indicator function for Integral, USE HCubature INSTEAD OF MONTECARLO
-    InsideRegion(X::AbstractVector{<:Real})::Bool = loglikelihood(DM,X; kwargs...) < LogLikeBoundary
+    InsideRegion(X::AbstractVector{<:Number})::Bool = loglikelihood(DM,X; kwargs...) < LogLikeBoundary
     Test(X::AbstractVector) = InsideRegion(X) ? GeometricDensity(DM,X; kwargs...) : zero(suff(X))
     MonteCarloArea(Test,Cube,N; WE=WE)
 end
@@ -516,14 +516,14 @@ _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Numbe
 # M ⟵ D
 Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwargs...) = F(EmbeddingMap(DM,θ; kwargs...))
 """
-    Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::Vector) -> Vector
+    Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold.
 """
-Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM,θ; kwargs...)) * ω
+Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM,θ; kwargs...)) * ω
 
 
 """
-    Pullback(DM::DataModel, G::AbstractArray{<:Real,2}, θ::Vector)
+    Pullback(DM::DataModel, G::AbstractArray{<:Number,2}, θ::Vector)
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = Pullback(Data(DM), dPredictor(DM), G, θ; kwargs...)
@@ -615,14 +615,14 @@ end
 
 
 """
-    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12) -> Union{Vector{Real},Bool}
+    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12) -> Union{Vector{Number},Bool}
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
-    Test(x::Real) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.])))) - CF < 0.
+    Test(x::Number) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.])))) - CF < 0.
     !Test(0.) && return false
     [LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
 end
@@ -653,10 +653,10 @@ end
 
 
 """
-    LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200) -> HyperCube
+    LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200) -> HyperCube
 Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
 """
-function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Real=1/30, N::Int=200)
+function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200)
     L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
     TranslateCube(Union(C), MLE(DM))
@@ -677,11 +677,11 @@ function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.;
 end
 
 """
-    IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Real},Confnum::Real=1.; N::Int=31) -> Vector{Plane}
+    IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Number},Confnum::Real=1.; N::Int=31) -> Vector{Plane}
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
-function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Real}, Confnum::Real=1.; N::Int=31)
+function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
     AntiPrune(DM, Prune(DM,Planes,Confnum), Confnum)

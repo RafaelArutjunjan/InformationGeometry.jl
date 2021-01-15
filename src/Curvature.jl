@@ -34,7 +34,7 @@ function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCa
     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 end
 
-function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Real,3}, v::AbstractVector{<:Real})
+function ChristoffelTerm(ConnectionCoeff::AbstractArray{<:Number,3}, v::AbstractVector{<:Number})
     (Tuple(length(v) .* ones(Int,3)) != size(ConnectionCoeff)) && throw(ArgumentError("Connectioncoefficients don't match vector: dim(v) = $(length(v)), size(Connection) = $(size(ConnectionCoeff))"))
     @tensor Res[a] := (-1*ConnectionCoeff)[a,b,c] * v[b] * v[c]
 end

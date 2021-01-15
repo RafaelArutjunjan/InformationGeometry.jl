@@ -9,8 +9,8 @@ function HealthyData(x::AbstractVector, y::AbstractVector)::Tuple{Int,Int,Int}
     return (length(x), xdim, ydim)
 end
 
-HealthyCovariance(σ::AbstractVector{<:Real}) = !all(x->(0. < x), σ) && throw("Some uncertainties not positive.")
-HealthyCovariance(Σ::AbstractMatrix{<:Real}) = !isposdef(Σ) && throw("Covariance matrix not positive-definite.")
+HealthyCovariance(σ::AbstractVector{<:Number}) = !all(x->(0. < x), σ) && throw("Some uncertainties not positive.")
+HealthyCovariance(Σ::AbstractMatrix{<:Number}) = !isposdef(Σ) && throw("Covariance matrix not positive-definite.")
 
 
 """
@@ -59,14 +59,14 @@ struct DataSet <: AbstractDataSet
         println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
         DataSet(x,y,ones(length(y)*length(y[1])))
     end
-    DataSet(x::AbstractVector{<:Real}, y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
         DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims)
     end
     DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
-    function DataSet(x::AbstractVector{<:Real},y::AbstractVector{<:Real},sigma::AbstractArray{<:Real},InvCov::AbstractMatrix{<:Real},dims::Tuple{Int,Int,Int})
+    function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         x = float.(x);  y = float.(y);  InvCov = float.(InvCov)

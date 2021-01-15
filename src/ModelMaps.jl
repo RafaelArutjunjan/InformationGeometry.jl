@@ -81,9 +81,9 @@ end
 _Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
 _ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 
-MonotoneIncreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :increasing
-MonotoneDecreasing(F::Function, Interval::Tuple{Real,Real})::Bool = Monotonicity(F, Interval) == :decreasing
-function Monotonicity(F::Function, Interval::Tuple{Real,Real})
+MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
+MonotoneDecreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :decreasing
+function Monotonicity(F::Function, Interval::Tuple{Number,Number})
     derivs = map(x->ForwardDiff.derivative(F, x), range(Interval[1], Interval[2]; length=200))
     all(x-> x≥0., derivs) && return :increasing
     all(x-> x≤0., derivs) && return :decreasing
@@ -128,8 +128,8 @@ Log10Transform(M::ModelMap) = Log10Transform(M, trues(M.xyp[3]))
 ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, x-> -x, x-> -x)
 ReflectionTransform(M::ModelMap) = ReflectionTransform(M, trues(M.xyp[3]))
 
-ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Real) = Transform(F, indxs, x->factor*x, x->x/factor)
-ScaleTransform(M::ModelMap, factor::Real) = ScaleTransform(M, trues(M.xyp[3]), factor)
+ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Number) = Transform(F, indxs, x->factor*x, x->x/factor)
+ScaleTransform(M::ModelMap, factor::Number) = ScaleTransform(M, trues(M.xyp[3]), factor)
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
     TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)
@@ -163,7 +163,7 @@ end
 
 
 
-LinearModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = dot(θ[1:end-1], x) + θ[end]
-QuadraticModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
-ExponentialModel(x::Union{Real,AbstractVector{<:Real}}, θ::AbstractVector{<:Real}) = exp(LinearModel(x,θ))
-SumExponentialsModel(x::Union{Real,AbstractVector{<:Real}},θ::AbstractVector{<:Real}) = sum(exp.(θ .* x))
+LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:end-1], x) + θ[end]
+QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
+ExponentialModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = exp(LinearModel(x,θ))
+SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))

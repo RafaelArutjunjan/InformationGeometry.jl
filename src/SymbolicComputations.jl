@@ -39,35 +39,36 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
     # Do not need ts
-    function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
+    function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
-    function Model(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=t,
+    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol([t], θ; observables=observables, tol=tol, max_t=t, meth=meth, save_everystep=false,save_start=false,save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, kwargs...)
         FullSol && return sol
         Reduction(map(t->sol(t)[observables], ts))
     end
 
-    function FastModel(t::Real, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=t,
+    function FastModel(t::Number, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         Model(t, θ; observables=observables, tol=tol, max_t=max_t, meth=meth,FullSol=FullSol, kwargs)
     end
-    function FastModel(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Real=maximum(ts)+1e-5,
+    function FastModel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
         FullSol && return sol
         [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
     end
+    # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
     FastModel
 end
 

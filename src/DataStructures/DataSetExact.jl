@@ -2,7 +2,7 @@
 # Define as subtype of continuous distribution to get accepted by methods more seamlessly
 # although it is actually discontinuous.
 struct Dirac <: ContinuousMultivariateDistribution
-    μ::AbstractVector{<:Real}
+    μ::AbstractVector{<:Number}
     Dirac(μ) = new(float.(Unwind(μ)))
 end
 
@@ -14,13 +14,13 @@ insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length
 mean(d::InformationGeometry.Dirac) = d.μ
 cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
 invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Real}) = x == mean(d) ? 1. : 0.
-logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Real}) = log(pdf(d, x))
+pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1. : 0.
+logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
 import Distributions: gradlogpdf
-gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
+gradlogpdf(P::Cauchy,x::Number) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
 gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
 
 
@@ -28,14 +28,14 @@ struct DataSetExact <: AbstractDataSet
     xdist::Distribution
     ydist::Distribution
     dims::Tuple{Int,Int,Int}
-    InvCov::AbstractMatrix{<:Real}
+    InvCov::AbstractMatrix{<:Number}
     WoundX::Union{AbstractVector,Bool}
     xnames::Vector{String}
     ynames::Vector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
     DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
-    DataSetExact(x::AbstractVector{<:Real},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
     function DataSetExact(x::AbstractVector{<:Measurement},y::AbstractVector{<:Measurement})
         DataSetExact([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
@@ -69,7 +69,7 @@ struct DataSetExact <: AbstractDataSet
             return DataSetExact(xd, yd, dims, InvCov(yd), [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
-    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Real}, WoundX::Union{AbstractVector,Bool},
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Bool},
                     xnames::Vector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::Vector{String}=CreateSymbolNames(xdim(dims),"y"))
         new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
     end
@@ -135,8 +135,8 @@ function DataMetric(P::Product)
     [isCauchy(P.v[i]) ? 0.5 : 1. for i in 1:length(P)] .* icov |> Diagonal
 end
 
-LogLike(DM::AbstractDataSet, x::AbstractVector{<:Real}, y::AbstractVector{<:Real}) = LogLike(Data(DM), x, y)
-LogLike(DSE::DataSetExact, x::AbstractVector{<:Real}, y::AbstractVector{<:Real}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
+LogLike(DM::AbstractDataSet, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = LogLike(Data(DM), x, y)
+LogLike(DSE::DataSetExact, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
 
 import Distributions: loglikelihood
 loglikelihood(DSE::DataSetExact, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = LogLike(DSE, xdata(DSE), EmbeddingMap(DSE,model,θ; kwargs...))

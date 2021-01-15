@@ -7,7 +7,7 @@ Crucially, `dmodel` contains the derivatives of the model with respect to the pa
 For example
 ```julia
 DS = DataSet([1,2,3,4], [4,5,6.5,7.8], [0.5,0.45,0.6,0.8])
-model(x::Real, θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
+model(x::Number, θ::AbstractVector{<:Number}) = θ[1] * x + θ[2]
 DM = DataModel(DS, model)
 ```
 In cases where the output of the model has more than one component (i.e. `ydim > 1`), it is advisable to define the model function in such a way that it outputs static vectors using **StaticArrays.jl** for increased performance.
@@ -25,7 +25,7 @@ DM = DataModel(DS, model, [-Inf,π,1+im], true)
 If a `DataModel` is constructed as shown in the above examples, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
 ```julia
 using StaticArrays
-function dmodel(x::Real, θ::AbstractVector{<:Real})
+function dmodel(x::Number, θ::AbstractVector{<:Number})
    @SMatrix [x  1.]     # ∂(model)/∂θ₁ and ∂(model)/∂θ₂
 end
 DM = DataModel(DS, model, dmodel)
