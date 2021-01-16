@@ -90,12 +90,16 @@ end
 Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
 
-function ResidualStandardError(DM::DataModel, MLE::AbstractVector{<:Number})
-    Mapped = EmbeddingMap(DM, MLE)
-    Res = [sqrt(sum((ydata(DM)[i:ydim(DM):end] - Mapped[i:ydim(DM):end]).^2) / (Npoints(DM) - 2)) for i in 1:ydim(DM)]
-    ydim(DM) == 1 ? Res[1] : Res
+
+ResidualStandardError(DM::AbstractDataModel) = ResidualStandardError(DM, MLE(DM))
+ResidualStandardError(DM::AbstractDataModel, MLE::AbstractVector{<:Number}) = ResidualStandardError(Data(DM), Predictor(DM), MLE)
+function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
+    Mapped = EmbeddingMap(DS, model, MLE)
+    Res = [sqrt(sum((ydata(DS)[i:ydim(DS):end] - Mapped[i:ydim(DS):end]).^2) / (Npoints(DS) - 2)) for i in 1:ydim(DS)]
+    ydim(DS) == 1 ? Res[1] : Res
 end
-ResidualStandardError(DM::DataModel) = ResidualStandardError(DM, MLE(DM))
+
+
 
 FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; kwargs...)
 

@@ -53,7 +53,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         FullSol && return sol
         # Slow method:        Reduction(map(t->sol(t)[observables], ts))
         [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
@@ -80,7 +80,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, Observatio
 
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         FullSol && return sol
         [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
     end
