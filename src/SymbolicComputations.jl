@@ -8,15 +8,17 @@ function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{In
 end
 
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}, args...; tol::Real=1e-6, kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)), args...; tol::Real=1e-6, kwargs...)
     DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol), args...; kwargs...)
 end
 
-
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, ObservationFunction::Function, args...; tol::Real=1e-6, kwargs...)
+    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol), args...; kwargs...)
+end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     FastModel = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
 
@@ -24,52 +26,66 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
     xyp = (1, length(observables), length(sys.ps))
     Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
 
-    # new(Map, InDomain, Domain, xyp, ParamNames, StaticOutput, inplace, CustomEmbedding)
+    # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     ModelMap(FastModel, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
 
-function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
 end
 
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{Int}; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
-    # Do not need ts
-    function GetSol(ts::AbstractVector{<:Real}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        sol = GetSol([t], θ; observables=observables, tol=tol, max_t=t, meth=meth, save_everystep=false,save_start=false,save_end=true, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
         FullSol && return sol
-        Reduction(map(t->sol(t)[observables], ts))
-    end
-
-    function FastModel(t::Number, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=t,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        Model(t, θ; observables=observables, tol=tol, max_t=max_t, meth=meth,FullSol=FullSol, kwargs)
-    end
-    function FastModel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts)+1e-5,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
-        sol = GetSol(ts, θ; observables=observables, tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
-        FullSol && return sol
+        # Slow method:        Reduction(map(t->sol(t)[observables], ts))
         [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
-    FastModel
+    Model
+end
+
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, ObservationFunction::Function; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+    @assert T == inplace
+    u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
+
+    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+        odeprob = ODEProblem(func, u0, (0., max_t), θ)
+        solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
+    end
+
+    function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=t,
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        FullSol && return sol
+        ObservationFunction(sol.u[end], t)
+    end
+
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=maximum(ts),
+                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_start=false, save_end=false, save_everywhere=false, kwargs...)
+        FullSol && return sol
+        [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
+    end
+    # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
+    Model |> MakeCustom
 end
 
 
