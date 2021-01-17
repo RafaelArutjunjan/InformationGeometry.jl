@@ -20,14 +20,18 @@ end
 # Allow option of passing Domain for parameters as keyword
 function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
-    FastModel = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+    Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+
+    if Model isa ModelMap
+        Model = Model.Map
+    end
 
     pnames = [string(x.name) for x in sys.ps]
     xyp = (1, length(observables), length(sys.ps))
     Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
 
     # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
-    ModelMap(FastModel, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
+    ModelMap(Model, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
 
@@ -59,7 +63,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
         [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
-    Model
+    Model |> MakeCustom
 end
 
 function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, ObservationFunction::Function; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T

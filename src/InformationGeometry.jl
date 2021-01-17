@@ -101,7 +101,7 @@ export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, In
 
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction
-export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform, InformNames
+export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
 
 
