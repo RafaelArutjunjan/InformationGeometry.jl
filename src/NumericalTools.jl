@@ -143,6 +143,10 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
         println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
         start = BigFloat(start)
     end
+    if !Test(start)
+        start += 1e-10
+        println("LineSearch: Test(start) did not work, trying Test(start + 1e-10).")
+    end
     !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     stepsize = one(suff(start))/4.;  value = start
     for i in 1:maxiter

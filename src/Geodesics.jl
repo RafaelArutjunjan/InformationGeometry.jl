@@ -184,6 +184,22 @@ function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N:
     Map(Constructor,Initials)
 end
 
+# Also add Plane method!
+function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false)
+    @assert length(Cube) == 2
+    widths = CubeWidths(Cube);    dα = 2π/(N+1);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
+    initialvels = [widths .* [cos(α), sin(α)] for α in range(0,2π-2π/N, length=N)]
+    OutsideBoundaries(u,p,t) = Boundaries isa Nothing ? u[1:end÷2] ∉ Cube : Boundaries
+    solving = 0
+    function Constructor(Initial)
+        solving += 1
+        println("Computing Geodesic $(solving) / $N")
+        ComputeGeodesic(Metric, MLE(DM), Initial,1e3; tol=tol, Boundaries=OutsideBoundaries)
+    end
+    Map(Constructor,initialvels)
+end
+
+
 """
     GeodesicBetween(DM::DataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
     GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())

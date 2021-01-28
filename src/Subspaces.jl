@@ -240,6 +240,16 @@ Returns a `HyperCube` object which has been translated by `x`.
 """
 TranslateCube(Cube::HyperCube, x::AbstractVector{<:Number}) = HyperCube(Cube.L + x, Cube.U + x)
 
+"""
+    ResizeCube(Cube::HyperCube, factor::Real=1.) -> HyperCube
+Resizes given `Cube` evenly in all directions but keeps center of mass fixed.
+"""
+function ResizeCube(Cube::HyperCube, factor::Real=1.)
+    @assert factor > 0.
+    center = Center(Cube);      halfwidths = (0.5*factor) * CubeWidths(Cube)
+    HyperCube(center-halfwidths, center+halfwidths)
+end
+
 
 ### Slower than union
 # """

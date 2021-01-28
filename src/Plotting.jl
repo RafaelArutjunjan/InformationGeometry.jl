@@ -523,7 +523,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, domain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true)
+                            N::Int=300, plot::Bool=true, samples::Int=200)
     length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
     if xdim(DM) == 1
         X = range(domain.L[1], domain.U[1]; length=N)
@@ -533,7 +533,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
             fill!(view(Res,:,col+1), -Inf)
         end
         for sol in sols
-            for t in range(sol.t[1], sol.t[end]; length=200)
+            for t in range(sol.t[1], sol.t[end]; length=samples)
                 # Do it like this to exploit CustomEmbeddings
                 Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), sol(t), X), ydim(DM)) |> Unpack
                 for col in 1:2:2ydim(DM)
@@ -556,8 +556,8 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     end
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
-    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), domain; N=N, plot=plot)
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, domain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
+    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), domain; N=N, plot=plot, samples=samples)
 end
 
 function PlotConfidenceBands(M::AbstractMatrix)

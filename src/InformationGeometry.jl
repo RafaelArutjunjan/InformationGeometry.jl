@@ -96,7 +96,8 @@ export Plane
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 export HyperCube
-export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, Intersect, Union, PositiveDomain, NegativeDomain, FullDomain, rand
+export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube, Intersect, Union
+export PositiveDomain, NegativeDomain, FullDomain, rand
 
 
 include("ModelMaps.jl")
@@ -156,7 +157,7 @@ export KullbackLeibler
 
 include("Geodesics.jl")
 export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach
-export GeodesicBetween, GeodesicDistance, GeodesicEnergy, MBAM
+export RadialGeodesics, GeodesicBetween, GeodesicDistance, GeodesicEnergy, MBAM
 # Needs redo:
 # export ConstLengthGeodesics, ConstParamGeodesics, ConfidenceBoundaryViaGeodesic
 
