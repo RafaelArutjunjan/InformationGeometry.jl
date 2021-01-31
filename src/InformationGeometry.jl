@@ -173,7 +173,7 @@ export GetModel, Optimize, OptimizedDM
 
 
 include("Plotting.jl")
-export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF
+export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve

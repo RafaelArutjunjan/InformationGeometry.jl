@@ -187,7 +187,7 @@ function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksi
     function CarloLoop(Test::Function,LU::HyperCube,chunksize::Int)
         tot = [rand.(Uniform.(LU.L,LU.U)) for i in 1:chunksize] .|> Test
         res = sum(tot)
-        [res, sum((tot .- (res/chunksize)).^2)]
+        [res, sum(abs2, (tot .- (res/chunksize)))]
     end
     Tot = @distributed (+) for i in 1:chunks
         CarloLoop(Test,LU,chunksize)

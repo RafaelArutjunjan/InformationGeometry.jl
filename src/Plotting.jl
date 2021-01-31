@@ -83,8 +83,8 @@ Calculates the R² value associated with the maximum likelihood estimate of a `D
 function Rsquared(DM::DataModel, MLE::AbstractVector{<:Number})
     !(xdim(DM) == ydim(DM) == 1) && return -1
     mean = sum(ydata(DM)) / length(ydata(DM))
-    Stot = (ydata(DM) .- mean).^2 |> sum
-    Sres = (ydata(DM) - EmbeddingMap(DM,MLE)).^2 |> sum
+    Stot = sum(abs2, ydata(DM) .- mean)
+    Sres = sum(abs2, ydata(DM) - EmbeddingMap(DM,MLE))
     1 - Sres / Stot
 end
 Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
@@ -94,10 +94,13 @@ Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 ResidualStandardError(DM::AbstractDataModel) = ResidualStandardError(DM, MLE(DM))
 ResidualStandardError(DM::AbstractDataModel, MLE::AbstractVector{<:Number}) = ResidualStandardError(Data(DM), Predictor(DM), MLE)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
-    Mapped = EmbeddingMap(DS, model, MLE)
-    Res = [sqrt(sum((ydata(DS)[i:ydim(DS):end] - Mapped[i:ydim(DS):end]).^2) / (Npoints(DS) - 2)) for i in 1:ydim(DS)]
+    @assert Npoints(DS) > length(MLE)
+    ydiff = ydata(DS) - EmbeddingMap(DS, model, MLE)
+    Res = map(i->sqrt(sum(abs2, view(ydiff, i:ydim(DS):length(ydiff))) / (Npoints(DS) - length(MLE))), 1:ydim(DS))
     ydim(DS) == 1 ? Res[1] : Res
 end
+
+TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}) = norm(ResidualStandardError(DS, model, MLE))
 
 
 
