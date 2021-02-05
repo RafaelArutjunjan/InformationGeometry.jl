@@ -1,14 +1,14 @@
 
 
 
-function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{Int})
+function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:Int})
     newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(sys.iv.name)] : xnames(DS)
     newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(sys.states[observables]) : ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)), args...; tol::Real=1e-6, kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)), args...; tol::Real=1e-6, kwargs...)
     DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol), args...; kwargs...)
 end
 
@@ -18,7 +18,7 @@ end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
 
@@ -35,12 +35,12 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
 end
 
 
-function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
 end
 
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
@@ -49,13 +49,13 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
-    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=t,
+    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         FullSol && return sol
