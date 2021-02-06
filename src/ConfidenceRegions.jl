@@ -711,6 +711,65 @@ end
 
 
 
+"""
+    LeftOfLine(q₁::AbstractVector, q₂::AbstractVector, p::AbstractVector) -> Bool
+Checks if point `p` is left of the line from `q₁` to `q₂` via `det([q₁-p  q₂-p])` for 2D points.
+"""
+function LeftOfLine(q₁::AbstractVector, q₂::AbstractVector, p::AbstractVector)::Bool
+    @assert length(q₁) == length(q₂) == length(p) == 2
+    (q₁[1] - p[1]) * (q₂[2] - p[2]) - (q₂[1] - p[1]) * (q₁[2] - p[2]) > 0
+end
+
+# Copied from Luxor.jl
+"""
+    isinside(p, pol; allowonedge=false) -> Bool
+Is a point `p` inside a polygon defined by a counterclockwise list of points.
+"""
+function isinside(p::AbstractVector{<:Number}, pointlist::AbstractVector{<:AbstractVector})
+    c = false
+    @inbounds for counter in eachindex(pointlist)
+        q1 = pointlist[counter]
+        # if reached last point, set "next point" to first point
+        if counter == length(pointlist)
+            q2 = pointlist[1]
+        else
+            q2 = pointlist[counter + 1]
+        end
+        if (q1[2] < p[2]) != (q2[2] < p[2]) # crossing
+            if q1[1] >= p[1]
+                if q2[1] > p[1]
+                    c = !c
+                elseif (LeftOfLine(q1, q2, p) == (q2[2] > q1[2]))
+                    c = !c
+                end
+            elseif q2[1] > p[1]
+                if (LeftOfLine(q1, q2, p) == (q2[2] > q1[2]))
+                    c = !c
+                end
+            end
+        end
+    end
+    c
+end
+
+
+"""
+    ApproxInRegion(sol::ODESolution, p::AbstractVector{<:Number}) -> Bool
+Blazingly fast approximative test whether a point lies within the polygon defined by the base points of a 2D ODESolution.
+Especially well-suited for hypothesis testing once a confidence boundary has been explicitly computed.
+"""
+ApproxInRegion(sol::ODESolution, p::AbstractVector{<:Number}) = isinside(p, sol.u)
+
+function ApproxInRegion(Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, p::AbstractVector{<:Number})
+    @assert (length(Planes) == length(sols) && all(x->length(x)==length(p), Planes) && all(x->length(x.u[1])==2, sols))
+    # Assuming all planes parallel
+    ProjectionOp = InformationGeometry.ProjectionOperator(Planes[1])
+    minind = findmin([DistanceToPlane(Planes[i], p, ProjectionOp) for i in eachindex(Planes)])[2]
+    ApproxInRegion(sols[minind], DecomposeWRTPlane(Planes[minind], ProjectOntoPlane(Planes[minind], p)))
+end
+
+
+
 struct ConfidenceBoundary
     sols::Vector{<:ODESolution}
     Confnum::Real

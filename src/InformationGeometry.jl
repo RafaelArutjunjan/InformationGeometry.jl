@@ -142,6 +142,8 @@ export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInform
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
 
+export ApproxInRegion
+
 
 
 include("NumericalTools.jl")

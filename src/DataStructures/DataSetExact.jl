@@ -41,20 +41,6 @@ struct DataSetExact <: AbstractDataSet
     function DataSetExact(x::AbstractVector{<:Measurement}, y::AbstractVector{<:Measurement})
         DataSetExact([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     end
-    # function DataSetExact(x::AbstractVector, xSig::AbstractVector, y::AbstractVector, ySig::AbstractVector)
-    #     dims = (size(x,1), ConsistentElDim(x), ConsistentElDim(y))
-    #     if (xSig == zeros(length(xSig))) || (xSig == Diagonal([Inf for i in 1:length(xSig)]))
-    #         return DataSetExact(InformationGeometry.Dirac(x), DataDist(y,ySig), dims)
-    #     else
-    #         return DataSetExact(DataDist(x,xSig), DataDist(y,ySig), dims)
-    #     end
-    # end
-    # function DataSetExact(x::AbstractVector, xCov::AbstractMatrix, y::AbstractVector, yCov::AbstractMatrix)
-    #     dims = HealthyData(x,y)
-    #     !(length(x) == length(y) == size(xCov,1) == size(yCov,1)) && throw("Vectors must have same length.")
-    #     (!isposdef(Symmetric(xCov)) || !isposdef(Symmetric(yCov))) && throw("Covariance matrices not positive-definite.")
-    #     DataSetExact(MvNormal(x,xCov), MvNormal(y,yCov), dims)
-    # end
     ###### No Unwinding above here.
     # Offload most of the checking to DataSet
     function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray)
