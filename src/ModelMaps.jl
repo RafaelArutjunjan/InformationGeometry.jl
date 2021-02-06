@@ -1,5 +1,8 @@
 
 
+function StandardInDomain(n::Int)
+    IsInDomain(θ::AbstractVector{<:Number}) = length(θ) == n ? true : throw("Incorrect number of components was passed.")
+end
 
 # Callback triggers when Boundaries is `true`.
 """

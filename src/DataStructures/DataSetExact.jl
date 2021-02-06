@@ -29,32 +29,41 @@ struct DataSetExact <: AbstractDataSet
     ydist::Distribution
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix{<:Number}
-    WoundX::Union{AbstractVector,Bool}
+    WoundX::Union{AbstractVector,Nothing}
     xnames::Vector{String}
     ynames::Vector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
-    DataSetExact(x::AbstractVector,y::AbstractVector) = DataSetExact(x,zeros(length(x)),y,ones(length(y)))
+    DataSetExact(x::AbstractArray, y::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, ones(size(y,1)*length(y[1])))
+    DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr)
+
     DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
-    DataSetExact(x::AbstractVector,y::AbstractVector,yerr::AbstractVector) = DataSetExact(x,zeros(length(x)*length(x[1])),y,yerr)
-    function DataSetExact(x::AbstractVector{<:Measurement},y::AbstractVector{<:Measurement})
+    function DataSetExact(x::AbstractVector{<:Measurement}, y::AbstractVector{<:Measurement})
         DataSetExact([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
     end
-    function DataSetExact(x::AbstractVector, xSig::AbstractVector, y::AbstractVector, ySig::AbstractVector)
-        dims = HealthyData(x,y)
-        length(Unwind(xSig)) != xdim(dims)*Npoints(dims) && throw("Problem with x errors.")
-        length(Unwind(ySig)) != ydim(dims)*Npoints(dims) && throw("Problem with y errors.")
-        if (xSig == zeros(length(xSig))) || (xSig == Diagonal([Inf for i in 1:length(xSig)]))
-            return DataSetExact(InformationGeometry.Dirac(x), DataDist(y,ySig), dims)
+    # function DataSetExact(x::AbstractVector, xSig::AbstractVector, y::AbstractVector, ySig::AbstractVector)
+    #     dims = (size(x,1), ConsistentElDim(x), ConsistentElDim(y))
+    #     if (xSig == zeros(length(xSig))) || (xSig == Diagonal([Inf for i in 1:length(xSig)]))
+    #         return DataSetExact(InformationGeometry.Dirac(x), DataDist(y,ySig), dims)
+    #     else
+    #         return DataSetExact(DataDist(x,xSig), DataDist(y,ySig), dims)
+    #     end
+    # end
+    # function DataSetExact(x::AbstractVector, xCov::AbstractMatrix, y::AbstractVector, yCov::AbstractMatrix)
+    #     dims = HealthyData(x,y)
+    #     !(length(x) == length(y) == size(xCov,1) == size(yCov,1)) && throw("Vectors must have same length.")
+    #     (!isposdef(Symmetric(xCov)) || !isposdef(Symmetric(yCov))) && throw("Covariance matrices not positive-definite.")
+    #     DataSetExact(MvNormal(x,xCov), MvNormal(y,yCov), dims)
+    # end
+    ###### No Unwinding above here.
+    # Offload most of the checking to DataSet
+    function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray)
+        DS = DataSet(x, y, Σ_y);        Σ_x = size(Σ_x,1) > size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
+        if (Σ_x == zeros(length(Σ_x))) || (Σ_x == Diagonal([Inf for i in 1:length(Σ_x)]))
+            return DataSetExact(InformationGeometry.Dirac(xdata(DS)), DataDist(ydata(DS),ysigma(DS)), dims(DS))
         else
-            return DataSetExact(DataDist(x,xSig), DataDist(y,ySig), dims)
+            return DataSetExact(DataDist(xdata(DS),Σ_x), DataDist(ydata(DS),ysigma(DS)), dims(DS))
         end
-    end
-    function DataSetExact(x::AbstractVector, xCov::AbstractMatrix, y::AbstractVector, yCov::AbstractMatrix)
-        dims = HealthyData(x,y)
-        !(length(x) == length(y) == size(xCov,1) == size(yCov,1)) && throw("Vectors must have same length.")
-        (!isposdef(Symmetric(xCov)) || !isposdef(Symmetric(yCov))) && throw("Covariance matrices not positive-definite.")
-        DataSetExact(MvNormal(x,xCov), MvNormal(y,yCov), dims)
     end
     function DataSetExact(xd::Distribution, yd::Distribution)
         println("No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out.")
@@ -63,13 +72,13 @@ struct DataSetExact <: AbstractDataSet
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int})
         !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == Npoints(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
         if xdim(dims) == 1
-            return DataSetExact(xd, yd, dims, InvCov(yd), false)
+            return DataSetExact(xd, yd, dims, InvCov(yd), nothing)
         else
             # return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
             return DataSetExact(xd, yd, dims, InvCov(yd), [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
-    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Bool},
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
                     xnames::Vector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::Vector{String}=CreateSymbolNames(xdim(dims),"y"))
         new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
     end
@@ -78,7 +87,10 @@ end
 
 dims(DSE::DataSetExact) = DSE.dims
 InvCov(DSE::DataSetExact) = DSE.InvCov
-WoundX(DS::DataSetExact) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+# WoundX(DS::DataSetExact) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+WoundX(DS::DataSetExact) = _WoundX(DS, DS.WoundX)
+_WoundX(DS::DataSetExact, WoundX::Nothing) = xdata(DS)
+_WoundX(DS::DataSetExact, WoundX::AbstractVector) = WoundX
 
 xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist

@@ -87,9 +87,14 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 # end
 
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-    CF = ConfVol(Confnum)
-    Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
+    CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum)) : ConfVol(Confnum)
+    mle = if CF isa BigFloat
+        println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        BigFloat.(MLE(DM))
+    else
+        MLE(DM)
+    end
+    Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + mle, CF)
     MLE(DM) .+ LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
 

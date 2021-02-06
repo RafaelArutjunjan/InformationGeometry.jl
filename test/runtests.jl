@@ -37,7 +37,7 @@ end
     DM = DataModel(DS,model)
     DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), model)
 
-    sols = ConfidenceRegions(DM,1:2; tol=1e-8)
+    sols = ConfidenceRegions(DM,1:2; tol=1e-6)
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
     @test size(SaveConfidence(sols,50)) == (50,4)
     @test size(SaveGeodesics(sols,50)) == (50,2)
@@ -57,7 +57,7 @@ end
 
     @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
 
-    # Test GenerateInterruptedBoundary()
+    # @test ConfidenceRegions(BigFloat(DM), 1:2; tol=1e-6)
 end
 
 @safetestset "More Boundary tests" begin
@@ -88,6 +88,8 @@ end
     # LogTransform
     PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
     @test !PiDM3.model.InDomain(exp.([1])-[0.1]) && PiDM3.model.InDomain(exp.([1])+[0.1])
+
+    # Does Score / FisherMetric and AutoDiff still work?
 end
 
 

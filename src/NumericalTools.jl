@@ -33,12 +33,12 @@ Converts vector of vectors to a matrix whose n-th column corresponds to the n-th
 end
 Unpack(Z::AbstractVector{<:Number}) = Z
 
-# Same as Reduction()
+Unwind(M::AbstractMatrix{<:Number}) = Unwind(collect(eachrow(M)))
 Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 Unwind(X::AbstractVector{<:Number}) = X
 
+
 Windup(X::AbstractVector{<:Number}, n::Int) = n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:Int(length(X)/n)]
-# Windup(X::AbstractMatrix{<:Number}) = reduce(vcat, collect(eachrow(X)))
 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 
@@ -80,6 +80,7 @@ InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
 ChisqCDF(k::Int, x::Real) = gamma_inc(k/2., x/2., 0)[1]
+# ChisqCDF(k::Int, x::Real) = cdf(Chisq(2), x)
 ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 
 InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)

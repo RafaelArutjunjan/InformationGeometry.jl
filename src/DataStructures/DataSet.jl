@@ -1,16 +1,11 @@
 
 
-function HealthyData(x::AbstractVector, y::AbstractVector)::Tuple{Int,Int,Int}
-    length(x) != length(y) && throw(ArgumentError("Dimension mismatch. length(x) = $(length(x)), length(y) = $(length(y))."))
-    # Check that dimensions of x-values and y-values are consistent
-    xdim = length(x[1]);    ydim = length(y[1])
-    sum(length(x[i]) != xdim   for i in 1:length(x)) > 0 && throw("Inconsistent length of x-values.")
-    sum(length(y[i]) != ydim   for i in 1:length(y)) > 0 && throw("Inconsistent length of y-values.")
-    return (length(x), xdim, ydim)
+function ConsistentElDims(X::AbstractVector{<:AbstractVector{<:Number}})
+    elDim = length(X[1])
+    all(x -> length(x) == elDim, X) ? elDim : throw("Inconsistent element lengths for given Vector.")
 end
-
-HealthyCovariance(σ::AbstractVector{<:Number}) = !all(x->(0. < x), σ) && throw("Some uncertainties not positive.")
-HealthyCovariance(Σ::AbstractMatrix{<:Number}) = !isposdef(Σ) && throw("Covariance matrix not positive-definite.")
+ConsistentElDims(X::AbstractVector{<:Number}) = 1
+ConsistentElDims(M::AbstractMatrix{<:Number}) = size(M,2)
 
 
 """
@@ -48,24 +43,31 @@ struct DataSet <: AbstractDataSet
     InvCov::AbstractMatrix
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
-    WoundX::Union{AbstractVector,Bool}
+    WoundX::Union{AbstractVector,Nothing}
     xnames::Vector{String}
     ynames::Vector{String}
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
         DataSet(ToCols(convert(Matrix,DF))...)
     end
-    function DataSet(x::AbstractVector,y::AbstractVector)
-        println("No uncertainties in the y-values were specified for this DataSet, assuming σ=1 for all y's.")
-        DataSet(x,y,ones(length(y)*length(y[1])))
+    function DataSet(x::AbstractVector, y::AbstractVector)
+        println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
+        DataSet(x, y, ones(length(y)*length(y[1])))
+    end
+    # Also make a fancy version for DataFrames that infers the variable names?
+    function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray)
+        size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)).")
+        # If Σ_y not a square matrix, assume each column is vector of standard deviations associated with y:
+        Σ_y = size(Σ_y,1) > size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
+        DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)))
     end
     DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
-    DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractArray) = DataSet(x,y,sigma,HealthyData(x,y))
+    ####### Only looking at sigma from here on out
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)
         DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims)
     end
-    DataSet(x::AbstractVector,y::AbstractVector,sigma::AbstractMatrix,dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x),Unwind(y),sigma,inv(sigma),dims)
+    DataSet(x::AbstractVector, y::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x), Unwind(y), Σ, inv(Σ), dims)
     function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
@@ -73,21 +75,22 @@ struct DataSet <: AbstractDataSet
         InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
         if !isposdef(InvCov)
             println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
-            !isposdef(Symmetric(InvCov)) && throw("Inverse covariance matrix still not positive-definite after symmetrization.")
-            InvCov = convert(Matrix, Symmetric(InvCov))
+            SymInvCov = Symmetric(InvCov)
+            !isposdef(SymInvCov) && throw("Inverse covariance matrix still not positive-definite after symmetrization.")
+            InvCov = convert(Matrix, SymInvCov)
         end
         if xdim(dims) == 1
-            return DataSet(x, y, InvCov, dims, logdet(InvCov), false)
+            return DataSet(x, y, InvCov, dims, logdet(InvCov), nothing)
         else
             # return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
             return DataSet(x, y, InvCov, dims, logdet(InvCov), [SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
         end
     end
-    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Bool})
+    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing})
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, CreateSymbolNames(xdim(dims),"x"), CreateSymbolNames(ydim(dims),"y"))
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Bool}, xnames::Vector{String}, ynames::Vector{String})
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::Vector{String}, ynames::Vector{String})
         new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
     end
 end
@@ -104,7 +107,11 @@ end
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 
 InvCov(DS::DataSet) = DS.InvCov
-WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+# WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+WoundX(DS::DataSet) = _WoundX(DS, DS.WoundX)
+_WoundX(DS::DataSet, WoundX::Nothing) = xdata(DS)
+_WoundX(DS::DataSet, WoundX::AbstractVector) = WoundX
+
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 xnames(DS::DataSet) = DS.xnames
