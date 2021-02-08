@@ -148,7 +148,7 @@ The `HyperCube` type is used to specify a cuboid region in the form of a cartesi
 A `HyperCube` object `cube` type has two fields: `cube.L` and `cube.U` which are two vectors which respectively store the lower and upper boundaries of the real intervals in order.
 Examples for constructing `HyperCube`s:
 ```julia
-HyperCube([[1,3],[pi,2π],[-500,100]])
+HyperCube([[1,3],[π,2π],[-500,100]])
 HyperCube([1,π,-500],[3,2π,100])
 HyperCube([[-1,1]])
 HyperCube([-1,1])
@@ -181,6 +181,9 @@ struct HyperCube{Q<:Number} <: Cuboid
         len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
         M = Unpack(H);        HyperCube(M[:,1],M[:,2]; Padding=Padding)
     end
+    function HyperCube(T::AbstractVector{<:Tuple{<:Real,<:Real}}; Padding::Number=0.)
+        HyperCube([T[i][1] for i in 1:length(T)], [T[i][2] for i in 1:length(T)]; Padding=Padding)
+    end
     function HyperCube(vals::AbstractVector{<:Number}; Padding::Number=0.)
         length(vals) != 2 && throw("Input has too many components.")
         HyperCube([vals[1]],[vals[2]]; Padding=Padding)
@@ -212,6 +215,8 @@ ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([mini
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
 ConstructCube(PL::Plane, sol::ODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
 
+
+# Could speed this up by just using the points in sol.u without interpolation.
 function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Number=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
 end

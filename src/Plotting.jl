@@ -442,6 +442,7 @@ end
 
 
 function ConstructAmbientSolution(PL::Plane, sol::ODESolution{T,N}) where {T,N}
+    @warn "ConstructAmbientSolution() is an experimental feature. In particular, interpolation for the ambient solution object is not implemented yet."
     ODESolution{T,N,typeof(sol.u),typeof(sol.u_analytic),typeof(sol.errors),
                  typeof(sol.t),typeof(sol.k),
                  typeof(sol.prob),typeof(sol.alg),typeof(sol.interp),typeof(sol.destats)}(

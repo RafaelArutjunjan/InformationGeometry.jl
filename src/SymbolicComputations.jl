@@ -8,19 +8,22 @@ function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:
 end
 
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)), args...; tol::Real=1e-6, kwargs...)
-    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol), args...; kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)), args...;
+                tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol, meth=meth), args...; kwargs...)
 end
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, ObservationFunction::Function, args...; tol::Real=1e-6, kwargs...)
-    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol), args...; kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, ObservationFunction::Function, args...;
+                tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol, meth=meth), args...; kwargs...)
 end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+                    Domain::Union{HyperCube,Bool}=false, meth::OrdinaryDiffEqAlgorithm=Tsit5(), inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
-    Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+    Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 
     if Model isa ModelMap
         Model = Model.Map
@@ -35,28 +38,30 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
 end
 
 
-function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
-    GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, inplace=inplace)
+function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+    GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 end
 
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
-    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=t,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         FullSol && return sol
         # Slow method:        Reduction(map(t->sol(t)[observables], ts))
@@ -66,24 +71,25 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
     Model |> MakeCustom
 end
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, ObservationFunction::Function; tol::Real=1e-6, Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, ObservationFunction::Function; tol::Real=1e-6,
+                    meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
 
-    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=Tsit5(), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=t,
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         FullSol && return sol
         ObservationFunction(sol.u[end], t)
     end
 
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=maximum(ts),
-                                                                            meth::OrdinaryDiffEqAlgorithm=Tsit5(), FullSol::Bool=false, kwargs...)
+                                                                            meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         FullSol && return sol
         [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
