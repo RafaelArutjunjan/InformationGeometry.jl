@@ -73,6 +73,9 @@ end
     @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))
 
     @test ModelMap(Predictor(ToyDME), PositiveDomain(2)) isa ModelMap
+
+    sol = ConfidenceRegion(ToyDME,1; tol=1e-6)
+    @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 end
 
 @safetestset "Model Transformations" begin
