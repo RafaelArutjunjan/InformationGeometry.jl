@@ -256,6 +256,14 @@ function ResizeCube(Cube::HyperCube, factor::Real=1.)
 end
 
 
+DropCubeDim(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
+function DropCubeDims(Cube::HyperCube, dims::Union{AbstractVector{<:Int}, AbstractRange{<:Int}})
+    @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
+    keep = trues(length(Cube));     keep[dims] .= false
+    HyperCube(Cube.L[keep], Cube.U[keep])
+end
+
+
 ### Slower than union
 # """
 #     CoverCubes(A::HyperCube, B::HyperCube)

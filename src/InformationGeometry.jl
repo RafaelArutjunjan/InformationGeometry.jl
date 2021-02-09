@@ -96,7 +96,8 @@ export Plane
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 export HyperCube
-export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube, Intersect, Union
+export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube
+export DropCubeDim, DropCubeDims, Intersect, Union
 export PositiveDomain, NegativeDomain, FullDomain, rand
 
 

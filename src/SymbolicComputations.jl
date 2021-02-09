@@ -62,10 +62,14 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
+        # sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
+        # FullSol && return sol
+        ## Slow method:        Reduction(map(t->sol(t)[observables], ts))
+        # [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        # Slow method:        Reduction(map(t->sol(t)[observables], ts))
-        [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
+        @assert length(sol.u) == length(ts)
+        [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
     Model |> MakeCustom
@@ -90,9 +94,13 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, Observatio
 
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=maximum(ts),
                                                                             meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
+        # sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
+        # FullSol && return sol
+        # [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
+        sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
+        @assert length(sol.u) == length(ts)
+        [ObservationFunction(sol.u[i], sol.t[i]) for i in 1:length(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
     Model |> MakeCustom
