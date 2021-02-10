@@ -193,3 +193,7 @@ LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Numb
 QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
 ExponentialModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = exp(LinearModel(x,θ))
 SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
+
+function PolynomialModel(degree::Int)
+    Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
+end

@@ -446,15 +446,71 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 
 
 
-function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false, kwargs...)
-    length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
-    LogLikeBoundary = likelihood(DM,sol(0); kwargs...)
-    Cube = ConstructCube(sol; Padding=1e-5)
-    # Indicator function for Integral, USE HCubature INSTEAD OF MONTECARLO
-    InsideRegion(X::AbstractVector{<:Number})::Bool = loglikelihood(DM,X; kwargs...) < LogLikeBoundary
-    Test(X::AbstractVector) = InsideRegion(X) ? GeometricDensity(DM,X; kwargs...) : zero(suff(X))
-    MonteCarloArea(Test,Cube,N; WE=WE)
+# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false, kwargs...)
+#     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
+#     LogLikeBoundary = likelihood(DM,sol(0); kwargs...)
+#     Cube = ConstructCube(sol; Padding=1e-5)
+#     # Indicator function for Integral, USE HCubature INSTEAD OF MONTECARLO
+#     InsideRegion(X::AbstractVector{<:Number})::Bool = loglikelihood(DM,X; kwargs...) < LogLikeBoundary
+#     Test(X::AbstractVector) = InsideRegion(X) ? GeometricDensity(DM,X; kwargs...) : zero(suff(X))
+#     MonteCarloArea(Test,Cube,N; WE=WE)
+# end
+
+"""
+    ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e7), WE::Bool=false) -> Real
+Approximates confidence region using the polygon constituted by the nodes of a planar `ODESolution` which follows the confidence boundary.
+The coordinate-invariant volume of the confidence region is then computed by integrating the geometric density factor over this polygon via Monte Carlo.
+
+Keywords:
+`N`: Number of samples for Monte Carlo integration.
+`WE=true` will also quantify the estimated uncertainty in the computed value for the volume.
+"""
+function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+    @assert pdim(DM) == length(sol.u[1]) == 2
+    # No need to even compute Confnum here.
+    Domain = ConstructCube(sol; Padding=1e-2)
+    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(sol, X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
 end
+
+
+function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; N::Int=Int(1e5), WE::Bool=false)
+    @assert pdim(DM) == length(Planes[1])
+    throw("Implementation not finished yet.")
+    ######## USE ProfileLikelihood for box here
+    Domain = ConstructCube(sol; Padding=1e-2)
+    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
+end
+
+
+function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+    if pdim(DM) == 2
+        return ConfidenceRegionVolume(DM, ConstructCube(ConfidenceRegion(DM, Confnum; tol=1e-6); Padding=1e-2), Confnum; N=N, WE=WE, kwargs...)
+    else
+        throw("Not done yet.")
+        # Use Box from ProfileLikelihood
+        return
+    end
+end
+
+function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+    ConfidenceRegionVolume(DM, ConstructCube(sol; Padding=1e-2), GetConfnum(DM, sol); N=N, WE=WE, kwargs...)
+end
+
+function ConfidenceRegionVolume(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+    @assert length(Domain) == pdim(DM)
+    # -2(ℓ - ℓ_MLE) < quantile  --->    ℓ > ℓ_MLE - 0.5quantile
+    Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
+    InsideRegion(X::AbstractVector{<:Number}) = loglikelihood(DM, X; kwargs...) > Threshold
+    Integrand(X::AbstractVector{<:Number}) = InsideRegion(X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
+end
+
+
 
 
 # h(θ) ∈ Dataspace

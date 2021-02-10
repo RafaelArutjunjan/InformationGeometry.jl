@@ -167,7 +167,7 @@ struct HyperCube{Q<:Number} <: Cuboid
     function HyperCube(lowers::AbstractVector{<:Number},uppers::AbstractVector{<:Number}; Padding::Number=0.)
         @assert length(lowers) == length(uppers)
         if Padding != 0.
-            diff = (uppers - lowers) .* Padding
+            diff = (uppers - lowers) .* (Padding / 2.)
             lowers -= diff;     uppers += diff
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")

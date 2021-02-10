@@ -104,7 +104,7 @@ export PositiveDomain, NegativeDomain, FullDomain, rand
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction
 export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform
-export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel
+export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
 
 
 include("GeneralDataStructures.jl")
@@ -136,7 +136,7 @@ export FindConfBoundary, FCriterion, FTest, FindFBoundary
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable
-export FisherMetric, GeometricDensity, ConfidenceRegionVolume
+export FisherMetric, GeometricDensity, ConfidenceRegionVolume, ApproxConfidenceRegionVolume
 
 export EmbeddingMap, EmbeddingMatrix, Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection

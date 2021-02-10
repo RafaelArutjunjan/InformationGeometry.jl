@@ -318,7 +318,7 @@ function GetArgLength(F::Function; max::Int=100)::Int
         try
             F(ones(i))
         catch y
-            (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError)) && continue
+            (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError)) && continue
             println("pdim: Encountered error in specification of model function.");     rethrow()
         end
         i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
