@@ -89,13 +89,14 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum)) : ConfVol(Confnum)
     mle = if CF isa BigFloat
-        println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
         BigFloat.(MLE(DM))
     else
         MLE(DM)
     end
     Test(x) = WilksTest(DM, x .* BasisVector(1,pdim(DM)) + mle, CF)
-    MLE(DM) .+ LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    res = MLE(DM) .+ LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    tol < 2e-15 ? res : convert(Vector{Float64}, res)
 end
 
 
@@ -123,7 +124,8 @@ function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, ma
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
     CF = ConfVol(Confnum)
     Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
-    MLE(DM) .+ LineSearch(Test, zero(suff(CF)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    res = MLE(DM) .+ LineSearch(Test, zero(suff(CF)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    tol < 2e-15 ? res : convert(Vector{Float64}, res)
 end
 
 
@@ -256,7 +258,7 @@ end
     GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
-function GenerateBoundary(DM::AbstractDataModel,u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
+function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
                             meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
     GenerateBoundary(Data(DM),Predictor(DM),dPredictor(DM),u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
 end

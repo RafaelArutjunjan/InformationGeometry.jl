@@ -18,14 +18,14 @@ using SafeTestsets
     @test FisherMetric(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * inv(cov(Dist)) * EmbeddingMatrix(DM,p)
 
     # Test AD vs manual derivative
-    @test sum(abs.(AutoScore(DM,p) - Score(DM,p))) < 2e-13
-    @test sum(abs.(AutoMetric(DM,p) - FisherMetric(DM,p))) < 2e-9
+    @test norm(AutoScore(DM,p) - Score(DM,p)) < 2e-13
+    @test norm(AutoMetric(DM,p) .- FisherMetric(DM,p), 1) < 2e-9
 
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
 
     @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
-    @test sum(abs.(FindMLE(DM) - [5.01511545953636, 1.4629658803705])) < 5e-10
+    @test norm(FindMLE(DM) - [5.01511545953636, 1.4629658803705]) < 5e-10
     # ALSO DO NONLINEAR MODEL!
 end
 
@@ -61,14 +61,13 @@ end
 end
 
 @safetestset "More Boundary tests" begin
-    using InformationGeometry, Test, Random, Distributions, OrdinaryDiffEq
+    using InformationGeometry, Test, Random, Distributions, OrdinaryDiffEq, LinearAlgebra
 
     Random.seed!(31415);    normerr(sig::Number) = rand(Normal(0,sig));     quarticlin(x,p) = p[1]*x.^4 .+ p[2]
     X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
     ToyDME = DataModel(DataSetExact(X,0.1ones(length(X)),Y,err), (x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
 
-    # @test InterruptedConfidenceRegion(ToyDME, 8.5; tol=1e-9) isa ODESolution
-    @test InterruptedConfidenceRegion(ToyDME, 8; tol=1e-9) isa ODESolution
+    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8.5; tol=1e-5) isa ODESolution
 
     NewX, NewP = TotalLeastSquares(ToyDME)
     @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))
@@ -77,6 +76,12 @@ end
 
     sol = ConfidenceRegion(ToyDME,1; tol=1e-6)
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
+
+    #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
+    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(ProfileLikelihood(ToyDME,2; plot=false)),1)
+    ExactBox = ConstructCube(ConfidenceRegion(ToyDME,1; tol=1e-6))
+    @test norm(Center(ProfBox) - Center(ExactBox)) < 1e-5
+    @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
 end
 
 @safetestset "Model Transformations" begin
@@ -119,7 +124,7 @@ end
     @test typeof(VisualizeSols(Planes,sols)) <: Plots.Plot
 
     ODM = OptimizedDM(DME)
-    @test sum(abs.(EmbeddingMatrix(DME,MLE(DME)) - EmbeddingMatrix(ODM,MLE(DME)))) < 1e-9
+    @test norm(EmbeddingMatrix(DME,MLE(DME)) .- EmbeddingMatrix(ODM,MLE(DME)), 1) < 1e-9
 end
 
 
@@ -161,7 +166,7 @@ end
 
 
 @safetestset "Differential Geometry" begin
-    using InformationGeometry, Test
+    using InformationGeometry, Test, LinearAlgebra
 
     function S2metric(θ,ϕ)
         metric = zeros(suff(ϕ),2,2);    metric[1,1] = 1.;    metric[2,2] = sin(θ)^2
@@ -180,8 +185,8 @@ end
     # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar
     # Test WITH AND WITHOUT BIGFLOAT
     x = rand(2)
-    @test sum(abs.(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x))) < 5e-9
-    @test sum(abs.(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)))) < 1e-40
+    @test norm(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x), 1) < 5e-9
+    @test norm(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)), 1) < 1e-40
 
     @test abs(RicciScalar(S2metric,rand(2)) - 2) < 5e-4
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22
@@ -193,7 +198,7 @@ end
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
     model(x,p) = p[1]^3 *x + p[2]^3;        DM = DataModel(DS,model)
     geo = GeodesicBetween(DM,MLE(DM),MLE(DM) + rand(2); tol=1e-11)
-    @test sum(abs.(MLE(DM) .- [1.829289173660125,0.942865200406147])) < 1e-7
+    @test norm(MLE(DM) - [1.829289173660125,0.942865200406147]) < 1e-7
     @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
 end
 
