@@ -136,7 +136,9 @@ export FindConfBoundary, FCriterion, FTest, FindFBoundary
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable
-export FisherMetric, GeometricDensity, ConfidenceRegionVolume, ApproxConfidenceRegionVolume
+export FisherMetric, GeometricDensity
+export ConfidenceRegionVolume, CoordinateVolume
+export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
 export EmbeddingMap, EmbeddingMatrix, Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
@@ -154,7 +156,8 @@ export EmbedModelVia, ProfileLikelihood, InterpolatedProfiles, ProfileBox
 include("NumericalTools.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
-export Integrate1D, IntegrateND, LineSearch, MonteCarloArea
+export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
+export LineSearch, MonteCarloArea
 export curve_fit, TotalLeastSquares, BlockMatrix
 
 

@@ -56,8 +56,6 @@ end
     @test ModelComparison(DM,DMSimp)[2] > 0.
 
     @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
-
-    # @test ConfidenceRegions(BigFloat(DM), 1:2; tol=1e-6)
 end
 
 @safetestset "More Boundary tests" begin

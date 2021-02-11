@@ -96,7 +96,7 @@ end
     ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.)
+function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.; Padding::Real=0.)
     domains = map(F->(F.t[1], F.t[end]), Fs)
     crossings = [find_zeros(x->(Fs[i](x)-Confnum), domains[i][1], domains[i][2]) for i in 1:length(Fs)]
     for i in 1:length(crossings)
@@ -112,5 +112,5 @@ function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolatio
             throw("Error for i = $i")
         end
     end
-    HyperCube(minimum.(crossings), maximum.(crossings); Padding=0.)
+    HyperCube(minimum.(crossings), maximum.(crossings); Padding=Padding)
 end

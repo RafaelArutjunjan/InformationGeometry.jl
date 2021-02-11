@@ -1,6 +1,6 @@
 
 
-function ConsistentElDims(X::AbstractVector{<:AbstractVector{<:Number}})
+function ConsistentElDims(X::AbstractVector)
     elDim = length(X[1])
     all(x -> length(x) == elDim, X) ? elDim : throw("Inconsistent element lengths for given Vector.")
 end

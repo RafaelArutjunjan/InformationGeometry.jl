@@ -148,6 +148,43 @@ IntegrateND(F::Function, L::AbstractVector{<:Number}, U::AbstractVector{<:Number
 IntegrateND(F::Function, Interval::Union{AbstractVector{<:Number},Tuple{<:Number,<:Number}}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(Interval); tol=tol, WE=WE, kwargs...)
 
 
+"""
+    IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+Integrates a function `F` over the intersection of `Domain` and the confidence region of level `Confnum`.
+"""
+function IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    @assert length(Domain) == pdim(DM)
+    # Multiply F with characteristic function for confidence region
+    Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
+    InsideRegion(X::AbstractVector{<:Number}) = loglikelihood(DM, X; kwargs...) > Threshold
+    Integrand(X::AbstractVector{<:Number}) = InsideRegion(X) ? F(X) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
+end
+
+"""
+    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::ODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+Integrates a function `F` over the intersection of `Domain` and the polygon defined by `sol`.
+"""
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::ODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    @assert length(Domain) == pdim(DM) == length(sol.u[1]) == 2
+    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(sol, X) ? F(X) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
+end
+
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:ODESolution}}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    IntegrateOverApproxConfidenceRegion(DM, Domain, Tup[1], Tup[2], F; N=N, WE=WE, kwargs...)
+end
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    @assert length(Domain) == pdim(DM) == ConsistentElDims(Planes)
+    @assert length(Planes) == length(sols)
+    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? F(X) : zero(suff(X))
+    # Use HCubature instead of MonteCarlo
+    MonteCarloArea(Integrand, Domain, N; WE=WE)
+end
+
 
 """
     LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000) -> Number
@@ -163,11 +200,11 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
         println("LineSearch: Test(start) did not work, trying Test(start + 1e-10).")
         !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     end
-    stepsize = one(suff(start))/4.;  value = start
+    stepsize = one(suff(start));  value = start
     for i in 1:maxiter
         if Test(value + stepsize) # inside
             value += stepsize
-            value - start > 200 && throw("FindConfBoundary: Value larger than 200.")
+            # value - start > 2000. && throw("FindConfBoundary: Value larger than 2000.")
         else            #outside
             if stepsize < tol
                 return value + stepsize
