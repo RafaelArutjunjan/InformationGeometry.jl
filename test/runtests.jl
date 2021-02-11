@@ -67,7 +67,8 @@ end
     X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
     ToyDME = DataModel(DataSetExact(X,0.1ones(length(X)),Y,err), (x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
 
-    @test InterruptedConfidenceRegion(ToyDME, 8.5; tol=1e-9) isa ODESolution
+    # @test InterruptedConfidenceRegion(ToyDME, 8.5; tol=1e-9) isa ODESolution
+    @test InterruptedConfidenceRegion(ToyDME, 8; tol=1e-9) isa ODESolution
 
     NewX, NewP = TotalLeastSquares(ToyDME)
     @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))
@@ -81,7 +82,7 @@ end
 @safetestset "Model Transformations" begin
     using InformationGeometry, Test
 
-    PiDM = DataModel(DataSet([0,1], [0.5pi,1.5pi], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]>1, HyperCube([[0,5]])))
+    PiDM = DataModel(DataSet([0,1], [0.5π,1.5π], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]>1, HyperCube([[0,5]])))
     @test !PiDM.model.InDomain([0.9]) && PiDM.model.InDomain([1.1])
 
     # Translation
@@ -100,7 +101,7 @@ end
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
 
     ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
-    ptrue = [1.,pi,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
+    ptrue = [1.,π,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
 
     model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[1]^2 + p[3]^3 * x[2],
                                                         sinh(p[2]) * (x[1] + x[2]), exp(p[1]*x[1] + p[1]*x[2])]
@@ -186,8 +187,8 @@ end
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22
 
     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 1e-13
-    @test abs(GeodesicDistance(S2metric,[pi/4,1],[3pi/4,1]) - pi/2) < 1e-11
-    @test abs(GeodesicDistance(S2metric,[pi/2,0],[pi/2,pi/2]) - pi/2) < 3e-10
+    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-11
+    @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 3e-10
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
     model(x,p) = p[1]^3 *x + p[2]^3;        DM = DataModel(DS,model)
@@ -204,15 +205,15 @@ end
 
     # Test integration, differentiation, Monte Carlo, GeodesicLength
     # TEST WITH AND WITHOUT BIGFLOAT
-    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - pi) < 1.5e-3
-    @test abs(Integrate1D(cos, (0,pi/2); tol=1e-12) - IntegrateND(cos, (0,pi/2); tol=1e-12)) < 1e-10
+    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - π) < 1.5e-3
+    @test abs(Integrate1D(cos, (0,π/2); tol=1e-12) - IntegrateND(cos, (0,π/2); tol=1e-12)) < 1e-10
     z = 3rand()
-    @test abs(Integrate1D(x->2/sqrt(pi) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
-    @test abs(LineSearch(x->(x < BigFloat(pi))) - pi) < 1e-14
-    @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,pi],[-sqrt(2),0]]),rand(3))) - sqrt(2)*pi) < 3e-15
+    @test abs(Integrate1D(x->2/sqrt(π) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
+    @test abs(LineSearch(x->(x < BigFloat(π))) - π) < 1e-14
+    @test abs(LineSearch(x->(x < BigFloat(π)), BigFloat(1e-14); tol=1e-30) - BigFloat(π)) < 1e-25
+    @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,π],[-sqrt(2),0]]),rand(3))) - sqrt(2)*π) < 3e-15
 
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
-
-    # Test invert() method for Float64 and BigFloat
+    @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
 end

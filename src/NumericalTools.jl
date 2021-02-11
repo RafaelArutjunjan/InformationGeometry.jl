@@ -49,11 +49,25 @@ ValToBool(x::Val{false}) = false
 
 """
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real
-Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol`. Ideally, F should be monotone and there should only be one correct result.
+Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` using Roots.jl. Ideally, `F` should be monotone and there should only be one correct result.
 """
-function invert(F::Function, x::Number; tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Order1())
-    find_zero(z-> F(z) - x, one(suff(x)), meth; xatol=tol)
+function invert(F::Function, x::Number, Domain::Tuple{<:Number,<:Number}=(zero(suff(x)), 1e4*one(suff(x)));
+                    tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1())
+    @assert Domain[1] < Domain[2]
+    try
+        if meth isa Roots.AbstractNonBracketing
+            find_zero(z-> F(z) - x, 0.5one(suff(x)), meth; xatol=tol)
+        else
+            find_zero(z-> F(z) - x, Domain, meth; xatol=tol)
+        end
+    catch err
+        @warn "invert() errored: $(nameof(typeof(err))). Assuming result is bracketed by $Domain and falling back to Bisection-like method."
+        find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol)
+    end
 end
+# function invert(F::Function, x::Number; tol::Real=GetH(x)*100, meth::Roots.AbstractUnivariateZeroMethod=Order1())
+#     find_zero(z-> F(z) - x, 0.8one(suff(x)), meth; xatol=tol)
+# end
 
 
 """
@@ -80,7 +94,7 @@ InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
 ChisqCDF(k::Int, x::Real) = gamma_inc(k/2., x/2., 0)[1]
-# ChisqCDF(k::Int, x::Real) = cdf(Chisq(2), x)
+# ChisqCDF(k::Int, x::Real) = cdf(Chisq(k), x)
 ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 
 InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)

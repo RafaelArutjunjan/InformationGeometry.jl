@@ -94,8 +94,8 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15,
     else
         MLE(DM)
     end
-    Test(x) = WilksTest(DM,x .* BasisVector(1,pdim(DM)) + mle, CF)
-    MLE(DM) .+ LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    Test(x) = WilksTest(DM, x .* BasisVector(1,pdim(DM)) + mle, CF)
+    MLE(DM) .+ LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
 
 
@@ -123,7 +123,7 @@ function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, ma
     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
     CF = ConfVol(Confnum)
     Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
-    MLE(DM) .+ LineSearch(Test; tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    MLE(DM) .+ LineSearch(Test, zero(suff(CF)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
 end
 
 
@@ -457,7 +457,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 # end
 
 """
-    ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e7), WE::Bool=false) -> Real
+    ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e7), WE::Bool=true) -> Real
 Approximates confidence region using the polygon constituted by the nodes of a planar `ODESolution` which follows the confidence boundary.
 The coordinate-invariant volume of the confidence region is then computed by integrating the geometric density factor over this polygon via Monte Carlo.
 
@@ -465,7 +465,7 @@ Keywords:
 `N`: Number of samples for Monte Carlo integration.
 `WE=true` will also quantify the estimated uncertainty in the computed value for the volume.
 """
-function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert pdim(DM) == length(sol.u[1]) == 2
     # No need to even compute Confnum here.
     Domain = ConstructCube(sol; Padding=1e-2)
@@ -475,7 +475,7 @@ function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N
 end
 
 
-function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; N::Int=Int(1e5), WE::Bool=false)
+function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; N::Int=Int(1e5), WE::Bool=true)
     @assert pdim(DM) == length(Planes[1])
     throw("Implementation not finished yet.")
     ######## USE ProfileLikelihood for box here
@@ -486,7 +486,7 @@ function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Pl
 end
 
 
-function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     if pdim(DM) == 2
         return ConfidenceRegionVolume(DM, ConstructCube(ConfidenceRegion(DM, Confnum; tol=1e-6); Padding=1e-2), Confnum; N=N, WE=WE, kwargs...)
     else
@@ -496,11 +496,11 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int
     end
 end
 
-function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     ConfidenceRegionVolume(DM, ConstructCube(sol; Padding=1e-2), GetConfnum(DM, sol); N=N, WE=WE, kwargs...)
 end
 
-function ConfidenceRegionVolume(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real; N::Int=Int(1e5), WE::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM)
     # -2(ℓ - ℓ_MLE) < quantile  --->    ℓ > ℓ_MLE - 0.5quantile
     Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
