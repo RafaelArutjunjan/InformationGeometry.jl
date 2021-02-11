@@ -53,7 +53,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
             println(io, "Standard deviation associated with x-data:")
             show(io, mime, xsigma(DS))
         else
-            println(io, "Covariance Matrix associated with x-data:")
+            println(io, "Covariance matrix associated with x-data:")
             show(io, mime, xsigma(DS))
         end
         print(io, "\n")
@@ -63,7 +63,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
         println(io, "Standard deviation associated with y-data:")
         show(io, mime, ysigma(DS))
     else
-        println(io, "Covariance Matrix associated with y-data:")
+        println(io, "Covariance matrix associated with y-data:")
         show(io, mime, ysigma(DS))
     end
 end
@@ -76,7 +76,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
             println(io, "Standard deviation associated with x-data:")
             show(io, xsigma(DS))
         else
-            println(io, "Covariance Matrix associated with x-data:")
+            println(io, "Covariance matrix associated with x-data:")
             show(io, xsigma(DS))
         end
         print(io, "\n")
@@ -86,13 +86,14 @@ function Base.show(io::IO, DS::AbstractDataSet)
         println(io, "Standard deviation associated with y-data:")
         show(io, ysigma(DS))
     else
-        println(io, "Covariance Matrix associated with y-data:")
+        println(io, "Covariance matrix associated with y-data:")
         show(io, ysigma(DS))
     end
 end
 
 ##### StaticOutput?
 function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
+    Expr = ToExpr(Data(DM), Predictor(DM));    IsLin = IsLinearParameter(DM)
     println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
         "generated via automatic differentiation"
@@ -102,9 +103,10 @@ function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
         "manually provided by user"
     end
     println(io, "Model jacobian " * Jac)
-    if typeof(DM) == DataModel
+    if DM isa DataModel
         println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
-    println(io, "Model parametrization linear in n-th parameter: $(IsLinearParameter(DM))")
+    !isa(Expr, Nothing) && println(io, "Model:  y(x;θ) = $Expr")
+    println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end

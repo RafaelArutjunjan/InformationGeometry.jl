@@ -144,6 +144,8 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
     end;    modelexpr
 end
 
+PrintModel(DM::AbstractDataModel) = "y(x;θ) = $(ToExpr(Data(DM), Predictor(DM)))"
+
 
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     Optimize(Data(DM), Predictor(DM); inplace=inplace, timeout=timeout, parallel=parallel)
