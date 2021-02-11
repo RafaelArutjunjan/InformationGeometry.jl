@@ -6,7 +6,7 @@ module InformationGeometry
 using LinearAlgebra, Random, Distributions, DataFrames
 
 using Distributed, StaticArrays, SparseArrays
-using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit
+using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit, DataInterpolations
 using ForwardDiff, BenchmarkTools, LsqFit, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots, Optim
@@ -145,6 +145,10 @@ export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, Mi
 
 export ApproxInRegion
 
+
+
+include("ProfileLikelihood.jl")
+export EmbedModelVia, ProfileLikelihood, InterpolatedProfiles, ProfileBox
 
 
 include("NumericalTools.jl")
