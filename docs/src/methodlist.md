@@ -7,6 +7,13 @@ The following lists docstrings for various important functions.
 
 
 
+Once a `DataModel` object has been defined, it can subsequently be used to compute various quantities as follows:
+
+```@docs
+loglikelihood(::DataModel,::Vector{Float64})
+MLE(::DataModel)
+LogLikeMLE(::DataModel)
+```
 
 Various geometric quantities which are intrinsic to the parameter manifold ``\mathcal{M}`` can be computed as a result of the Fisher metric ``g`` (and subsequent choice of the Levi-Civita connection) such as the Riemann and Ricci tensors and the Ricci scalar ``R``.
 ```@docs

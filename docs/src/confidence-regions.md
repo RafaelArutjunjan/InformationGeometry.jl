@@ -1,13 +1,8 @@
 
 ### Confidence Regions
 
-Once a `DataModel` object has been defined, it can subsequently be used to compute various quantities as follows:
 
-```@docs
-loglikelihood(::DataModel,::Vector{Float64})
-MLE(::DataModel)
-LogLikeMLE(::DataModel)
-```
+One of the primary goals of **InformationGeometry.jl** is to enable the user to investigate the relationships between different parameters in a model in detail by determining and visualizing the **exact** confidence regions associated with the best fit parameters. In this context, *exact* refers to the fact that no simplifying assumptions are made about the shape of the confidence regions.
 
 ```@setup 1
 using InformationGeometry, Plots; gr() # hide
@@ -18,7 +13,6 @@ model(x::Real, θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
 DM = DataModel(DS, model)
 FittedPlot(DM)
 ```
-One of the primary goals of **InformationGeometry.jl** is to enable the user to investigate the relationships between different parameters in a model in detail by determining and visualizing the **exact** confidence regions associated with the best fit parameters. In this context, *exact* refers to the fact that no simplifying assumptions are made about the shape of the confidence regions.
 
 Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model shown above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect ellipses around the maximum likelihood estimate as expected:
 ```@example 1
@@ -71,14 +65,14 @@ VisualizeSols(InformationGeometry.ModelMappize(DM3), Planes, sols3; title="3D Co
 # savefig("../assets/sols3.svg"); nothing # hide
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/sols3.svg)
+
 Here, only the ``1\sigma`` confidence region is shown. Given the non-linearity of the model, it is of course no surprise that the region is strongly distorted compared with a perfect ellipsoid.
 
 
 Once the boundary of a confidence region associated with some particular level has been computed, it can be used to establish the most extreme deviations from the maximum likelihood prediction, which are possible at said confidence level. These can then be illustrated as so-called "pointwise confidence bands" around the best fit. For example, given the confidence boundaries of the model `DM2` from above, the ``2\sigma`` confidence band can be obtained via:
-```@example 1
+```julia
 FittedPlot(DM2)
 ConfidenceBands(DM2, sols2[2])
-nothing # hide
 ```
 ```@setup 1
 # savefig("../assets/Bands.svg"); nothing # hide
