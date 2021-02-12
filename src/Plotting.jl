@@ -523,7 +523,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 
 
 """
-    ConfidenceBands(DM::DataModel,sol::ODESolution,domain::HyperCube; N::Int=300) -> Matrix
+    ConfidenceBands(DM::DataModel, sol::ODESolution, domain::HyperCube; N::Int=300) -> Matrix
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, domain::HyperCube=XCube(DM);

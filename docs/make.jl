@@ -13,6 +13,7 @@ makedocs(
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Kullback-Leibler Divergences" => "kullback-leibler.md"],
                 # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, ODE Examples
+                "List of useful methods" => "methodlist.md",
                 "Contributing" => "todo.md",
             ],
 )

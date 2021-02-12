@@ -19,6 +19,8 @@ using TreeViews
 
 #### Functionality
 
+# Confidence Bands for pdim > 2.
+# Geodesic coordinates - use geodesic radius and angles to specify parameter configurations.
 # General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
 # Finish Boundaries() specification methods in confidence boundary and geodesic construction

@@ -14,3 +14,5 @@ To complete the specification of an inference problem, a model function which is
 ```@docs
 DataModel
 ```
+
+"Simple" `DataSet`s and `DataModel`s can be visualized directly via `plot(DM)` using pre-written recipes for the **Plots.jl** package.

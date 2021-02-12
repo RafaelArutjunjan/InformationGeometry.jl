@@ -64,15 +64,19 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real=2; N::Int=50
     GetProfile(DM, Comp, GetDomainTuple(DM, Comp, Confnum; ForcePositive=ForcePositive); N=N)
 end
 
+
+"""
+    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false) -> Vector{Matrix}
+Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
+Returns a vector of N×2 matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
+
+The domain over which the profile likelihood is computed is not (yet) adaptively chosen. Instead the size of the domain is estimated from the inverse Fisher metric.
+Therefore, often has to pass higher value for `Confnum` to this method than the confidence level one is actually interested in, to ensure that it is still covered (if the model is even practically identifiable in the first place).
+"""
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false)
     ProfileLikelihood(DM, HyperCube([GetDomainTuple(DM, i, Confnum; ForcePositive=ForcePositive) for i in 1:pdim(DM)]); N=N, plot=plot, parallel=parallel)
 end
 
-"""
-    ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false) -> Vector{Matrix}
-Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
-Returns a vector of N×2 matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
-"""
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false)
     Map = parallel ? pmap : map
     Profiles = Map(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N), 1:pdim(DM))

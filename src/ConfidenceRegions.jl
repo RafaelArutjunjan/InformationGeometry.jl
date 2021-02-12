@@ -27,7 +27,7 @@ AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Numbe
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false))
-Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=true` uses automatic differentiation.
+Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=Val(true)` uses automatic differentiation.
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ; Auto=Auto, kwargs...)
 
@@ -147,7 +147,7 @@ end
 """
     OrthVF(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
-`Auto=true` uses automatic differentiation to calculate the score.
+`Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
     OrthVF(Data(DM), Predictor(DM), dPredictor(DM), θ; alpha=alpha, Auto=Auto, kwargs...)
@@ -165,7 +165,7 @@ end
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 If a `Plane` is specified, the direction will be specified in the planar coordinates using a 2-component vector.
-`Auto=true` uses automatic differentiation to calculate the score.
+`Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
 function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(DM, PlaneCoordinates(PL,θ); Auto=Auto, kwargs...))
@@ -188,6 +188,7 @@ GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
 GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
 function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
+    !isa(M.Domain, HyperCube) && return GetStartP(DS, M.Map)
     Res = GetStartP(DS, M.Map, length(M.Domain))
     (Res ∈ M.Domain && M.InDomain(Res)) && return Res
 
@@ -300,7 +301,9 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
 end
 
 """
-Choose method depending on dimensionality of the parameter space.
+    ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30)
+Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidence region is intersected by a family of `Plane`s in the directions specified by the keyword `Dirs`.
+The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, kwargs...)
@@ -309,7 +312,7 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
     elseif pdim(DM) == 2
         return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
-        println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
+        # println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM, Confnum)
         Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N)
         return Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
@@ -343,7 +346,8 @@ Keyword arguments:
 * `IsConfVol = true` can be used to specify the desired confidence level directly in terms of a probability ``p \\in [0,1]`` instead of in units of standard deviations ``\\sigma``,
 * `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-12`),
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
-* `Auto` is a boolean which controls whether the derivatives of the likelihood are computed using automatic differentiation or an analytic expression involving `DM.dmodel` (default `Auto = false`).
+* `Auto = Val(true)` can be chosen to compute the derivatives of the likelihood using automatic differentiation,
+* `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects.
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false),
