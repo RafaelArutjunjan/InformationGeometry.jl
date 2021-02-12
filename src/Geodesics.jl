@@ -134,7 +134,7 @@ end
 
 # ADAPT FOR PLANES
 function ConstLengthGeodesics(DM::AbstractDataModel,Metric::Function,MLE::Vector,Conf::Real=ConfVol(1), N::Int=100; tol::Real=6e-11)
-    angles = [2*pi*n/N      for n in 1:N]
+    angles = [2π*n/N      for n in 1:N]
     Initials = [ [MLE...,cos(alpha),sin(alpha)] for alpha in angles]
     solving = 0
     function Constructor(Initial)
@@ -174,7 +174,7 @@ end
 
 function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
-    Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2pi,length=N)];    solving = 0
+    Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2π;length=N)];    solving = 0
     Map = parallel ? pmap : map
     function Constructor(Initial)
         solving += 1

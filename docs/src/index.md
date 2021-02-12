@@ -5,7 +5,7 @@ This is the documentation of [**InformationGeometry.jl**](https://github.com/Raf
 
 | **Build Status** |
 |:----------------:|
-| [![travis](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl.svg?branch=master)](https://travis-ci.com/RafaelArutjunjan/InformationGeometry.jl) [![appveyor](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl) [![codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl) |
+| [![appveyor](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl) [![codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl) |
 
 
 ## Main Uses

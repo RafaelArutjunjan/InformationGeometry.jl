@@ -15,7 +15,7 @@ loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = 
 
 @inline function loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
     Y = ydata(DS) - EmbeddingMap(DS, model, θ; kwargs...)
-    -0.5*(DataspaceDim(DS)*log(2pi) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
 end
 
 
@@ -107,7 +107,7 @@ end
 # Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 # equivalent to ResidualSquares(DM,MLE(DM))
-RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2pi) - 2LogLikeMLE(DM)
+RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = ResidualSquares(Data(DM), Predictor(DM), θ)
 function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
     Y = ydata(DS) - EmbeddingMap(DS,model,θ)
@@ -821,7 +821,7 @@ Returns `HyperCube` which bounds the linearized confidence region of level `Conf
 """
 function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200)
     L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
-    C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2pi,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
+    C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2π,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
     TranslateCube(Union(C), MLE(DM))
 end
 

@@ -12,6 +12,7 @@ makedocs(
                 "Tutorial" => Any[ "Providing Data and Models" => "datamodels.md",
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Kullback-Leibler Divergences" => "kullback-leibler.md"],
+                # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, ODE Examples
                 "Contributing" => "todo.md",
             ],
 )
@@ -22,7 +23,7 @@ makedocs(
 # for more information.
 deploydocs(
     repo = "github.com/RafaelArutjunjan/InformationGeometry.jl.git",
-    # julia = "1.3",
+    # julia = "1.5",
     # osname = "linux",
     # target = "build",
 )
