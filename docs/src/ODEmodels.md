@@ -55,6 +55,7 @@ FittedPlot(SIRDM)
 ConfidenceBands(SIRDM, sols[2])
 ```
 ```@setup 2
+B = ConfidenceBands(SIRDM, sols[2]) # hide
 using Plots # hide
 FittedPlot(SIRDM) # hide
 plot!(B[:,1], B[:,3], label="2σ Conf. Band", color=:orange) # hide
