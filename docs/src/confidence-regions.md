@@ -24,7 +24,7 @@ nothing # hide
 scatter([MLE(DM)[1]],[MLE(DM)[2]],marker=:c,label="MLE") # hide
 plot!(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
 plot!(sols[2],vars=(1,2),label="2σ CR") # hide
-# fig("../assets/sols.svg"); nothing # hide
+# savefig("../assets/sols.svg"); nothing # hide
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/sols.svg)
 

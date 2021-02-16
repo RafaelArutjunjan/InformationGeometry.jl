@@ -50,13 +50,17 @@ It is now possible to compute properties of this `DataModel` such as confidence 
 sols = ConfidenceRegions(SIRDM, 1:2)
 VisualizeSols(SIRDM, sols)
 ```
-
-```@example 2
+```julia
 FittedPlot(SIRDM)
-B = ConfidenceBands(SIRDM, sols[2])
+ConfidenceBands(SIRDM, sols[2])
+```
+```@setup 2
 using Plots # hide
 FittedPlot(SIRDM) # hide
 plot!(B[:,1], B[:,3], label="2σ Conf. Band", color=:orange) # hide
 plot!(B[:,1], B[:,2], label="", color=:orange) # hide
+# savefig("../assets/SIRBands.svg"); nothing # hide
 ```
+![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/SIRBands.svg)
+
 While it visually appears as though the confidence regions are perfectly ellipsoidal and the model would therefore be linearly dependent on its parameters `β` and `γ`, this is of course not the case. The non-linearity with respect to the parameters becomes much more apparent further away from the MLE, as one can confirm e.g. via radial geodesics emanating from the MLE or the profile likelihood.
