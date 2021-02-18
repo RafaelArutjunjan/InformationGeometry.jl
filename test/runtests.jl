@@ -159,7 +159,7 @@ end
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); Carlo=true, N=Int(3e6)) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 2e-2
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); tol=1e-8) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 1e-5
     P = MvNormal([1,2,3.],diagm([1,2,1.5]));    Q = MvNormal([1,-2,-3.],diagm([2,1.5,1.]));     Cube = HyperCube([[-15,15] for i in 1:3])
-    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 7e-1
+    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 7.2e-1
 end
 
 

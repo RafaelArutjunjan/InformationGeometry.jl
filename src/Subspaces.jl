@@ -270,11 +270,11 @@ function DropCubeDims(Cube::HyperCube, dims::Union{AbstractVector{<:Int}, Abstra
 end
 
 """
-    CubeFaceCenters(Cube::HyperCube) -> Vector{Vector}
+    FaceCenters(Cube::HyperCube) -> Vector{Vector}
 Returns a `Vector` of the `2n`-many face centers of a `n`-dimensional `Cube`.
 """
-function CubeFaceCenters(Cube::HyperCube)
-    C = Center(Cube);   W = CubeWidths(Cube)
+function FaceCenters(Cube::HyperCube)
+    C = Center(Cube);   W = 0.5CubeWidths(Cube)
     vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
 end
 

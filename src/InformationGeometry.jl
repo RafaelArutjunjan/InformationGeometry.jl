@@ -99,7 +99,7 @@ export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePl
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 export HyperCube
 export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube
-export DropCubeDim, DropCubeDims, CubeFaceCenters, Intersect, Union
+export DropCubeDim, DropCubeDims, FaceCenters, Intersect, Union
 export PositiveDomain, NegativeDomain, FullDomain, rand
 
 
@@ -187,7 +187,7 @@ export GetModel, Optimize, OptimizedDM, PrintModel
 include("Plotting.jl")
 export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
-export ConfidenceBands, PlotMatrix
+export ConfidenceBands, ApproxConfidenceBands, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 
