@@ -22,7 +22,7 @@ nothing # hide
 ```
 Here, the parameter `β` denotes the transmission rate of the disease and `γ` is the recovery rate. Note that in the symbolic scheme of [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl), the equal sign is represented via `~`.
 
-An infection dataset which is well-known in the literature is taken from an influenza outbreak at a English boarding school in .... Its numerical values can be found e.g. in [table 1 of this paper](https://www.researchgate.net/publication/336701551_On_parameter_estimation_approaches_for_predicting_disease_transmission_through_optimization_deep_learning_and_statistical_inference_methods). As no uncertainties associated with the number of infections is given, we will assume the ``1\sigma`` uncertainties to be ``\pm 5`` as a reasonable value. Further, it is known that the total number of students at said boarding school was ``763`` and we will therefore assume the initial conditions to be
+An infection dataset which is well-known in the literature is taken from an influenza outbreak at a English boarding school in 1978. Its numerical values can be found e.g. in [table 1 of this paper](https://www.researchgate.net/publication/336701551_On_parameter_estimation_approaches_for_predicting_disease_transmission_through_optimization_deep_learning_and_statistical_inference_methods). As no uncertainties associated with the number of infections is given, we will assume the ``1\sigma`` uncertainties to be ``\pm 5`` as a reasonable value. Further, it is known that the total number of students at said boarding school was ``763`` and we will therefore assume the initial conditions to be
 ```@setup 2
 SIRinitial = [762, 1, 0.]
 ```
