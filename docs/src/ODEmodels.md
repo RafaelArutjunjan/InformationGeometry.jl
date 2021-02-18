@@ -46,17 +46,24 @@ SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, SIRobservables, [0.001, 0.1]; tol=1
 where `SIRobservables` denotes the components of the `ODESystem` that have actually been observed in the given dataset (i.e. the second component which are the infected in this case). The optional vector `[0.001, 0.1]` is our initial guess for the parameters `[β, γ]` for the maximum likelihood estimation and the keyword `tol` specifies the desired accuracy of the ODE solver for all model predictions.
 
 It is now possible to compute properties of this `DataModel` such as confidence regions, confidence bands, geodesics, profile likelihoods, curvature tensors and so on as with any other model.
-```@example 2
+```julia
 sols = ConfidenceRegions(SIRDM, 1:2)
 VisualizeSols(SIRDM, sols)
 ```
+```@setup 2
+using Plots # hide
+sols = ConfidenceRegions(SIRDM, 1:2)
+VisualizeSols(SIRDM, sols)
+# savefig("../assets/SIRsols.svg"); nothing # hide
+```
+![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/SIRsols.svg)
+
 ```julia
 FittedPlot(SIRDM)
 ConfidenceBands(SIRDM, sols[2])
 ```
 ```@setup 2
 B = ConfidenceBands(SIRDM, sols[2]) # hide
-using Plots # hide
 FittedPlot(SIRDM) # hide
 plot!(B[:,1], B[:,3], label="2σ Conf. Band", color=:orange) # hide
 plot!(B[:,1], B[:,2], label="", color=:orange) # hide
