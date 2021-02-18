@@ -7,29 +7,20 @@ function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:
     InformNames(DS, newxnames, newynames)
 end
 
-function GetMethod(tol::Real)
-    if tol > 1e-8
-        Tsit5()
-    elseif tol < 1e-11
-        Vern9()
-    else
-        Vern7()
-    end
+
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)), args...;
+                tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
+    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
 end
 
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)), args...;
-                tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
-    DataModel(InformNames(DS, sys, observables), GetModel(sys, u0, observables; tol=tol, meth=meth), args...; kwargs...)
-end
-
-function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractVector{<:Number}, ObservationFunction::Function, args...;
-                tol::Real=1e-6, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
-    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol, meth=meth), args...; kwargs...)
+function DataModel(DS::AbstractDataSet, sys::ODESystem, u0::AbstractArray{<:Number}, ObservationFunction::Function, args...;
+                tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
+    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
 end
 
 
 # Allow option of passing Domain for parameters as keyword
-function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+function GetModel(sys::ODESystem, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
                     Domain::Union{HyperCube,Bool}=false, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
@@ -47,30 +38,30 @@ function GetModel(sys::ODESystem, u0::AbstractVector{<:Number}, observables::Vec
 end
 
 
-function GetModel(func::Function, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+function GetModel(func::Function, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 end
 
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observables::Vector{<:Int}=collect(1:length(u0)); tol::Real=1e-6,
+function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
-    u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
+    u0 = PromoteStatic(u0, inplace)
 
     function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
 
-    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=t,
+    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables, tol::Real=tol, max_t::Number=t,
                                                                             meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Vector{<:Int}=observables, tol::Real=tol, max_t::Number=maximum(ts),
-                                                                            meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables,
+                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         # sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         # FullSol && return sol
         ## Slow method:        Reduction(map(t->sol(t)[observables], ts))
@@ -81,13 +72,13 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, observable
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
-    Model |> MakeCustom
+    MakeCustom(Model, Domain)
 end
 
-function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, ObservationFunction::Function; tol::Real=1e-6,
+function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, ObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
-    u0 = inplace ? MVector{length(u0)}(u0) : SVector{length(u0)}(u0)
+    u0 = PromoteStatic(u0, inplace)
 
     function GetSol(θ::AbstractVector{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
@@ -101,8 +92,8 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, Observatio
         ObservationFunction(sol.u[end], t)
     end
 
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol, max_t::Number=maximum(ts),
-                                                                            meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, tol::Real=tol,
+                                        max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         # sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
         # FullSol && return sol
         # [ObservationFunction(sol.u[findnext(x->x==t,sol.t,i)], t) for (i,t) in enumerate(ts)] |> Reduction
@@ -112,7 +103,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractVector{<:Number}, Observatio
         [ObservationFunction(sol.u[i], sol.t[i]) for i in 1:length(ts)] |> Reduction
     end
     # Have to make sure that this is a Modelmap with CustomEmbedding!!!!!!!!!!!!
-    Model |> MakeCustom
+    MakeCustom(Model, Domain)
 end
 
 
@@ -180,7 +171,8 @@ function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false,
     ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
 end
 
-function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}}; inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
+function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}};
+                                                        inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
     parallelization = parallel ? ModelingToolkit.MultithreadedForm() : ModelingToolkit.SerialForm()
     OptimizedModel = try
         build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]

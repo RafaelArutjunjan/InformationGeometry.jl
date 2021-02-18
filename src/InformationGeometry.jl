@@ -156,7 +156,7 @@ export EmbedModelVia, ProfileLikelihood, InterpolatedProfiles, ProfileBox
 
 
 include("NumericalTools.jl")
-export GetH, suff, Unpack, Unwind, Windup, ToCols
+export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea

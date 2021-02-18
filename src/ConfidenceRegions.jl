@@ -185,7 +185,8 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool
 end
 
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
-GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
+GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = GetStartP(hint)
+GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
 function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
     !isa(M.Domain, HyperCube) && return GetStartP(DS, M.Map)
@@ -266,7 +267,7 @@ end
 
 function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-    u0 = !mfd ? MVector{length(u0)}(u0) : u0
+    u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DS, model, u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
@@ -285,7 +286,7 @@ end
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Auto::Val=Val(false), kwargs...)
     @assert length(u0) == 2
-    u0 = !mfd ? MVector{length(u0)}(u0) : u0
+    u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0))
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u))
@@ -402,7 +403,7 @@ end
 
 function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
                                 redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-    u0 = !mfd ? MVector{length(u0)}(u0) : u0
+    u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DS,model,u0)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
     BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)

@@ -26,15 +26,16 @@ struct ModelMap
         # Change this to θ -> true to avoid double checking cuboid. Obviously make sure Boundaries() is constructed using both the function test
         # and the Cuboid test first before changing this.
         InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
-        typeof(xyp) == Bool ? ModelMap(model, InDomain, Domain; pnames=pnames) : ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
+        xyp isa Bool ? ModelMap(model, InDomain, Domain; pnames=pnames) : ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false; pnames::Union{Vector{String},Bool}=false)
-        xyp = if typeof(Domain) == Bool
-            xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen))
+        xyp = if Domain isa Bool
+            xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
         else
-            plen = length(Domain);      xlen = GetArgLength(x->model(x,ones(plen)));    testout = model((xlen < 2 ? 1. : ones(xlen)),ones(plen))
+            plen = length(Domain);      startp = GetStartP(plen)
+            xlen = GetArgLength(x->model(x,startp));    testout = model((xlen < 2 ? 1. : ones(xlen)), startp)
             (xlen, size(testout,1), plen)
         end
         ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
@@ -70,7 +71,7 @@ isinplace(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
 
-MakeCustom(F::Function) = MakeCustom(ModelMap(F))
+MakeCustom(F::Function, Domain::Union{Cuboid, Bool}=false) = Domain isa Bool ? MakeCustom(ModelMap(F)) : MakeCustom(ModelMap(F, Domain))
 function MakeCustom(M::ModelMap)
     if iscustom(M)
         println("Map already uses custom embedding.")

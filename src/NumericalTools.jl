@@ -46,6 +46,26 @@ ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 ValToBool(x::Val{true}) = true
 ValToBool(x::Val{false}) = false
 
+function GetMethod(tol::Real)
+    if tol > 1e-8
+        Tsit5()
+    elseif tol < 1e-11
+        Vern9()
+    else
+        Vern7()
+    end
+end
+
+function PromoteStatic(X::AbstractArray, inplace::Bool=true)
+    if length(X) > 90
+        return X
+    elseif inplace
+        return typeof(X) <: AbstractVector ? MVector{length(X)}(X) : MArray{Tuple{size(X)...}}(X)
+    else
+        return typeof(X) <: AbstractVector ? SVector{length(X)}(X) : SArray{Tuple{size(X)...}}(X)
+    end
+end
+
 
 """
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real

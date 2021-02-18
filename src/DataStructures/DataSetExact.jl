@@ -34,7 +34,7 @@ struct DataSetExact <: AbstractDataSet
     ynames::Vector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
-    DataSetExact(x::AbstractArray, y::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, ones(size(y,1)*length(y[1])))
+    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, allsigmas*ones(size(y,1)*length(y[1])))
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr)
 
     DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
