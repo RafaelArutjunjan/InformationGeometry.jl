@@ -1,7 +1,9 @@
 
 
 """
+    Plane(P::AbstractVector, Vx::AbstractVector, Vy::AbstractVector)
 Specifies a 2D plane in the so-called parameter form using 3 vectors.
+Here the first argument `P` is a vector on the plane, the two vectors `Vx` and `Vy` are two other vectors, which span the plane and should ideally be orthogonal.
 """
 struct Plane
     stütz::AbstractVector
@@ -41,8 +43,12 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32
-BasisVectorSV(Slot::Int, dims::Int) = dims < 20 ? BasisVectorSVdo(Slot, dims) : BasisVector(Slot, dims)
-BasisVectorSVdo(Slot::Int, dims::Int) = SVector{dims}(Float64(i == Slot) for i in 1:dims)
+BasisVectorSV(Slot::Int, dims::Int) = SVector{dims}(Float64(i == Slot) for i in 1:dims)
+
+"""
+    BasisVector(Slot::Int, dims::Int) -> Vector{Float64}
+Computes a standard basis vector of length `dims`, i.e. whose components are all zero except for the component `Slot`, which has a value of one.
+"""
 function BasisVector(Slot::Int, dims::Int)
     Res = zeros(dims);    Res[Slot] = 1.;    Res
 end
@@ -263,6 +269,14 @@ function DropCubeDims(Cube::HyperCube, dims::Union{AbstractVector{<:Int}, Abstra
     HyperCube(Cube.L[keep], Cube.U[keep])
 end
 
+"""
+    CubeFaceCenters(Cube::HyperCube) -> Vector{Vector}
+Returns a `Vector` of the `2n`-many face centers of a `n`-dimensional `Cube`.
+"""
+function CubeFaceCenters(Cube::HyperCube)
+    C = Center(Cube);   W = CubeWidths(Cube)
+    vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
+end
 
 ### Slower than union
 # """
