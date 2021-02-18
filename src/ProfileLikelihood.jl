@@ -29,7 +29,9 @@ InsertValAt(X::AbstractVector{<:Number}, Comp::Int, Val::AbstractFloat) = insert
 # Shouldn't need this:
 InsertValAt(X::Number, Comp::Int, Val::AbstractFloat) = InsertValAt([X], Comp, Val)
 
-
+"""
+Naively computes approximate 1D domain from inverse Fisher metric at MLE.
+"""
 function GetDomainTuple(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false)::Tuple
     @assert 1 ≤ Comp ≤ pdim(DM)
     ApproxDev = Confnum * sqrt(inv(FisherMetric(DM, MLE(DM)))[Comp,Comp])
@@ -41,20 +43,28 @@ function GetDomainTuple(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePo
     (start, MLE(DM)[Comp]+ApproxDev)
 end
 
+
+"""
+    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50) -> N×2 Matrix
+Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
+"""
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50)
-    @assert dom[1] < dom[2]
+    @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = range(dom[1], dom[2]; length=N)
 
-    # Use variable size array instead to cut off computation once Confnum+0.1 is reached
+    # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = Vector{Float64}(undef, N)
-    MLEstash = Drop(MLE(DM), Comp)
-    for (i,p) in enumerate(ps)
-        NewModel = ProfilePredictor(DM, Comp, p)
-        MLEstash = FindMLE(Data(DM), NewModel, MLEstash)
-        Res[i] = loglikelihood(Data(DM), NewModel, MLEstash)
-        # Res[i] = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(Data(DM), NewModel, MLEstash))) |> InvConfVol
+    if pdim(DM) == 1    # Cannot drop dims if pdim already 1
+        Res = map(x->loglikelihood(DM, [x]), ps)
+    else
+        MLEstash = Drop(MLE(DM), Comp)
+        for (i,p) in enumerate(ps)
+            NewModel = ProfilePredictor(DM, Comp, p)
+            MLEstash = FindMLE(Data(DM), NewModel, MLEstash)
+            Res[i] = loglikelihood(Data(DM), NewModel, MLEstash)
+        end
     end
-    Logmax = maximum(Res)
+    Logmax = max(maximum(Res), LogLikeMLE(DM))
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Res = map(x->InvConfVol.(ChisqCDF.(pdim(DM), 2(Logmax - x))), Res)
     [ps Res]
