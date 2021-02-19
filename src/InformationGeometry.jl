@@ -91,6 +91,7 @@ export AbstractDataSet, AbstractDataModel, Cuboid
 
 import Base: length, rand, BigFloat, in, union, intersect, join, ==
 import DataFrames.DataFrame
+import Distributions.loglikelihood
 
 
 include("Subspaces.jl")

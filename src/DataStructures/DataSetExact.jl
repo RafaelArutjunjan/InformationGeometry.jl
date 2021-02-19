@@ -34,7 +34,8 @@ struct DataSetExact <: AbstractDataSet
     ynames::Vector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
-    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, allsigmas*ones(size(y,1)*length(y[1])))
+    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, y, allsigmas*ones(size(y,1)*length(y[1])))
+    DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...) = DataSetExact(x, allxsigmas*ones(size(x,1)*length(x[1])), args...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr)
 
     DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
@@ -57,11 +58,12 @@ struct DataSetExact <: AbstractDataSet
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int})
         !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == Npoints(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
+        Σinv = isdiag(InvCov(yd)) ? Diagonal(InvCov(yd)) : InvCov(yd)
         if xdim(dims) == 1
-            return DataSetExact(xd, yd, dims, InvCov(yd), nothing)
+            return DataSetExact(xd, yd, dims, Σinv, nothing)
         else
             # return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
-            return DataSetExact(xd, yd, dims, InvCov(yd), [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
+            return DataSetExact(xd, yd, dims, Σinv, [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},

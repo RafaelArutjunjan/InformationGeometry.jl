@@ -52,7 +52,7 @@ struct DataSet <: AbstractDataSet
     end
     function DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.)
         println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
-        DataSet(x, y, allsigmas*ones(length(y)*length(y[1])))
+        DataSet(x, y, allsigmas*ones(size(y,1)*length(y[1])))
     end
     # Also make a fancy version for DataFrames that infers the variable names?
     function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray)
