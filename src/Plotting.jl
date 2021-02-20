@@ -522,42 +522,26 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 # end
 
 
-"""
-    ConfidenceBands(DM::DataModel, sol::ODESolution, Xdomain::HyperCube; N::Int=300) -> Matrix
-Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain` by evaluating the model on the boundary of the confidence region.
-"""
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, Xdomain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=200)
-    length(Xdomain) != xdim(DM) && throw("Dimensionality of Xdomain inconsistent with xdim.")
-    if xdim(DM) == 1
-        X = range(Xdomain.L[1], Xdomain.U[1]; length=N)
-        Res = Array{Float64,2}(undef, N, 2*ydim(DM))
-        for col in 1:2:2ydim(DM)
-            fill!(view(Res,:,col), Inf)
-            fill!(view(Res,:,col+1), -Inf)
-        end
-        for sol in sols
-            for t in range(sol.t[1], sol.t[end]; length=samples)
-                # Do it like this to exploit CustomEmbeddings
-                # WILL NOT WORK FOR CompositeDataSet!!!!!!
-                Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), sol(t), X), ydim(DM)) |> Unpack
-                for col in 1:2:2ydim(DM)
-                    Ycol = Int(ceil(col/2))
-                    for row in 1:size(Res,1)
-                        Res[row, col] = min(Res[row, col], Y[row,Ycol])
-                        Res[row, col+1] = max(Res[row, col+1], Y[row,Ycol])
-                    end
-                end
+function PlotConfidenceBands(DM::AbstractDataModel, M::AbstractMatrix{<:Number}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing;
+                                        Confnum::Real=-1)
+    lab = 0 < Confnum ? "$(Confnum)σ " : ""
+    if size(M,2) == 3
+        return Plots.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey])) |> display
+    else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
+        @assert xdim(DM) == 1 && size(M,2) == 1 + 2ydim(DM)
+        if xpositions isa Nothing
+            for i in 1:(size(M,1)-1)
+                Plots.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-        end
-        if plot
-            for col in 1:2:2ydim(DM)
-                PlotConfidenceBands(hcat(X,view(Res,:,col:col+1)))
+            Plots.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+        elseif length(xpositions) == (size(M,2)-1) / 2
+            for i in 1:(size(M,1)-1)
+                Plots.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
+            Plots.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+        else
+            throw("Vector of xpositions wrong length.")
         end
-        return hcat(X, Res)
-    else
-        throw("Not programmed for xdim != 1 yet.")
     end
 end
 
@@ -565,17 +549,34 @@ function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCub
     ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), Xdomain; N=N, plot=plot, samples=samples)
 end
 
-function PlotConfidenceBands(M::AbstractMatrix)
-    size(M,2) != 3 && throw("Matrix dimensions inconsistent: $(size(M)).")
-    X = view(M,:,1);    low = view(M,:,2);      up = view(M,:,3)
-    col = rand([:red,:blue,:green,:orange,:grey])
-    # Plots.plot!(X, low; ribbon=(zeros(length(X)), up-low), linealpha=0, color=col, fillalpha=0.25, label="")
-    Plots.plot!(X, low; color=col, label="")
-    Plots.plot!(X, up; color=col, label="Conf. Band") |> display
+"""
+    ConfidenceBands(DM::DataModel, sol::ODESolution, Xdomain::HyperCube; N::Int=300, plot::Bool=true) -> Matrix
+Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain`
+by evaluating the model on the boundary of the confidence region.
+"""
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, Xdomain::HyperCube=XCube(DM);
+                            N::Int=300, plot::Bool=true, samples::Int=200)
+    ConfidenceBands(DM, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
 end
 
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
+    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
+    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+    # gradually refine Res for each solution to avoid having to allocate a huge list of points
+    for sol in sols
+        _ConfidenceBands!(Res, DM, map(sol, range(sol.t[1], sol.t[end]; length=samples)), woundX)
+    end
+    M = hcat(woundX, Res)
+    if plot
+        Confnum = round(GetConfnum(DM, sols[1]); sigdigits=2)
+        PlotConfidenceBands(DM, M; Confnum=Confnum)
+    end
+    return M
+end
+
+
 """
-ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=2.0)
+ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=1.5)
 """
 function ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=1.5)
     higherConfnum = Confnum + add
@@ -589,35 +590,46 @@ end
 Computes confidence bands associated with the face centers of the `ParameterCube`.
 If the `ParameterCube` circumscribes a given confidence region, this will typically result in a gross and asymmetric overestimation of the true pointwise confidence bands associated with this confidence level.
 """
-function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain=XCube(DM); N::Int=300, plot::Bool=true)
+function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
     length(Xdomain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
-    if xdim(DM) == 1
-        X = range(Xdomain.L[1], Xdomain.U[1]; length=N)
-        Res = Array{Float64,2}(undef, N, 2*ydim(DM))
+    ConfidenceBands(DM, ParameterCube, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot)
+end
+
+function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, woundX::AbstractVector{<:Number}; plot::Bool=true)
+    ConfidenceBands(DM, FaceCenters(ParameterCube), woundX; plot=plot)
+end
+
+# Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
+function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true)
+    xdim(DM) != 1 && throw("Not programmed for xdim != 1 yet.")
+    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
+    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+    _ConfidenceBands!(Res, DM, points, woundX)
+    M = hcat(woundX, Res)
+    if plot
+        Confnum = round(GetConfnum(DM, points[1]); sigdigits=2)
+        PlotConfidenceBands(DM, M; Confnum=Confnum)
+    end
+    return M
+end
+
+# Does the computations
+function _ConfidenceBands!(Res::AbstractMatrix, DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number})
+    @assert pdim(DM) == ConsistentElDims(points)
+    xdim(DM) != 1 && throw("Not programmed for xdim != 1 yet.")
+    @assert size(Res) == (length(woundX), 2ydim(DM))
+    # BELOW LOOP WILL NOT WORK FOR CompositeDataSet!!!!!!
+    @assert Data(DM) isa DataSet || Data(DM) isa DataSetExact
+    for point in points
+        # Do it like this to exploit CustomEmbeddings
+        Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), point, woundX), ydim(DM)) |> Unpack
         for col in 1:2:2ydim(DM)
-            fill!(view(Res,:,col), Inf)
-            fill!(view(Res,:,col+1), -Inf)
-        end
-        for point in FaceCenters(ParameterCube)
-            # Do it like this to exploit CustomEmbeddings
-            # WILL NOT WORK FOR CompositeDataSet!!!!!!
-            Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), point, X), ydim(DM)) |> Unpack
-            for col in 1:2:2ydim(DM)
-                Ycol = Int(ceil(col/2))
-                for row in 1:size(Res,1)
-                    Res[row, col] = min(Res[row, col], Y[row,Ycol])
-                    Res[row, col+1] = max(Res[row, col+1], Y[row,Ycol])
-                end
+            Ycol = Int(ceil(col/2))
+            for row in 1:size(Res,1)
+                Res[row, col] = min(Res[row, col], Y[row,Ycol])
+                Res[row, col+1] = max(Res[row, col+1], Y[row,Ycol])
             end
         end
-        if plot
-            for col in 1:2:2ydim(DM)
-                PlotConfidenceBands(hcat(X,view(Res,:,col:col+1)))
-            end
-        end
-        return hcat(X, Res)
-    else
-        throw("Not programmed for xdim != 1 yet.")
     end
 end
 

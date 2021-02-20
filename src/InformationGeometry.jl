@@ -37,12 +37,12 @@ using TreeViews
 # Employ MultistartOptimization for obtaining the MLE.
 # Try to recognize which components of θ are inside an exponential such that `log` leads to linear parametrization -> i.e. compare EmbeddingMatrices
 # Add GeneralProductDistribution to master
+# Implement Karcher mean
 
 #### Cosmetic / Convenience
 
 # Custom type for confidence boundaries?
 # Use try catch; to recognize automatically when solution runs into chart boundary.
-# Redo DataSet constructors to allow matrix inputs
 # Show distribution types for DataSetExact
 # Infer variable names from DataFrames
 # Save Symbolic Expressions for models (if available) and display them
@@ -188,7 +188,7 @@ export GetModel, Optimize, OptimizedDM, PrintModel
 include("Plotting.jl")
 export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
-export ConfidenceBands, ApproxConfidenceBands, PlotMatrix
+export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 

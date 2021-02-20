@@ -111,8 +111,9 @@ function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
     try  model(X,P)   catch Err
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
-    !(size(model(X,P),1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
-    !(model(X,P) isa SVector) && (1 < ydim(DS) < 90) && @warn "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
+    out = model(X,P)
+    !(size(out,1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
+    !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return
 end
 
