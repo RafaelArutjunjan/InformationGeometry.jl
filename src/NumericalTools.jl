@@ -56,15 +56,17 @@ function GetMethod(tol::Real)
     end
 end
 
-function PromoteStatic(X::AbstractArray, inplace::Bool=true)
-    if length(X) > 90
-        return X
-    elseif inplace
-        return typeof(X) <: AbstractVector ? MVector{length(X)}(X) : MArray{Tuple{size(X)...}}(X)
-    else
-        return typeof(X) <: AbstractVector ? SVector{length(X)}(X) : SArray{Tuple{size(X)...}}(X)
-    end
-end
+# Check for length
+PromoteStatic(X::AbstractArray, inplace::Bool=true) = length(X) > 90 ? X : PromoteStatic(X, Val(inplace))
+
+# No checking for length
+PromoteStatic(X::AbstractArray, mutable::Val{true}) = _PromoteMutable(X)
+PromoteStatic(X::AbstractArray, mutable::Val{false}) = _PromoteStatic(X)
+
+_PromoteMutable(X::AbstractVector) = MVector{length(X)}(X)
+_PromoteMutable(X::AbstractArray) = MArray{Tuple{size(X)...}}(X)
+_PromoteStatic(X::AbstractVector) = SVector{length(X)}(X)
+_PromoteStatic(X::AbstractArray) = SArray{Tuple{size(X)...}}(X)
 
 
 """

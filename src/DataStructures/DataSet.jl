@@ -50,10 +50,11 @@ struct DataSet <: AbstractDataSet
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
         DataSet(ToCols(convert(Matrix,DF))...)
     end
-    function DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.)
+    function DataSet(x::AbstractArray, y::AbstractArray)
         println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
-        DataSet(x, y, allsigmas*ones(size(y,1)*length(y[1])))
+        DataSet(x, y, 1.0)
     end
+    DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])))
     # Also make a fancy version for DataFrames that infers the variable names?
     function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)).")
