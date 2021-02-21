@@ -559,6 +559,13 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     ConfidenceBands(DM, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
 end
 
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:ODESolution}}, woundX; N::Int=300, plot::Bool=true, samples::Int=200)
+    ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
+end
+function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
+    ConfidenceBands(DM, Planes, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
+end
+
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:ODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
@@ -569,6 +576,22 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     M = hcat(woundX, Res)
     if plot
         Confnum = round(GetConfnum(DM, sols[1]); sigdigits=2)
+        PlotConfidenceBands(DM, M; Confnum=Confnum)
+    end
+    return M
+end
+
+function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
+    @assert length(Planes) == length(sols)
+    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
+    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+    # gradually refine Res for each solution to avoid having to allocate a huge list of points
+    for i in 1:length(sols)
+        _ConfidenceBands!(Res, DM, map(x->PlaneCoordinates(Planes[i], sols[i](x)), range(sols[i].t[1], sols[i].t[end]; length=samples)), woundX)
+    end
+    M = hcat(woundX, Res)
+    if plot
+        Confnum = round(GetConfnum(DM, PlaneCoordinates(Planes[1], sols[1].u[1])); sigdigits=2)
         PlotConfidenceBands(DM, M; Confnum=Confnum)
     end
     return M
@@ -592,7 +615,7 @@ If the `ParameterCube` circumscribes a given confidence region, this will typica
 """
 function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
     length(Xdomain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
-    ConfidenceBands(DM, ParameterCube, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot)
+    ApproxConfidenceBands(DM, ParameterCube, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot)
 end
 
 function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, woundX::AbstractVector{<:Number}; plot::Bool=true)

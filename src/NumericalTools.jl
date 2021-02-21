@@ -63,10 +63,10 @@ PromoteStatic(X::AbstractArray, inplace::Bool=true) = length(X) > 90 ? X : Promo
 PromoteStatic(X::AbstractArray, mutable::Val{true}) = _PromoteMutable(X)
 PromoteStatic(X::AbstractArray, mutable::Val{false}) = _PromoteStatic(X)
 
-_PromoteMutable(X::AbstractVector) = MVector{length(X)}(X)
-_PromoteMutable(X::AbstractArray) = MArray{Tuple{size(X)...}}(X)
-_PromoteStatic(X::AbstractVector) = SVector{length(X)}(X)
-_PromoteStatic(X::AbstractArray) = SArray{Tuple{size(X)...}}(X)
+_PromoteMutable(X::AbstractVector, Length=length(X)) = MVector{Length}(X)
+_PromoteMutable(X::AbstractArray, Size=size(X)) = MArray{Tuple{Size...}}(X)
+_PromoteStatic(X::AbstractVector, Length=length(X)) = SVector{Length}(X)
+_PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
 
 """

@@ -105,7 +105,7 @@ export PositiveDomain, NegativeDomain, FullDomain, rand
 
 
 include("ModelMaps.jl")
-export ModelMap, ModelOrFunction
+export ModelMap, ModelOrFunction, InformNames
 export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
 
