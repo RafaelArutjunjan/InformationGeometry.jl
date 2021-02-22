@@ -20,7 +20,7 @@ logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
 import Distributions: gradlogpdf
-gradlogpdf(P::Cauchy,x::Number) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
+gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
 gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
 
 

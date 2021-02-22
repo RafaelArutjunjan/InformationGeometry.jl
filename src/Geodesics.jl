@@ -34,15 +34,15 @@ end
 
 
 """
-    GeodesicLength(DM::DataModel,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
-    GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(DM::DataModel,sol::AbstractODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
+    GeodesicLength(Metric::Function,sol::AbstractODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol=1e-14)
 Calculates the length of a geodesic `sol` using the `Metric` up to parameter value `Endrange`.
 ```math
 L[\\gamma] \\coloneqq \\int_a^b \\mathrm{d} t \\, \\sqrt{g_{\\gamma(t)} \\big(\\dot{\\gamma}(t), \\dot{\\gamma}(t)\\big)}
 ```
 """
-GeodesicLength(DM::AbstractDataModel,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
-function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14)
+GeodesicLength(DM::AbstractDataModel,sol::AbstractODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14) = GeodesicLength(x->FisherMetric(DM,x),sol,Endrange; fullSol=fullSol, tol=tol)
+function GeodesicLength(Metric::Function,sol::AbstractODESolution, Endrange::Number=sol.t[end]; fullSol::Bool=false, tol::Real=1e-14)
     # GET RID OF ENDRANGE PARAMETER?
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
@@ -53,10 +53,10 @@ function GeodesicLength(Metric::Function,sol::ODESolution, Endrange::Number=sol.
 end
 
 """
-    GeodesicCrossing(DM::DataModel,sol::ODESolution,Conf::Real=ConfVol(1); tol=1e-15)
+    GeodesicCrossing(DM::DataModel,sol::AbstractODESolution,Conf::Real=ConfVol(1); tol=1e-15)
 Gives the parameter value of the geodesic `sol` at which the confidence level `Conf` is crossed.
 """
-function GeodesicCrossing(DM::AbstractDataModel,sol::ODESolution,Conf::Real=ConfVol(1); tol::Real=1e-15)
+function GeodesicCrossing(DM::AbstractDataModel,sol::AbstractODESolution,Conf::Real=ConfVol(1); tol::Real=1e-15)
     start = sol.t[end]/2
     if (tol < 1e-15)
         start *= one(BigFloat)
@@ -69,10 +69,10 @@ end
 
 
 """
-    DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Number; tol=1e-14)
+    DistanceAlongGeodesic(Metric::Function,sol::AbstractODESolution,L::Number; tol=1e-14)
 Calculates at which parameter value of the geodesic `sol` the length `L` is reached.
 """
-function DistanceAlongGeodesic(Metric::Function,sol::ODESolution,L::Number; tol::Real=1e-14)
+function DistanceAlongGeodesic(Metric::Function,sol::AbstractODESolution,L::Number; tol::Real=1e-14)
     L < 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
     # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], fullSol=true, tol=tol)
@@ -83,7 +83,7 @@ end
 
 
 # Input Array of Geodesics, Output Array of its endpoints
-function Endpoints(Geodesics::Vector{<:ODESolution})
+function Endpoints(Geodesics::Vector{<:AbstractODESolution})
     Endpoints = Vector{Vector{Float64}}(undef,0)
     Number = Int(length(Geodesics[1].u[1])/2)
     for Curve in Geodesics
@@ -93,11 +93,11 @@ function Endpoints(Geodesics::Vector{<:ODESolution})
 end
 
 """
-    EvaluateEach(geos::Vector{<:ODESolution}, Ts::Vector) -> Vector
+    EvaluateEach(geos::Vector{<:AbstractODESolution}, Ts::Vector) -> Vector
 Evalues a family `geos` of geodesics on a set of parameters `Ts`. `geos[1]` is evaluated at `Ts[1]`, `geos[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
-function EvaluateEach(sols::Vector{<:ODESolution}, Ts::AbstractVector{<:Number})
+function EvaluateEach(sols::Vector{<:AbstractODESolution}, Ts::AbstractVector{<:Number})
     length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
     n = Int(length(sols[1].u[1])/2)
     Res = Vector{Vector{Float64}}(undef,0)
@@ -110,12 +110,12 @@ end
 
 
 # """
-#     Truncated(sol::ODESolution) -> Function
+#     Truncated(sol::AbstractODESolution) -> Function
 # Given a geodesic `sol`, the second half of the components which represent the velocity are truncated off.
 # The result gives the position of the geodesic as a function of the parameter.
 # However, since it is no longer of type `ODESolution`, one no longer has access to the fields `sol.t`, `sol.u` and so on.
 # """
-# Truncated(sol::ODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
+# Truncated(sol::AbstractODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
 
 
 ################################################################ MERGE THESE FUNCTION VARIATIONS
@@ -233,9 +233,9 @@ function GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::Abstra
     GeodesicLength(Metric,GeodesicBetween(Metric,P,Q; tol=tol))
 end
 
-ParamVol(sol::ODESolution) = sol.t[end] - sol.t[1]
-GeodesicEnergy(DM::DataModel,sol::ODESolution,Endrange::Number=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
-function GeodesicEnergy(Metric::Function,sol::ODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol::Real=1e-14)
+ParamVol(sol::AbstractODESolution) = sol.t[end] - sol.t[1]
+GeodesicEnergy(DM::DataModel,sol::AbstractODESolution,Endrange::Number=sol.t[end];fullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
+function GeodesicEnergy(Metric::Function,sol::AbstractODESolution,Endrange=sol.t[end]; fullSol::Bool=false,tol::Real=1e-14)
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
         FullGamma = sol(t)

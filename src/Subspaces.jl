@@ -219,12 +219,15 @@ Returns a `HyperCube` which encloses the extrema of the columns of the input mat
 """
 ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
-ConstructCube(PL::Plane, sol::ODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
+ConstructCube(PL::Plane, sol::AbstractODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
 
 
 # Could speed this up by just using the points in sol.u without interpolation.
-function ConstructCube(sol::ODESolution, Npoints::Int=200; Padding::Number=0.)
+function ConstructCube(sol::AbstractODESolution, Npoints::Int=200; Padding::Number=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
+end
+function ConstructCube(sols::Vector{<:AbstractODESolution}, Npoints::Int=200; Padding::Number=0.)
+    mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)
 end
 
 """

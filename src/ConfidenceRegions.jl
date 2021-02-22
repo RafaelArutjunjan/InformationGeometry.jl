@@ -321,12 +321,12 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
 end
 
 
-IsStructurallyIdentifiable(DM::AbstractDataModel, sol::ODESolution; kwargs...)::Bool = length(StructurallyIdentifiable(DM,sol; kwargs...)) == 0
+IsStructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiable(DM,sol; kwargs...)) == 0
 
-function StructurallyIdentifiable(DM::AbstractDataModel, sol::ODESolution; kwargs...)
+function StructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
     find_zeros(t->GeometricDensity(DM,sol(t); kwargs...), sol.t[1], sol.t[end])
 end
-function StructurallyIdentifiable(DM::AbstractDataModel, sols::Vector{<:ODESolution}; parallel::Bool=false, kwargs...)
+function StructurallyIdentifiable(DM::AbstractDataModel, sols::Vector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
     parallel ? pmap(x->StructurallyIdentifiable(DM,x; kwargs...), sols) : map(x->StructurallyIdentifiable(DM,x; kwargs...), sols)
 end
 
@@ -453,7 +453,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 
 
 
-# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution, N::Int=Int(1e5); WE::Bool=false, kwargs...)
+# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution, N::Int=Int(1e5); WE::Bool=false, kwargs...)
 #     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
 #     LogLikeBoundary = likelihood(DM,sol(0); kwargs...)
 #     Cube = ConstructCube(sol; Padding=1e-5)
@@ -463,7 +463,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 #     MonteCarloArea(Test,Cube,N; WE=WE)
 # end
 # """
-#     ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e7), WE::Bool=true) -> Real
+#     ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e7), WE::Bool=true) -> Real
 # Approximates confidence region using the polygon constituted by the nodes of a planar `ODESolution` which follows the confidence boundary.
 # The coordinate-invariant volume of the confidence region is then computed by integrating the geometric density factor over this polygon via Monte Carlo.
 #
@@ -471,7 +471,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 # `N`: Number of samples for Monte Carlo integration.
 # `WE=true` will also quantify the estimated uncertainty in the computed value for the volume.
 # """
-# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
 #     @assert pdim(DM) == length(sol.u[1]) == 2
 #     # No need to even compute Confnum here.
 #     Domain = ConstructCube(sol; Padding=1e-2)
@@ -479,7 +479,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 #     # Use HCubature instead of MonteCarlo
 #     MonteCarloArea(Integrand, Domain, N; WE=WE)
 # end
-# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; N::Int=Int(1e5), WE::Bool=true)
+# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; N::Int=Int(1e5), WE::Bool=true)
 #     @assert pdim(DM) == length(Planes[1])
 #     throw("Implementation not finished yet.")
 #     ######## USE ProfileLikelihood for box here
@@ -499,7 +499,7 @@ GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sq
 #     end
 # end
 #
-# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
 #     ConfidenceRegionVolume(DM, ConstructCube(sol; Padding=1e-2), GetConfnum(DM, sol); N=N, WE=WE, kwargs...)
 # end
 #
@@ -533,7 +533,7 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int
         return IntegrateOverConfidenceRegion(DM, Domain, Confnum, z->GeometricDensity(DM,z; kwargs...); N=N, WE=WE, kwargs...)
     end
 end
-function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     @assert pdim(DM) == length(sol.u[1]) == 2
     Domain = ConstructCube(sol; Padding=1e-2)
     if Approx
@@ -542,10 +542,10 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=
         IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE, kwargs...)
     end
 end
-function ConfidenceRegionVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:ODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     ConfidenceRegionVolume(DM, Tup[1], Tup[2]; N=N, WE=WE, Approx=Approx, kwargs...)
 end
-function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
         IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE)
@@ -575,7 +575,7 @@ function CoordinateVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5),
         return IntegrateOverConfidenceRegion(DM, Domain, Confnum, z->one(suff(z)); N=N, WE=WE, kwargs...)
     end
 end
-function CoordinateVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function CoordinateVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     @assert pdim(DM) == length(sol.u[1]) == 2
     Domain = ConstructCube(sol; Padding=1e-2)
     if Approx
@@ -584,10 +584,10 @@ function CoordinateVolume(DM::AbstractDataModel, sol::ODESolution; N::Int=Int(1e
         IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), z->one(suff(z)); N=N, WE=WE, kwargs...)
     end
 end
-function CoordinateVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:ODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function CoordinateVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     CoordinateVolume(DM, Tup[1], Tup[2]; N=N, WE=WE, Approx=Approx, kwargs...)
 end
-function CoordinateVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function CoordinateVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
         IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->one(suff(z)); N=N, WE=WE)
@@ -921,9 +921,9 @@ end
 Blazingly fast approximative test whether a point lies within the polygon defined by the base points of a 2D ODESolution.
 Especially well-suited for hypothesis testing once a confidence boundary has been explicitly computed.
 """
-ApproxInRegion(sol::ODESolution, p::AbstractVector{<:Number}) = isinside(p, sol.u)
+ApproxInRegion(sol::AbstractODESolution, p::AbstractVector{<:Number}) = isinside(p, sol.u)
 
-function ApproxInRegion(Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, p::AbstractVector{<:Number})
+function ApproxInRegion(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, p::AbstractVector{<:Number})
     !(ConsistentElDims(Planes) == length(p) == 3) && throw("ApproxInRegion: Cannot determine for length(p) > 3.")      # Unclear how to do this for higher dimensions.
     @assert length(Planes) == length(sols) && all(x->length(x.u[1])==2, sols)
     # Assuming all planes parallel
@@ -935,25 +935,25 @@ end
 
 
 struct ConfidenceBoundary
-    sols::Vector{<:ODESolution}
+    sols::Vector{<:AbstractODESolution}
     Confnum::Real
     MLE::AbstractVector{<:Number}
     pnames::Vector{String}
 end
 
 GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = InvConfVol(ChisqCDF(length(θ), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
-GetConfnum(DM::AbstractDataModel, sol::ODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
-GetConfnum(DM::AbstractDataModel, PL::Plane, sol::ODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
+GetConfnum(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
+GetConfnum(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
 
-function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}; kwargs...)
+function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; kwargs...)
     Nums = [GetConfnum(DM, Planes[i], sols[i]; kwargs...) for i in eachindex(Planes)]
     mean = sum(Nums) / length(Nums)
     !all(x->abs(x-mean) < 1e-5, Nums) && @warn "High Variance in given Confnums, continuing anyway with arithmetic mean."
     return mean
 end
 
-ConfidenceBoundary(DM::AbstractDataModel, PL::Plane, sol::ODESolution) = ConfidenceBoundary(DM, [PL], [sol])
-function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution})
+ConfidenceBoundary(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution) = ConfidenceBoundary(DM, [PL], [sol])
+function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution})
     @assert length(Planes) == length(sols)
     AmbientDim = length(Planes[1])
     !all(x->length(x)==AmbientDim, Planes) && throw("Inconsistent Planes.")
@@ -961,14 +961,14 @@ function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols
     ConfidenceBoundary([ConstructAmbientSolution(Planes[i], sols[i]) for i in eachindex(Planes)], GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
 end
 
-function isplanar(sol::ODESolution)::Bool
+function isplanar(sol::AbstractODESolution)::Bool
     p1 = sol.u[1];      p2 = sol.u[Int(ceil(length(sol.t)/3))];     p3 = sol.u[Int(ceil(2length(sol.t)/3))]
     PL = Plane(p1, p2-p1, Make2ndOrthogonal(p2-p1,p3-p1));    all(x->DistanceToPlane(PL,x) < 1e-12, sol.u)
 end
 
 GetPlane(CB::ConfidenceBoundary) = GetPlane(CB.sols[1], CB.MLE)
-GetPlane(DM::AbstractDataModel, sol::ODESolution) = GetPlane(sol, MLE(DM))
-# function GetPlane(sol::ODESolution, MLE::AbstractVector{<:Number})
+GetPlane(DM::AbstractDataModel, sol::AbstractODESolution) = GetPlane(sol, MLE(DM))
+# function GetPlane(sol::AbstractODESolution, MLE::AbstractVector{<:Number})
 #     @assert isplanar(sol)
 #     # Assuming that the initial point was located at [a,0,0...,0] relative to MLE
 #     # return sol, MLE

@@ -6,11 +6,14 @@ module InformationGeometry
 using LinearAlgebra, Random, Distributions, DataFrames
 
 using Distributed, StaticArrays, SparseArrays
-using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq, ModelingToolkit, DataInterpolations
+using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
+using ModelingToolkit, DataInterpolations
 using ForwardDiff, BenchmarkTools, LsqFit, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using RecipesBase, Plots, Optim
 using TreeViews
+
+import SciMLBase: AbstractODESolution
 
 
 ############## TODOs ##############

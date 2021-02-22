@@ -185,21 +185,21 @@ function IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube,
 end
 
 """
-    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::ODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::AbstractODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
 Integrates a function `F` over the intersection of `Domain` and the polygon defined by `sol`.
 """
-function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::ODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::AbstractODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM) == length(sol.u[1]) == 2
     Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(sol, X) ? F(X) : zero(suff(X))
     # Use HCubature instead of MonteCarlo
     MonteCarloArea(Integrand, Domain, N; WE=WE)
 end
 
-function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:ODESolution}}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     IntegrateOverApproxConfidenceRegion(DM, Domain, Tup[1], Tup[2], F; N=N, WE=WE, kwargs...)
 end
-function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:ODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM) == ConsistentElDims(Planes)
     @assert length(Planes) == length(sols)
     Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? F(X) : zero(suff(X))
