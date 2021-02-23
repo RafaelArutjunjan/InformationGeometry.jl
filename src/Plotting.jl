@@ -16,10 +16,10 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
         seriescolor -->     :red
         linestyle -->       :solid
     end
+    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)); sigdigits=3)
     label -->   if ydim(DM) == 1
-        "Fit with RSE≈$(round(ResidualStandardError(DM, MLE), sigdigits=3))"
+        "Fit with RSE≈$(RSEs[1])"
     else
-        RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)), sigdigits=3)
         reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
     end
     Xbounds = extrema(xdata(DM))
