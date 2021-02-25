@@ -315,7 +315,7 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
     else
         # println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM, Confnum)
-        Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N)
+        Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N, tol=tol)
         return Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel)
     end
 end
@@ -450,68 +450,6 @@ Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\math
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = GeometricDensity(Data(DM), dPredictor(DM), θ; kwargs...)
 GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
-
-
-
-# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution, N::Int=Int(1e5); WE::Bool=false, kwargs...)
-#     length(sol.u[1]) != 2 && throw("Not Programmed for dim > 2 yet.")
-#     LogLikeBoundary = likelihood(DM,sol(0); kwargs...)
-#     Cube = ConstructCube(sol; Padding=1e-5)
-#     # Indicator function for Integral, USE HCubature INSTEAD OF MONTECARLO
-#     InsideRegion(X::AbstractVector{<:Number})::Bool = loglikelihood(DM,X; kwargs...) < LogLikeBoundary
-#     Test(X::AbstractVector) = InsideRegion(X) ? GeometricDensity(DM,X; kwargs...) : zero(suff(X))
-#     MonteCarloArea(Test,Cube,N; WE=WE)
-# end
-# """
-#     ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e7), WE::Bool=true) -> Real
-# Approximates confidence region using the polygon constituted by the nodes of a planar `ODESolution` which follows the confidence boundary.
-# The coordinate-invariant volume of the confidence region is then computed by integrating the geometric density factor over this polygon via Monte Carlo.
-#
-# Keywords:
-# `N`: Number of samples for Monte Carlo integration.
-# `WE=true` will also quantify the estimated uncertainty in the computed value for the volume.
-# """
-# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-#     @assert pdim(DM) == length(sol.u[1]) == 2
-#     # No need to even compute Confnum here.
-#     Domain = ConstructCube(sol; Padding=1e-2)
-#     Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(sol, X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
-#     # Use HCubature instead of MonteCarlo
-#     MonteCarloArea(Integrand, Domain, N; WE=WE)
-# end
-# function ApproxConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; N::Int=Int(1e5), WE::Bool=true)
-#     @assert pdim(DM) == length(Planes[1])
-#     throw("Implementation not finished yet.")
-#     ######## USE ProfileLikelihood for box here
-#     Domain = ConstructCube(sol; Padding=1e-2)
-#     Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
-#     # Use HCubature instead of MonteCarlo
-#     MonteCarloArea(Integrand, Domain, N; WE=WE)
-# end
-#
-# function ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-#     if pdim(DM) == 2
-#         return ConfidenceRegionVolume(DM, ConstructCube(ConfidenceRegion(DM, Confnum; tol=1e-6); Padding=1e-2), Confnum; N=N, WE=WE, kwargs...)
-#     else
-#         throw("Not done yet.")
-#         Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM,Confnum+2; plot=false)), Confnum)
-#         return
-#     end
-# end
-#
-# function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-#     ConfidenceRegionVolume(DM, ConstructCube(sol; Padding=1e-2), GetConfnum(DM, sol); N=N, WE=WE, kwargs...)
-# end
-#
-# function ConfidenceRegionVolume(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-#     @assert length(Domain) == pdim(DM)
-#     # -2(ℓ - ℓ_MLE) < quantile  --->    ℓ > ℓ_MLE - 0.5quantile
-#     Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
-#     InsideRegion(X::AbstractVector{<:Number}) = loglikelihood(DM, X; kwargs...) > Threshold
-#     Integrand(X::AbstractVector{<:Number}) = InsideRegion(X) ? GeometricDensity(DM, X; kwargs...) : zero(suff(X))
-#     # Use HCubature instead of MonteCarlo
-#     MonteCarloArea(Integrand, Domain, N; WE=WE)
-# end
 
 
 """
@@ -796,26 +734,30 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real
 end
 
 
-function Prune(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.)
+function Prune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
     CF = ConfVol(Confnum)
-    while length(Planes) > 0
-        !WilksTest(DM, PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1])), CF) ? popfirst!(Planes) : break
+    Planes = copy(Pls)
+    while length(Planes) > 2
+        !WilksTest(DM, PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1];tol=tol)), CF) ? popfirst!(Planes) : break
     end
-    while length(Planes) > 0
-        !WilksTest(DM, PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end])), CF) ? pop!(Planes) : break
-    end;    Planes
+    while length(Planes) > 2
+        !WilksTest(DM, PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end];tol=tol)), CF) ? pop!(Planes) : break
+    end
+    length(Planes) == 2 && throw("For some reason, all Planes were pruned away?!")
+    return Planes
 end
 
-function AntiPrune(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.)
+function AntiPrune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
+    Planes = copy(Pls)
     length(Planes) < 2 && throw("Not enough Planes to infer translation direction.")
     CF = ConfVol(Confnum)
     while true
         TestPlane = Shift(Planes[2], Planes[1])
-        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)), CF) ? pushfirst!(Planes,TestPlane) : break
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? pushfirst!(Planes,TestPlane) : break
     end
     while true
         TestPlane = Shift(Planes[end-1], Planes[end])
-        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane)), CF) ? push!(Planes,TestPlane) : break
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? push!(Planes,TestPlane) : break
     end;    Planes
 end
 
@@ -837,11 +779,11 @@ They are separated in the direction of the basis vector associated with the thir
 The keyword `N` can be used to approximately control the number of planes which are returned.
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
-function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3))
+function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3), tol::Real=1e-8)
     (!allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
     PL = Plane(Center(Cube), BasisVector(Dirs[1],pdim(DM)), BasisVector(Dirs[2],pdim(DM)))
     width = CubeWidths(Cube)[Dirs[3]]
-    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N)
+    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N, tol=tol)
 end
 
 """
@@ -849,10 +791,10 @@ end
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
-function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31)
+function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
-    AntiPrune(DM, Prune(DM,Planes,Confnum), Confnum)
+    AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
 end
 
 
@@ -871,6 +813,60 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end
 
+
+function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int)
+    @assert length(Planes) == length(sols)
+    @assert pdim(DM) == length(Planes[1])
+    @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
+
+    Project(p::AbstractVector{<:Number}, dir1::Int, dir2::Int) = SA[p[dir1], p[dir2]]
+
+    poly = map(x->Project(PlaneCoordinates(Planes[1],x), dir1, dir2), sols[1])
+    for i in 2:length(Planes)
+        poly = UnionPolygons(poly, map(x->Project(PlaneCoordinates(Planes[i],x), dir1, dir2), sols[i]))
+    end;    poly
+end
+
+function ToGeos(pointlist::AbstractVector{<:AbstractVector{<:Number}})
+    @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
+    text = "POLYGON(("
+    for point in pointlist
+        text *= "$(point[1]) $(point[2]),"
+    end
+    text *= "$(pointlist[1][1]) $(pointlist[1][2])" * "))"
+    LibGEOS.readgeom(text)
+end
+
+function UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}})
+    LibGEOS.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
+end
+UnionPolygons(p1::LibGEOS.AbstractPolygon, p2::LibGEOS.AbstractPolygon) = LibGEOS.union(p1,p2)
+
+function ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dir1::Int, dir2::Int)
+    @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
+    @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
+    mle = MLE(DM);      mle[[dir1,dir2]] .= 0.0
+    PL = Plane(mle, BasisVector(dir1,pdim(DM)), BasisVector(dir2, pdim(DM)))
+    map(x->PlaneCoordinates(PL,x), pointlist)
+end
+
+function ShadowTheatre(DM::AbstractDataModel, Confnum::Real=1, dirs::Tuple{<:Int,<:Int}=(1,2); tol::Real=1e-7, N::Int=50)
+    @assert (1 ≤ dirs[1] ≤ pdim(DM)) && (1 ≤ dirs[2] ≤ pdim(DM)) && dirs[1] != dirs[2] && pdim(DM) > 2
+    keep = trues(pdim(DM));     keep[dirs[1]] = false;      keep[dirs[2]] = false
+    translationdirs = collect(1:pdim(DM))[keep]
+
+    Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],translationdirs[1]))
+    list = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
+    if length(translationdirs) > 1
+        println(translationdirs)
+        for i in translationdirs[2:end]
+            Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],i))
+            list = UnionPolygons(list, CastShadow(DM, Planes, sols, dirs[1], dirs[2]))
+        end
+    end
+    # return list
+    ToAmbient(DM, list, dirs[1], dirs[2])
+end
 
 
 

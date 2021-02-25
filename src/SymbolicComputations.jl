@@ -228,7 +228,7 @@ function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false,
     X, Y, θ = SymbolicArguments(xyp)
 
     # Need to make sure that modelexpr is of type Vector{Num}, not just Num
-    modelexpr = xyp[2] == 1 ? [simplify(modelexpr)] : simplify(modelexpr)
+    modelexpr = xyp[2] == 1 ? [ModelingToolkit.simplify(modelexpr)] : ModelingToolkit.simplify(modelexpr)
     derivative = ModelingToolkit.jacobian(modelexpr, θ; simplify=true)
 
     ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)

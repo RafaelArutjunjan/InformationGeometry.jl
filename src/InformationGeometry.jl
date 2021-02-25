@@ -10,6 +10,7 @@ using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, DataInterpolations
 using ForwardDiff, BenchmarkTools, LsqFit, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
+using LibGEOS
 using RecipesBase, Plots, Optim
 using TreeViews
 
@@ -151,7 +152,7 @@ export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInform
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
 
-export ApproxInRegion
+export ApproxInRegion, ShadowTheatre
 
 
 
