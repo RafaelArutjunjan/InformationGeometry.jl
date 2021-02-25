@@ -5,8 +5,8 @@ Often, an explicit analytical expression for a given mathematical model is not k
 
 As a toy example, we will consider the well-known "SIR model" in the following, which groups a population into susceptible, infected and recovered subpopulations and assumes mass action kinetics with constant transmission and recovery rates to describe the growths and decays of the respective populations.
 
-While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) ecosystem offers many different ways of specifying such systems, we will use [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) since it is particularly convenient in this case.
-```@example 2
+While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) ecosystem offers many different ways of specifying such systems, we will use the syntax introduced by [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) since it is particularly convenient in this case.
+```@setup 2
 using InformationGeometry, ModelingToolkit
 @parameters t β γ
 @variables S(t) I(t) R(t)
@@ -18,7 +18,19 @@ SIReqs = [ Dt(S) ~ -β * I * S,
 
 SIRstates = [S, I, R];    SIRparams = [β, γ]
 SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
-nothing # hide
+```
+```julia
+using InformationGeometry, ModelingToolkit
+@parameters t β γ
+@variables S(t) I(t) R(t)
+Dt = Differential(t)
+
+SIReqs = [ Dt(S) ~ -β * I * S,
+        Dt(I) ~ +β * I * S - γ * I,
+        Dt(R) ~ +γ * I]
+
+SIRstates = [S, I, R];    SIRparams = [β, γ]
+SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
 ```
 Here, the parameter `β` denotes the transmission rate of the disease and `γ` is the recovery rate. Note that in the symbolic scheme of [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl), the equal sign is represented via `~`.
 

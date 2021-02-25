@@ -2,7 +2,7 @@
 ### Providing Datasets
 
 Typically, one of the most difficult parts of any data science problem is to bring the data into a form which lends itself to the subsequent analysis.
-This section aims to describe the containers used by **InformationGeometry.jl** to store datasets and models in detail.
+This section aims to describe the containers used by [**InformationGeometry.jl**](https://github.com/RafaelArutjunjan/InformationGeometry.jl) to store datasets and models in detail.
 
 The data itself is stored using the `DataSet` container.
 ```@docs
@@ -15,4 +15,4 @@ To complete the specification of an inference problem, a model function which is
 DataModel
 ```
 
-"Simple" `DataSet`s and `DataModel`s can be visualized directly via `plot(DM)` using pre-written recipes for the **Plots.jl** package.
+"Simple" `DataSet`s and `DataModel`s can be visualized directly via `plot(DM)` using pre-written recipes for the [**Plots.jl**](https://github.com/JuliaPlots/Plots.jl) package.

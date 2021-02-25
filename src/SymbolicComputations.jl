@@ -1,35 +1,34 @@
 
 
-
-function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:Int})
+"""
+    InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:Int})
+Copy the state names saved in `ODESystem` to `DS`.
+"""
+function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
     newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(sys.iv.name)] : xnames(DS)
     newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(sys.states[observables]) : ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
-
-function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction}, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)), args...;
-                tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
-    newDS = sys isa ODESystem ? InformNames(DS, sys, observables) : DS
+# No ObservationFunction, therefore try to use sys to infer state names of ODEsys
+function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction,Function}, u0::Union{AbstractArray{<:Number},Function},
+                        observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)), args...; tol::Real=1e-7,
+                        meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
+    newDS = (typeof(observables) <: AbstractVector{<:Int} && sys isa ODESystem) ? InformNames(DS, sys, observables) : DS
     DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
 end
 
-function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction}, u0::Union{AbstractArray{<:Number},Function}, ObservationFunction::Function, args...;
-                tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
-    DataModel(DS, GetModel(sys, u0, ObservationFunction; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
+function GetModel(func::Function, u0::Union{AbstractArray{<:Number},Function}, observables::Union{Function,AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+    GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 end
-
 
 # Allow option of passing Domain for parameters as keyword
 function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BitArray,Function}=collect(1:length(u0));
                 tol::Real=1e-7, Domain::Union{HyperCube,Bool}=false, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
-
-    if Model isa ModelMap
-        Model = Model.Map
-    end
-
+    if Model isa ModelMap       Model = Model.Map    end
     pnames = [string(x.name) for x in sys.ps]
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
@@ -47,23 +46,15 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
         # May well fail depending on how splitter function is implemented
         GetArgLength(u0)
     end
-
     xyp = (1, ylen, plen)
     Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
 
     pnames = plen - length(pnames) > 0 ? vcat(CreateSymbolNames(plen - length(pnames), "u"), pnames) : pnames
-
     # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     ModelMap(Model, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
-
-function GetModel(func::Function, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
-    GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
-end
-
-
+# Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
@@ -94,7 +85,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables
 end
 
 """
-`ObservationFunction` should be of the form `F(u,t) -> Vector`. Note that the time `t` MUST be passed as the second argument.
+`ObservationFunction` should be of the form `F(u,t) -> Vector`. Note that the independent variable, i.e. `t` MUST be passed as the second argument.
 """
 function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, ObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
@@ -120,9 +111,6 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, Observation
     end
     MakeCustom(Model, Domain)
 end
-
-
-SplitAfter(n::Int) = X->(X[1:n], X[n+1:end])
 
 """
 `SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a tuple whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.

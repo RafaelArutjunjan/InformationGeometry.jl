@@ -11,9 +11,9 @@ model(x::Number, θ::AbstractVector{<:Number}) = θ[1] * x + θ[2]
 DM = DataModel(DS, model)
 ```
 In cases where the output of the model has more than one component (i.e. `ydim > 1`), it is advisable to define the model function in such a way that it outputs static vectors using **StaticArrays.jl** for increased performance.
-For `ydim = 1`, **InformationGeometry.jl** expects the model to output a number instead of a vector with one component. In contrast, the parameter configuration `θ` must always be supplied as a vector.
+For `ydim = 1`, **InformationGeometry.jl** expects the model to output a number instead of a vector with one component. In contrast, the parameter configuration `θ` must always be supplied as a vector (even if it only has a single component).
 
-A starting value for the maximum likelihood estimation can be passed to the `DataModel` constructor by appending an appropriate vector, e.g.
+An initial guess for the maximum likelihood parameters can optionally be passed to the `DataModel` as a vector via
 ```julia
 DM = DataModel(DS, model, [1.0,2.5])
 ```

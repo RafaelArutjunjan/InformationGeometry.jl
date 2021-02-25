@@ -69,6 +69,10 @@ _PromoteStatic(X::AbstractVector, Length=length(X)) = SVector{Length}(X)
 _PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
 
+# Surely, this can be made more efficient?
+SplitAfter(n::Int) = X->(X[1:n], X[n+1:end])
+
+
 """
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` using Roots.jl. Ideally, `F` should be monotone and there should only be one correct result.

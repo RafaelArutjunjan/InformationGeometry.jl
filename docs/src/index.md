@@ -1,7 +1,7 @@
 
 # InformationGeometry
 
-This is the documentation of [**InformationGeometry.jl**](https://github.com/RafaelArutjunjan/InformationGeometry.jl), a Julia package for differential-geometric analyses of statistical problems.
+This is the documentation of [**InformationGeometry.jl**](https://github.com/RafaelArutjunjan/InformationGeometry.jl), a Julia package for differential-geometric analyses of parameter inference problems.
 
 | **Build Status** |
 |:----------------:|

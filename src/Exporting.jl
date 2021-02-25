@@ -35,6 +35,7 @@ end
 
 """
     SaveConfidence(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+    SaveConfidence(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
 Returns a `Matrix` of with `N` rows corresponding to the number of evaluations of each `ODESolution` in `sols`.
 The colums correspond to the various components of the evaluated solutions.
 E.g. for an `ODESolution` with 3 components, the 4. column in the `Matrix` corresponds to the evaluated first components of `sols[2]`.
@@ -75,7 +76,7 @@ Returns a `Matrix` of with `N` rows corresponding to the number of evaluations o
 The colums correspond to the various components of the evaluated solutions.
 Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
 """
-function SaveGeodesics(sols::Vector{<:AbstractODESolution},N::Int=500; sigdigits::Int=7,adaptive::Bool=true)
+function SaveGeodesics(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     d = length(sols[1].u[1])/2 |> Int;      Res = Array{Float64}(undef,N,d*length(sols))
     for (i,sol) in enumerate(sols)
         Res[:,((i-1)*d+1):(d*i)] = SaveGeodesics(sol, N; sigdigits=sigdigits, adaptive=adaptive)

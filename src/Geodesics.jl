@@ -2,7 +2,7 @@
 
 # tol = 6e-11
 function ComputeGeodesic(Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Number=50.;
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol))
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -28,7 +28,7 @@ Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process when it returns `true`.
 """
 function ComputeGeodesic(DM::AbstractDataModel,InitialPos::AbstractVector,InitialVel::AbstractVector, Endtime::Number=50.;
-                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+                                    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol))
     ComputeGeodesic(x->FisherMetric(DM,x),InitialPos,InitialVel, Endtime; Boundaries=Boundaries,tol=tol,meth=meth)
 end
 
@@ -146,7 +146,7 @@ function ConstLengthGeodesics(DM::AbstractDataModel,Metric::Function,MLE::Vector
 end
 
 
-function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,InitialVec::Vector,Conf::Real=ConfVol(1); tol::Real=6e-11, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,InitialVec::Vector,Conf::Real=ConfVol(1); tol::Real=6e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol))
     function GeodesicODE!(du,u,p,t)
         n = length(u)
         (n%2==1) && throw(ArgumentError("dim(u)=$n, should be even."))
@@ -205,8 +205,8 @@ end
     GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 """
-GeodesicBetween(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5()) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
-function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+GeodesicBetween(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol)) = GeodesicBetween(x->FisherMetric(DM,x),P,Q; tol=tol, meth=meth)
+function GeodesicBetween(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol))
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function GeodesicODE!(du,u,p,t)
@@ -261,7 +261,7 @@ function MBAMBoundaries(u,t,int,DM; componentlim = 1e3, singularlim = 1e-8)::Boo
     end
 end
 
-function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=Tsit5())
+function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol))
     InitialVel = normalize(LeastInformativeDirection(DM,MLE(DM)))
     if typeof(Boundaries) == Nothing
         MBAMboundary(u,t,int) = MBAMBoundaries(u,t,int,DM)

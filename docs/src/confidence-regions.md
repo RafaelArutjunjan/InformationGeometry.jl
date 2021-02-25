@@ -2,7 +2,7 @@
 ### Confidence Regions
 
 
-One of the primary goals of **InformationGeometry.jl** is to enable the user to investigate the relationships between different parameters in a model in detail by determining and visualizing the **exact** confidence regions associated with the best fit parameters. In this context, *exact* refers to the fact that no simplifying assumptions are made about the shape of the confidence regions.
+One of the primary goals of [**InformationGeometry.jl**](https://github.com/RafaelArutjunjan/InformationGeometry.jl) is to enable the user to investigate the relationships between different parameters in a model in detail by determining and visualizing the **exact** confidence regions associated with the best fit parameters. In this context, *exact* refers to the fact that no simplifying assumptions are made about the shape of the confidence regions.
 
 ```@setup 1
 using InformationGeometry, Plots; gr() # hide
@@ -14,7 +14,7 @@ DM = DataModel(DS, model)
 FittedPlot(DM)
 ```
 
-Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model shown above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect ellipses around the maximum likelihood estimate as expected:
+Depending on how the parameters ``\theta`` enter into the model, the shapes of confidence regions associated with the model may be distorted. For the linearly parametrized model ``y_\text{model}(x;\theta) = \theta_1 \cdot x + \theta_2`` from above, the ``1 \sigma`` and ``2 \sigma`` confidence regions form perfect ellipses around the maximum likelihood estimate as expected:
 ```@example 1
 sols = ConfidenceRegions(DM, 1:2; tol=1e-9)
 VisualizeSols(DM, sols)
@@ -49,10 +49,9 @@ Specifically in the case of two-dimensional parameter spaces as shown here, the 
 
 
 
-Both finding as well as visualizing exact confidence regions for models depending on more than two parameters (i.e. ``\mathrm{dim} \, \mathcal{M} > 2``) is more challenging from a technical perspective. For such models, it is only possible to visualize three-dimensional slices of the parameter space at a time.
+Both finding as well as visualizing exact confidence regions for models depending on more than two parameters (i.e. ``\mathrm{dim} \, \mathcal{M} > 2``) is more challenging from a technical perspective. For such models, it is clearly only possible to visualize three-dimensional slices of the parameter space at a time. The easiest way to achieve this is to intersect the confidence region with a family of 2D planes, in which the boundaries of the confidence region are computed using the 2D scheme.
 
-The easiest way to do this is to intersect the confidence region with a family of 2D planes, in which the boundaries of the
-The specific components of ``\theta`` to be visualized can be passed as a tuple to `ConfidenceRegion()` via the keyword argument `Dirs=(1,2,3)`.
+The specific components of ``\theta`` to be visualized can be passed as a tuple to `ConfidenceRegion()` via the keyword argument `Dirs=(1,2,3)`. Also, the keyword `N` can be used to (approximately) control the number of planes with which the confidence region of interest is intersected.
 
 ```@example 1
 DM3 = DataModel(DS, (x,θ)-> θ[1]^3 * x + exp(θ[1] + θ[2]) + θ[3] * sin(x))
