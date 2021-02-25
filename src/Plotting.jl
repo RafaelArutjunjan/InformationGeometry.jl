@@ -1,14 +1,12 @@
 
 
-RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-
-RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number})
+# RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
+RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector{<:Number}=xdata(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
-    # legendtitle --> "RSE ≈ $(round(ResidualStandardError(DM, MLE), sigdigits=3))"
-    xguide -->              xnames(DM)[1]
+    xguide -->              ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1]
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
     @series begin
-        Data(DM)
+        Data(DM), xpositions
     end
     markeralpha :=      0.
     linewidth -->       2
@@ -16,51 +14,69 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
         seriescolor -->     :red
         linestyle -->       :solid
     end
-    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)); sigdigits=3)
+    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE(DM))); sigdigits=3)
     label -->   if ydim(DM) == 1
         "Fit with RSE≈$(RSEs[1])"
-    else
+    elseif ydim(DM) ≤ Npoints(DM)
         reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
+    else
+        ""
     end
-    Xbounds = extrema(xdata(DM))
-    X = range(Xbounds[1], Xbounds[2]; length=500) |> collect
-    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE, X)
-    X, (ydim(DM) ==1 ? Y : Unpack(Windup(Y, ydim(DM))))
+    # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
+    X = if ydim(DM) ≤ Npoints(DM)
+        Xbounds = extrema(xdata(DM));    collect(range(Xbounds[1], Xbounds[2]; length=500))
+    else
+        xdata(DM)
+    end
+    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE(DM), X)
+    Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
+    if ydim(DM) ≤ Npoints(DM)
+        return X, Y
+    elseif xpositions != xdata(DM)
+        return xpositions, Y
+    else
+        return Y
+    end
 end
 
-RecipesBase.@recipe function f(DS::DataSet)
+RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    Σ_y = typeof(sigma(DS)) <: AbstractVector ? sigma(DS) : sqrt.(Diagonal(sigma(DS)).diag)
-    line -->                (:scatter, 0.8)
-    xguide -->              xnames(DS)[1]
-    yguide -->              (ydim(DS) ==1 ? ynames(DS)[1] : "Observations")
-    label -->               (ydim(DS) ==1 ? "Data" : reshape("Data: " .* ynames(DS), 1, ydim(DS)))
-    yerror -->              (ydim(DS) ==1 ? Σ_y : Unpack(Windup(Σ_y, ydim(DS))))
-    if ydim(DS) == 1
-        linecolor   -->         :blue
-        markercolor -->         :blue
-        markerstrokecolor -->   :blue
-    end
-    xdata(DS), (ydim(DS) ==1 ? ydata(DS) : Unpack(Windup(ydata(DS), ydim(DS))))
-end
-
-RecipesBase.@recipe function f(DS::DataSetExact)
-    xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    xdist(DS) isa InformationGeometry.Dirac && return DataSet(xdata(DS), ydata(DS), ysigma(DS), dims(DS))
-    Σ_x = typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    line -->                (:scatter, 0.8)
-    xguide -->              xnames(DS)[1]
-    yguide -->              (ydim(DS) ==1 ? ynames(DS)[1] : "Observations")
-    label -->               (ydim(DS) ==1 ? "Data" : reshape("Data: " .* ynames(DS), 1, ydim(DS)))
-    yerror -->              (ydim(DS) ==1 ? Σ_y : Unpack(Windup(Σ_y, ydim(DS))))
-    xerror -->              Σ_x
-    if ydim(DS) == 1
-        linecolor   -->         :blue
-        markercolor -->         :blue
-        markerstrokecolor -->   :blue
+    Σ_x = if DS isa DataSetExact
+        typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
+    else
+        nothing
     end
-    xdata(DS), (ydim(DS) ==1 ? ydata(DS) : Unpack(Windup(ydata(DS), ydim(DS))))
+    line -->                (:scatter, 0.8)
+    xguide -->              ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1]
+    yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
+    if ydim(DS) == 1
+        label --> "Data"
+        yerror --> Σ_y
+        xerror --> Σ_x
+    elseif ydim(DS) ≤ Npoints(DS)       # Series per y-component
+        label --> reshape("Data: " .* ynames(DS), 1, ydim(DS))
+        yerror --> Unpack(Windup(Σ_y, ydim(DS)))
+        xerror --> Σ_x
+    else                                # Series per x-component
+        # Use of xdata instead of xpositions deliberate here!
+        label --> reshape("Data for $(xnames(DS)[1])=" .* string.(round.(xdata(DS); sigdigits=3)), 1, length(xdata(DS)))
+        yerror --> transpose(Unpack(Windup(Σ_y, ydim(DS))))
+        # No way to incorporate errors in xpositions here....
+    end
+    Y = if ydim(DS) == 1
+        ydata(DS)
+    elseif ydim(DS) ≤ Npoints(DS)
+        Unpack(Windup(ydata(DS), ydim(DS)))
+    else
+        Unpack(Windup(ydata(DS), ydim(DS))) |> transpose
+    end
+    if ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
+        # Discard xpositions if xpositions == xdata but ydim > Npoints
+        return Y
+    else
+        return xpositions, Y
+    end
 end
 
 RecipesBase.@recipe function f(LU::HyperCube)
