@@ -59,6 +59,7 @@ end
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy] * v
+PlaneCoordinates(PL::Plane) = x->PlaneCoordinates(PL,x)
 
 Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 

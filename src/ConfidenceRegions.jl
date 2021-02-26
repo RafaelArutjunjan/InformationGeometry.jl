@@ -813,6 +813,8 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end
 
+
+CastShadow(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, args...) = CastShadow(DM, Tup[1], Tup[2], args...)
 CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}) = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
 function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int)
     @assert length(Planes) == length(sols)
@@ -843,7 +845,7 @@ ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Nu
 function ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dir1::Int, dir2::Int)
     @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
     @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
-    mle = MLE(DM);      mle[[dir1,dir2]] .= 0.0
+    mle = copy(MLE(DM));      mle[[dir1,dir2]] .= 0.0
     PL = Plane(mle, BasisVector(dir1,pdim(DM)), BasisVector(dir2, pdim(DM)))
     map(x->PlaneCoordinates(PL,x), pointlist)
 end
@@ -854,14 +856,13 @@ function ShadowTheatre(DM::AbstractDataModel, Confnum::Real=1, dirs::Tuple{<:Int
     translationdirs = collect(1:pdim(DM))[keep]
 
     Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],translationdirs[1]))
-    list = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
+    list = CastShadow(DM, Planes, sols, dirs)
     if length(translationdirs) > 1
         for i in translationdirs[2:end]
             Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],i))
-            list = UnionPolygons(list, CastShadow(DM, Planes, sols, dirs[1], dirs[2]))
+            list = UnionPolygons(list, CastShadow(DM, Planes, sols, dirs))
         end
     end
-    # return list
     ToAmbient(DM, list, dirs)
 end
 

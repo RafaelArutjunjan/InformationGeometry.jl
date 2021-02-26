@@ -334,15 +334,13 @@ function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
-
 function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int)
     M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
 end
 
 
-
-function TotalLeastSquares(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); tol::Real=1e-13, kwargs...)
-    TotalLeastSquares(Data(DM), Predictor(DM), initial; tol=tol, kwargs...)
+function TotalLeastSquares(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); tol::Real=1e-13, rescale::Bool=true, kwargs...)
+    TotalLeastSquares(Data(DM), Predictor(DM), initial; tol=tol, rescale=rescale, kwargs...)
 end
 
 """
@@ -350,7 +348,7 @@ end
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::Union{Nothing,AbstractVector{<:Number}}=nothing; tol::Real=1e-13, kwargs...)
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::Union{Nothing,AbstractVector{<:Number}}=nothing; tol::Real=1e-13, rescale::Bool=true, kwargs...)
     # Improve starting values by fitting normally with simple least squares
     initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, (initial == nothing ? GetStartP(DSE, model) : initial); tol=tol, kwargs...).param
     if xdist(DSE) isa InformationGeometry.Dirac
@@ -366,9 +364,10 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::U
     end
     u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE), ydata(DSE))
     f(p) = u * (predictY(p) - Ydata)
-    df(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p), xlen)
+    dfnormalized(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p), xlen)
+    df(p) = u * ForwardDiff.jacobian(predictY,p)
     p0 = vcat(xdata(DSE), initial)
-    R = LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
+    R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
     Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
 end

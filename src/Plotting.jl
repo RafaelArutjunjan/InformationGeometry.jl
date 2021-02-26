@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector{<:Number}=xdata(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector{<:Number}=xdata(DM), MLE::AbstractVector{<:Number}=MLE(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1]
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
@@ -14,13 +14,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector
         seriescolor -->     :red
         linestyle -->       :solid
     end
-    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE(DM))); sigdigits=3)
+    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)); sigdigits=3)
     label -->   if ydim(DM) == 1
         "Fit with RSE≈$(RSEs[1])"
     elseif ydim(DM) ≤ Npoints(DM)
         reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
     else
-        ""
+        reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
     end
     # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
     X = if ydim(DM) ≤ Npoints(DM)
@@ -28,7 +28,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector
     else
         xdata(DM)
     end
-    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE(DM), X)
+    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE, X)
     Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
     if ydim(DM) ≤ Npoints(DM)
         return X, Y
@@ -37,6 +37,10 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector
     else
         return Y
     end
+end
+function predictedY(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM))
+    Y = EmbeddingMap(Data(DM), Predictor(DM), θ, X)
+    ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
 end
 
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
