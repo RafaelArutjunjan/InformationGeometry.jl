@@ -813,7 +813,7 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto), Planes)
 end
 
-
+CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}) = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
 function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int)
     @assert length(Planes) == length(sols)
     @assert pdim(DM) == length(Planes[1])
@@ -836,12 +836,10 @@ function ToGeos(pointlist::AbstractVector{<:AbstractVector{<:Number}})
     text *= "$(pointlist[1][1]) $(pointlist[1][2])" * "))"
     LibGEOS.readgeom(text)
 end
-
-function UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}})
-    LibGEOS.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
-end
+UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}}) = LibGEOS.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
 UnionPolygons(p1::LibGEOS.AbstractPolygon, p2::LibGEOS.AbstractPolygon) = LibGEOS.union(p1,p2)
 
+ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dirs::Tuple{<:Int, <:Int}) = ToAmbient(DM, pointlist, dirs[1], dirs[2])
 function ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dir1::Int, dir2::Int)
     @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
     @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
@@ -858,14 +856,13 @@ function ShadowTheatre(DM::AbstractDataModel, Confnum::Real=1, dirs::Tuple{<:Int
     Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],translationdirs[1]))
     list = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
     if length(translationdirs) > 1
-        println(translationdirs)
         for i in translationdirs[2:end]
             Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],i))
             list = UnionPolygons(list, CastShadow(DM, Planes, sols, dirs[1], dirs[2]))
         end
     end
     # return list
-    ToAmbient(DM, list, dirs[1], dirs[2])
+    ToAmbient(DM, list, dirs)
 end
 
 
