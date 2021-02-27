@@ -129,4 +129,4 @@ function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolatio
     HyperCube(minimum.(crossings), maximum.(crossings); Padding=Padding)
 end
 ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=1; Padding::Real=0.) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding=Padding)
-ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=1) = ProfileBox(DM, ProfileLikelihood(DM, Confnum+add; plot=false), Confnum; Padding=Padding)
+ProfileBox(DM::AbstractDataModel, Confnum::Real; N::Int=50, Padding::Real=0., add::Real=1.5) = ProfileBox(DM, ProfileLikelihood(DM, Confnum+add; N=N, plot=false), Confnum; Padding=Padding)
