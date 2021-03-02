@@ -1,0 +1,238 @@
+
+
+ToDataVec(M::AbstractVector) = float.(M)
+ToDataVec(M::AbstractMatrix) = reduce(vcat, collect(eachrow(ToArray(M))))
+ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
+
+MyIntRange = Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}
+ToArray(df::AbstractVector{<:Real}) = df .|> float
+ToArray(df::AbstractMatrix) = size(df,2) == 1 ? float.(df[:,1]) : float.(df)
+ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, float.(df[:,1])) : convert(Matrix{suff(df)}, float.(df))
+function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
+    !all(x-> !ismissing(x), df) && throw("Input contains missing values.")
+    convert(Vector{suff(df[1])},float.(df))
+end
+
+
+function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
+    if xerrs
+        (size(df,2) != 2xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
+        Xcols = stripedXs ? (1:2:2xdims) : (1:xdims)
+        Xerrs = stripedXs ? (2:2:2xdims) : (xdims+1:2xdims)
+        Ycols = stripedYs ? ((2xdims+1):2:(2xdims + 2ydims)) : ((2xdims+1):(2xdims + ydims))
+        Yerrs = stripedYs ? ((2xdims+2):2:(2xdims + 2ydims)) : ((2xdims+ydims+1):(2xdims + 2ydims))
+    else
+        (size(df,2) != xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
+        Xcols = 1:xdims;        Xerrs = Val(false)
+        Ycols = stripedYs ? ((xdims+1):2:(xdims + 2ydims)) : ((xdims+1):(xdims + ydims))
+        Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
+    end
+    xnames = names(df[:,Xcols]);    ynames = names(df[:,Ycols])
+    println("Order of DataSets: $xnames $ynames.")
+    DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
+    InformNames(DSs, xnames, ynames)
+end
+
+function _ReadIn(df::DataFrame, xcols::MyIntRange, xerrs::MyIntRange, ycols::MyIntRange, yerrs::MyIntRange)
+    X = df[:, xcols];    Xerr = df[:, xerrs];   Y = df[:, ycols];    Yerr = df[:, yerrs]
+    DSs = Array{AbstractDataSet}(undef, size(Y,2))
+    for (i,Col) in enumerate(eachcol(Y))
+        inds = DitchMissingRows(X, Col)
+        DSs[i] = DataSetExact(ToDataVec(X[inds,:]), ToArray(Xerr[inds,:]), ToArray(Y[inds,:]), ToArray(Yerr[inds,:]), (sum(inds), size(X,2), 1))
+    end;    DSs
+end
+
+function _ReadIn(df::DataFrame, xcols::MyIntRange, xerrs::Val{false}, ycols::MyIntRange, yerrs::MyIntRange)
+    X = df[:, xcols];    Y = df[:, ycols];    Yerr = df[:, yerrs]
+    DSs = Array{AbstractDataSet}(undef, size(Y,2))
+    for (i,Col) in enumerate(eachcol(Y))
+        inds = DitchMissingRows(X, Col)
+        DSs[i] = DataSet(ToDataVec(X[inds,:]), ToArray(Y[inds,i]), ToArray(Yerr[inds,i]), (sum(inds), size(X,2), 1))
+    end;    DSs
+end
+
+
+DitchMissingRows(df1, df2) = hcat(df1, df2) |> DitchMissingRows
+DitchMissingRows(df) = DitchMissingRows(DataFrame(df, :auto))
+function DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})
+    inds = falses(size(df,1))
+    for i in eachindex(inds)
+        if !any(ismissing, df[i,:])
+            inds[i] = true
+        end
+    end;    inds
+end
+
+
+function SplitDS(DS::DataSet)
+    if typeof(ysigma(DS)) <: AbstractVector
+        return [DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+    else
+        return [DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+    end
+end
+function SplitDS(DS::DataSetExact)
+    if typeof(ysigma(DS)) <: AbstractVector
+        return [DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+    else
+
+        return [DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+    end
+end
+
+
+# Add Namelist of y-components to be able to look up order of columns
+"""
+The `CompositeDataSet` type is a more elaborate (and typically less performant) container for storing data.
+Essentially, it splits observed data which has multiple `y`-components into separate data containers (e.g. of type `DataSet`), each of which corresponds to one of the components of the `y`-data.
+Crucially, each of the smaller data containers still shares the same "kind" of `x`-data, that is, the same `xdim`, units and so on, although they do **not** need to share the exact same particular `x`-data.
+
+The main advantage of this approach is that it can be applied when there are `missing` `y`-components in some observations.
+A typical use case for `CompositeDataSet`s are time series where multiple quantities are tracked but not every quantity is necessarily recorded at each time step.
+Example:
+```julia
+using DataFrames
+t = [1,2,3,4]
+y₁ = [2.5, 6, missing, 9];      y₂ = [missing, 5, 3.1, 1.4]
+σ₁ = 0.3*ones(4);               σ₂ = [missing, 0.2, 0.1, 0.5]
+df = DataFrame([t y₁ σ₁ y₂ σ])
+
+xdim = 1;   ydim = 2
+CompositeDataSet(df, xdim, ydim; xerrs=false, stripedYs=true)
+```
+The boolean-valued keywords `stripedXs` and `stripedYs` can be used to indicate to the constructor whether the values and corresponding ``1\\sigma`` uncertainties are given in alternating order, or whether the initial block of `ydim` many columns are the values and the second `ydim` many columns are the corresponding uncertainties.
+Also, `xerrs=true` can be used to indicate that the `x`-values also carry uncertainties.
+Basically all functions which can be called on other data containers such as `DataSet` have been specialized to also work with `CompositeDataSet`s.
+"""
+struct CompositeDataSet <: AbstractDataSet
+    DSs::Vector{<:AbstractDataSet}
+    logdetInvCov::Real
+    WoundX::AbstractVector
+    SharedYdim::Val
+    function CompositeDataSet(pDSs::Vector{<:AbstractDataSet})
+        !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
+        DSs = reduce(vcat, map(SplitDS, pDSs))
+        new(DSs, logdet(mapreduce(InvCov, BlockMatrix, DSs)), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
+    end
+end
+CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
+function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
+    CompositeDataSet(ReadIn(float.(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
+end
+
+
+
+Data(CDS::CompositeDataSet) = CDS.DSs
+xdata(CDS::CompositeDataSet) = mapreduce(xdata, vcat, Data(CDS))
+ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
+
+BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
+BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
+function BlockReduce(X::AbstractVector{<:AbstractVecOrMat{<:Number}})
+    reduce(BlockMatrix, [(typeof(x) <: AbstractVector ? Diagonal(x.^2) : x) for x in X])
+end
+
+ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce
+xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce
+InvCov(CDS::CompositeDataSet) = mapreduce(InvCov, BlockMatrix, Data(CDS))
+
+Npoints(CDS::CompositeDataSet) = mapreduce(Npoints, +, Data(CDS))
+ydim(CDS::CompositeDataSet) = mapreduce(ydim, +, Data(CDS))
+xdim(CDS::CompositeDataSet) = xdim(Data(CDS)[1])
+
+WoundX(CDS::CompositeDataSet) = CDS.WoundX
+logdetInvCov(CDS::CompositeDataSet) = CDS.logdetInvCov
+
+DataspaceDim(CDS::CompositeDataSet) = mapreduce(DS->Npoints(DS)*ydim(DS), +, Data(CDS))
+
+xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
+ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
+
+
+
+
+TreeViews.numberofnodes(x::CompositeDataSet) = 1
+
+function InformNames(CDS::CompositeDataSet, xnames::Vector{String}, ynames::Vector{String})
+    CompositeDataSet(InformNames(Data(CDS), xnames, ynames))
+end
+function InformNames(DSs::Vector{<:AbstractDataSet}, xnames::Vector{String}, ynames::Vector{String})
+    # Use InformNames for single DataSet recursively
+    @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
+    Res = Vector{AbstractDataSet}(undef, length(DSs))
+    j = 1   # Use this to infer how many elements have been popped from ynames
+    for i in 1:length(DSs)
+        Res[i] = InformNames(DSs[i], xnames, ynames[j:j-1+ydim(DSs[i])])
+        j += ydim(DSs[i])
+    end;    Res
+end
+
+
+"""
+Saves outputs of model as "unpacked" matrix.
+ydim > 1 ⟹ multiple lines per x-value.
+"""
+function performMap(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    X = unique(woundX);        Mapped = reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X))
+    Res = Vector{suff(θ)}(undef, DataspaceDim(CDS));      i = 1
+    for SetInd in 1:length(Data(CDS))
+        # yd = ydim(Data(CDS)[SetInd])
+        # if yd == 1
+            for xval in WoundX(Data(CDS)[SetInd])
+                # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
+                Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
+                i += 1
+            end
+        # else
+        #     # Allow for different ydims here.
+        #     for xval in WoundX(Data(CDS)[SetInd])
+        #         startind = findfirst(isequal(xval),X)
+        #         line = startind:startind+yd
+        #         Res[i:i+yd] .= Mapped[line, SetInd]
+        #         i += yd
+        #     end
+        # end
+    end;    return Res
+end
+
+function performDMap(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    X = unique(woundX);        Mapped = map(z->dmodel(z,θ; kwargs...), X)
+    reduce(vcat, map(i->_getViewDmod(CDS,i,X,Mapped), 1:length(Data(CDS))))
+end
+
+@inline function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
+    subXs = WoundX(Data(CDS)[SetInd])
+    Res = Mapped[findfirst(isequal(subXs[1]), X)][SetInd,:] |> transpose
+    for i in 2:length(subXs)
+        Res = vcat(Res, transpose(Mapped[findfirst(isequal(subXs[i]), X)][SetInd,:]))
+    end;    Res
+end
+
+
+RecipesBase.@recipe function f(CDS::CompositeDataSet)
+    xdim(CDS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
+    !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
+    xguide -->  xnames(CDS)[1]
+    yguide -->  "Observations"
+    for (i,DS) in enumerate(Data(CDS))
+        @series begin
+            label --> "Data: " * ynames(DS)[1]
+            markercolor --> [:red,:blue,:green,:orange,:grey][i]
+            DS
+        end
+    end
+end
+
+
+function ResidualStandardError(CDS::CompositeDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
+    ydiff = ydata(CDS) - EmbeddingMap(CDS, model, MLE);    Res = zeros(length(Data(CDS)));    startind = 1
+    for i in eachindex(Res)
+        ypred = view(ydiff, startind:startind+Npoints(Data(CDS)[i])*ydim(Data(CDS)[i])-1)
+        startind += DataspaceDim(Data(CDS)[i])
+        Res[i] = sqrt(sum(abs2, ypred) / (DataspaceDim(Data(CDS)[i]) - length(MLE)))
+    end
+    @assert (startind - 1) == DataspaceDim(CDS)
+    ydim(CDS) == 1 ? Res[1] : Res
+end

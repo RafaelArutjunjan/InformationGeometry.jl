@@ -149,6 +149,19 @@ function GramSchmidt(Basis::AbstractVector{<:AbstractVector})
 end
 
 
+"""
+    HyperPlane(basepoint, dir1, ...) -> Function
+Returns an embedding function which translates points from HyperPlane coordinates to the ambient space.
+"""
+function HyperPlane(args...)
+    @assert all(x->typeof(x) <: AbstractVector{<:Number},args) && ConsistentElDims(args) > 0
+    argdim = length(args) -1
+    function EmbedIntoHyperPlane(θ::AbstractVector{<:Number})
+        @assert length(θ) == argdim
+        args[1] + sum(θ[i] * args[i+1] for i in 1:argdim)
+    end
+end
+
 
 """
 The `HyperCube` type is used to specify a cuboid region in the form of a cartesian product of ``N`` real intervals, thereby offering a convenient way of passing domains for integration or plotting between functions.

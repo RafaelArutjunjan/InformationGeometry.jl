@@ -230,7 +230,7 @@ Computes the length of a geodesic connecting the points `P` and `Q`.
 """
 GeodesicDistance(DM::AbstractDataModel,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10) = GeodesicDistance(x->FisherMetric(DM,x),P,Q;tol=tol)
 function GeodesicDistance(Metric::Function,P::AbstractVector{<:Number},Q::AbstractVector{<:Number}; tol::Real=1e-10)
-    GeodesicLength(Metric,GeodesicBetween(Metric,P,Q; tol=tol))
+    GeodesicLength(Metric, GeodesicBetween(Metric,P,Q; tol=tol))
 end
 
 ParamVol(sol::AbstractODESolution) = sol.t[end] - sol.t[1]

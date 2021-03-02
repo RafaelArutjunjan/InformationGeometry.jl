@@ -1,13 +1,5 @@
 
 
-function ConsistentElDims(X::AbstractVector)
-    elDim = length(X[1])
-    all(x -> length(x) == elDim, X) ? elDim : throw("Inconsistent element lengths for given Vector.")
-end
-ConsistentElDims(X::AbstractVector{<:Number}) = 1
-ConsistentElDims(M::AbstractMatrix{<:Number}) = size(M,2)
-
-
 """
 The `DataSet` type is a versatile container for storing data. Typically, it is constructed by passing it three vectors `x`, `y`, `sigma` where the components of `sigma` quantify the standard deviation associated with each y-value.
 Alternatively, a full covariance matrix can be supplied for the `ydata` instead of a vector of standard deviations. The contents of a `DataSet` `DS` can later be accessed via `xdata(DS)`, `ydata(DS)`, `sigma(DS)`.
@@ -72,14 +64,7 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
-        x = float.(x);  y = float.(y);  InvCov = float.(InvCov)
-        InvCov = isdiag(InvCov) ? Diagonal(InvCov) : InvCov
-        if !isposdef(InvCov)
-            println("Inverse covariance matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
-            SymInvCov = Symmetric(InvCov)
-            !isposdef(SymInvCov) && throw("Inverse covariance matrix still not positive-definite after symmetrization.")
-            InvCov = convert(Matrix, SymInvCov)
-        end
+        x = float.(x);  y = float.(y);  InvCov = HealthyCovariance(InvCov)
         if xdim(dims) == 1
             return DataSet(x, y, InvCov, dims, logdet(InvCov), nothing)
         else

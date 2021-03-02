@@ -123,6 +123,12 @@ end
 
     ODM = OptimizedDM(DME)
     @test norm(EmbeddingMatrix(DME,MLE(DME)) .- EmbeddingMatrix(ODM,MLE(DME)), 1) < 1e-9
+
+    # CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
+    # @test loglikelihood(ODM, MLE(ODM)) ≈ loglikelihood(CDM, MLE(CDM))
+    # @test Score(ODM, MLE(ODM)) ≈ Score(CDM, MLE(CDM))
+    # @test FisherMetric(ODM, MLE(ODM)) ≈ FisherMetric(CDM, MLE(CDM))
+    # @test InformationGeometry.ResidualStandardError(ODM) == InformationGeometry.ResidualStandardError(CDM)
 end
 
 

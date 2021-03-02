@@ -49,7 +49,7 @@ struct DataSetExact <: AbstractDataSet
         if (Σ_x == zeros(length(Σ_x))) || (Σ_x == Diagonal([Inf for i in 1:length(Σ_x)]))
             return DataSetExact(InformationGeometry.Dirac(xdata(DS)), DataDist(ydata(DS),ysigma(DS)), dims(DS))
         else
-            return DataSetExact(DataDist(xdata(DS),Σ_x), DataDist(ydata(DS),ysigma(DS)), dims(DS))
+            return DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), DataDist(ydata(DS),ysigma(DS)), dims(DS))
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution)
@@ -58,7 +58,7 @@ struct DataSetExact <: AbstractDataSet
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int})
         !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == Npoints(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
-        Σinv = isdiag(InvCov(yd)) ? Diagonal(InvCov(yd)) : InvCov(yd)
+        Σinv = HealthyCovariance(InvCov(yd))
         if xdim(dims) == 1
             return DataSetExact(xd, yd, dims, Σinv, nothing)
         else

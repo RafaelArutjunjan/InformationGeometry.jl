@@ -111,8 +111,7 @@ Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
 
 
-ResidualStandardError(DM::AbstractDataModel) = ResidualStandardError(DM, MLE(DM))
-ResidualStandardError(DM::AbstractDataModel, MLE::AbstractVector{<:Number}) = ResidualStandardError(Data(DM), Predictor(DM), MLE)
+ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
     @assert Npoints(DS) > length(MLE)
     ydiff = ydata(DS) - EmbeddingMap(DS, model, MLE)
@@ -445,7 +444,8 @@ function VisualizeSols(CBs::Vector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:le
     end; p
 end
 
-function VisualizeGeos(sols::Union{ODESolution,Vector{<:AbstractODESolution}}; OverWrite::Bool=true, leg::Bool=false)
+VisualizeGeos(sol::AbstractODESolution; OverWrite::Bool=false, leg::Bool=false) = VisualizeGeos([sol]; OverWrite=OverWrite, leg=leg)
+function VisualizeGeos(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false)
     VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg)
 end
 

@@ -11,7 +11,7 @@ function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractV
 end
 
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
-function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction,Function}, u0::Union{AbstractArray{<:Number},Function},
+function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction}, u0::Union{AbstractArray{<:Number},Function},
                         observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)), args...; tol::Real=1e-7,
                         meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
     newDS = (typeof(observables) <: AbstractVector{<:Int} && sys isa ODESystem) ? InformNames(DS, sys, observables) : DS
@@ -208,6 +208,7 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
 end
 
 PrintModel(DM::AbstractDataModel) = "y(x;θ) = $(ToExpr(Data(DM), Predictor(DM)))"
+# PrintdModel(DM::AbstractDataModel) = "(dy)(x;θ) = $(ToExpr(Data(DM), dPredictor(DM)))"
 
 
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)

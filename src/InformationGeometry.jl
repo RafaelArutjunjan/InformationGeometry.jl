@@ -23,7 +23,6 @@ import SciMLBase: AbstractODESolution
 
 #### Functionality
 
-# Confidence Bands for pdim > 2.
 # Geodesic coordinates - use geodesic radius and angles to specify parameter configurations.
 # General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
@@ -102,7 +101,7 @@ include("Subspaces.jl")
 export Plane
 export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
-export HyperCube
+export HyperPlane, HyperCube
 export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube
 export DropCubeDim, DropCubeDims, FaceCenters, Intersect, Union
 export PositiveDomain, NegativeDomain, FullDomain, rand
@@ -117,7 +116,7 @@ export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, Poly
 include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
-export Predictor, dPredictor
+export Predictor, dPredictor, ConsistentElDims
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
@@ -134,6 +133,9 @@ include("DataStructures/DataSetExact.jl")
 export DataSetExact, Dirac
 export Cov, LogLike, xdist, ydist, xsigma, ysigma
 
+
+# include("DataStructures/CompositeDataSet.jl")
+# export CompositeDataSet
 
 
 include("ConfidenceRegions.jl")

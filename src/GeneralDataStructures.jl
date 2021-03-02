@@ -1,5 +1,33 @@
 
 
+function ConsistentElDims(X::AbstractVector)
+    elDim = length(X[1])
+    all(x -> length(x) == elDim, X) ? elDim : throw("Inconsistent element lengths for given Vector.")
+end
+ConsistentElDims(X::AbstractVector{<:Number}) = 1
+ConsistentElDims(M::AbstractMatrix{<:Number}) = size(M,2)
+ConsistentElDims(T::Tuple) = ConsistentElDims(collect(T))
+
+
+
+function HealthyCovariance(M::AbstractMatrix{<:Number})
+    M = size(M,1) > size(M,2) ? Unwind(M) : M
+    M = isdiag(M) ? Diagonal(float.(M)) : float.(M)
+    if !isposdef(M)
+        println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
+        M = Symmetric(M)
+        !isposdef(M) && throw("Matrix still not positive-definite after symmetrization.")
+        M = convert(Matrix, M)
+    end
+    return M
+end
+HealthyCovariance(D::Diagonal) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
+# Interpret vector as uncertainties, therefore square before converting to Matrix
+HealthyCovariance(X::AbstractVector{<:Number}) = all(x->x>0, X) ? Diagonal(float.(X).^2) : throw("Not all given uncertainties positive: $(X)")
+HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}) = Unwind(X)
+
+
+
 # Need to implement for each DataSet:   xdata, ydata, sigma, xsigma, ysigma, InvCov, Npoints, xdim, ydim, dims
 #                                       WoundX (already generic), logdetInvCov (already generic), length (already generic)
 # Need to implement for each DataModel: the above and: Data, model (Predictor), dmodel (dPredictor),
@@ -120,9 +148,9 @@ end
 
 
 DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
-DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, Symmetric(Sig))
+DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, HealthyCovariance(Sig))
 yDataDist(DS::AbstractDataSet) = DataDist(ydata(DS), ysigma(DS))
-xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), xsigma(DS))
+xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), HealthyCovariance(xsigma(DS)))
 yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 
