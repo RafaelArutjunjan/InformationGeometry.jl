@@ -461,21 +461,6 @@ function VisualizeSolPoints(sols::Vector{<:AbstractODESolution}; OverWrite::Bool
 end
 
 
-function ConstructAmbientSolution(PL::Plane, sol::AbstractODESolution{T,N}) where {T,N}
-    @warn "ConstructAmbientSolution() is an experimental feature. In particular, interpolation for the ambient solution object is not implemented yet."
-    ODESolution{T,N,typeof(sol.u),typeof(sol.u_analytic),typeof(sol.errors),
-                 typeof(sol.t),typeof(sol.k),
-                 typeof(sol.prob),typeof(sol.alg),typeof(sol.interp),typeof(sol.destats)}(
-                 map(x->PlaneCoordinates(PL,x), sol.u), #sol.u[I],
-                 sol.u_analytic === nothing ? nothing : throw("Not programmed for u_analytic yet."), # Also translate u_analytic??
-                 sol.errors, sol.t,
-                 [map(x->PlaneCoordinates(PL,x), k) for k in sol.k], #sol.dense ? sol.k[I] : sol.k,
-                 sol.prob,
-                 sol.alg,
-                 sol.interp, #(args...)->PlaneCoordinates(PL,sol.interp(args...)),
-                 false,sol.tslocation,sol.destats,sol.retcode)
-end
-
 
 XCube(DS::AbstractDataSet; Padding::Number=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
 XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Padding)

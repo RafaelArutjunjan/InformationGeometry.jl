@@ -769,7 +769,7 @@ Returns `HyperCube` which bounds the linearized confidence region of level `Conf
 function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200)
     L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2π,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
-    TranslateCube(Union(C), MLE(DM))
+    TranslateCube(union(C), MLE(DM))
 end
 
 """

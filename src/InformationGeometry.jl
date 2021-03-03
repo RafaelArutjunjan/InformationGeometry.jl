@@ -104,7 +104,7 @@ export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, Para
 export HyperPlane, HyperCube
 export Inside, in, ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube
 export DropCubeDim, DropCubeDims, FaceCenters, Intersect, Union
-export PositiveDomain, NegativeDomain, FullDomain, rand
+export PositiveDomain, NegativeDomain, FullDomain, rand, EmbeddedODESolution
 
 
 include("ModelMaps.jl")

@@ -295,56 +295,32 @@ function FaceCenters(Cube::HyperCube)
     vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
 end
 
-### Slower than union
-# """
-#     CoverCubes(A::HyperCube, B::HyperCube)
-# Return a new HyperCube which covers two other given HyperCubes.
-# """
-# function CoverCubes(A::HyperCube, B::HyperCube)
-#     length(A) != length(B) && throw("CoverCubes: Cubes have different dims.")
-#     lower = A.L; upper = A.U
-#     for i in 1:length(A)
-#         if A.L[i] > B.L[i]
-#             lower[i] = B.L[i]
-#         end
-#         if A.U[i] < B.U[i]
-#             upper[i] = B.U[i]
-#         end
-#     end
-#     HyperCube(lower,upper)
-# end
-# CoverCubes(A::HyperCube, B::HyperCube) = Union(A, B)
-# CoverCubes(args...) = CoverCubes([args...])
-# CoverCubes(V::Vector{<:HyperCube}) = Union(V)
 
+import Base: union, intersect
 """
-    Intersect(A::HyperCube, B::HyperCube) -> HyperCube
-    Intersect(Cubes::Vector{<:HyperCube}) -> HyperCube
+    intersect(A::HyperCube, B::HyperCube) -> HyperCube
+    intersect(Cubes::Vector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which is the intersection of the given `HyperCube`s.
 """
-Intersect(A::HyperCube, B::HyperCube) = Intersect([A, B])
-function Intersect(Cubes::Vector{<:HyperCube})
+intersect(A::HyperCube, B::HyperCube) = intersect([A, B])
+function intersect(Cubes::Vector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([maximum(col) for col in eachcol(LowerMatrix)], [minimum(col) for col in eachcol(UpperMatrix)])
 end
 
 """
-    Union(A::HyperCube, B::HyperCube) -> HyperCube
-    Union(Cubes::Vector{<:HyperCube}) -> HyperCube
+    union(A::HyperCube, B::HyperCube) -> HyperCube
+    union(Cubes::Vector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which contains both given `HyperCube`s.
 That is, the returned cube is strictly speaking not the union, but a cover (which contains the union).
 """
-Union(A::HyperCube, B::HyperCube) = Union([A, B])
-function Union(Cubes::Vector{<:HyperCube})
+union(A::HyperCube, B::HyperCube) = union([A, B])
+function union(Cubes::Vector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([minimum(col) for col in eachcol(LowerMatrix)], [maximum(col) for col in eachcol(UpperMatrix)])
 end
-
-import Base: union, intersect
-union(A::HyperCube, B::HyperCube) = Union(A, B)
-intersect(A::HyperCube, B::HyperCube) = Intersect(A, B)
 
 import Base.==
 ==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
@@ -358,3 +334,42 @@ FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
 
 import Base.rand
 rand(Cube::HyperCube) = Cube.L + (Cube.U - Cube.L) .* rand(length(Cube.L))
+
+
+struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
+    u::uType
+    u_analytic::uType2
+    errors::EType
+    t::tType
+    k::rateType
+    prob::P
+    alg::A
+    interp::IType
+    dense::Bool
+    tslocation::Int
+    destats::DE
+    retcode::Symbol
+    Embedding::Function
+end
+(ES::EmbeddedODESolution)(t::Real,deriv::Type=Val{0};idxs=nothing,continuity=:left) = ES.Embedding(ES.interp(t,idxs,deriv,ES.prob.p,continuity))
+# Need to use push-forward to embed vectors, i.e. ForwardDiff.jacobian(Embedding, basepoint) * tangentvector
+# (ES::EmbeddedODESolution)(v,t,deriv::Type=Val{0};idxs=nothing,continuity=:left) = sol.interp(v,t,idxs,deriv,sol.prob.p,continuity)
+
+
+function EmbeddedODESolution(u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding)
+    EmbeddedODESolution{typeof(u[1]), length(u[1]), typeof(u), typeof(u_analytic), typeof(errors),
+    typeof(t), typeof(k), typeof(prob), typeof(alg), typeof(interp),typeof(destats)}(
+    u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding)
+end
+function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Function=identity) where {T,N,uType}
+    newu = map(Embedding, sol.u);    newk = [map(Embedding, k) for k in sol.k]
+    EmbeddedODESolution(newu, sol.u_analytic === nothing ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
+                 sol.errors, sol.t, newk, sol.prob, sol.alg,
+                 sol.interp, # Leaving old interp object as is and only using embedding on calls of EmbeddedODESolution objects themselves.
+                 false, sol.tslocation, sol.destats, sol.retcode, Embedding)
+end
+EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) = EmbeddedODESolution(sol, PlaneCoordinates(PL))
+function EmbeddedODESolution(sols::Vector{<:AbstractODESolution}, Planes::Vector{<:Plane})
+    @assert length(sols) == length(Planes)
+    map(EmbeddedODESolution, sols, Planes)
+end
