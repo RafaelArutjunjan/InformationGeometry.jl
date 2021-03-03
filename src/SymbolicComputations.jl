@@ -78,7 +78,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables
         # [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        @assert length(sol.u) == length(ts)
+        length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(Model, Domain)
@@ -106,7 +106,7 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, Observation
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        @assert length(sol.u) == length(ts)
+        length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [ObservationFunction(sol.u[i], sol.t[i]) for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(Model, Domain)
@@ -134,7 +134,7 @@ function GetModel(func::ODEFunction{T}, SplitterFunction::Function, observables:
                                 tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        @assert length(sol.u) == length(ts)
+        length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(Model, Domain)
@@ -164,7 +164,7 @@ function GetModel(func::ODEFunction{T}, SplitterFunction::Function, ObservationF
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         FullSol && return sol
-        @assert length(sol.u) == length(ts)
+        length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [ObservationFunction(sol.u[i], sol.t[i]) for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(Model, Domain)

@@ -928,12 +928,6 @@ end
 
 
 
-struct ConfidenceBoundary
-    sols::Vector{<:AbstractODESolution}
-    Confnum::Real
-    MLE::AbstractVector{<:Number}
-    pnames::Vector{String}
-end
 
 GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = InvConfVol(ChisqCDF(length(θ), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
 GetConfnum(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
@@ -946,22 +940,30 @@ function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector
     return mean
 end
 
-ConfidenceBoundary(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution) = ConfidenceBoundary(DM, [PL], [sol])
+struct ConfidenceBoundary
+    sols::Vector{<:AbstractODESolution}
+    Confnum::Real
+    MLE::AbstractVector{<:Number}
+    pnames::Vector{String}
+end
+
+function ConfidenceBoundary(DM::AbstractDataModel, sol::AbstractODESolution)
+    @assert pdim(DM) == length(sol.u[1]) == 2
+    ConfidenceBoundary([sol], GetConfnum(DM, sol), MLE(DM), pnames(DM))
+end
 function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution})
     @assert length(Planes) == length(sols)
-    AmbientDim = length(Planes[1])
-    !all(x->length(x)==AmbientDim, Planes) && throw("Inconsistent Planes.")
-    !all(x->length(x.u[1])==2, sols) && throw("Not all solutions planar.")
-    ConfidenceBoundary([ConstructAmbientSolution(Planes[i], sols[i]) for i in eachindex(Planes)], GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
+    ConfidenceBoundary(EmbeddedODESolution(sols, Planes), GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
 end
 
-function isplanar(sol::AbstractODESolution)::Bool
-    p1 = sol.u[1];      p2 = sol.u[Int(ceil(length(sol.t)/3))];     p3 = sol.u[Int(ceil(2length(sol.t)/3))]
-    PL = Plane(p1, p2-p1, Make2ndOrthogonal(p2-p1,p3-p1));    all(x->DistanceToPlane(PL,x) < 1e-12, sol.u)
-end
 
-GetPlane(CB::ConfidenceBoundary) = GetPlane(CB.sols[1], CB.MLE)
-GetPlane(DM::AbstractDataModel, sol::AbstractODESolution) = GetPlane(sol, MLE(DM))
+# function isplanar(sol::AbstractODESolution)::Bool
+#     p1 = sol.u[1];      p2 = sol.u[Int(ceil(length(sol.t)/3))];     p3 = sol.u[Int(ceil(2length(sol.t)/3))]
+#     PL = Plane(p1, p2-p1, Make2ndOrthogonal(p2-p1,p3-p1));    all(x->DistanceToPlane(PL,x) < 1e-12, sol.u)
+# end
+#
+# GetPlane(CB::ConfidenceBoundary) = GetPlane(CB.sols[1], CB.MLE)
+# GetPlane(DM::AbstractDataModel, sol::AbstractODESolution) = GetPlane(sol, MLE(DM))
 # function GetPlane(sol::AbstractODESolution, MLE::AbstractVector{<:Number})
 #     @assert isplanar(sol)
 #     # Assuming that the initial point was located at [a,0,0...,0] relative to MLE
