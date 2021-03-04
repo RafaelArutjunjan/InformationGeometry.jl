@@ -12,6 +12,7 @@ likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
 loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = loglikelihood(Data(DM), Predictor(DM), θ; kwargs...)
+loglikelihood(DM::AbstractDataModel; kwargs...) = θ -> loglikelihood(DM, θ; kwargs...)
 
 @inline function loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
     Y = ydata(DS) - EmbeddingMap(DS, model, θ; kwargs...)
@@ -30,6 +31,8 @@ AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Numbe
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=Val(true)` uses automatic differentiation.
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ; Auto=Auto, kwargs...)
+
+Score(DM::AbstractDataModel; Auto::Val=Val(false), kwargs...) = θ -> Score(DM, θ; Auto=Auto, kwargs...)
 
 # function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
 #     Auto && return AutoScore(DS,model,θ; kwargs...)
@@ -443,6 +446,8 @@ g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}
 FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(Data(DM), dPredictor(DM), θ; kwargs...)
 FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, InvCov(DS), θ; kwargs...)
 
+FisherMetric(DM::AbstractDataModel; kwargs...) = θ -> FisherMetric(DM, θ; kwargs...)
+
 """
     GeometricDensity(DM::AbstractDataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
@@ -451,6 +456,7 @@ GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...)
 GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
 
+GeometricDensity(DM::AbstractDataModel; kwargs...) = θ -> GeometricDensity(DM, θ; kwargs...)
 
 """
     ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...) -> Real
@@ -623,7 +629,7 @@ _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Numbe
 Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwargs...) = F(EmbeddingMap(DM,θ; kwargs...))
 """
     Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::Vector) -> Vector
-Pull-back of a covector to the parameter manifold.
+Pull-back of a covector to the parameter manifold ``T*\\mathcal{M} \\longleftarrow T*\\mathcal{D}``.
 """
 Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM,θ; kwargs...)) * ω
 
@@ -641,7 +647,7 @@ end
 # M ⟶ D
 """
     Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector) -> Vector
-Calculates the push-forward of a vector `X` from the parameter manifold to the data space.
+Calculates the push-forward of a vector `X` from the parameter manifold to the data space ``T\\mathcal{M} \\longrightarrow T\\mathcal{D}``.
 """
 Pushforward(DM::AbstractDataModel, X::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DM,θ; kwargs...) * X
 
@@ -656,8 +662,7 @@ FisherEllipsoid(Metric::Function, θ::AbstractVector{<:Number}) = eigvecs(Metric
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = 2 \\, \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)``.
 Lower values for the AIC indicate that the associated model function is more likely to be correct. For linearly parametrized models and small sample sizes, it is advisable to instead use the AICc which is more accurate.
 """
-AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = 2length(θ) - 2loglikelihood(DM,θ; kwargs...)
-AIC(DM::DataModel; kwargs...) = AIC(DM,MLE(DM); kwargs...)
+AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = 2length(θ) - 2loglikelihood(DM,θ; kwargs...)
 
 """
     AICc(DM::DataModel, θ::AbstractVector) -> Real
@@ -665,18 +670,16 @@ Computes Akaike Information Criterion with an added correction term that prevent
 ``\\mathrm{AICc} = \\mathrm{AIC} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
-function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...)
+function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
     (Npoints(DM) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
     AIC(DM,θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM) - length(θ) - 1)
 end
-AICc(DM::DataModel; kwargs...) = AICc(DM,MLE(DM); kwargs...)
 
 """
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM,θ; kwargs...)
-BIC(DM::DataModel; kwargs...) = BIC(DM,MLE(DM); kwargs...)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM,θ; kwargs...)
 
 
 """
@@ -714,7 +717,7 @@ IsLinear(DM::AbstractDataModel; kwargs...) = all(IsLinearParameter(DM; kwargs...
     LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}=MLE(DM)) -> Vector{Float64}
 Returns a vector which points in the direction in which the likelihood decreases most slowly.
 """
-function LeastInformativeDirection(DM::AbstractDataModel,θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
+function LeastInformativeDirection(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
     M = eigen(FisherMetric(DM,θ; kwargs...));  i = findmin(M.values)[2]
     M.vectors[:,i] / sqrt(M.values[i])
 end

@@ -3,7 +3,7 @@
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
 RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector{<:Number}=xdata(DM), MLE::AbstractVector{<:Number}=MLE(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
-    xguide -->              ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1]
+    xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
     @series begin
         Data(DM), xpositions
@@ -15,7 +15,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector
         linestyle -->       :solid
     end
     RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)); sigdigits=3)
-    label -->   if ydim(DM) == 1
+    label -->  if ydim(DM) == 1
         "Fit with RSE≈$(RSEs[1])"
     elseif ydim(DM) ≤ Npoints(DM)
         reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
@@ -52,7 +52,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
         nothing
     end
     line -->                (:scatter, 0.8)
-    xguide -->              ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1]
+    xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
     if ydim(DS) == 1
         label --> "Data"

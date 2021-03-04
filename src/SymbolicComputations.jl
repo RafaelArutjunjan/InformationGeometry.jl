@@ -195,7 +195,7 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
         try
             model(X,θ)
         catch;
-            @warn "Unable to convert given function to symbolic expression."
+            # @warn "ToExpr: Unable to convert given function to symbolic expression."
         end
     end
     modelexpr = nothing

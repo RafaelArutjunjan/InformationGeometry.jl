@@ -80,6 +80,14 @@ function MakeCustom(M::ModelMap)
         return ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, Val(true))
     end
 end
+function MakeNonCustom(M::ModelMap)
+    if !iscustom(M)
+        println("Map already not using custom embedding.")
+        return M
+    else
+        return ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, Val(false))
+    end
+end
 
 
 function ModelMap(F::Nothing, M::ModelMap)

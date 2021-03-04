@@ -168,10 +168,6 @@ function InformNames(DSs::Vector{<:AbstractDataSet}, xnames::Vector{String}, yna
 end
 
 
-"""
-Saves outputs of model as "unpacked" matrix.
-ydim > 1 ⟹ multiple lines per x-value.
-"""
 function performMap(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX);        Mapped = reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X))
