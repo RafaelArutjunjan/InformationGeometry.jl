@@ -207,8 +207,8 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
     end;    modelexpr
 end
 
-PrintModel(DM::AbstractDataModel) = "y(x;θ) = $(ToExpr(Data(DM), Predictor(DM)))"
-# PrintdModel(DM::AbstractDataModel) = "(dy)(x;θ) = $(ToExpr(Data(DM), dPredictor(DM)))"
+PrintModel(DM::AbstractDataModel) = println("y(x;θ) = $(ToExpr(Data(DM), Predictor(DM)))")
+PrintdModel(DM::AbstractDataModel) = GeneratedFromSymbolic(dPredictor(DM)) ? println("(∂y/∂θ)(x;θ) = $(ToExpr(Data(DM), dPredictor(DM)))") : throw("Model Jacobian not symbolic. Try applying OptimizedDM() first.")
 
 
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)

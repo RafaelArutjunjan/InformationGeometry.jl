@@ -373,3 +373,5 @@ function EmbeddedODESolution(sols::Vector{<:AbstractODESolution}, Planes::Vector
     @assert length(sols) == length(Planes)
     map(EmbeddedODESolution, sols, Planes)
 end
+EmbeddedODESolution(PL::Union{Plane, Vector{<:Plane}}, sol::Union{AbstractODESolution,Vector{<:AbstractODESolution}}) = EmbeddedODESolution(sol, PL)
+EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)
