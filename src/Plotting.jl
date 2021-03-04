@@ -564,7 +564,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     ConfidenceBands(DM, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX; N::Int=300, plot::Bool=true, samples::Int=200)
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
     ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
 end
 function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
@@ -661,6 +661,16 @@ function _ConfidenceBands!(Res::AbstractMatrix, DM::AbstractDataModel, points::A
     end
 end
 
+"""
+Computes width of confidence bands.
+"""
+function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
+    band = ConfidenceBands(args...; plot=false, kwargs...)
+    Res = hcat(view(band,:,1), view(band,:,3)-view(band,:,2))
+    F = OverWrite ? Plots.plot : Plots.plot!
+    plot && display(F(view(Res,:,1), view(Res,:,2), label="Conf. band width"))
+    Res
+end
 
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
