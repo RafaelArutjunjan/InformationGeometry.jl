@@ -168,37 +168,49 @@ function InformNames(DSs::Vector{<:AbstractDataSet}, xnames::Vector{String}, yna
 end
 
 
-function performMap(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+function _CustomOrNot(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    X = unique(woundX);        Mapped = reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X))
-    Res = Vector{suff(θ)}(undef, DataspaceDim(CDS));      i = 1
+    # reduce(vcat, transpose) faster than Unpack?
+    X = unique(woundX)
+    _FillResVector(CDS, X, reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X)))
+end
+
+# Apparently reduce(vcat, map(z->transpose(G(z)), X))  just as fast as   transpose(reshape(reduce(vcat, map(z->transpose(G(z)), X)), ydim, :))
+function _CustomOrNot(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...)
+    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    # reduce(vcat, transpose) faster than Unpack?
+    X = unique(woundX)
+    _FillResVector(CDS, X, (ydim(CDS) == 1 ? reshape(model(X, θ; kwargs...), :, 1) : transpose(reshape(model(X, θ; kwargs...), ydim(CDS), :))))
+end
+
+function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{<:Number})
+    Res = Vector{suff(Mapped)}(undef, DataspaceDim(CDS));      i = 1
     for SetInd in 1:length(Data(CDS))
-        # yd = ydim(Data(CDS)[SetInd])
-        # if yd == 1
-            for xval in WoundX(Data(CDS)[SetInd])
-                # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
-                Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
-                i += 1
-            end
-        # else
-        #     # Allow for different ydims here.
-        #     for xval in WoundX(Data(CDS)[SetInd])
-        #         startind = findfirst(isequal(xval),X)
-        #         line = startind:startind+yd
-        #         Res[i:i+yd] .= Mapped[line, SetInd]
-        #         i += yd
-        #     end
-        # end
+        for xval in WoundX(Data(CDS)[SetInd])
+            # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
+            Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
+            i += 1
+        end
     end;    return Res
 end
 
-function performDMap(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    X = unique(woundX);        Mapped = map(z->dmodel(z,θ; kwargs...), X)
-    reduce(vcat, map(i->_getViewDmod(CDS,i,X,Mapped), 1:length(Data(CDS))))
+    X = unique(woundX)
+    _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 
-@inline function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...)
+    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
+    [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in 1:length(X)]
+    _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
+end
+
+_FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(vcat, map(i->_getViewDmod(CDS,i,X,Mapped), 1:length(Data(CDS))))
+
+@inline function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
     subXs = WoundX(Data(CDS)[SetInd])
     Res = Mapped[findfirst(isequal(subXs[1]), X)][SetInd,:] |> transpose
     for i in 2:length(subXs)

@@ -564,9 +564,16 @@ function Sensitivity(DM::AbstractDataModel, Confnum::Real=1; Approx::Bool=false,
 end
 
 
+### for-loop typically slower than reduce(vcat, ...)
+### Apparently curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
+# Reduction(X::AbstractVector{<:SVector}) = reinterpret(suff(X), X)
+Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
+Reduction(X::AbstractVector{<:Number}) = X
+
+
 # h(θ) ∈ Dataspace
 """
-    EmbeddingMap(DM::AbstractDataModel,θ::AbstractVector{<:Number}) -> Vector
+    EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) -> Vector
 Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
 ```
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
@@ -574,44 +581,30 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ; kwargs...)
 EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(DS, model, θ, WoundX(DS); kwargs...)
-EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = performMap(DS, model, θ, woundX; kwargs...)
+EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
 
-function performMap(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    Reduction(map(x->model(x,θ; kwargs...), woundX))
-end
-### Apparently curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
-# Reduction(X::AbstractVector{<:SVector}) = reinterpret(suff(X), X)
-Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
-Reduction(X::AbstractVector{<:Number}) = X
+_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX, Val(false); kwargs...)
+_CustomOrNot(DS::AbstractDataSet, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding; kwargs...)
 
-# Allow for custom Embedding methods for overloaded ModelMaps
-performMap(DS::AbstractDataSet, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding; kwargs...)
-_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = performMap(DS, model, θ, woundX; kwargs...)
+# Specialize this for different Dataset types
+_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
 _CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
 
 
-### Typically slower than reduce(vcat, ...)
-# function performMap2(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector)
-#     if ydim(DS) > 1
-#         Res = Vector{suff(θ)}(undef, Npoints(DS)*ydim(DS))
-#         for i in 1:Npoints(DS)
-#             Res[1+(i-1)*ydim(DS):(i*ydim(DS))] = model(woundX[i],θ)
-#         end;    return Res
-#     else
-#         return map(x->model(x,θ), woundX)
-#     end
-# end
-
-
+"""
+    EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) -> Matrix
+Returns the jacobian of the embedding map as evaluated at the x-values and the parameter configuration ``\\theta``.
+"""
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ; kwargs...)
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DS, dmodel, θ, WoundX(DS); kwargs...)
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:AbstractFloat}, woundX::AbstractVector; kwargs...) = performDMap(DS, dmodel, θ, woundX; kwargs...)
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = performDMap(DS, dmodel, float.(θ), woundX; kwargs...)
+# Make sure θ is a float:
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:AbstractFloat}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, float.(θ), woundX; kwargs...)
 
-performDMap(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...),woundX))
+_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX, Val(false); kwargs...)
+_CustomOrNotdM(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, θ, woundX, dM.CustomEmbedding; kwargs...)
 
-performDMap(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, θ, woundX, dM.CustomEmbedding; kwargs...)
-_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = performDMap(DS, dmodel, θ, woundX; kwargs...)
+_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
 _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = dmodel(woundX, θ; kwargs...)
 
 
@@ -973,3 +966,14 @@ end
 #     # return sol, MLE
 #     Plane(MLE, sol.u[1] .- MLE, sol.u[end÷4] - MLE)
 # end
+
+LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, Cube::HyperCube) = LinearPredictionUncertainties(DM, F, FaceCenters(Cube))
+function LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, points::AbstractVector{<:AbstractVector{<:Number}})
+    best = F(MLE(DM))
+    bounds = if typeof(best) <: AbstractVector
+        extrema(map(F, points))
+    else
+        map(extrema, eachcol(Unpack(map(F, points))))
+    end
+    best, bounds
+end
