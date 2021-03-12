@@ -134,8 +134,8 @@ export DataSetExact, Dirac
 export Cov, LogLike, xdist, ydist, xsigma, ysigma
 
 
-# include("DataStructures/CompositeDataSet.jl")
-# export CompositeDataSet
+include("DataStructures/CompositeDataSet.jl")
+export CompositeDataSet
 
 
 include("ConfidenceRegions.jl")

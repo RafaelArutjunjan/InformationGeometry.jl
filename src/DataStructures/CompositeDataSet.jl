@@ -66,17 +66,17 @@ end
 
 function SplitDS(DS::DataSet)
     if typeof(ysigma(DS)) <: AbstractVector
-        return [DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+        return [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        return [DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+        return [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 function SplitDS(DS::DataSetExact)
     if typeof(ysigma(DS)) <: AbstractVector
-        return [DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+        return [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
 
-        return [DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)) for i in 1:ydim(DS)]
+        return [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 
