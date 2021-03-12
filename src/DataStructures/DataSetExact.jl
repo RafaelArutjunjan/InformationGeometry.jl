@@ -33,8 +33,7 @@ struct DataSetExact <: AbstractDataSet
     xnames::Vector{String}
     ynames::Vector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
-    DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
-    DataSetExact(DS::DataSet, xerrors::AbstractArray) = InformNames(DataSetExact(DataDist(xdata(DS),xerrors), yDataDist(DS), (Npoints(DS),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
+    DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])))
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr)
@@ -44,12 +43,18 @@ struct DataSetExact <: AbstractDataSet
     end
     ###### No Unwinding above here.
     # Offload most of the checking to DataSet
-    function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray)
-        DS = DataSet(x, y, Σ_y);        Σ_x = size(Σ_x,1) > size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
-        if (Σ_x == zeros(length(Σ_x))) || (Σ_x == Diagonal([Inf for i in 1:length(Σ_x)]))
-            return DataSetExact(InformationGeometry.Dirac(xdata(DS)), DataDist(ydata(DS),ysigma(DS)), dims(DS))
+    function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray, Dims::Union{Tuple{Int,Int,Int},Nothing}=nothing)
+        DS = Dims isa Nothing ? DataSet(x, y, Σ_y) : DataSet(x, y, Σ_y, Dims)
+        Dims = Dims isa Nothing ? dims(DS) : Dims
+        dims(DS) != Dims && throw("DataSetExact: Given dims Tuple inconsistent: $Dims.")
+        DataSetExact(DS, Σ_x)
+    end
+    function DataSetExact(DS::DataSet, Σ_x::AbstractArray)
+        Σ_x = size(Σ_x,1) > size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
+        if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
+            return InformNames(DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
         else
-            return DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), DataDist(ydata(DS),ysigma(DS)), dims(DS))
+            return InformNames(DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution)
