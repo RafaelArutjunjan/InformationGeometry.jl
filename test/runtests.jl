@@ -24,7 +24,7 @@ using SafeTestsets
     # Do these tests in higher dimensions, check that OrthVF(PL) IsOnPlane....
     # @test OrthVF(DM,XYPlane,p) == OrthVF(DM,p)
 
-    @test dot(OrthVF(DM,p),Score(DM,p)) < 6e-15
+    @test dot(OrthVF(DM,p),Score(DM,p)) < 1e-14
     @test norm(FindMLE(DM) - [5.01511545953636, 1.4629658803705]) < 5e-10
     # ALSO DO NONLINEAR MODEL!
 end
@@ -33,8 +33,7 @@ end
     using InformationGeometry, Test, Plots
 
     DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
-    model(x,θ) = θ[1] * x + θ[2]
-    DM = DataModel(DS,model)
+    model(x,θ) = θ[1] * x + θ[2];    DM = DataModel(DS,model)
     DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), model)
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-6)
@@ -165,7 +164,7 @@ end
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); Carlo=true, N=Int(3e6)) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 2e-2
     @test abs(KullbackLeibler(x->pdf(Normal(1,3),x),y->pdf(Normal(5,2),y),HyperCube([-20,20]); tol=1e-8) - KullbackLeibler(Normal(1,3),Normal(5,2))) < 1e-5
     P = MvNormal([1,2,3.],diagm([1,2,1.5]));    Q = MvNormal([1,-2,-3.],diagm([2,1.5,1.]));     Cube = HyperCube([[-15,15] for i in 1:3])
-    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 7.2e-1
+    @test abs(KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; Carlo=true, N=Int(3e6)) - KullbackLeibler(x->pdf(P,x),y->pdf(Q,y),Cube; tol=1e-8)) < 0.8
 end
 
 
@@ -200,7 +199,7 @@ end
     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 3e-10
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
-    y = MLE(DM) + 0.5rand(2)
+    y = MLE(DM) + 0.2(rand(2) .- 0.5)
     geo = GeodesicBetween(DM, MLE(DM), y; tol=1e-11)
     @test norm(MLE(DM) - [1.829289173660125,0.942865200406147]) < 1e-7
 
@@ -209,7 +208,8 @@ end
     Confnum = InvConfVol(ChisqCDF(pdim(DM), 2*(LogLikeMLE(DM) - loglikelihood(DM, y))))
     @test InformationGeometry.GeodesicRadius(DM, Confnum) - Len < 1e-5
 
-    @test norm(LogarithmicMap(FisherMetric(DM), MLE(DM), ExponentialMap(FisherMetric(DM), MLE(DM), y-MLE(DM))) - (y-MLE(DM))) < 1
+    # Apply logarithmic map first since it is typically multi-valued for positively curved manifolds.
+    @test norm(ExponentialMap(FisherMetric(DM), MLE(DM), LogarithmicMap(FisherMetric(DM), MLE(DM), y)) - y) < 1
 
 end
 
