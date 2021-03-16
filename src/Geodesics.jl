@@ -213,7 +213,7 @@ function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::Abstr
         resid[(dim+1):2dim] = u[end][1:dim] .- Q
     end
     # Slightly perturb initial direction:
-    initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-6 .*(rand(dim) .- 0.5))
+    initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
     BVP = BVProblem(GeodesicODE!, bc!, initial, (0.0, Endtime))
     solve(BVP, Shooting(meth); reltol=tol, abstol=tol, kwargs...)
 end
@@ -268,6 +268,27 @@ end
 LogarithmicMap(DM::AbstractDataModel, args...; kwargs...) = LogarithmicMap(FisherMetric(DM), args...; kwargs...)
 
 
+function KarcherMeanStep(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); kwargs...)
+    dirs = map(x->LogarithmicMap(Metric, initialmean, x; kwargs...), points)
+    ExponentialMap(Metric, initialmean, sum(dirs) / length(dirs))
+end
+function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); tol::Real=1e-8, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), maxiter::Int=10, kwargs...)
+    @assert ConsistentElDims(points) == length(initialmean)
+    oldmean = initialmean
+    for iter in 1:maxiter
+        println("Karcher Mean iteration $iter.")
+        newmean = KarcherMeanStep(Metric, points, oldmean; tol=tol, meth=meth, kwargs...)
+        if norm(newmean-oldmean) < 20tol
+            return newmean
+        elseif iter < maxiter
+            oldmean = newmean
+            continue;
+        else
+            @warn "KarcherMean: Hit maxiter. Returning last result."
+            return newmean
+        end
+    end
+end
 
 """
 Return `true` when integration of ODE should be terminated.
