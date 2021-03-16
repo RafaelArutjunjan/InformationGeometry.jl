@@ -184,7 +184,7 @@ join(DSVec::Vector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = joi
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
 function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVector})
-    @assert DS isa DataSet
+    @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind

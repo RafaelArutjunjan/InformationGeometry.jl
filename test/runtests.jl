@@ -102,7 +102,7 @@ end
 @safetestset "Inputting Datasets of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
 
-    ycovtrue = [1.0 0.1 -0.5; 0.1 2.0 0.0; -0.5 0.0 3.0]
+    ycovtrue = Diagonal([1,2,3]) |> x->convert(Matrix,x)
     ptrue = [1.,π,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
 
     model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[1]^2 + p[3]^3 * x[2],
@@ -113,7 +113,7 @@ end
     DM = DataModel(DS,model)
     @test norm(MLE(DM) - ptrue) < 5e-2
     DME = DataModel(DataSetExact(DS), model)
-    P = MLE(DM) + rand(length(MLE(DM)))
+    P = MLE(DM) + 0.5rand(length(MLE(DM)))
     @test loglikelihood(DM,P) ≈ loglikelihood(DME,P)
     @test Score(DM,P) ≈ Score(DME,P)
 
@@ -123,11 +123,21 @@ end
     ODM = OptimizedDM(DME)
     @test norm(EmbeddingMatrix(DME,MLE(DME)) .- EmbeddingMatrix(ODM,MLE(DME)), 1) < 1e-9
 
-    # CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
-    # @test loglikelihood(ODM, MLE(ODM)) ≈ loglikelihood(CDM, MLE(CDM))
-    # @test Score(ODM, MLE(ODM)) ≈ Score(CDM, MLE(CDM))
-    # @test FisherMetric(ODM, MLE(ODM)) ≈ FisherMetric(CDM, MLE(CDM))
-    # @test InformationGeometry.ResidualStandardError(ODM) == InformationGeometry.ResidualStandardError(CDM)
+    CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
+    @test abs(loglikelihood(ODM, P) - loglikelihood(CDM, P)) < 5e-6
+    @test norm(Score(ODM, P) - Score(CDM, P)) < 1e-6
+    @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 1e-6
+    @test norm(InformationGeometry.ResidualStandardError(ODM) - InformationGeometry.ResidualStandardError(CDM)) < 1e-10
+
+    lastDS = Data(Data(CDM))[3]
+    newCDS = vcat(Data(Data(CDM))[1:end-1], [SubDataSet(lastDS, 1:2:Npoints(lastDS))], [SubDataSet(lastDS, 2:2:Npoints(lastDS))]) |> CompositeDataSet
+    # repeat last component
+    newmodel(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[1]^2 + p[3]^3 * x[2], sinh(p[2]) * (x[1] + x[2]),
+                                                        exp(p[1]*x[1] + p[1]*x[2]), exp(p[1]*x[1] + p[1]*x[2])]
+    splitCDM = DataModel(newCDS, newmodel, MLE(CDM))
+    @test abs(loglikelihood(splitCDM, P) - loglikelihood(CDM, P)) < 1e-5
+    @test norm(Score(splitCDM, P) - Score(CDM, P)) < 2e-4
+    @test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 2e-3
 end
 
 

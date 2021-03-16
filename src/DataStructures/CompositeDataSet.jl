@@ -126,11 +126,9 @@ Data(CDS::CompositeDataSet) = CDS.DSs
 xdata(CDS::CompositeDataSet) = mapreduce(xdata, vcat, Data(CDS))
 ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
 
-BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
-BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
-function BlockReduce(X::AbstractVector{<:AbstractVecOrMat{<:Number}})
-    reduce(BlockMatrix, [(typeof(x) <: AbstractVector ? Diagonal(x.^2) : x) for x in X])
-end
+# BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
+# BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
+BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, [(typeof(x) <: AbstractVector ? Diagonal(x.^2) : x) for x in X])
 
 ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce
 xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce
