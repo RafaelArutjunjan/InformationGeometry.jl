@@ -176,7 +176,7 @@ export KullbackLeibler
 
 include("Geodesics.jl")
 export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach
-export RadialGeodesics, GeodesicBetween, GeodesicDistance, GeodesicEnergy, MBAM
+export RadialGeodesics, GeodesicBetween, GeodesicDistance, GeodesicEnergy, ExponentialMap, LogarithmicMap, MBAM
 # Needs redo:
 # export ConstLengthGeodesics, ConstParamGeodesics, ConfidenceBoundaryViaGeodesic
 

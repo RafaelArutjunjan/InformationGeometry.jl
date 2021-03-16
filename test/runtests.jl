@@ -199,11 +199,18 @@ end
     @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-11
     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 3e-10
 
-    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6])
-    model(x,p) = p[1]^3 *x + p[2]^3;        DM = DataModel(DS,model)
-    geo = GeodesicBetween(DM,MLE(DM),MLE(DM) + rand(2); tol=1e-11)
+    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
+    y = MLE(DM) + 0.5rand(2)
+    geo = GeodesicBetween(DM, MLE(DM), y; tol=1e-11)
     @test norm(MLE(DM) - [1.829289173660125,0.942865200406147]) < 1e-7
-    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - GeodesicLength(DM,geo)^2) < 1e-8
+
+    Len = GeodesicLength(DM,geo)
+    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - Len^2) < 1e-8
+    Confnum = InvConfVol(ChisqCDF(pdim(DM), 2*(LogLikeMLE(DM) - loglikelihood(DM, y))))
+    @test InformationGeometry.GeodesicRadius(DM, Confnum) - Len < 1e-5
+
+    @test norm(LogarithmicMap(FisherMetric(DM), MLE(DM), ExponentialMap(FisherMetric(DM), MLE(DM), y-MLE(DM))) - (y-MLE(DM))) < 1
+
 end
 
 

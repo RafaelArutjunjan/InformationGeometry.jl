@@ -757,7 +757,7 @@ end
 EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
 function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
     Z = EvaluateAlongGeodesic(F,sol,Interval; N=N)
-    Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; fullSol=true, Auto=true, tol=1e-14)
+    Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, Auto=true, tol=1e-14)
     Ls = map(Geo,range(Interval[1],Interval[2],length=N))
     if length(Z[1]) == 1
         if OverWrite

@@ -209,6 +209,7 @@ struct HyperCube{Q<:Number} <: Cuboid
         HyperCube([vals[1]],[vals[2]]; Padding=Padding)
     end
     HyperCube(vals::Tuple{<:Number,<:Number}; Padding::Number=0.) = HyperCube([vals[1]],[vals[2]]; Padding=Padding)
+    HyperCube(center::AbstractVector{<:Number}, width::Real) = HyperCube(center .- (width/2), center .+ (width/2))
 end
 
 length(Cube::HyperCube) = length(Cube.L)

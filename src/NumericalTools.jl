@@ -127,15 +127,15 @@ InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
 InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 """
-    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
 Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
 """
-function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
     length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
-    Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,fullSol=fullSol,meth=meth)
+    Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,FullSol=FullSol,meth=meth)
 end
-Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, fullSol=fullSol, meth=meth)
-function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, fullSol::Bool=false, meth=nothing)
+Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, FullSol=FullSol, meth=meth)
+function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
     Interval = float.(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
@@ -146,7 +146,7 @@ function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=
     else
         meth = (meth == nothing) ? Tsit5() : meth
     end
-    if fullSol
+    if FullSol
         return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol)
     else
         return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true).u[end]
