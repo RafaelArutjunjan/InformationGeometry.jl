@@ -22,7 +22,7 @@ In addition, this package also allows for computations of
 
 and more. With its rich set of unique features and great performance, the toolkit of **InformationGeometry.jl** offers valuable insights into complicated modeling problems from various areas of science and engineering.
 
-Resources detailing how to use this package can be found in the [**documentation**](https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev). A discussion of the mathematical ideas underlying the methods employed by **InformationGeometry.jl** can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis). A citable publication discussing these methods is already under way.
+Examples and other resources detailing how to use this package can be found in the [**documentation**](https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev). A discussion of the mathematical ideas underlying the methods employed by **InformationGeometry.jl** can be found in my [Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis/blob/master/Master's%20Thesis%20Rafael%20Arutjunjan%20-%20Corrected.pdf). A citable publication discussing these methods is already under way.
 
 
 
