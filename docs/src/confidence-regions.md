@@ -29,7 +29,7 @@ plot!(sols[2],vars=(1,2),label="2σ CR") # hide
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/sols.svg)
 
 
-For a non-linearly parametrized model, the confidence regions are no longer ellipsoidal:
+For a non-linearly parametrized model such as ``y_\text{model}(x;\theta) = {\theta_1}^{\!3} \cdot x + \mathrm{exp}(\theta_1 + \theta_2)`` (which also produces a straight line fit!), the confidence regions are no longer ellipsoidal:
 ```@example 1
 model2(x::Real, θ::AbstractVector{<:Real}) = θ[1]^3 * x + exp(θ[1] + θ[2])
 DM2 = DataModel(DS, model2)
