@@ -12,9 +12,10 @@ makedocs(
                 "Tutorial" => Any[ "Providing Data and Models" => "datamodels.md",
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Kullback-Leibler Divergences" => "kullback-leibler.md",
+                                    "Parallelization" => "parallelization.md",
                                     "Exporting" => "exporting.md"],
                 # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, PDE / Stochastic Examples, Exporting
-                "Advanced Examples" => Any["ODE based models" => "ODEmodels.md"],
+                "Advanced Examples" => Any["ODE-based models" => "ODEmodels.md"],
                 "List of useful methods" => "methodlist.md",
                 "Contributing" => "todo.md",
             ],

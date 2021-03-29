@@ -12,11 +12,11 @@ In particular, it employs novel methods to quantify and visualize the *exact* un
 That is, the confidence regions around the best fit parameters can be constructed without resorting to any approximations of their shape (e.g. as ellipsoids by assuming linear covariance between the parameters).
 Moreover, the utilized schemes are highly efficient since they do *not* require one to sample large domains of the parameter space either on a grid or stochastically in order to find said confidence regions, which constitutes a significant improvement over previously established methods.
 
-For example, given two different ways to parametrize the same linear relationship between recorded *x* and *y*-values, one obtains the following confidence regions:
+For example, given two different parametrizations of the same linear relationship between observed *x* and *y*-data, one finds the following confidence regions:
 
-![equation](https://latex.codecogs.com/svg.latex?y_%5Ctext%7Blinear%7D%28x%3B%5Ctheta%29%20%3D%20%5Ctheta_1%20%5Ccdot%20x%20&plus;%20%5Ctheta_2) | ![equation](https://latex.codecogs.com/svg.latex?y_%5Ctext%7Bnon-linear%7D%28x%3B%5Ctheta%29%20%3D%20%7B%5Ctheta_1%7D%5E%7B%5C%213%7D%20%5Ccdot%20x%20&plus;%20%5Cmathrm%7Bexp%7D%28%5Ctheta_1%20&plus;%20%5Ctheta_2%29)
+`y(x; θ) = θ[1] * x + θ[2]` | `y(x; θ) = θ[1]^3 * x + exp(θ[1] + θ[2])`
 :------|------:
-<img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols.svg" width="400"/> | <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols2.svg" width="400"/>
+<img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols.svg" width="410"/> | <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols2.svg" width="410"/>
 
 In addition, this package also allows for computations of
 

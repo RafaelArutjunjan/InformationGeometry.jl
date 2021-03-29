@@ -1,5 +1,5 @@
 
-### ODE based models
+### ODE-based models
 
 Often, an explicit analytical expression for a given mathematical model is not known. Instead, the model might be defined implicitly, e.g. as the solution to a system of ordinary differential equations. Especially in fields such as systems biology, modeling in terms of (various kinds of) differential equations appears to be the norm.
 
