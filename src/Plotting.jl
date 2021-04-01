@@ -254,8 +254,8 @@ function VisualizeMC(Test::Function, PlanarCube::HyperCube, N::Int=2000)
         end
     end
     Plots.plot!(rectangle(Lims),lw=2,lab="Sample Space")
-    p = scatter!(SensibleOutput(YesPoints), marker=(0.7,:hex,:green), markersize=2,lab="Inside")
-    p = scatter!(SensibleOutput(NoPoints), marker=(0.7,:circle,:red), markersize=2,lab="Outside")
+    p = scatter!(Unpack(YesPoints), marker=(0.7,:hex,:green), markersize=2,lab="Inside")
+    p = scatter!(Unpack(NoPoints), marker=(0.7,:circle,:red), markersize=2,lab="Outside")
     p
 end
 
@@ -280,8 +280,8 @@ function VisualizeMC(Test::Function, sol::AbstractODESolution, N::Int=2000)
         println("Could not plot sampling rectangle. Fix Error:")
         println(x)
     end
-    p = scatter!(SensibleOutput(YesPoints), marker=(0.5,:hex,:green), markersize=2,lab="Inside")
-    p = scatter!(SensibleOutput(NoPoints), marker=(0.5,:circle,:red), markersize=2,lab="Outside")
+    p = scatter!(Unpack(YesPoints), marker=(0.5,:hex,:green), markersize=2,lab="Inside")
+    p = scatter!(Unpack(NoPoints), marker=(0.5,:circle,:red), markersize=2,lab="Outside")
     p
 end
 
@@ -318,8 +318,9 @@ function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::Hype
     Lims = TranslateCube(PlanarCube,MLE)
     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
     Vcomp(a,b) = V([a,b])
-    u,v = Vcomp.(AV,BV) |> SensibleOutput
-    u,v = VFRescale([u v],PlanarCube,scaling=scaling)
+    u,v = VFRescale(Unpack(Vcomp.(AV,BV)), PlanarCube; scaling=scaling)
+    # u,v = Vcomp.(AV,BV) |> Unpack
+    # u,v = VFRescale([u v],PlanarCube,scaling=scaling)
     if OverWrite
         quiver(AV,BV,quiver=(u,v)) |> display
     else
@@ -338,7 +339,7 @@ function Plot2DVF(DM::DataModel, V::Function, PlotPlane::Plane, PlanarCube::Hype
     Lims = PlanarCube
     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
     Vcomp(a,b) = V(PlaneCoordinates(PlotPlane,[a,b]))
-    u,v = Vcomp.(AV,BV) |> SensibleOutput
+    u,v = Vcomp.(AV,BV) |> Unpack
     u,v = VFRescale([u v],PlanarCube,scaling=scaling)
     if OverWrite
         quiver(AV,BV,quiver=(u,v)) |> display
