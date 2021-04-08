@@ -40,7 +40,7 @@ struct DataSet <: AbstractDataSet
     ynames::Vector{String}
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
-        DataSet(ToCols(convert(Matrix,DF))...)
+        DataSet(ToCols(Matrix(DF))...)
     end
     function DataSet(x::AbstractArray, y::AbstractArray)
         println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
