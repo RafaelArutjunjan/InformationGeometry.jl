@@ -312,46 +312,61 @@ function VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
     ZeilenVecs[:,1],ZeilenVecs[:,2]
 end
 
-function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
-    length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = TranslateCube(PlanarCube,MLE)
-    AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
+# function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
+#     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
+#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+#     Lims = TranslateCube(PlanarCube,MLE)
+#     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
+#     Vcomp(a,b) = V([a,b])
+#     u,v = VFRescale(Unpack(Vcomp.(AV,BV)), PlanarCube; scaling=scaling)
+#     # u,v = Vcomp.(AV,BV) |> Unpack
+#     # u,v = VFRescale([u v],PlanarCube,scaling=scaling)
+#     if OverWrite
+#         quiver(AV,BV,quiver=(u,v)) |> display
+#     else
+#         quiver!(AV,BV,quiver=(u,v)) |> display
+#     end
+#     [AV BV u v]
+# end
+#
+# function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,size::Float64=0.5,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
+#     Plot2DVF(DM,V, MLE, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
+# end
+
+
+# function Plot2DVF(DM::DataModel, V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
+#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+#     Lims = PlanarCube
+#     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
+#     Vcomp(a,b) = V(PlaneCoordinates(PlotPlane,[a,b]))
+#     u,v = Vcomp.(AV,BV) |> Unpack
+#     u,v = VFRescale([u v],PlanarCube,scaling=scaling)
+#     if OverWrite
+#         quiver(AV,BV,quiver=(u,v)) |> display
+#     else
+#         quiver!(AV,BV,quiver=(u,v)) |> display
+#     end
+#     [AV BV u v]
+# end
+
+# function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane,size::Float64=0.5, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
+#     Plot2DVF(DM,V, PlotPlane, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
+# end
+
+function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false)
+    @assert length(Lims) == length(V(center(Lims))) == 2
+    AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
     Vcomp(a,b) = V([a,b])
-    u,v = VFRescale(Unpack(Vcomp.(AV,BV)), PlanarCube; scaling=scaling)
-    # u,v = Vcomp.(AV,BV) |> Unpack
-    # u,v = VFRescale([u v],PlanarCube,scaling=scaling)
+    u, v = VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling)
     if OverWrite
-        quiver(AV,BV,quiver=(u,v)) |> display
+        quiver(AV, BV, quiver=(u,v)) |> display
     else
-        quiver!(AV,BV,quiver=(u,v)) |> display
+        quiver!(AV, BV, quiver=(u,v)) |> display
     end
     [AV BV u v]
 end
 
-function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,size::Float64=0.5,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
-    Plot2DVF(DM,V, MLE, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
-end
 
-
-function Plot2DVF(DM::DataModel, V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
-    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube
-    AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
-    Vcomp(a,b) = V(PlaneCoordinates(PlotPlane,[a,b]))
-    u,v = Vcomp.(AV,BV) |> Unpack
-    u,v = VFRescale([u v],PlanarCube,scaling=scaling)
-    if OverWrite
-        quiver(AV,BV,quiver=(u,v)) |> display
-    else
-        quiver!(AV,BV,quiver=(u,v)) |> display
-    end
-    [AV BV u v]
-end
-
-function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane,size::Float64=0.5, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
-    Plot2DVF(DM,V, PlotPlane, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
-end
 
 """
     Deplanarize(PL::Plane,sol::AbstractODESolution; N::Int=500) -> Matrix
@@ -811,17 +826,36 @@ function RectToTriangFacets(M::Matrix{<:Int})
         G[2i,:] = M[i,2:4]
     end;    G
 end
-function CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}; N::Int=3*length(Sols), rectangular::Bool=true)
-    Vertices = vcat([Deplanarize(Planes[i],Sols[i], N=N) for i in 1:length(Sols)]...)
+"""
+    CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true) -> (Matrix{Float64}, Matrix{Int64})
+Returns a N×3 matrix whose rows correspond to the coordinates of various points in 3D space as the first argument.
+The second Matrix is either N×4 or N×3 depending on the value of `rectangular` and enumerates the points which are to be connected up to a rectangular or triangular face in counter-clockwise fashion. The indices of the points correspond to the lines in the first Matrix.
+"""
+function CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=false)
+    Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in 1:length(Sols)])
     M = RectangularFacetIndices(N)
-    Facets = vcat([M .+ (i-1)*N for i in 1:(length(Sols)-1)]...)
-    if rectangular
-        return Vertices, Facets
-    else
-        return Vertices, RectToTriangFacets(Facets)
+    Facets = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
+    if !rectangular
+        Facets = RectToTriangFacets(Facets)
     end
+    if pointy
+        linep1 = size(Vertices,1) + 1
+        # add two points on the top and bottom of the confidence region
+        p1 = 0.15 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
+        p2 = 0.15 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+        Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
+        connectp1, connectp2 = if rectangular
+            reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]),
+            reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+        else
+            reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]),
+            reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+        end
+        Facets = vcat(Facets, connectp1, connectp2)
+    end
+    return Vertices, Facets
 end
-function ToObj(Vertices::Matrix,Facets::Matrix)
+function ToObj(Vertices::Matrix, Facets::Matrix)
     text = ""
     for i in 1:size(Vertices,1)
         text *= "v"
@@ -840,7 +874,7 @@ function ToObj(Vertices::Matrix,Facets::Matrix)
     end
     text
 end
-function WriteObj(Vertices::Matrix,Facets::Matrix, path::String="D:/Boundary.obj")
+function WriteObj(Vertices::Matrix, Facets::Matrix, path::String="D:/Boundary.obj")
     open(path,"w") do f
         write(f,ToObj(Vertices,Facets))
     end
