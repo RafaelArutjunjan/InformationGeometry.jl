@@ -841,8 +841,11 @@ function CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}
     if pointy
         linep1 = size(Vertices,1) + 1
         # add two points on the top and bottom of the confidence region
-        p1 = 0.15 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
-        p2 = 0.15 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+        p1 = 0.45 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
+        p2 = 0.45 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+
+        # HyperPlane()
+
         Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
         connectp1, connectp2 = if rectangular
             reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]),

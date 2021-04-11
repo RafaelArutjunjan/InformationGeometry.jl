@@ -55,8 +55,8 @@ end
 """
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
 """
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.)); kwargs...) = ChisqCDF(pdim(DM), 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); kwargs...) = cdf(Chisq(pdim(DM)), 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.)); dof::Int=pdim(DM), kwargs...) = ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=pdim(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
 
 # Do not give default to third argument here such as to not overrule the defaults from above
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat; kwargs...) = WilksCriterion(DM, BigFloat.(θ), Confvol; kwargs...)
@@ -66,6 +66,7 @@ WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::F
     WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
 Checks whether a given parameter configuration `θ` is within a confidence interval of level `Confvol` using Wilks' theorem.
 This makes the assumption, that the likelihood has the form of a normal distribution, which is asymptotically correct in the limit that the number of datapoints is infinite.
+The keyword `dof` can be used to manually specify the degrees of freedom.
 """
 WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)::Bool = WilksCriterion(DM, θ, Confvol; kwargs...) < 0.
 
@@ -89,7 +90,7 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 #     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
 # end
 
-function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
+function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000, dof::Int=pdim(DM))
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum)) : ConfVol(Confnum)
     mle = if CF isa BigFloat
         suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
@@ -97,7 +98,7 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15,
     else
         MLE(DM)
     end
-    Test(x) = WilksTest(DM, x .* BasisVector(1,pdim(DM)) + mle, CF)
+    Test(x) = WilksTest(DM, x .* BasisVector(1,pdim(DM)) + mle, CF; dof=dof)
     res = MLE(DM) .+ LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
     tol < 2e-15 ? res : convert(Vector{Float64}, res)
 end
@@ -310,11 +311,11 @@ Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidenc
 The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
     if pdim(DM) == 1
         return ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
-        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol, dof=dof); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
         # println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM, Confnum)
@@ -351,17 +352,18 @@ Keyword arguments:
 * `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-12`),
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto = Val(true)` can be chosen to compute the derivatives of the likelihood using automatic differentiation,
-* `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects.
+* `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects,
+* `dof` can be used to manually specify the degrees of freedom.
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false),
-                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     Map = parallel ? pmap : map
     if pdim(DM) == 1
-        return Map(x->ConfidenceRegion(DM,x; tol=tol), Range)
+        return Map(x->ConfidenceRegion(DM,x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
-        sols = Map(x->ConfidenceRegion(DM,x; tol=tol,Boundaries=Boundaries,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
+        sols = Map(x->ConfidenceRegion(DM,x; tol=tol, dof=dof, Boundaries=Boundaries,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
         if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
