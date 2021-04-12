@@ -245,6 +245,11 @@ function ConstructCube(sols::Vector{<:AbstractODESolution}, Npoints::Int=200; Pa
     mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)
 end
 
+function ConstructCube(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; Padding=0.)
+    @assert length(Planes) == length(sols)
+    reduce(union, map((x,y)->ConstructCube(x,y; Padding=Padding), Planes, sols))
+end
+
 """
     CubeWidths(H::HyperCube) -> Vector
 Returns vector of widths of the `HyperCube`.

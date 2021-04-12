@@ -812,9 +812,17 @@ function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnu
 end
 
 
-CastShadow(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, args...) = CastShadow(DM, Tup[1], Tup[2], args...)
-CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}) = CastShadow(DM, Planes, sols, dirs[1], dirs[2])
-function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int)
+
+function Thinner(S::AbstractVector{<:AbstractVector{<:Number}}; threshold::Real=0.2)
+    M = S |> diff .|> norm;    b = threshold * median(M);    Res = [S[1]]
+    for i in 2:length(M)
+        M[i-1] + M[i] < b ? continue : push!(Res, S[i])
+    end;    Res
+end
+
+CastShadow(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, args...; kwargs...) = CastShadow(DM, Tup[1], Tup[2], args...; kwargs...)
+CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}; kwargs...) = CastShadow(DM, Planes, sols, dirs[1], dirs[2]; kwargs...)
+function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int; threshold::Real=0.2)
     @assert length(Planes) == length(sols)
     @assert pdim(DM) == length(Planes[1])
     @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
@@ -824,7 +832,7 @@ function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:Abstr
     poly = map(x->Project(PlaneCoordinates(Planes[1],x), dir1, dir2), sols[1])
     for i in 2:length(Planes)
         poly = UnionPolygons(poly, map(x->Project(PlaneCoordinates(Planes[i],x), dir1, dir2), sols[i]))
-    end;    poly
+    end;    Thinner(poly; threshold=threshold)
 end
 
 function ToGeos(pointlist::AbstractVector{<:AbstractVector{<:Number}})
@@ -844,7 +852,7 @@ function ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVe
     @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
     @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
     mle = copy(MLE(DM));      mle[[dir1,dir2]] .= 0.0
-    PL = Plane(mle, BasisVector(dir1,pdim(DM)), BasisVector(dir2, pdim(DM)))
+    PL = Plane(mle, BasisVector(dir1, pdim(DM)), BasisVector(dir2, pdim(DM)))
     map(x->PlaneCoordinates(PL,x), pointlist)
 end
 
