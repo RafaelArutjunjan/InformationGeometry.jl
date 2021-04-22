@@ -219,6 +219,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start, Bool)
         return curve_fit(DS, model, GetStartP(DS,model); tol=tol).param
+        # return minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol, autodiff=true)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start, AbstractVector)
         if suff(start) == BigFloat
@@ -358,6 +359,7 @@ Keyword arguments:
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
+    det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     Map = parallel ? pmap : map
     if pdim(DM) == 1

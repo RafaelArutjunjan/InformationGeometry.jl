@@ -50,7 +50,7 @@ Computes profile likelihood associated with the component `Comp` of the paramete
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
-    ps = range(dom[1], dom[2]; length=N)
+    ps = DomainSamples(dom; N=N)
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = Vector{Float64}(undef, N)

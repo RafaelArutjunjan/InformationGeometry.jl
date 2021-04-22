@@ -239,7 +239,7 @@ ConstructCube(PL::Plane, sol::AbstractODESolution; Padding::Number=0.) = Constru
 
 # Could speed this up by just using the points in sol.u without interpolation.
 function ConstructCube(sol::AbstractODESolution, Npoints::Int=200; Padding::Number=0.)
-    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end],length=Npoints))); Padding=Padding)
+    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end];length=Npoints))); Padding=Padding)
 end
 function ConstructCube(sols::Vector{<:AbstractODESolution}, Npoints::Int=200; Padding::Number=0.)
     mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)

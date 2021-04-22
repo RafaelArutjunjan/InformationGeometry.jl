@@ -46,6 +46,15 @@ ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 ValToBool(x::Val{true}) = true
 ValToBool(x::Val{false}) = false
 
+
+DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
+DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
+function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
+    @assert N > 2 && Domain[1] < Domain[2]
+    range(Domain[1], Domain[2]; length=N) |> collect
+end
+
+
 function GetMethod(tol::Real)
     if tol > 1e-8
         Tsit5()
@@ -358,10 +367,7 @@ function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int)
 end
 
 
-function TotalLeastSquares(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); tol::Real=1e-13, rescale::Bool=true, kwargs...)
-    TotalLeastSquares(Data(DM), Predictor(DM), initial; tol=tol, rescale=rescale, kwargs...)
-end
-
+TotalLeastSquares(DM::AbstractDataModel, args...; kwargs...) = TotalLeastSquares(Data(DM), Predictor(DM), args...; kwargs...)
 """
     TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}; tol::Real=1e-13, kwargs...) -> Vector
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
@@ -391,6 +397,35 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::U
     Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
 end
 
+
+"""
+    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=BFGS(), autodiff::Bool=true, Full::Bool=false, kwargs...) -> Vector
+Minimizes the input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
+`autodiff=false` uses finite differencing and `Full=true` returns the full solution object instead of only the minimizing result.
+Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
+"""
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), autodiff::Bool=true, Full::Bool=false, kwargs...)
+    !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
+    diffval = autodiff ? :forward : :finite
+    Res = if Domain === nothing
+        optimize(F, start, meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+    else
+        start ∉ Cube && throw("Given starting value not in specified domain.")
+        optimize(F, Cube.L, Cube.U, start, meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+    end
+    Full ? Res : Optim.minimizer(Res)
+end
+
+"""
+    RobustFit(DM::AbstractDataModel, start::Vector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
+Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
+"""
+RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)
+function RobustFit(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DM), Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, p::Real=1, kwargs...)
+    HalfSig = cholesky(InvCov(DS)).U
+    F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, model, x)), p)
+    minimize(F, start, Domain; tol=tol, kwargs...)
+end
 
 
 """

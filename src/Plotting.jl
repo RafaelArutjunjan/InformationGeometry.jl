@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector{<:Number}=xdata(DM), MLE::AbstractVector{<:Number}=MLE(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
@@ -23,11 +23,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, xpositions::AbstractVector
         reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
     end
     # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
-    X = if ydim(DM) ≤ Npoints(DM)
-        Xbounds = extrema(xdata(DM));    collect(range(Xbounds[1], Xbounds[2]; length=500))
-    else
-        xdata(DM)
-    end
+    X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=500) : xdata(DM)
     Y = EmbeddingMap(Data(DM), Predictor(DM), MLE, X)
     Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
     if ydim(DM) ≤ Npoints(DM)
@@ -577,14 +573,14 @@ by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
                             N::Int=300, plot::Bool=true, samples::Int=200)
-    ConfidenceBands(DM, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
+    ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
     ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
 end
 function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
-    ConfidenceBands(DM, Planes, sols, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot, samples=samples)
+    ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
@@ -636,7 +632,7 @@ If the `ParameterCube` circumscribes a given confidence region, this will typica
 """
 function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
     length(Xdomain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
-    ApproxConfidenceBands(DM, ParameterCube, collect(range(Xdomain.L[1], Xdomain.U[1]; length=N)); plot=plot)
+    ApproxConfidenceBands(DM, ParameterCube, DomainSamples(Xdomain; N=N); plot=plot)
 end
 
 function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, woundX::AbstractVector{<:Number}; plot::Bool=true)
@@ -695,7 +691,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
     if ydim(DM) == 1
         Lims = ConstructCube(sol)
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
-        X = range(Cube.L[1],Cube.U[1],length=N)
+        X = DomainSamples(Cube; N=N)
         for i in 1:length(X)
             Y = Predictor(DM)(X[i],MLE)
             up[i] = maximum(Y); low[i] = minimum(Y)
@@ -741,7 +737,7 @@ function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(siz
     C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2π;length=N)
     F(α::Number) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
-    if plot   display(Plots.plot!(ToCols(Data)...;label="Matrix", kwargs...))  end
+    if plot   display(Plots.plot!(ToCols(Data)...; label="Matrix", kwargs...))  end
     Data
 end
 
@@ -758,43 +754,31 @@ function PlotCurves(Curves::Vector{<:AbstractODESolution}; N::Int=100)
     p
 end
 
-EvaluateAlongGeodesic(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
+EvaluateAlongGeodesic(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
 function PlotAlongGeodesic(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
-    Z = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
-        else
-            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
-        end
-    end
-    [collect(range(Interval[1],Interval[2],length=N)) Z]
+    Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
+    @assert ConsistentElDims(Z) == 1
+    X = DomainSamples(Interval; N=N)
+    OverWrite ? display(Plots.plot(X, Z)) : display(Plots.plot!(X, Z))
+    [X Z]
 end
-EvaluateAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-function PlotAlongGeodesicLength(DM::AbstractDataModel,F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
-    Z = EvaluateAlongGeodesic(F,sol,Interval; N=N)
+EvaluateAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
+function PlotAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+    Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
+    @assert ConsistentElDims(Z) == 1
+    X = DomainSamples(Interval; N=N)
     Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, Auto=true, tol=1e-14)
-    Ls = map(Geo,range(Interval[1],Interval[2],length=N))
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(Ls,Z) |> display
-        else
-            Plots.plot!(Ls,Z) |> display
-        end
-    end
+    Ls = map(Geo, X)
+    OverWrite ? display(Plots.plot(Ls, Z)) : display(Plots.plot!(Ls, Z))
     [Ls Z]
 end
-EvaluateAlongCurve(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongCurve(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
-    Z = EvaluateAlongCurve(F,sol,Interval, N=N)
-    if length(Z[1]) == 1
-        if OverWrite
-            Plots.plot(range(Interval[1],Interval[2],length=N),Z) |> display
-        else
-            Plots.plot!(range(Interval[1],Interval[2],length=N),Z) |> display
-        end
-    end
-    Z
+EvaluateAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
+function PlotAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+    Z = EvaluateAlongCurve(F, sol, Interval, N=N)
+    @assert ConsistentElDims(Z) == 1
+    X = DomainSamples(Interval; N=N)
+    OverWrite ? display(Plots.plot(X, Z)) : display(Plots.plot!(X, Z))
+    [X Z]
 end
 
 

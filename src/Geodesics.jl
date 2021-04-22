@@ -183,7 +183,7 @@ end
 function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false)
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
     widths = CubeWidths(Cube);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
-    initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N), length=N)]
+    initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
     OutsideBoundaries(u,p,t) = Boundaries isa Nothing ? u[1:end÷2] ∉ Cube : Boundaries
     solving = 0
     function Constructor(Initial)
