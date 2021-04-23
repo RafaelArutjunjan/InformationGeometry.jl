@@ -19,6 +19,13 @@ suff(args...) = suff(promote(args...)[1])
 
 
 """
+    MaximalNumberOfArguments(F::Function) -> Int
+Infers argument structure of given function, i.e. whether it is of the form `F(x)` or `F(x,y)` or `F(x,y,z)` etc. and returns maximal number of accepted arguments of all overloads of `F` as integer.
+"""
+MaximalNumberOfArguments(F::Function) = maximum([length(Base.unwrap_unionall(m.sig).parameters)-1 for m in methods(F)])
+
+
+"""
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
@@ -408,10 +415,10 @@ function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{No
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     diffval = autodiff ? :forward : :finite
     Res = if Domain === nothing
-        optimize(F, start, meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+        optimize(F, float.(start), meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
     else
-        start ∉ Cube && throw("Given starting value not in specified domain.")
-        optimize(F, Cube.L, Cube.U, start, meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+        start ∉ Domain && throw("Given starting value not in specified domain.")
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
@@ -421,7 +428,10 @@ end
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)
-function RobustFit(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DM), Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, p::Real=1, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelMap, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=nothing; kwargs...)
+    Domain === nothing ? RobustFit(DS, M.Map, start, M.Domain; kwargs...) : RobustFit(DS, M.Map, start, Domain; kwargs...)
+end
+function RobustFit(DS::AbstractDataSet, model::Function, start::AbstractVector{<:Number}=GetStartP(DS,model), Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(InvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, model, x)), p)
     minimize(F, start, Domain; tol=tol, kwargs...)

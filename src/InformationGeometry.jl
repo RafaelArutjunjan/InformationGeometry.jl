@@ -166,7 +166,7 @@ export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
-export curve_fit, TotalLeastSquares, BlockMatrix
+export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("Divergences.jl")

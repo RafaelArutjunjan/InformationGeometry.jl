@@ -332,10 +332,10 @@ import Base.==
 ==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
 ==(A::Plane, B::Plane) = A.stütz == B.stütz && A.Vx == B.Vx && A.Vy == B.Vy
 
-PositiveDomain(n::Int) = HyperCube(zeros(n), fill(Inf,n))
-PositiveDomain(indxs::BitVector) = HyperCube([(indxs[i] ? 0. : -Inf) for i in eachindex(indxs)], fill(Inf,length(indxs)))
-NegativeDomain(n::Int) = HyperCube(fill(-Inf,n), zeros(n))
-NegativeDomain(indxs::BitVector) = HyperCube(fill(-Inf,length(indxs)), [(indxs[i] ? 0. : Inf) for i in eachindex(indxs)])
+PositiveDomain(n::Int) = HyperCube(1e-16ones(n), fill(Inf,n))
+PositiveDomain(indxs::Union{BitVector,AbstractVector{<:Bool}}) = HyperCube([(indxs[i] ? 1e-16 : -Inf) for i in eachindex(indxs)], fill(Inf,length(indxs)))
+NegativeDomain(n::Int) = HyperCube(fill(-Inf,n), -1e-16ones(n))
+NegativeDomain(indxs::Union{BitVector,AbstractVector{<:Bool}}) = HyperCube(fill(-Inf,length(indxs)), [(indxs[i] ? -1e-16 : Inf) for i in eachindex(indxs)])
 FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
 
 import Base.rand

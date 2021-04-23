@@ -14,11 +14,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
         seriescolor -->     :red
         linestyle -->       :solid
     end
-    RSEs = round.(convert.(Float64,ResidualStandardError(DM, MLE)); sigdigits=3)
+    RSEs = ResidualStandardError(DM, MLE)
     label -->  if ydim(DM) == 1
-        "Fit with RSE≈$(RSEs[1])"
+        # "Fit with RSE≈$(RSEs[1])"
+        "Fit" * (RSEs === nothing ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
     elseif ydim(DM) ≤ Npoints(DM)
-        reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
+        # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
+        reshape([ynames(DM)[i] * " Fit"*(RSEs === nothing ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
     else
         reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
     end
@@ -109,7 +111,7 @@ Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
 ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
-    @assert Npoints(DS) > length(MLE)
+    Npoints(DS) ≤ length(MLE) && (println("Too few data points to compute RSE"); return nothing)
     ydiff = ydata(DS) - EmbeddingMap(DS, model, MLE)
     Res = map(i->sqrt(sum(abs2, view(ydiff, i:ydim(DS):length(ydiff))) / (Npoints(DS) - length(MLE))), 1:ydim(DS))
     ydim(DS) == 1 ? Res[1] : Res
@@ -123,10 +125,16 @@ FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; 
 
 ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), sigma(DS), dims(DS)), (x,p)->0., mle, true); kwargs...)
+    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
+                ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
+                (x,p)->zeros(ydim(DS), length(mle)),
+                mle, loglikelihood(DS, model, mle), true); kwargs...)
 end
 function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)), (x,p)->0., mle, true); kwargs...)
+    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
+                ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
+                (x,p)->zeros(ydim(DS), length(mle)),
+                mle, loglikelihood(DS, model, mle), true); kwargs...)
 end
 # function ResidualPlot(DM::AbstractDataModel; kwargs...)
 #     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
