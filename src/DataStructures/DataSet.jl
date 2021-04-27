@@ -54,7 +54,7 @@ struct DataSet <: AbstractDataSet
         Σ_y = size(Σ_y,1) > size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
         DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)))
     end
-    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)], args...)
     ####### Only looking at sigma from here on out
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int})
         Sigma = Unwind(sigma)

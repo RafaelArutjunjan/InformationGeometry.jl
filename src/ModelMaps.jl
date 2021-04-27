@@ -112,6 +112,55 @@ function OutsideBoundariesFunction(M::ModelMap)
     OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
 end
 
+EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
+
+"""
+Only works for `DataSet` and `DataSetExact` but will output wrong order of components for `CompositeDataSet`!
+"""
+function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
+    @assert ConsistentElDims((x->x.xyp[1]).(Mods)) > 0 && ConsistentElDims((x->x.xyp[3]).(Mods)) > 0
+    if Mods[1].xyp[1] == 1
+        function ConcatenatedModel(x::Number, θ::AbstractVector{<:Number}; kwargs...)
+            map(model->model(x, θ; kwargs...), Mods) |> Reduction
+        end
+        EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+        EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
+        function ConcatenatedModel(X::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
+            if any(iscustom, Mods)
+                Res = if any(m->m.xyp[2]>1, Mods)
+                    map(m->Windup(EbdMap(m.Map, θ, X, m.CustomEmbedding; kwargs...), m.xyp[2]), Mods)
+                    # map(m->Windup(EmbeddingMap(DS, m, θ, X), m.xyp[2]), Mods)
+                else
+                    map(m->EbdMap(m.Map, θ, X, m.CustomEmbedding; kwargs...), Mods)
+                    # map(m->EmbeddingMap(DS, m, θ, X), Mods)
+                end
+                return zip(Res...) |> Iterators.flatten |> collect |> Reduction
+            else
+                return map(z->ConcatenatedModel(z, θ; kwargs...), X) |> Reduction
+            end
+        end
+        return ModelMap(ConcatenatedModel, reduce(union, (z->z.Domain).(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
+    else
+        function NConcatenatedModel(x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
+            map(model->model(x, θ; kwargs...), Mods) |> Reduction
+        end
+        function NConcatenatedModel(X::AbstractVector{<:AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
+            if any(iscustom, Mods)
+                Res = if any(m->m.xyp[2]>1, Mods)
+                    map(m->Windup(EmbeddingMap(DS, m, θ, X), m.xyp[2]), Mods)
+                else
+                    map(m->EmbeddingMap(DS, m, θ, X), Mods)
+                end
+                return zip(Res...) |> Iterators.flatten |> collect |> Reduction
+            else
+                return map(z->NConcatenatedModel(z, θ; kwargs...), X) |> Reduction
+            end
+        end
+        return ModelMap(NConcatenatedModel,reduce(union, (z->z.Domain).(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
+    end
+end
+
 
 _Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
 _ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)

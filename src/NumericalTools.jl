@@ -428,12 +428,9 @@ end
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)
-function RobustFit(DS::AbstractDataSet, M::ModelMap, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=nothing; kwargs...)
-    Domain === nothing ? RobustFit(DS, M.Map, start, M.Domain; kwargs...) : RobustFit(DS, M.Map, start, Domain; kwargs...)
-end
-function RobustFit(DS::AbstractDataSet, model::Function, start::AbstractVector{<:Number}=GetStartP(DS,model), Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, p::Real=1, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(InvCov(DS)).U
-    F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, model, x)), p)
+    F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, x)), p)
     minimize(F, start, Domain; tol=tol, kwargs...)
 end
 

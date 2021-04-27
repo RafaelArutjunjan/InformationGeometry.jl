@@ -59,7 +59,7 @@ struct DataModel <: AbstractDataModel
         S = Score(DS, model, dmodel, MLE)
         norm(S) > sqrt(length(MLE))*1e-3 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(S))."
         g = FisherMetric(DS, dmodel, MLE)
-        det(g) == 0. && throw("Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE.")
+        det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE."
         !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
         new(DS, model, dmodel, MLE, LogLikeMLE)
     end
