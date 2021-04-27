@@ -411,14 +411,14 @@ Minimizes the input function using the given `start` using algorithms from `Opti
 `autodiff=false` uses finite differencing and `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
 """
-function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), autodiff::Bool=true, Full::Bool=false, kwargs...)
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, autodiff::Bool=true, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     diffval = autodiff ? :forward : :finite
     Res = if Domain === nothing
-        optimize(F, float.(start), meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); autodiff=diffval, kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol); autodiff=diffval, kwargs...)
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); autodiff=diffval, kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
