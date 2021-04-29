@@ -1,8 +1,5 @@
 
 
-function StandardInDomain(n::Int)
-    IsInDomain(θ::AbstractVector{<:Number}) = length(θ) == n ? true : throw("Incorrect number of components was passed.")
-end
 
 # Callback triggers when Boundaries is `true`.
 """
@@ -112,8 +109,6 @@ function OutsideBoundariesFunction(M::ModelMap)
     OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
 end
 
-EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
-EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
 
 """
 Only works for `DataSet` and `DataSetExact` but will output wrong order of components for `CompositeDataSet`!
@@ -162,7 +157,8 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
 end
 
 
-_Apply(x::AbstractVector{<:Number}, Componentwise::Function, indxs::BitVector) = [(indxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(indxs)]
+
+_Apply(x::AbstractVector{<:Number}, Componentwise::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
 _ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 
 MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
@@ -174,77 +170,118 @@ function Monotonicity(F::Function, Interval::Tuple{Number,Number})
     :neither
 end
 
-Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(F, indxs, Transform, InverseTransform)
+Transform(F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(F, idxs, Transform, InverseTransform)
 
 # Try to do a bit of inference for the new domain here!
-function Transform(M::ModelMap, indxs::BitVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
-    TranslatedDomain(θ::AbstractVector{<:Number}) = M.InDomain(_Apply(θ, Transform, indxs))
+function Transform(M::ModelMap, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+    TransformedDomain(θ::AbstractVector{<:Number}) = M.InDomain(_Apply(θ, Transform, idxs))
     mono = Monotonicity(Transform, (1e-12,50.))
     NewCube = if mono == :increasing
-        HyperCube(_Apply(M.Domain.L, InverseTransform, indxs), _Apply(M.Domain.U, InverseTransform, indxs))
+        HyperCube(_Apply(M.Domain.L, InverseTransform, idxs), _Apply(M.Domain.U, InverseTransform, idxs))
     elseif mono == :decreasing
         println("Detected monotone decreasing transformation.")
-        HyperCube(_Apply(M.Domain.U, InverseTransform, indxs), _Apply(M.Domain.L, InverseTransform, indxs))
+        HyperCube(_Apply(M.Domain.U, InverseTransform, idxs), _Apply(M.Domain.L, InverseTransform, idxs))
     else
-        FullDomain(length(indxs))
-        @warn "Transformation does not appear to be monotone."
+        @warn "Transformation does not appear to be monotone. Unable to infer new Domain."
+        FullDomain(length(idxs))
     end
-    ModelMap(_Transform(M.Map, indxs, Transform, InverseTransform), TranslatedDomain, NewCube,
+    ModelMap(_Transform(M.Map, idxs, Transform, InverseTransform), TransformedDomain, NewCube,
                         M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
-function Transform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
-    Transform(M, trues(M.xyp[3]), Transform, InverseTransform)
-end
+# function Transform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+#     Transform(M, trues(M.xyp[3]), Transform, InverseTransform)
+# end
 
 
-function _Transform(F::Function, indxs::BitVector, Transform::Function, InverseTransform::Function)
+function _Transform(F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
-        F(x, _Apply(θ, Transform, indxs); kwargs...)
+        F(x, _Apply(θ, Transform, idxs); kwargs...)
     end
 end
 
-LogTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log, exp)
-LogTransform(M::ModelMap) = LogTransform(M, trues(M.xyp[3]))
 
-Log10Transform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, log10, x->10^x)
-Log10Transform(M::ModelMap) = Log10Transform(M, trues(M.xyp[3]))
+"""
+    Transform(DM::AbstractDataModel, F::Function, idxs::BitVector=trues(pdim(DM))) -> DataModel
+Transforms the parameters of the model by the given scalar function `F` such that `newmodel(x, θ) = oldmodel(x, F.(θ))`.
+By providing `idxs`, one may restrict the application of the function `F` to specific parameter components.
+"""
+function Transform(DM::AbstractDataModel, F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM)))
+    @assert length(idxs) == pdim(DM)
+    sum(idxs) == 0 && return DM
+    DataModel(Data(DM), Transform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs))
+end
+function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM)))
+    @assert length(idxs) == pdim(DM)
+    sum(idxs) == 0 && return DM
+    DataModel(Data(DM), Transform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs))
+end
 
-ReflectionTransform(F::ModelOrFunction, indxs::BitVector) = Transform(F, indxs, x-> -x, x-> -x)
-ReflectionTransform(M::ModelMap) = ReflectionTransform(M, trues(M.xyp[3]))
 
-ScaleTransform(F::ModelOrFunction, indxs::BitVector, factor::Number) = Transform(F, indxs, x->factor*x, x->x/factor)
-ScaleTransform(M::ModelMap, factor::Number) = ScaleTransform(M, trues(M.xyp[3]), factor)
+LogTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log, exp)
+LogTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, log, exp, idxs)
+
+ExpTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp, log)
+ExpTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, exp, log, idxs)
+
+Log10Transform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, x->10^x)
+Log10Transform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, log10, x->10^x, idxs)
+
+Power10Transform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->10^x, log10)
+Power10Transform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x->10^x, log10, idxs)
+
+ReflectionTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
+ReflectionTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x-> -x, x-> -x, idxs)
+
+ScaleTransform(M::ModelOrFunction, factor::Number, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->factor*x, x->x/factor)
+ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x->factor*x, x->x/factor, idxs)
+
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
     TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)
 end
 function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
+    @assert length(Domain) == length(v)
     ModelMap(TranslationTransform(M.Map, v), θ->M.InDomain(θ + v), TranslateCube(M.Domain, -v), M.xyp, M.pnames, M.StaticOutput,
                                     M.inplace, M.CustomEmbedding)
 end
-
-function LinearTransform(F::Function, A::AbstractMatrix{<:Number})
-    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ; kwargs...)
+function TranslationTransform(DM::AbstractDataModel, v::AbstractVector{<:Number})
+    @assert pdim(DM) == length(v)
+    DataModel(Data(DM), TranslationTransform(Predictor(DM), v), MLE(DM)-v)
 end
 
+
+function LinearTransform(F::Function, A::AbstractMatrix{<:Number})
+    TransformedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ; kwargs...)
+end
 function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
-    !isposdef(A) && println("Matrix in linear transform not positive definite.")
+    @assert length(M.Domain) == size(A,1) == size(A,2)
     Ainv = inv(A)
     ModelMap(LinearTransform(M.Map, A), θ->M.InDomain(A*θ), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
+function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number})
+    @assert pdim(DM) == size(A,1) == size(A,2)
+    DataModel(Data(DM), LinearTransform(Predictor(DM), A), inv(A)*MLE(DM))
+end
+
 
 function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+    @assert size(A,1) == size(A,2) == length(v)
     TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ + v; kwargs...)
 end
-
 function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
-    !isposdef(A) && println("Matrix in linear transform not positive definite.")
+    @assert length(M.Domain) == size(A,1) == size(A,2) == length(v)
     Ainv = inv(A)
-    ModelMap(AffineTransform(M.Map, A, v), θ->M.InDomain(A*θ+v), HyperCube(Ainv * (M.Domain.L-v), Ainv * (M.Domain.U-v)),
+    ModelMap(AffineTransform(M.Map, A, v), θ->M.InDomain(A*θ+v), HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
+function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+    @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
+    Ainv = inv(A)
+    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v), Ainv*(MLE(DM)-v))
+end
 
+LinearDecorrelation(DM::AbstractDataModel) = AffineTransform(DM, cholesky(inv(FisherMetric(DM, MLE(DM)))).L, MLE(DM))
 
 
 LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:end-1], x) + θ[end]

@@ -24,8 +24,8 @@ function Base.summary(DM::AbstractDataModel)
     string(TYPE_COLOR, nameof(typeof(DM)),
     NO_COLOR, " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, ". Model jacobian via AutoDiff: ",
-    ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "true" : "false"),
+    NO_COLOR, ". Model jacobian: ",
+    ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : "Symbolic"),
     NO_COLOR)
 end
 

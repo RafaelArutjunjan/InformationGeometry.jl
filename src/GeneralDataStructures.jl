@@ -123,6 +123,7 @@ Returns appropriate function which constitutes the automatic derivative of the `
 """
 function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false; custom::Bool=false)
     # Try to use symbolic dmodel:
+    # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
     if TryOptimize
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
         Symbolic_dmodel != nothing && return Symbolic_dmodel

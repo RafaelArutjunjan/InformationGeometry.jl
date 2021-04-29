@@ -5,8 +5,8 @@
 Copy the state names saved in `ODESystem` to `DS`.
 """
 function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
-    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(sys.iv.name)] : xnames(DS)
-    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(sys.states[observables]) : ynames(DS)
+    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : xnames(DS)
+    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(ModelingToolkit.get_states(sys)[observables]) : ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
@@ -29,7 +29,7 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
     if Model isa ModelMap       Model = Model.Map    end
-    pnames = [string(x.name) for x in sys.ps]
+    pnames = ModelingToolkit.get_ps(sys) .|> string
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
         argnum = MaximalNumberOfArguments(observables)
@@ -43,7 +43,7 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
     plen = if Domain isa HyperCube
         length(Domain)
     elseif u0 isa AbstractArray     # Vector / Matrix
-        # initial conditions given as array means the parameters are only the sys.ps
+        # initial conditions given as array means the parameters are only the ps in sys
         length(pnames)
     else        # SplitterFunction
         # May well fail depending on how splitter function is implemented
@@ -202,7 +202,7 @@ end
 
 
 
-Getxyp(DM::AbstractDataModel) = Getxyp(Data(DM), Predictor(DM))
+Getxyp(DM::AbstractDataModel) = (xdim(DM), ydim(DM), pdim(DM))
 Getxyp(DS::AbstractDataSet, model::Function) = (xdim(DS),ydim(DS),pdim(DS,model))
 Getxyp(DS::AbstractDataSet, M::ModelMap) = M.xyp
 
@@ -213,6 +213,8 @@ function SymbolicArguments(xyp::Tuple{Int,Int,Int})
     X, Y, θ
 end
 
+
+ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Data(DM), Predictor(DM); timeout=timeout)
 ToExpr(DS::AbstractDataSet, model::Function; timeout::Real=5) = ToExpr(model, (xdim(DS),ydim(DS),pdim(DS,model)); timeout=timeout)
 ToExpr(DS::AbstractDataSet, M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
 ToExpr(M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
@@ -237,8 +239,26 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
     end;    modelexpr
 end
 
-PrintModel(DM::AbstractDataModel) = println("y(x;θ) = $(ToExpr(Data(DM), Predictor(DM)))")
-PrintdModel(DM::AbstractDataModel) = GeneratedFromSymbolic(dPredictor(DM)) ? println("(∂y/∂θ)(x;θ) = $(ToExpr(Data(DM), dPredictor(DM)))") : throw("Model Jacobian not symbolic. Try applying OptimizedDM() first.")
+function SymbolicModel(DM::AbstractDataModel)
+    expr = ToExpr(DM)
+    expr === nothing ? "Cannot represent given model symbolically." : "y(x;θ) = $expr"
+end
+
+function SymbolicdModel(DM::AbstractDataModel)
+    if !GeneratedFromSymbolic(dPredictor(DM))
+        println("Given Model jacobian not symbolic. Trying to apply OptimizedDM() first.")
+        odm = OptimizedDM(DM)
+        if ToExpr(odm) === nothing
+            return "Cannot represent given jacobian symbolically."
+        else
+            X, Y, θ = SymbolicArguments(odm)
+            return "(∂y/∂θ)(x;θ) = $(dPredictor(odm)(X, θ))"
+        end
+    else
+        X, Y, θ = SymbolicArguments(DM)
+        return "(∂y/∂θ)(x;θ) = $(dPredictor(DM)(X, θ))"
+    end
+end
 
 
 function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)

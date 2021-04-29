@@ -26,7 +26,6 @@ using SafeTestsets
 
     @test dot(OrthVF(DM,p),Score(DM,p)) < 1e-14
     @test norm(FindMLE(DM) - [5.01511545953636, 1.4629658803705]) < 5e-10
-    # ALSO DO NONLINEAR MODEL!
 end
 
 @safetestset "Confidence Regions" begin
@@ -79,6 +78,30 @@ end
     ExactBox = ConstructCube(ConfidenceRegion(ToyDME,1; tol=1e-6))
     @test norm(Center(ProfBox) - Center(ExactBox)) < 1e-5
     @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
+end
+
+
+@safetestset "ODE models" begin
+    using InformationGeometry, Test, OrdinaryDiffEq
+
+    function SIR!(du,u,p,t)
+        S, I, R = u
+        β, γ = p
+        du[1] = -β * I * S
+        du[2] = +β * I * S - γ * I
+        du[3] = +γ * I
+        nothing
+    end
+    SIRsys = ODEFunction(SIR!)
+    infected = [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5]
+    SIRDS = InformNames(DataSet(collect(1:14), infected, 5ones(14)), ["Days"], ["Infected"])
+
+    SIRinitial = X->([763.0-X[1], X[1], 0.0], X[2:3])
+
+    # Use SplitterFunction SIRinitial to infer initial condition I₀ as first parameter
+    @test DataModel(SIRDS, SIRsys, SIRinitial, [2], [0.5,0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
+    # Use ObservationFunction
+    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], x->x[2], [0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
 end
 
 @safetestset "Model Transformations" begin

@@ -108,7 +108,8 @@ export PositiveDomain, NegativeDomain, FullDomain, rand, EmbeddedODESolution
 
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction, InformNames
-export Transform, LogTransform, TranslationTransform, LinearTransform, AffineTransform
+export Transform, LogTransform, Log10Transform, ExpTransform, Power10Transform, ScaleTransform
+export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
 
 
@@ -187,7 +188,7 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 
 
 include("SymbolicComputations.jl")
-export GetModel, Optimize, OptimizedDM, PrintModel, PrintdModel
+export GetModel, Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
