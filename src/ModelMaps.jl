@@ -240,7 +240,7 @@ function TranslationTransform(F::Function, v::AbstractVector{<:Number})
     TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)
 end
 function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
-    @assert length(Domain) == length(v)
+    @assert length(M.Domain) == length(v)
     ModelMap(TranslationTransform(M.Map, v), θ->M.InDomain(θ + v), TranslateCube(M.Domain, -v), M.xyp, M.pnames, M.StaticOutput,
                                     M.inplace, M.CustomEmbedding)
 end
