@@ -170,7 +170,7 @@ function Monotonicity(F::Function, Interval::Tuple{Number,Number})
     :neither
 end
 
-Transform(F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(F, idxs, Transform, InverseTransform)
+Transform(model::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(model, idxs, Transform, InverseTransform)
 
 # Try to do a bit of inference for the new domain here!
 function Transform(M::ModelMap, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
@@ -201,7 +201,8 @@ end
 
 
 """
-    Transform(DM::AbstractDataModel, F::Function, idxs::BitVector=trues(pdim(DM))) -> DataModel
+    Transform(DM::AbstractDataModel, F::Function, idxs=trues(pdim(DM))) -> DataModel
+    Transform(model::Function, idxs, F::Function) -> Function
 Transforms the parameters of the model by the given scalar function `F` such that `newmodel(x, θ) = oldmodel(x, F.(θ))`.
 By providing `idxs`, one may restrict the application of the function `F` to specific parameter components.
 """
