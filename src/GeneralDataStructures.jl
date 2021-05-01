@@ -130,7 +130,7 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool
     end
     AutoDiffDmodel(DS, model; custom=custom)
 end
-function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=ValToBool(M.CustomEmbedding))
+function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=iscustom(M))
     ModelMap(DetermineDmodel(DS, M.Map, TryOptimize; custom=custom), M)
 end
 

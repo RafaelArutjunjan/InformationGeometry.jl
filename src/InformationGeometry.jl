@@ -14,7 +14,7 @@ using LibGEOS
 using RecipesBase, Plots, Optim
 using TreeViews
 
-import SciMLBase: AbstractODESolution
+import SciMLBase: AbstractODESolution, AbstractODEFunction
 
 
 ############## TODOs ##############
@@ -94,6 +94,9 @@ export AbstractDataSet, AbstractDataModel, Cuboid
 import Base: length, rand, BigFloat, in, union, intersect, join, ==
 import DataFrames.DataFrame
 import Distributions.loglikelihood
+
+BoolArray = Union{BitArray,AbstractArray{<:Bool}}
+BoolVector = Union{BitVector,AbstractVector{<:Bool}}
 
 
 include("Subspaces.jl")

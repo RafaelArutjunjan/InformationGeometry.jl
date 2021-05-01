@@ -4,27 +4,27 @@
     InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:Int})
 Copy the state names saved in `ODESystem` to `DS`.
 """
-function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
+function InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Union{BoolArray,AbstractVector{<:Int}})
     newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : xnames(DS)
     newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(ModelingToolkit.get_states(sys)[observables]) : ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
-function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,ODEFunction}, u0::Union{AbstractArray{<:Number},Function},
-                        observables::Union{AbstractVector{<:Int},BitArray,Function}=collect(1:length(u0)), args...; tol::Real=1e-7,
+function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,AbstractODEFunction}, u0::Union{AbstractArray{<:Number},Function},
+                        observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0)), args...; tol::Real=1e-7,
                         meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
     newDS = (typeof(observables) <: AbstractVector{<:Int} && sys isa ODESystem) ? InformNames(DS, sys, observables) : DS
     DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
 end
 
-function GetModel(func::Function, u0::Union{AbstractArray{<:Number},Function}, observables::Union{Function,AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
+function GetModel(func::Function, u0::Union{AbstractArray{<:Number},Function}, observables::Union{Function,AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 end
 
 
-function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BitArray,Function}=collect(1:length(u0));
+function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0));
                 tol::Real=1e-7, Domain::Union{HyperCube,Bool}=false, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
@@ -38,7 +38,7 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
         num = GetArgLength(F)
         length(F(ones(num)))
     else
-        observables isa BitArray ? sum(observables) : length(observables)
+        observables isa BoolArray ? sum(observables) : length(observables)
     end
     plen = if Domain isa HyperCube
         length(Domain)
@@ -58,7 +58,7 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
 end
 
 # Vanilla version with constant array of initial conditions and vector of observables.
-function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
+function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
@@ -67,20 +67,16 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, observables
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
-    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables, u0::AbstractArray{<:Number}=u0,
+    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
                                                         tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
-        FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables, u0::AbstractArray{<:Number}=u0,
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
                                                 tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
-        # sol = GetSol(θ; tol=tol, max_t=max_t, meth=meth, tstops=ts, save_everywhere=false, kwargs...)
-        # FullSol && return sol
-        ## Slow method:        Reduction(map(t->sol(t)[observables], ts))
-        # [sol.u[findnext(x->x==t,sol.t,i)][observables] for (i,t) in enumerate(ts)] |> Reduction
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
-        FullSol && return sol
         length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
@@ -93,7 +89,7 @@ end
 `ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
 Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
 """
-function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, PreObservationFunction::Function; tol::Real=1e-7,
+function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
@@ -115,14 +111,14 @@ function GetModel(func::ODEFunction{T}, u0::AbstractArray{<:Number}, PreObservat
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
                                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
-        FullSol && return sol
         ObservationFunction(sol.u[end], t, θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
-        FullSol && return sol
         length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
@@ -133,7 +129,7 @@ end
 `SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a tuple whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.
 Typically, a fair bit of performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
 """
-function GetModel(func::ODEFunction{T}, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BitArray}=collect(1:length(u0)); tol::Real=1e-7,
+function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
 
@@ -141,16 +137,16 @@ function GetModel(func::ODEFunction{T}, SplitterFunction::Function, observables:
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, u0, (0., max_t), p)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
-    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables, SplitterFunction::Function=SplitterFunction,
+    function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
-        FullSol && return sol
         sol.u[end][observables]
     end
-    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BitArray}=observables, SplitterFunction::Function=SplitterFunction,
+    function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
                                 tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
-        FullSol && return sol
         length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
@@ -165,7 +161,7 @@ Typically, a fair bit of additional performance can be gained from ensuring that
 Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
 NOTE: The `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting. This is because `ObservationFunction` can also depend on the initial conditions in general.
 """
-function GetModel(func::ODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
+function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
     @assert T == inplace
 
@@ -186,14 +182,14 @@ function GetModel(func::ODEFunction{T}, SplitterFunction::Function, PreObservati
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                                     tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
-        FullSol && return sol
         ObservationFunction(sol.u[end], sol.t[end], θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
-        FullSol && return sol
         length(sol.u) != length(ts) && throw("ODE integration failed, try using a lower tolerance value.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
@@ -241,7 +237,7 @@ end
 
 function SymbolicModel(DM::AbstractDataModel)
     expr = ToExpr(DM)
-    expr === nothing ? "Cannot represent given model symbolically." : "y(x;θ) = $expr"
+    expr === nothing ? "Cannot represent given model symbolically." : "y(x,θ) = $expr"
 end
 
 function SymbolicdModel(DM::AbstractDataModel)
@@ -252,11 +248,11 @@ function SymbolicdModel(DM::AbstractDataModel)
             return "Cannot represent given jacobian symbolically."
         else
             X, Y, θ = SymbolicArguments(odm)
-            return "(∂y/∂θ)(x;θ) = $(dPredictor(odm)(X, θ))"
+            return "(∂y/∂θ)(x,θ) = $(dPredictor(odm)(X, θ))"
         end
     else
         X, Y, θ = SymbolicArguments(DM)
-        return "(∂y/∂θ)(x;θ) = $(dPredictor(DM)(X, θ))"
+        return "(∂y/∂θ)(x,θ) = $(dPredictor(DM)(X, θ))"
     end
 end
 

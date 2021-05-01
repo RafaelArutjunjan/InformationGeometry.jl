@@ -25,7 +25,7 @@ function Base.summary(DM::AbstractDataModel)
     NO_COLOR, " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
     NO_COLOR, ". Model jacobian: ",
-    ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : "Symbolic"),
+    ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : (GeneratedFromSymbolic(dPredictor(DM)) ? "Symbolic" : "manually provided")),
     NO_COLOR)
 end
 
@@ -107,7 +107,7 @@ function Base.show(io::IO, DM::AbstractDataModel)
         println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
-    !isa(Expr, Nothing) && println(io, "Model:  y(x;θ) = $Expr")
+    !isa(Expr, Nothing) && println(io, "Model:  y(x,θ) = $Expr")
     println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end
 

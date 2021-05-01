@@ -46,7 +46,7 @@ for the respective susceptible, infected and recovered subpopulations on day zer
 days = collect(1:14)
 infected = [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5]
 SIRDS = DataSet(days, infected, 5ones(14))
-SIRDS = InformationGeometry.InformNames(DataSet(days, infected, 5ones(14)), ["Days"], ["Infected"]) # hide
+SIRDS = InformNames(DataSet(days, infected, 5ones(14)), ["Days"], ["Infected"]) # hide
 nothing # hide
 ```
 
@@ -56,6 +56,13 @@ SIRobservables = [2]
 SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, SIRobservables, [0.001, 0.1]; tol=1e-7)
 ```
 where `SIRobservables` denotes the components of the `ODESystem` that have actually been observed in the given dataset (i.e. the second component which are the infected in this case). The optional vector `[0.001, 0.1]` is our initial guess for the parameters `[β, γ]` for the maximum likelihood estimation and the keyword `tol` specifies the desired accuracy of the ODE solver for all model predictions.
+
+!!! tip
+    Instead of specifying the observable components of an ODE system as an array, it is also possible to provide an arbitrary observation function with argument signature `f(u)`, `f(u,t)` or `f(u,t,θ)`.
+    Similarly, (parts of) the initial conditions for the ODE system can be included as parameters of the problem and estimated from data by providing a splitter function of the form `θ -> (u0, p)`. The first entry of the returned tuple will be used as the initial condition for the ODE system and the second argument enters into the `ODEFunction` itself.
+
+    In this particular example, one might include the initial number of infections as a dynamical parameter via the splitter function `θ -> ([763.0 - θ[1], θ[1], 0.0], θ[2:3])`.
+
 
 It is now possible to compute properties of this `DataModel` such as confidence regions, confidence bands, geodesics, profile likelihoods, curvature tensors and so on as with any other model.
 ```julia

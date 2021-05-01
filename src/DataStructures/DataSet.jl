@@ -17,6 +17,12 @@ DataSet([1,2,3,4], [4,5,6.5,7.8], Diagonal([0.5,0.45,0.6,0.8].^2))
 ```
 where the diagonal covariance matrix in the second line is equivalent to the vector of standard deviations supplied in the first line.
 
+For measurements with multiple components, it is also possible to enter them as a `Matrix` where the columns correspond to the respective components.
+```julia
+DataSet([0, 0.5, 1], [1 100; 2 103; 3 108], [0.5 8; 0.4 5; 0.6 10])
+```
+Note that if the uncertainty matrix is square, it may be falsely interpreted as a covariance matrix instead of as the columnwise specification of standard deviations.
+
 More generally, if a dataset consists of ``N`` points where each ``x``-value has ``n`` many components and each ``y``-value has ``m`` many components, this can be specified to the `DataSet` constructor via a tuple ``(N,n,m)`` in addition to the vectors `x`, `y` and the covariance matrix.
 For example:
 ```julia

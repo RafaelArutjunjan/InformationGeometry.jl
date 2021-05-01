@@ -158,7 +158,7 @@ end
 
 
 
-_Apply(x::AbstractVector{<:Number}, Componentwise::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
+_Apply(x::AbstractVector{<:Number}, Componentwise::Function, idxs::BoolVector) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
 _ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 
 MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
@@ -170,10 +170,10 @@ function Monotonicity(F::Function, Interval::Tuple{Number,Number})
     :neither
 end
 
-Transform(model::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(model, idxs, Transform, InverseTransform)
+Transform(model::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(model, idxs, Transform, InverseTransform)
 
 # Try to do a bit of inference for the new domain here!
-function Transform(M::ModelMap, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+function Transform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
     TransformedDomain(θ::AbstractVector{<:Number}) = M.InDomain(_Apply(θ, Transform, idxs))
     mono = Monotonicity(Transform, (1e-12,50.))
     NewCube = if mono == :increasing
@@ -193,7 +193,7 @@ end
 # end
 
 
-function _Transform(F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}, Transform::Function, InverseTransform::Function)
+function _Transform(F::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function)
     function TransformedModel(x::Union{Number, AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
         F(x, _Apply(θ, Transform, idxs); kwargs...)
     end
@@ -206,35 +206,35 @@ end
 Transforms the parameters of the model by the given scalar function `F` such that `newmodel(x, θ) = oldmodel(x, F.(θ))`.
 By providing `idxs`, one may restrict the application of the function `F` to specific parameter components.
 """
-function Transform(DM::AbstractDataModel, F::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM)))
+function Transform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)))
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
     DataModel(Data(DM), Transform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs))
 end
-function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM)))
+function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)))
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
     DataModel(Data(DM), Transform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs))
 end
 
 
-LogTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log, exp)
-LogTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, log, exp, idxs)
+LogTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log, exp)
+LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, log, exp, idxs)
 
-ExpTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp, log)
-ExpTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, exp, log, idxs)
+ExpTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp, log)
+ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, exp, log, idxs)
 
-Log10Transform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, x->10^x)
-Log10Transform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, log10, x->10^x, idxs)
+Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, x->10^x)
+Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, log10, x->10^x, idxs)
 
-Power10Transform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->10^x, log10)
-Power10Transform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x->10^x, log10, idxs)
+Power10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->10^x, log10)
+Power10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x->10^x, log10, idxs)
 
-ReflectionTransform(M::ModelOrFunction, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
-ReflectionTransform(DM::AbstractDataModel, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x-> -x, x-> -x, idxs)
+ReflectionTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
+ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x-> -x, x-> -x, idxs)
 
-ScaleTransform(M::ModelOrFunction, factor::Number, idxs::Union{BitVector,AbstractVector{<:Bool}}=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->factor*x, x->x/factor)
-ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::Union{BitVector,AbstractVector{<:Bool}}=trues(pdim(DM))) = Transform(DM, x->factor*x, x->x/factor, idxs)
+ScaleTransform(M::ModelOrFunction, factor::Number, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->factor*x, x->x/factor)
+ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x->factor*x, x->x/factor, idxs)
 
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
