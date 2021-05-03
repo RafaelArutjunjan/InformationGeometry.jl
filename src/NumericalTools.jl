@@ -406,19 +406,28 @@ end
 
 
 """
-    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=BFGS(), autodiff::Bool=true, Full::Bool=false, kwargs...) -> Vector
+    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=BFGS(), Full::Bool=false, kwargs...) -> Vector
 Minimizes the input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
-`autodiff=false` uses finite differencing and `Full=true` returns the full solution object instead of only the minimizing result.
+`Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
 """
-function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, autodiff::Bool=true, Full::Bool=false, kwargs...)
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
-    diffval = autodiff ? :forward : :finite
     Res = if Domain === nothing
-        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); autodiff=diffval, kwargs...)
+        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); autodiff=diffval, kwargs...)
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+    end
+    Full ? Res : Optim.minimizer(Res)
+end
+function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=LBFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
+    !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
+    Res = if Domain === nothing
+        optimize(F, dF, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+    else
+        start ∉ Domain && throw("Given starting value not in specified domain.")
+        optimize(F, dF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
@@ -432,6 +441,17 @@ function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVecto
     HalfSig = cholesky(InvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, x)), p)
     minimize(F, start, Domain; tol=tol, kwargs...)
+end
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, inplace=isinplace(dM), kwargs...)
+    HalfSig = cholesky(InvCov(DS)).U
+    F(x::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)), p)
+    function dFp(x::AbstractVector)
+        z = HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS))
+        n = sum(z.^p)^(1/p - 1) * z.^(p-1)
+        transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) * n
+    end
+    dF1(x::AbstractVector) = transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) *  sign.(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)))
+    minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, inplace=inplace, kwargs...)
 end
 
 

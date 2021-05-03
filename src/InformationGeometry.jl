@@ -113,6 +113,7 @@ include("ModelMaps.jl")
 export ModelMap, ModelOrFunction, InformNames
 export Transform, LogTransform, Log10Transform, ExpTransform, Power10Transform, ScaleTransform
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
+export EmbedModelVia, Embedding
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
 
 
@@ -162,7 +163,7 @@ export ApproxInRegion, ShadowTheatre, CastShadow
 
 
 include("ProfileLikelihood.jl")
-export EmbedModelVia, ProfileLikelihood, InterpolatedProfiles, ProfileBox
+export ProfileLikelihood, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
 
 
 include("NumericalTools.jl")

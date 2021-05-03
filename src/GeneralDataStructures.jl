@@ -203,18 +203,3 @@ SubDataModel(DM::AbstractDataModel, range::Union{AbstractRange,AbstractVector}) 
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
-
-
-# function EmbeddedDataModel(DM::AbstractDataModel, Embedding::Function, newMLE::Union{Nothing,AbstractVector{<:Number}}=nothing)
-#     if Predictor(DM) isa ModelMap
-#         # (Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
-#         M = Predictor(DM)
-#         EmbeddedModel = ModelMap((x, θ::AbstractVector{<:Number}; kwargs...)->M.Map(x, Embedding(θ); kwargs...),
-#                                  Embedding∘M.InDomain
-#         )
-#         DataModel(Data(DM), EmbeddedModel, (newMLE === nothing ? GetStartP(GetArgLength(Embedding; max=pdim(DM))) : newMLE))
-#     else
-#         EmbeddedModel(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, Embedding(θ); kwargs...)
-#         DataModel(Data(DM), EmbeddedModel, (newMLE === nothing ? GetStartP(GetArgLength(Embedding; max=pdim(DM))) : newMLE))
-#     end
-# end

@@ -28,9 +28,11 @@ end
 length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
-    length(start) != 2 && throw("Dimensional Mismatch.");      model = Predictor(DM)
-    planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = model(x, PlaneCoordinates(PL,θ); kwargs...)
-    curve_fit(Data(DM), planarmod, start; tol=tol).param
+    length(start) != 2 && throw("Dimensional Mismatch.")
+    Mat = [PL.Vx PL.Vy]
+    planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
+    planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * Mat
+    curve_fit(Data(DM), planarmod, planardmod, start; tol=tol).param
 end
 
 function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
@@ -106,23 +108,24 @@ end
     MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
 Minimizes given function in Plane and returns the optimal point in the ambient space in which the plane lies.
 """
-function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
+function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1,-1.]; tol::Real=1e-5, meth::Optim.AbstractOptimizer=LBFGS(), kwargs...)
     G(x) = F(PlaneCoordinates(PL,x))
-    X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
+    X = minimize(G, initial; tol=tol, meth=meth, kwargs...)
+    # X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)
 end
 
 """
-    ProjectOnto(v::Vector,u::Vector)
+    ProjectOnto(v::Vector, u::Vector)
 Project `v` onto `u`.
 """
-ProjectOnto(v::AbstractVector,u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
+ProjectOnto(v::AbstractVector, u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
 
 """
-    ParallelPlanes(PL::Plane,v::AbstractVector,range) -> Vector{Plane}
+    ParallelPlanes(PL::Plane, v::AbstractVector, range) -> Vector{Plane}
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
-function ParallelPlanes(PL::Plane,v::AbstractVector,range::Union{AbstractRange,AbstractVector})
+function ParallelPlanes(PL::Plane, v::AbstractVector, range::Union{AbstractRange,AbstractVector})
     norm(v) == 0. && throw("Vector has length zero.")
     # PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     ProjectOntoPlane(PL,v) == v && throw("Plane and vector linearly dependent.")

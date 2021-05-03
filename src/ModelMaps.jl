@@ -285,6 +285,25 @@ end
 LinearDecorrelation(DM::AbstractDataModel) = AffineTransform(DM, cholesky(inv(FisherMetric(DM, MLE(DM)))).L, MLE(DM))
 
 
+
+function EmbedModelVia(model::Function, F::Function; Kwargs...)
+    EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
+end
+function EmbedModelVia(M::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
+    ModelMap(EmbedModelVia(M.Map, F), (M.InDomain∘F), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
+end
+function EmbedDModelVia(dmodel::Function, F::Function; Kwargs...)
+    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * ForwardDiff.jacobian(F, θ)
+end
+function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
+    ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain∘F), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
+end
+
+function Embedding(DM::AbstractDataModel, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), GetStartP(length(Domain)))
+end
+
+
 LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:end-1], x) + θ[end]
 QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
 ExponentialModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = exp(LinearModel(x,θ))
