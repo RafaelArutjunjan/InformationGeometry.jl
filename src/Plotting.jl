@@ -692,6 +692,41 @@ function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwa
     Res
 end
 
+"""
+    PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=true, kwargs...)
+Plots `N` model predictions which are randomly chosen from a confidence region of level `MaxConfnum`.
+"""
+function PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=true, kwargs...)
+    @assert xdim(DM) == 1
+    function GenerateUniformPoint(DM::AbstractDataModel, pDomain::HyperCube, MaxConfnum::Real)
+        p = SVector{length(pDomain)}(rand(pDomain));        Conf = GetConfnum(DM, p)
+        Conf ≤ MaxConfnum ? (p, Conf) : GenerateUniformPoint(DM, pDomain, MaxConfnum)
+    end
+    iF = inv(FisherMetric(DM, MLE(DM))) |> Symmetric
+    function GenerateGaussianPoint(DM::AbstractDataModel, MaxConfnum::Real)
+        p = rand(MvNormal(MLE(DM), iF));    Conf = GetConfnum(DM, p)
+        Conf ≤ MaxConfnum ? (p, Conf) : GenerateGaussianPoint(DM, MaxConfnum)
+    end
+    function MakePrediction(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}; MaxConfnum::Real=3)
+        point, Conf = uniform ? GenerateUniformPoint(DM, pDomain, MaxConfnum) : GenerateGaussianPoint(DM, MaxConfnum)
+        MakePrediction(DM, point, Xs), Conf
+    end
+    function MakePrediction(DM::AbstractDataModel, point::AbstractVector{<:Number}, Xs::AbstractVector{<:Number})
+        Unpack(Windup(EmbeddingMap(Data(DM), Predictor(DM), point, Xs), ydim(DM)))
+    end
+    Preds = [MakePrediction(DM, pDomain, Xs; MaxConfnum=MaxConfnum) for i in 1:N]
+    plot && display(PlotEnsemble(Xs, getindex.(Preds,1), getindex.(Preds,2); kwargs...))
+    Xs, getindex.(Preds,1), getindex.(Preds,2)
+end
+PredictionEnsemble(DM::AbstractDataModel; MaxConfnum::Real=3, kwargs...) = PredictionEnsemble(DM, ProfileBox(DM,MaxConfnum); MaxConfnum=MaxConfnum, kwargs...)
+
+function PlotEnsemble(Xs::AbstractVector{<:Number}, Preds::Union{AbstractVector{<:AbstractArray{<:Number}}}, Confs::AbstractVector{<:Real}; palette::Symbol=:Oranges_5, OverWrite::Bool=false, kwargs...)
+    extr = extrema(Confs);    p = OverWrite ? Plots.plot() : Plots.plot!()
+    for i in eachindex(Confs)
+        p = Plots.plot!(Xs, Preds[i]; color=get(cgrad(palette), Confs[i], extr), label="", alpha=0.3, kwargs...)
+    end;    p
+end
+
 
 PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
 function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE::AbstractVector,Cube::HyperCube,Confnum::Real=1; N::Int=500)

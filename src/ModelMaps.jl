@@ -8,7 +8,7 @@ Container for model functions which carries additional information, e.g. about t
 struct ModelMap
     Map::Function
     InDomain::Function
-    Domain::Union{Cuboid,Bool}
+    Domain::Union{Cuboid,Nothing}
     xyp::Tuple{Int,Int,Int}
     pnames::Vector{String}
     StaticOutput::Val
@@ -16,7 +16,7 @@ struct ModelMap
     CustomEmbedding::Val
     # Given: Bool-valued domain function
     function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{Vector{String},Bool}=false)
-        ModelMap(model, InDomain, false, xyp; pnames=pnames)
+        ModelMap(model, InDomain, nothing, xyp; pnames=pnames)
     end
     # Given: HyperCube
     function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{Vector{String},Bool}=false)
@@ -26,8 +26,8 @@ struct ModelMap
         xyp isa Bool ? ModelMap(model, InDomain, Domain; pnames=pnames) : ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
     # Given: Function only (potentially) -> Find xyp
-    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Bool}=false; pnames::Union{Vector{String},Bool}=false)
-        xyp = if Domain isa Bool
+    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{Vector{String},Bool}=false)
+        xyp = if Domain === nothing
             xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
         else
@@ -37,8 +37,7 @@ struct ModelMap
         end
         ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
-    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int}; pnames::Union{Vector{String},Bool}=false)
-        Domain = typeof(Domain) == Bool ? FullDomain(xyp[3]) : Domain
+    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{Vector{String},Bool}=false)
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
         StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(false), Val(false))
@@ -47,8 +46,9 @@ struct ModelMap
     ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
-    function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Bool}, xyp::Tuple{Int,Int,Int},
+    function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::Vector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
+        Domain = Domain === nothing ? FullDomain(xyp[3]) : Domain
         new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
 end
@@ -68,7 +68,7 @@ isinplace(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
 
-MakeCustom(F::Function, Domain::Union{Cuboid, Bool}=false) = Domain isa Bool ? MakeCustom(ModelMap(F)) : MakeCustom(ModelMap(F, Domain))
+MakeCustom(F::Function, Domain::Union{Cuboid,Bool,Nothing}=nothing) = Domain isa Cuboid ? MakeCustom(ModelMap(F, Domain)) : MakeCustom(ModelMap(F))
 function MakeCustom(M::ModelMap)
     if iscustom(M)
         println("Map already uses custom embedding.")
@@ -285,7 +285,11 @@ end
 LinearDecorrelation(DM::AbstractDataModel) = AffineTransform(DM, cholesky(inv(FisherMetric(DM, MLE(DM)))).L, MLE(DM))
 
 
-
+"""
+    EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F))) -> Union{Function,ModelMap}
+Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
+A `Domain` for the new model can optionally be specified for `ModelMap`s.
+"""
 function EmbedModelVia(model::Function, F::Function; Kwargs...)
     EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
 end
@@ -299,15 +303,20 @@ function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(
     ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain∘F), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
 end
 
-function Embedding(DM::AbstractDataModel, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
-    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), GetStartP(length(Domain)))
+"""
+    Embedding(DM::AbstractDataModel, F::Function, start::Vector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
+Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
+An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
+"""
+function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)))
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start)
 end
 
 
 LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:end-1], x) + θ[end]
 QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(θ[1:Int((end-1)/2)], x.^2) + dot(θ[Int((end-1)/2)+1:end-1], x) + θ[end]
 ExponentialModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = exp(LinearModel(x,θ))
-SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
+SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
 
 function PolynomialModel(degree::Int)
     Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))

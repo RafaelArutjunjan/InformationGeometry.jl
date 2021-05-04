@@ -13,19 +13,19 @@ end
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
 function DataModel(DS::AbstractDataSet, sys::Union{ODESystem,AbstractODEFunction}, u0::Union{AbstractArray{<:Number},Function},
                         observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0)), args...; tol::Real=1e-7,
-                        meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, kwargs...)
+                        meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
     newDS = (typeof(observables) <: AbstractVector{<:Int} && sys isa ODESystem) ? InformNames(DS, sys, observables) : DS
     DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, meth=meth), args...; kwargs...)
 end
 
 function GetModel(func::Function, u0::Union{AbstractArray{<:Number},Function}, observables::Union{Function,AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true)
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 end
 
 
 function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0));
-                tol::Real=1e-7, Domain::Union{HyperCube,Bool}=false, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), inplace::Bool=true)
+                tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), inplace::Bool=true)
     # Is there some optimization that can be applied here? Modollingtoolkitize(sys) or something?
     Model = GetModel(ODEFunction{inplace}(sys), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
     if Model isa ModelMap       Model = Model.Map    end
@@ -59,7 +59,7 @@ end
 
 # Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
 
@@ -90,7 +90,7 @@ end
 Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
 """
 function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, PreObservationFunction::Function; tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
 
@@ -130,7 +130,7 @@ end
 Typically, a fair bit of performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
 """
 function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
 
     function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
@@ -162,7 +162,7 @@ Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if
 NOTE: The `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting. This is because `ObservationFunction` can also depend on the initial conditions in general.
 """
 function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Bool}=false, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
 
     numargs = MaximalNumberOfArguments(PreObservationFunction)
@@ -285,9 +285,9 @@ function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{N
                                                         inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
     parallelization = parallel ? ModelingToolkit.MultithreadedForm() : ModelingToolkit.SerialForm()
     OptimizedModel = try
-        build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
+        ModelingToolkit.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
     catch;
-        build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
+        ModelingToolkit.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
     end
     ### Pretty Function names
     if IsJacobian

@@ -25,3 +25,8 @@ The provided scalar function `F` should be strictly monotonic to avoid problems 
 In addition to componentwise application of scalar functions to the parameters, there are also higher-dimensional transformations such as `TranslationTransform`, `LinearTransform` and their combination `AffineTransform` which allow for mixing between the components.
 
 Lastly, the method `LinearDecorrelation` is a special case of `AffineTransform` which subtracts the MLE from the parameters and applies the cholesky decomposition (i.e. "square root") of the inverse Fisher metric at the best fit. This centers the confidence regions on the origin and will result in confidence boundaries which constitute concentric circles / spheres for linearly parametrized models. For models which are non-linear with respect to their parameters, the confidence boundaries of the "linearly decorrelated" model showcase the deviations of the confidence boundaries of the original model from ellipsoidal shape, therefore nicely illustrating the magnitude of the coordinate distortion present on the parameter space.
+
+For general (differentiable) multivariable transformations on the parameter space, one can use:
+```@docs
+Embedding
+```

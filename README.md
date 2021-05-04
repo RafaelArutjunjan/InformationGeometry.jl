@@ -14,7 +14,7 @@ Moreover, the utilized schemes are highly efficient since they do *not* require 
 
 For example, given two different parametrizations of the same linear relationship between observed *x* and *y*-data, one finds the following confidence regions:
 
-`y(x; θ) = θ[1] * x + θ[2]` | `y(x; θ) = θ[1]^3 * x + exp(θ[1] + θ[2])`
+`y(x, θ) = θ[1] * x + θ[2]` | `y(x, θ) = θ[1]^3 * x + exp(θ[1] + θ[2])`
 :------|------:
 <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols.svg" width="410"/> | <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols2.svg" width="410"/>
 

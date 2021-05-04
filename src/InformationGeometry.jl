@@ -198,7 +198,7 @@ export GetModel, Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
 include("Plotting.jl")
 export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
-export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PlotMatrix
+export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 

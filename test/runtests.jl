@@ -74,14 +74,16 @@ end
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
-    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(ProfileLikelihood(ToyDME,2; plot=false)),1)
+    Mats = ProfileLikelihood(ToyDME,2; plot=false)
+    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats),1)
     ExactBox = ConstructCube(ConfidenceRegion(ToyDME,1; tol=1e-6))
     @test norm(Center(ProfBox) - Center(ExactBox)) < 1e-5
     @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
+    @test 0 < PracticallyIdentifiable(Mats) < 2
 end
 
 
-@safetestset "ODE models" begin
+@safetestset "ODE-based models" begin
     using InformationGeometry, Test, OrdinaryDiffEq
 
     function SIR!(du,u,p,t)
@@ -99,24 +101,26 @@ end
     SIRinitial = X->([763.0-X[1], X[1], 0.0], X[2:3])
 
     # Use SplitterFunction SIRinitial to infer initial condition I₀ as first parameter
-    @test DataModel(SIRDS, SIRsys, SIRinitial, [2], [0.5,0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
-    # Use ObservationFunction
-    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], x->x[2], [0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
+    @test DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.5,0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
+    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
 end
 
 @safetestset "Model Transformations" begin
     using InformationGeometry, Test
 
     PiDM = DataModel(DataSet([0,1], [0.5π,1.5π], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]>1, HyperCube([[0,5]])))
-    @test !PiDM.model.InDomain([0.9]) && PiDM.model.InDomain([1.1])
+    @test !Predictor(PiDM).InDomain([0.9]) && Predictor(PiDM).InDomain([1.1])
 
     # Translation
     PiDM2 = DataModel(Data(PiDM), TranslationTransform(Predictor(PiDM),[1.]))
-    @test !PiDM2.model.InDomain([-0.1]) && PiDM2.model.InDomain([0.1])
+    @test !Predictor(PiDM2).InDomain([-0.1]) && Predictor(PiDM2).InDomain([0.1])
 
     # LogTransform
     PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
-    @test !PiDM3.model.InDomain(exp.([1])-[0.1]) && PiDM3.model.InDomain(exp.([1])+[0.1])
+    @test !Predictor(PiDM3).InDomain(exp.([1])-[0.1]) && Predictor(PiDM3).InDomain(exp.([1])+[0.1])
+
+    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
+    @test FisherMetric(LinearDecorrelation(DataModel(DS, (x,θ)->θ[1] * x + θ[2])), zeros(2)) ≈ [1 0; 0 1]
 
     # Does Score / FisherMetric and AutoDiff still work?
 end

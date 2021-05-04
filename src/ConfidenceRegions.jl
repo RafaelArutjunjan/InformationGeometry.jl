@@ -219,7 +219,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if isa(start, Bool)
         return curve_fit(DS, model, GetStartP(DS,model); tol=tol).param
-        # return minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol, autodiff=true)
+        # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     elseif isa(start, AbstractVector)
         if suff(start) == BigFloat
@@ -659,7 +659,7 @@ FisherEllipsoid(Metric::Function, θ::AbstractVector{<:Number}) = eigvecs(Metric
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = 2 \\, \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)``.
 Lower values for the AIC indicate that the associated model function is more likely to be correct. For linearly parametrized models and small sample sizes, it is advisable to instead use the AICc which is more accurate.
 """
-AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = 2length(θ) - 2loglikelihood(DM,θ; kwargs...)
+AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = 2length(θ) - 2loglikelihood(DM, θ; kwargs...)
 
 """
     AICc(DM::DataModel, θ::AbstractVector) -> Real
@@ -669,14 +669,14 @@ Whereas AIC constitutes a first order estimate of the information loss, the AICc
 """
 function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
     (Npoints(DM) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
-    AIC(DM,θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM) - length(θ) - 1)
+    AIC(DM, θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM) - length(θ) - 1)
 end
 
 """
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM,θ; kwargs...)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM, θ; kwargs...)
 
 
 """
@@ -937,7 +937,7 @@ end
 
 
 
-GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = InvConfVol(ChisqCDF(length(θ), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
+GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=length(θ), kwargs...) = InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
 GetConfnum(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
 GetConfnum(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
 
@@ -979,13 +979,13 @@ end
 #     Plane(MLE, sol.u[1] .- MLE, sol.u[end÷4] - MLE)
 # end
 
-LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, Cube::HyperCube) = LinearPredictionUncertainties(DM, F, FaceCenters(Cube))
-function LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, points::AbstractVector{<:AbstractVector{<:Number}})
-    best = F(MLE(DM))
-    bounds = if typeof(best) <: AbstractVector
-        extrema(map(F, points))
-    else
-        map(extrema, eachcol(Unpack(map(F, points))))
-    end
-    best, bounds
-end
+# LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, Cube::HyperCube) = LinearPredictionUncertainties(DM, F, FaceCenters(Cube))
+# function LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, points::AbstractVector{<:AbstractVector{<:Number}})
+#     best = F(MLE(DM))
+#     bounds = if typeof(best) <: AbstractVector
+#         extrema(map(F, points))
+#     else
+#         map(extrema, eachcol(Unpack(map(F, points))))
+#     end
+#     best, bounds
+# end

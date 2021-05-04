@@ -110,7 +110,7 @@ Minimizes given function in Plane and returns the optimal point in the ambient s
 """
 function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1,-1.]; tol::Real=1e-5, meth::Optim.AbstractOptimizer=LBFGS(), kwargs...)
     G(x) = F(PlaneCoordinates(PL,x))
-    X = minimize(G, initial; tol=tol, meth=meth, kwargs...)
+    X = InformationGeometry.minimize(G, initial; tol=tol, meth=meth, kwargs...)
     # X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)
 end
@@ -126,7 +126,7 @@ ProjectOnto(v::AbstractVector, u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
 function ParallelPlanes(PL::Plane, v::AbstractVector, range::Union{AbstractRange,AbstractVector})
-    norm(v) == 0. && throw("Vector has length zero.")
+    norm(v) == 0. && throw("Direction cannot be null vector.")
     # PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     ProjectOntoPlane(PL,v) == v && throw("Plane and vector linearly dependent.")
     [TranslatePlane(PL, ran .* v) for ran in range]
@@ -248,6 +248,7 @@ function ConstructCube(sols::Vector{<:AbstractODESolution}, Npoints::Int=200; Pa
     mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)
 end
 
+ConstructCube(Tup::Tuple{Vector{<:Plane},Vector{<:AbstractODESolution}}; Padding=0.) = ConstructCube(Tup[1], Tup[2]; Padding=Padding)
 function ConstructCube(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; Padding=0.)
     @assert length(Planes) == length(sols)
     reduce(union, map((x,y)->ConstructCube(x,y; Padding=Padding), Planes, sols))
@@ -286,6 +287,16 @@ function ResizeCube(Cube::HyperCube, factor::Real=1.)
     center = Center(Cube);      halfwidths = (0.5*factor) * CubeWidths(Cube)
     HyperCube(center-halfwidths, center+halfwidths)
 end
+
+
+
+DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
+DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
+function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
+    @assert N > 2 && Domain[1] < Domain[2]
+    range(Domain[1], Domain[2]; length=N) |> collect
+end
+
 
 
 DropCubeDim(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])

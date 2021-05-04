@@ -93,7 +93,8 @@ end
 
 ##### StaticOutput?
 function Base.show(io::IO, DM::AbstractDataModel)
-    Expr = ToExpr(Data(DM), Predictor(DM));    IsLin = IsLinearParameter(DM)
+    Expr = ToExpr(Data(DM), Predictor(DM))
+    IsLin = try IsLinearParameter(DM) catch; nothing end
     println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
         "generated via automatic differentiation"
@@ -108,7 +109,7 @@ function Base.show(io::IO, DM::AbstractDataModel)
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
     !isa(Expr, Nothing) && println(io, "Model:  y(x,θ) = $Expr")
-    println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
+    (IsLin === nothing) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end
 
 # function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)

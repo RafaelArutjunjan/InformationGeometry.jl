@@ -54,14 +54,6 @@ ValToBool(x::Val{true}) = true
 ValToBool(x::Val{false}) = false
 
 
-DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
-DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
-function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
-    @assert N > 2 && Domain[1] < Domain[2]
-    range(Domain[1], Domain[2]; length=N) |> collect
-end
-
-
 function GetMethod(tol::Real)
     if tol > 1e-8
         Tsit5()
@@ -406,12 +398,12 @@ end
 
 
 """
-    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=BFGS(), Full::Bool=false, kwargs...) -> Vector
-Minimizes the input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
+    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
+Minimizes the scalar input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
 """
-function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     Res = if Domain === nothing
         optimize(F, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
@@ -421,7 +413,7 @@ function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{No
     end
     Full ? Res : Optim.minimizer(Res)
 end
-function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{Nothing,HyperCube}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=LBFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=LBFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     Res = if Domain === nothing
         optimize(F, dF, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
@@ -437,12 +429,12 @@ end
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(InvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, x)), p)
-    minimize(F, start, Domain; tol=tol, kwargs...)
+    InformationGeometry.minimize(F, start, Domain; tol=tol, kwargs...)
 end
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{Nothing,HyperCube}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, inplace=isinplace(dM), kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, inplace=isinplace(dM), kwargs...)
     HalfSig = cholesky(InvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)), p)
     function dFp(x::AbstractVector)
@@ -451,7 +443,7 @@ function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction,
         transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) * n
     end
     dF1(x::AbstractVector) = transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) *  sign.(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)))
-    minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, inplace=inplace, kwargs...)
+    InformationGeometry.minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, inplace=inplace, kwargs...)
 end
 
 
