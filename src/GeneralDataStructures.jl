@@ -184,7 +184,7 @@ join(DSVec::Vector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = joi
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
-function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVector})
+function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVector{<:Number},BoolVector})
     @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
@@ -200,6 +200,10 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVect
     DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)))
 end
 SubDataModel(DM::AbstractDataModel, range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM))
+
+import Base: getindex, lastindex
+getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)
+lastindex(DS::AbstractDataSet) = Npoints(DS)
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))

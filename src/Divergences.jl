@@ -58,7 +58,7 @@ end
 
 # Known analytic expressions
 function KullbackLeibler(P::MvNormal, Q::MvNormal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
-    (1/2) * (logdet(Q.Σ.mat) - logdet(P.Σ.mat) - length(P.μ) + tr(inv(Q.Σ.mat) * P.Σ.mat) + transpose(Q.μ-P.μ) * inv(Q.Σ.mat) * (Q.μ-P.μ))
+    (1/2) * (logdet(Q.Σ) - logdet(P.Σ) - length(P.μ) + tr(inv(Q.Σ) * P.Σ) + InnerProduct(inv(Q.Σ), Q.μ-P.μ))
 end
 KullbackLeibler(P::Normal, Q::Normal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(Q.σ / P.σ) + (1/2) * ((P.σ / Q.σ)^2 + (P.μ - Q.μ)^2 * Q.σ^(-2) -1.)
 KullbackLeibler(P::Cauchy, Q::Cauchy, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(((P.σ + Q.σ)^2 + (P.μ - Q.μ)^2) / (4P.σ * Q.σ))

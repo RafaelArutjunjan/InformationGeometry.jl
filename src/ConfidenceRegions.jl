@@ -15,8 +15,7 @@ loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = 
 loglikelihood(DM::AbstractDataModel; kwargs...) = θ -> loglikelihood(DM, θ; kwargs...)
 
 @inline function loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    Y = ydata(DS) - EmbeddingMap(DS, model, θ; kwargs...)
-    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + transpose(Y) * InvCov(DS) * Y)
+    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(InvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
 
@@ -113,10 +112,7 @@ end
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = ResidualSquares(Data(DM), Predictor(DM), θ)
-function ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number})
-    Y = ydata(DS) - EmbeddingMap(DS,model,θ)
-    transpose(Y) * InvCov(DS) * Y
-end
+ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}) = InnerProduct(InvCov(DS), ydata(DS) - EmbeddingMap(DS,model,θ))
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
@@ -636,10 +632,7 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = Pullback(Data(DM), dPredictor(DM), G, θ; kwargs...)
-@inline function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...)
-    J = EmbeddingMatrix(DS,dmodel,θ; kwargs...)
-    transpose(J) * G * J
-end
+@inline Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = InnerProduct(G, EmbeddingMatrix(DS, dmodel, θ; kwargs...))
 
 # M ⟶ D
 """

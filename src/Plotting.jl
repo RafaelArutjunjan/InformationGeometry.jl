@@ -358,7 +358,7 @@ end
 # end
 
 function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false)
-    @assert length(Lims) == length(V(center(Lims))) == 2
+    @assert length(Lims) == length(V(Center(Lims))) == 2
     AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
     Vcomp(a,b) = V([a,b])
     u, v = VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling)

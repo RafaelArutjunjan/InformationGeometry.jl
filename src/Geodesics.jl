@@ -41,7 +41,7 @@ function GeodesicLength(Metric::Function, sol::AbstractODESolution, Endrange::Nu
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
         FullGamma = sol(t)
-        sqrt(transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n])
+        InnerProduct(Metric(FullGamma[1:n]), FullGamma[(n+1):2n]) |> sqrt
     end
     return Integrate1D(Integrand, (sol.t[1],Endrange); FullSol=FullSol, tol=tol)
 end
@@ -234,7 +234,7 @@ function GeodesicEnergy(Metric::Function,sol::AbstractODESolution,Endrange=sol.t
     n = length(sol.u[1])/2 |> Int
     function Integrand(t)
         FullGamma = sol(t)
-        transpose(FullGamma[(n+1):2n]) * Metric(FullGamma[1:n]) * FullGamma[(n+1):2n]
+        InnerProduct(Metric(FullGamma[1:n]), FullGamma[(n+1):2n])
     end
     Integrate1D(Integrand,[sol.t[1],Endrange]; FullSol=FullSol,tol=tol)
 end

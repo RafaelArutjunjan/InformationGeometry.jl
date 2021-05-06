@@ -8,7 +8,7 @@ If `x` stores BigFloats, `suff` returns BigFloat, else `suff` returns `Float64`.
 """
 suff(x::BigFloat) = BigFloat
 suff(x::Float32) = Float32
-# suff(x::Float16) = Float16
+suff(x::Float16) = Float16
 suff(x::Real) = Float64
 suff(x::Num) = Num
 suff(x::Complex) = real(x)
@@ -135,13 +135,14 @@ InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
 InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 
-
+InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
+# InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
 
 import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
-==(DS2::DataSetExact, DS1::DataSet) = DS1 == DS2
+==(DS1::DataSetExact, DS2::DataSet) = DS2 == DS1
 function ==(DS1::DataSet, DS2::DataSetExact)
-    if !(xdist(DS2) isa InformationGeometry.Dirac)
+    if !(xdist(DS2) isa InformationGeometry.Dirac && ydist(DS) isa MvNormal)
         return false
     elseif xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
         return true
@@ -434,7 +435,7 @@ function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVecto
     F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, x)), p)
     InformationGeometry.minimize(F, start, Domain; tol=tol, kwargs...)
 end
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, inplace=isinplace(dM), kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(InvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)), p)
     function dFp(x::AbstractVector)
@@ -443,7 +444,7 @@ function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction,
         transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) * n
     end
     dF1(x::AbstractVector) = transpose(HalfSig * EmbeddingMatrix(DS, dM, x)) *  sign.(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)))
-    InformationGeometry.minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, inplace=inplace, kwargs...)
+    InformationGeometry.minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, kwargs...)
 end
 
 
