@@ -632,7 +632,10 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = Pullback(Data(DM), dPredictor(DM), G, θ; kwargs...)
-@inline Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = InnerProduct(G, EmbeddingMatrix(DS, dmodel, θ; kwargs...))
+@inline function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...)
+    J = EmbeddingMatrix(DS, dmodel, θ; kwargs...)
+    transpose(J) * G * J
+end
 
 # M ⟶ D
 """
