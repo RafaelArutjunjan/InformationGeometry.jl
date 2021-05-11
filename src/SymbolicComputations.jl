@@ -63,18 +63,18 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, obs
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::AbstractArray{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, u0::AbstractArray{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
-                                                        tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                                        tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
-                                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value.")
@@ -105,18 +105,18 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, Pre
         throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
     end
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::AbstractArray{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, u0::AbstractArray{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
-                                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         ObservationFunction(sol.u[end], t, θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
-                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value.")
@@ -133,18 +133,18 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, obse
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, u0, (0., max_t), p)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
-                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
-                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value.")
@@ -176,18 +176,18 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
         throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
     end
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, u0, (0., max_t), p)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                                    tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                                    tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         ObservationFunction(sol.u[end], sol.t[end], θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value.")
