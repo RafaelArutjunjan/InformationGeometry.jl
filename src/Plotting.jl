@@ -374,11 +374,11 @@ end
 
 """
     Deplanarize(PL::Plane,sol::AbstractODESolution; N::Int=500) -> Matrix
-    Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::Union{AbstractVector{<:Number},AbstractRange}) -> Matrix
+    Deplanarize(PL::Plane,sol::AbstractODESolution, Ts::AbstractVector{<:Number}) -> Matrix
 Converts the 2D outputs of `sol` from planar coordinates associated with `PL` to the coordinates of the ambient space of `PL`.
 """
 Deplanarize(PL::Plane,sol::AbstractODESolution; N::Int=500) = Deplanarize(PL,sol,range(sol.t[1],sol.t[end]; length=N))
-Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::Union{AbstractVector{<:Number},AbstractRange}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
+Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::AbstractVector{<:Number}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
 
 """
     VisualizeSols(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=true)

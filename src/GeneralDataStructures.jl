@@ -184,7 +184,7 @@ join(DSVec::Vector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = joi
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
-function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVector{<:Number},BoolVector})
+function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector})
     @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
@@ -197,9 +197,9 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractRange,AbstractVect
     else
         throw("Under construction.")
     end
-    DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)))
+    InformNames(DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
 end
-SubDataModel(DM::AbstractDataModel, range::Union{AbstractRange,AbstractVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM))
+SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM))
 
 import Base: getindex, lastindex
 getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)

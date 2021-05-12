@@ -12,7 +12,7 @@ suff(x::Float16) = Float16
 suff(x::Real) = Float64
 suff(x::Num) = Num
 suff(x::Complex) = real(x)
-suff(x::Union{AbstractArray,AbstractRange}) = suff(x[1])
+suff(x::AbstractArray) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
 suff(args...) = suff(promote(args...)[1])
@@ -29,7 +29,7 @@ MaximalNumberOfArguments(F::Function) = maximum([length(Base.unwrap_unionall(m.s
     Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
-@inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple,AbstractRange}
+@inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple}
     N = length(Z);      M = length(Z[1])
     A = Array{suff(Z)}(undef,N,M)
     for i in 1:N

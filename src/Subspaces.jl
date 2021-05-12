@@ -125,7 +125,7 @@ ProjectOnto(v::AbstractVector, u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
     ParallelPlanes(PL::Plane, v::AbstractVector, range) -> Vector{Plane}
 Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
 """
-function ParallelPlanes(PL::Plane, v::AbstractVector, range::Union{AbstractRange,AbstractVector})
+function ParallelPlanes(PL::Plane, v::AbstractVector, range::AbstractVector{<:Real})
     norm(v) == 0. && throw("Direction cannot be null vector.")
     # PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     ProjectOntoPlane(PL,v) == v && throw("Plane and vector linearly dependent.")
@@ -300,7 +300,7 @@ end
 
 
 DropCubeDim(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
-function DropCubeDims(Cube::HyperCube, dims::Union{AbstractVector{<:Int}, AbstractRange{<:Int}})
+function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
     keep = trues(length(Cube));     keep[dims] .= false
     HyperCube(Cube.L[keep], Cube.U[keep])

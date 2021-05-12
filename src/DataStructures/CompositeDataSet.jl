@@ -4,7 +4,6 @@ ToDataVec(M::AbstractVector) = float.(M)
 ToDataVec(M::AbstractMatrix) = reduce(vcat, collect(eachrow(ToArray(M))))
 ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
 
-MyIntRange = Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}
 ToArray(df::AbstractVector{<:Real}) = df .|> float
 ToArray(df::AbstractMatrix) = size(df,2) == 1 ? float.(df[:,1]) : float.(df)
 ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, float.(df[:,1])) : convert(Matrix{suff(df)}, float.(df))
@@ -33,7 +32,7 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); x
     InformNames(DSs, xnames, ynames)
 end
 
-function _ReadIn(df::DataFrame, xcols::MyIntRange, xerrs::MyIntRange, ycols::MyIntRange, yerrs::MyIntRange)
+function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::AbstractVector{<:Int}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
     X = df[:, xcols];    Xerr = df[:, xerrs];   Y = df[:, ycols];    Yerr = df[:, yerrs]
     DSs = Array{AbstractDataSet}(undef, size(Y,2))
     for (i,Col) in enumerate(eachcol(Y))
@@ -42,7 +41,7 @@ function _ReadIn(df::DataFrame, xcols::MyIntRange, xerrs::MyIntRange, ycols::MyI
     end;    DSs
 end
 
-function _ReadIn(df::DataFrame, xcols::MyIntRange, xerrs::Val{false}, ycols::MyIntRange, yerrs::MyIntRange)
+function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::Val{false}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
     X = df[:, xcols];    Y = df[:, ycols];    Yerr = df[:, yerrs]
     DSs = Array{AbstractDataSet}(undef, size(Y,2))
     for (i,Col) in enumerate(eachcol(Y))

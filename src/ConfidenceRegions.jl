@@ -334,7 +334,7 @@ end
 
 
 """
-    ConfidenceRegions(DM::DataModel, Range::Union{AbstractRange,AbstractVector})
+    ConfidenceRegions(DM::DataModel, Range::AbstractVector)
 Computes the boundaries of confidence regions for two-dimensional parameter spaces given a vector or range of confidence levels.
 A convenient interface which extends this to higher dimensions is currently still under development.
 
@@ -352,7 +352,7 @@ Keyword arguments:
 * `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects,
 * `dof` can be used to manually specify the degrees of freedom.
 """
-function ConfidenceRegions(DM::AbstractDataModel, Confnums::Union{AbstractRange,AbstractVector}=1:1; IsConfVol::Bool=false,
+function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
