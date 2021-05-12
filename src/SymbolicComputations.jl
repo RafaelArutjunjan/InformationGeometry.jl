@@ -57,6 +57,7 @@ function GetModel(sys::ODESystem, u0::Union{AbstractArray{<:Number},Function}, o
     ModelMap(Model, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
+
 # Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, observables::Union{AbstractVector{<:Int},BoolArray}=collect(1:length(u0)); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
@@ -69,8 +70,8 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, obs
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
                                                         tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
-        sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, u0::AbstractArray{<:Number}=u0,
@@ -84,6 +85,19 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, obs
 end
 
 
+function CompleteObservationFunction(PreObservationFunction::Function)
+    numargs = MaximalNumberOfArguments(PreObservationFunction)
+    if numargs == 1
+        return (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u)
+    elseif numargs == 2
+        return (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t)
+    elseif numargs == 3
+        return (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t, θ)
+    else
+        throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
+    end
+end
+
 
 """
 `ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
@@ -93,17 +107,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, Pre
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
-
-    numargs = MaximalNumberOfArguments(PreObservationFunction)
-    ObservationFunction = if numargs == 1
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u)
-    elseif numargs == 2
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t)
-    elseif numargs == 3
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t, θ)
-    else
-        throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
-    end
+    ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, u0::AbstractArray{<:Number}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, u0, (0., max_t), θ)
@@ -111,8 +115,8 @@ function GetModel(func::AbstractODEFunction{T}, u0::AbstractArray{<:Number}, Pre
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
                                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        FullSol && return GetSol(θ, u0; tol=tol, max_t=t, meth=meth, kwargs...)
-        sol = GetSol(θ, u0; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         ObservationFunction(sol.u[end], t, θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::AbstractArray{<:Number}=u0,
@@ -139,8 +143,8 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, obse
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
-        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         sol.u[end][observables]
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
@@ -164,17 +168,7 @@ NOTE: The `θ` passed to `ObservationFunction` is the same `θ` that is passed t
 function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
     @assert T == inplace
-
-    numargs = MaximalNumberOfArguments(PreObservationFunction)
-    ObservationFunction = if numargs == 1
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u)
-    elseif numargs == 2
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t)
-    elseif numargs == 3
-        (u::AbstractArray{<:Number}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t, θ)
-    else
-        throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
-    end
+    ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, u0, (0., max_t), p)
@@ -182,8 +176,8 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
     end
     function Model(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                                     tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, kwargs...)
-        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
         ObservationFunction(sol.u[end], sol.t[end], θ)
     end
     function Model(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
