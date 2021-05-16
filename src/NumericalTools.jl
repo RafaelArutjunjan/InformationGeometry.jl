@@ -467,7 +467,8 @@ function GetArgLength(F::Function; max::Int=100)::Int
     try     F(1.);  return 1    catch; end
     for i in 1:(max+1)
         try
-            F(ones(i))
+            res = F(ones(i))
+            res === nothing ? throw("pdim: Function returned Nothing for i=$i.") : res
         catch y
             (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError)) && continue
             println("pdim: Encountered error in specification of model function.");     rethrow()

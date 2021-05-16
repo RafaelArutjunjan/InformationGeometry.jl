@@ -28,6 +28,7 @@ using SafeTestsets
     @test norm(FindMLE(DM) - [5.01511545953636, 1.4629658803705]) < 5e-10
 end
 
+
 @safetestset "Confidence Regions" begin
     using InformationGeometry, Test, Plots
 
@@ -55,6 +56,7 @@ end
 
     @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
 end
+
 
 @safetestset "More Boundary tests" begin
     using InformationGeometry, Test, Random, Distributions, OrdinaryDiffEq, LinearAlgebra
@@ -104,6 +106,7 @@ end
     @test DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.5,0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
     @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
 end
+
 
 @safetestset "Model Transformations" begin
     using InformationGeometry, Test
@@ -166,9 +169,6 @@ end
     @test norm(Score(splitCDM, P) - Score(CDM, P)) < 2e-4
     @test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 2e-3
 end
-
-
-# Test DataSets of different ydim and xdim and non-linear models.
 
 
 @safetestset "Kullback-Leibler Divergences" begin

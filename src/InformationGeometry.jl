@@ -191,8 +191,12 @@ export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
 # Also add Kretschmann, Schouten?
 
 
+include("DiffEqModels.jl")
+export GetModel
+
+
 include("SymbolicComputations.jl")
-export GetModel, Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
+export Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
