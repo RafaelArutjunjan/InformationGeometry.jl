@@ -57,7 +57,7 @@ struct DataSet <: AbstractDataSet
     function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)).")
         # If Σ_y not a square matrix, assume each column is vector of standard deviations associated with y:
-        Σ_y = size(Σ_y,1) > size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
+        Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
         DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)))
     end
     DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)], args...)

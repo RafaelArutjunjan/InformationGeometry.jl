@@ -50,7 +50,7 @@ struct DataSetExact <: AbstractDataSet
         DataSetExact(DS, Σ_x)
     end
     function DataSetExact(DS::DataSet, Σ_x::AbstractArray)
-        Σ_x = size(Σ_x,1) > size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
+        Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
             return InformNames(DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
         else

@@ -108,7 +108,7 @@ struct CompositeDataSet <: AbstractDataSet
     logdetInvCov::Real
     WoundX::AbstractVector
     SharedYdim::Val
-    function CompositeDataSet(pDSs::Vector{<:AbstractDataSet})
+    function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet})
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
         new(DSs, logdet(mapreduce(InvCov, BlockMatrix, DSs)), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))

@@ -10,10 +10,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
     end
     markeralpha :=      0.
     linewidth -->       2
-    if ydim(DM) == 1
-        seriescolor -->     :red
-        linestyle -->       :solid
-    end
+    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (:auto))
+    linestyle -->       :solid
     RSEs = ResidualStandardError(DM, MLE)
     label -->  if ydim(DM) == 1
         # "Fit with RSE≈$(RSEs[1])"
@@ -52,6 +50,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
+    seriescolor := :auto
     if ydim(DS) == 1
         label --> "Data"
         yerror --> Σ_y
