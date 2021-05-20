@@ -145,7 +145,7 @@ end
 meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
 
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool = false, parallel::Bool=false)
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     func(args...) = F([args...])
@@ -153,16 +153,16 @@ function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int = 100, Save::Bool
     if Save
         X,Y = meshgrid(A,B)
         Z = Map(func,X,Y)
-        p = contour(X,Y,Z, fill=true, nlevels=40)
+        p = OverWrite ? contour(X,Y,Z; fill=true, nlevels=40, kwargs...) : contour!(X,Y,Z; fill=true, nlevels=40, kwargs...)
         display(p)
         return [X Y Z]
     else
-        p = contour(A,B,func, fill=true, nlevels=40)
+        p = OverWrite ? contour(A,B,func; fill=true, nlevels=40, kwargs...) : contour(A,B,func; fill=true, nlevels=40, kwargs...)
         return p
     end
 end
 
-function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
+function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
@@ -170,15 +170,15 @@ function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int
     if Save
         X,Y = meshgrid(A,B)
         Z = Map(Lcomp,X,Y)
-        p = contour(X,Y,Z, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
-        p = scatter!([0],[0],lab="Center", marker=:hex)
+        p = contour(X,Y,Z; fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
+        p = scatter!([0],[0]; lab="Center", marker=:hex)
         display(p)
         return [X Y Z]
     else
-        p = contour(A,B,Lcomp, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
-        p = scatter!([0],[0],lab="Center", marker=:hex)
+        p = contour(A,B,Lcomp; fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
+        p = scatter!([0],[0]; lab="Center", marker=:hex)
         return p
     end
 end
