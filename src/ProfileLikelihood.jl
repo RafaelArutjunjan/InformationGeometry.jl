@@ -18,7 +18,16 @@ Naively computes approximate 1D domain from inverse Fisher metric at MLE.
 """
 function GetDomainTuple(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false)::Tuple
     @assert 1 ≤ Comp ≤ pdim(DM)
-    ApproxDev = Confnum * sqrt(inv(FisherMetric(DM, MLE(DM)))[Comp,Comp])
+    ApproxDev = try
+        sqrt(inv(FisherMetric(DM, MLE(DM)))[Comp,Comp])
+    catch;
+        try
+            1 / sqrt(FisherMetric(DM, MLE(DM))[Comp,Comp])
+        catch;
+            1e-8
+        end
+    end
+    ApproxDev *= sqrt(InvChisqCDF(pdim(DM), ConfVol(Confnum)))
     ForcePositive && @assert MLE(DM)[Comp]+ApproxDev > 0.
 
     # If Bio model, the pinned rate parameter should remain positive
