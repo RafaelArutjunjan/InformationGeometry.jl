@@ -92,6 +92,27 @@ function Base.show(io::IO, DS::AbstractDataSet)
 end
 
 ##### StaticOutput?
+function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
+    Expr = ToExpr(Data(DM), Predictor(DM))
+    IsLin = try IsLinearParameter(DM) catch; nothing end
+    println(io, mime, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
+    Jac = if GeneratedFromAutoDiff(dPredictor(DM))
+        "generated via automatic differentiation"
+    elseif GeneratedFromSymbolic(dPredictor(DM))
+        "symbolically provided"
+    else
+        "manually provided by user"
+    end
+    println(io, mime, "Model jacobian " * Jac)
+    if DM isa DataModel
+        println(io, mime, "Maximum Likelihood Estimate: $(MLE(DM))")
+        println(io, mime, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+    end
+    !isa(Expr, Nothing) && println(io, mime, "Model:  y(x,θ) = $Expr")
+    (IsLin === nothing) && println(io, mime, "Model parametrization linear in n-th parameter: $(IsLin)")
+end
+
+
 function Base.show(io::IO, DM::AbstractDataModel)
     Expr = ToExpr(Data(DM), Predictor(DM))
     IsLin = try IsLinearParameter(DM) catch; nothing end
@@ -111,22 +132,3 @@ function Base.show(io::IO, DM::AbstractDataModel)
     !isa(Expr, Nothing) && println(io, "Model:  y(x,θ) = $Expr")
     (IsLin === nothing) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end
-
-# function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
-#     Expr = ToExpr(Data(DM), Predictor(DM));    IsLin = IsLinearParameter(DM)
-#     println(io, mime, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-#     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
-#         "generated via automatic differentiation"
-#     elseif GeneratedFromSymbolic(dPredictor(DM))
-#         "symbolically provided"
-#     else
-#         "manually provided by user"
-#     end
-#     println(io, mime, "Model jacobian " * Jac)
-#     if DM isa DataModel
-#         println(io, mime, "Maximum Likelihood Estimate: $(MLE(DM))")
-#         println(io, mime, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
-#     end
-#     !isa(Expr, Nothing) && println(io, mime, "Model:  y(x;θ) = $Expr")
-#     println(io, mime, "Model parametrization linear in n-th parameter: $(IsLin)")
-# end
