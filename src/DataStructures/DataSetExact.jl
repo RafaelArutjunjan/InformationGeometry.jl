@@ -78,6 +78,17 @@ struct DataSetExact <: AbstractDataSet
 end
 
 
+# For SciMLBase.remake
+DataSetExact(;
+xdist::Distribution=Normal(0,1),
+ydist::Distribution=Normal(0,1),
+dims::Tuple{Int,Int,Int}=(1,1,1),
+InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
+WoundX::Union{AbstractVector,Nothing}=nothing,
+xnames::Vector{String}=["x"],
+ynames::Vector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames)
+
+
 dims(DSE::DataSetExact) = DSE.dims
 InvCov(DSE::DataSetExact) = DSE.InvCov
 # WoundX(DS::DataSetExact) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX

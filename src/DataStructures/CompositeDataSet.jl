@@ -111,14 +111,22 @@ struct CompositeDataSet <: AbstractDataSet
     function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet})
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
-        new(DSs, logdet(mapreduce(InvCov, BlockMatrix, DSs)), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
+        CompositeDataSet(DSs, logdet(mapreduce(InvCov, BlockMatrix, DSs)), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
     end
+    CompositeDataSet(DSs::Vector{<:AbstractDataSet}, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val) = new(DSs, logdetInvCov, WoundX, SharedYdim)
 end
 CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
     CompositeDataSet(ReadIn(float.(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
 end
 
+
+# For SciMLBase.remake
+CompositeDataSet(;
+DSs::Vector{<:AbstractDataSet}=[DataSet([0.],[0.],[1.])],
+logdetInvCov::Real=-Inf,
+WoundX::AbstractVector=[0.],
+SharedYdim::Val=Val(true)) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs

@@ -56,6 +56,20 @@ end
 ModelOrFunction = Union{Function,ModelMap}
 
 
+# For SciMLBase.remake
+ModelMap(;
+Map::Function=x->Inf,
+InDomain::Function=x->false,
+Domain::Union{Cuboid,Nothing}=nothing,
+xyp::Tuple{Int,Int,Int}=(1,1,1),
+pnames::Vector{String}=["θ"],
+StaticOutput::Val=Val(true),
+inplace::Val=Val(true),
+CustomEmbedding::Val=Val(true)) = ModelMap(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+
+
+
+
 function InformNames(M::ModelMap, pnames::Vector{String})
     @assert length(pnames) == M.xyp[3]
     ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)

@@ -87,6 +87,16 @@ struct DataSet <: AbstractDataSet
     end
 end
 
+# For SciMLBase.remake
+DataSet(;
+x::AbstractVector=[0.],
+y::AbstractVector=[0.],
+InvCov::AbstractMatrix=Diagonal([1.]),
+dims::Tuple{Int,Int,Int}=(1,1,1),
+logdetInvCov::Real=-Inf,
+WoundX::Union{AbstractVector,Nothing}=nothing,
+xnames::Vector{String}=["x"],
+ynames::Vector{String}=["y"]) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
 
 # Specialized methods for DataSet
 dims(DS::DataSet) = DS.dims

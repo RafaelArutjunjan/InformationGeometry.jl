@@ -14,7 +14,7 @@ using LibGEOS
 using RecipesBase, Plots, Optim
 using TreeViews
 
-import SciMLBase: AbstractODESolution, AbstractODEFunction
+import SciMLBase: AbstractODESolution, AbstractODEFunction, remake
 
 
 ############## TODOs ##############
