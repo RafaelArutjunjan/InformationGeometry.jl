@@ -1,12 +1,12 @@
 
 
 
-SaveAdaptive(sol::AbstractODESolution, N::Int=500; kwargs...) = SaveAdaptive(sol, sol.prob.tspan; N=N, kwargs...)
-function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Real,Real}; N::Int=500, curvature::Real = 0.003, Ntol::Real=0.08, maxiter::Int=30)
+SaveAdaptive(sol::AbstractODESolution, N::Int=500; kwargs...) = SaveAdaptive(sol, (sol.t[1],sol.t[end]); N=N, kwargs...)
+function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Real,Real}; N::Int=500, curvature::Real=0.003, Ntol::Real=0.08, maxiter::Int=30)
     @assert Tspan[1] < Tspan[2]
     test = sol(Tspan[1])
     for _ in 1:maxiter
-        T = reduce(vcat,[PlotUtils.adapted_grid(x->sol(x)[i],Tspan; max_curvature=curvature)[1] for i in 1:length(test)]) |> unique |> sort
+        T = reduce(vcat, [PlotUtils.adapted_grid(x->sol(x)[i], Tspan; max_curvature=curvature)[1] for i in 1:length(test)]) |> unique |> sort
         if length(T) > N
             curvature *= 1.2
         elseif length(T) < (1-Ntol) * N
