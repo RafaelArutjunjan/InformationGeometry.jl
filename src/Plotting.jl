@@ -775,12 +775,14 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, kwargs...)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); corrected::Bool=true, dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
-    C = sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L;  angles = range(0,2π;length=N)
+    C = corrected ? sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L : 1.0
+    angles = range(0,2π;length=N)
     F(α::Number) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
     Data = Unpack(F.(angles))
-    if plot   display(Plots.plot!(ToCols(Data)...; label="Matrix", kwargs...))  end
+    Pl = OverWrite ? Plots.plot : Plots.plot!
+    if plot   display(Pl(ToCols(Data)...; label="Matrix", kwargs...))  end
     Data
 end
 

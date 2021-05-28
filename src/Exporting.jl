@@ -1,9 +1,12 @@
 
 
-function SaveAdaptive(sol::AbstractODESolution, N::Int=500; curvature = 0.003, Ntol=0.08)
-    Tspan = (sol.t[1],sol.t[end]);      maxiter=30
+
+SaveAdaptive(sol::AbstractODESolution, N::Int=500; kwargs...) = SaveAdaptive(sol, sol.prob.tspan; N=N, kwargs...)
+function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Real,Real}; N::Int=500, curvature::Real = 0.003, Ntol::Real=0.08, maxiter::Int=30)
+    @assert Tspan[1] < Tspan[2]
+    test = sol(Tspan[1])
     for _ in 1:maxiter
-        T = reduce(vcat,[PlotUtils.adapted_grid(x->sol(x)[i],Tspan; max_curvature=curvature)[1] for i in 1:length(sol.u[1])]) |> unique |> sort
+        T = reduce(vcat,[PlotUtils.adapted_grid(x->sol(x)[i],Tspan; max_curvature=curvature)[1] for i in 1:length(test)]) |> unique |> sort
         if length(T) > N
             curvature *= 1.2
         elseif length(T) < (1-Ntol) * N
@@ -14,6 +17,7 @@ function SaveAdaptive(sol::AbstractODESolution, N::Int=500; curvature = 0.003, N
     end
     throw("SaveAdaptive: DNF in $maxiter iterations.")
 end
+
 
 Homogenize(sol::AbstractODESolution, N::Int=500) = Homogenize(sol.t, N)
 function Homogenize(V::AbstractVector, N::Int=500)

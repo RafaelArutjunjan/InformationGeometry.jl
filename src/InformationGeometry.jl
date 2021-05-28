@@ -23,6 +23,7 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction
 
 #### Functionality
 
+# Allow for Priors in DM
 # Employ ShadowTheatre to project simultaneous x-θ-confidence regions to M.
 # Geodesic coordinates - use geodesic radius and angles to specify parameter configurations.
 # General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
