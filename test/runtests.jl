@@ -171,6 +171,28 @@ end
 end
 
 
+@safetestset "Priors" begin
+    using InformationGeometry, Test, LinearAlgebra, Distributions
+
+    DS1 = DataSet([0,0.5],[1.,3.],[1.2,2.]);    DS2 = DataSet([1,1.5],[7.,8.1],[0.6,1.])
+    DS = join(DS1, DS2);    model(x,θ) = θ[1] * x + θ[2];
+    DM1 = DataModel(DS1,model);     DM = DataModel(DS,model);
+
+    # logprior(X) = logpdf(MvNormal(MLE(DM1), FisherMetric(DM1, MLE(DM1))), X)
+    logprior(X) = loglikelihood(DM1, X)
+
+    DM12 = DataModel(DS2, model, MLE(DM1), logprior)
+    @test norm(MLE(DM) - MLE(DM12)) < 1e-6
+    @test loglikelihood(DM, MLE(DM)) ≈ loglikelihood(DM12, MLE(DM))
+    @test norm(Score(DM, MLE(DM)) - Score(DM12, MLE(DM))) < 1e-12
+    @test FisherMetric(DM, MLE(DM)) ≈ FisherMetric(DM12, MLE(DM))
+
+    dm = DataModel(DS, model, MLE(DM), x->0.0)
+    @test loglikelihood(DM, MLE(DM)) ≈ loglikelihood(dm, MLE(DM))
+    @test Score(DM, MLE(DM)) ≈ Score(dm, MLE(DM))
+    @test FisherMetric(DM, MLE(DM)) ≈ FisherMetric(dm, MLE(DM))
+end
+
 @safetestset "Kullback-Leibler Divergences" begin
     using InformationGeometry, Test, LinearAlgebra, Distributions
 
@@ -231,9 +253,9 @@ end
     @test abs(RicciScalar(S2metric,rand(2)) - 2) < 5e-4
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22
 
-    @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 1e-13
+    @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 1e-9
     @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-11
-    @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 3e-10
+    @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
     y = MLE(DM) + 0.2(rand(2) .- 0.5)

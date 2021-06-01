@@ -41,35 +41,61 @@ struct DataModel <: AbstractDataModel
     dmodel::ModelOrFunction
     MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
+    LogPrior::Union{Function,Nothing}
     DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),sneak)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,sneak::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,sneak)
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, sneak::Bool=false)
-        sneak ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),SkipTests)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,SkipTests)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+        DataModel(DS, model, DetermineDmodel(DS,model), mle, LogPriorFn, SkipTests)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},sneak::Bool=false)
-        sneak && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle) catch; -Inf end), true)
-        MLE = FindMLE(DS, model, dmodel, mle);        LogLikeMLE = loglikelihood(DS, model, MLE)
-        DataModel(DS, model, dmodel, MLE, LogLikeMLE)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false)
+        SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
     end
-    # Check whether the determined MLE corresponds to a maximum of the likelihood unless sneak==true.
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,sneak::Bool=false)
-        sneak && return new(DS, model, dmodel, MLE, LogLikeMLE)
-        CheckModelHealth(DS, model)
-        S = Score(DS, model, dmodel, MLE)
-        norm(S) > sqrt(length(MLE))*1e-3 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(S))."
-        g = FisherMetric(DS, dmodel, MLE)
-        det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE."
-        !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
-        new(DS, model, dmodel, MLE, LogLikeMLE)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false)
+        DataModel(DS, model, dmodel, mle, nothing, SkipTests)
+    end
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+        SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true)
+        MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
+        DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, SkipTests)
+    end
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,SkipTests::Bool=false)
+        DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests)
+    end
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+        !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
+        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
     end
 end
+
+function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}=nothing)
+    if LogPriorFn isa Function
+        @assert LogPriorFn(MLE) isa Real && LogPriorFn(MLE) ≤ 0.0
+    end
+    CheckModelHealth(DS, model)
+    S = Score(DS, model, dmodel, MLE, LogPriorFn)
+    norm(S) > sqrt(length(MLE))*1e-3 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(S))."
+    g = FisherMetric(DS, dmodel, MLE, LogPriorFn)
+    det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE."
+    !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+end
+
+# For SciMLBase.remake
+DataModel(;
+Data::AbstractDataSet=DataSet([0.], [0.], [1.]),
+model::ModelOrFunction=(x,p)->-Inf,
+dmodel::ModelOrFunction=(x,p)->[-Inf],
+MLE::AbstractVector{<:Number}=[-Inf],
+LogLikeMLE::Real=-Inf,
+LogPrior::Union{Function,Nothing}=nothing) = DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPrior)
+
 
 # Specialized methods for DataModel
 
 Data(DM::DataModel) = DM.Data
 Predictor(DM::DataModel) = DM.model
 dPredictor(DM::DataModel) = DM.dmodel
+LogPrior(DM::DataModel) = DM.LogPrior
 
 """
     MLE(DM::DataModel) -> Vector

@@ -331,30 +331,32 @@ end
 
 
 import LsqFit.curve_fit
-function curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); tol::Real=1e-14, kwargs...)
-    curve_fit(Data(DM), Predictor(DM), dPredictor(DM), initial; tol=tol, kwargs...)
+function curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM); tol::Real=1e-14, kwargs...)
+    curve_fit(Data(DM), Predictor(DM), dPredictor(DM), initial, LogPriorFn; tol=tol, kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=1e-14, kwargs...)
-    curve_fit(DS, M.Map, initial; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
+function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
+    curve_fit(DS, M.Map, initial, LogPriorFn; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,M); tol::Real=1e-14, kwargs...)
-    curve_fit(DS, M.Map, dM, initial; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
+function curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
+    curve_fit(DS, M.Map, dM, initial, LogPriorFn; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=1e-14, kwargs...)
+function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
+    !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     p0 = convert(Vector, initial)
     R = LsqFit.OnceDifferentiable(f, p0, copy(f(p0)); inplace = false, autodiff = :forward)
     LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model); tol::Real=1e-14, kwargs...)
+function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
     u = cholesky(InvCov(DS)).U
+    !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     df(p) = u * EmbeddingMatrix(DS, dmodel, p)
     p0 = convert(Vector, initial)
@@ -373,9 +375,9 @@ TotalLeastSquares(DM::AbstractDataModel, args...; kwargs...) = TotalLeastSquares
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::Union{Nothing,AbstractVector{<:Number}}=nothing; tol::Real=1e-13, rescale::Bool=true, kwargs...)
-    # Improve starting values by fitting normally with simple least squares
-    initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, (initial == nothing ? GetStartP(DSE, model) : initial); tol=tol, kwargs...).param
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE, model); tol::Real=1e-13, rescale::Bool=true, kwargs...)
+    # Improve starting values by fitting with ordinary least squares first
+    initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initial; tol=tol, kwargs...).param
     if xdist(DSE) isa InformationGeometry.Dirac
         println("xdist of given data is Dirac, can only use ordinary least squares.")
         return xdata(DSE), initial
@@ -414,13 +416,15 @@ function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{Hy
     end
     Full ? Res : Optim.minimizer(Res)
 end
-function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=LBFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
+    # Wrap dF to make it inplace
+    newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
     Res = if Domain === nothing
-        optimize(F, dF, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, dF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end

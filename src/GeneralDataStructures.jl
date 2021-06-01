@@ -59,6 +59,7 @@ ydim(dims::Tuple{Int,Int,Int}) = dims[3]
 pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
 MLE(DM::AbstractDataModel) = FindMLE(DM)
 LogLikeMLE(DM::AbstractDataModel) = loglikelihood(DM, MLE(DM))
+LogPrior(DM::AbstractDataModel) = x->0.0
 
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:

@@ -6,47 +6,66 @@ Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` 
 """
 likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
+
+# Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
+EvalLogPrior(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zero(suff(θ))
+EvalLogPrior(LogPriorFn::Function, θ::AbstractVector{<:Number}) = LogPriorFn(θ)
+
+EvalLogPriorGrad(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zeros(length(θ))
+EvalLogPriorGrad(LogPriorFn::Function, θ::AbstractVector{<:Number}) = ForwardDiff.gradient(LogPriorFn, θ)
+
+EvalLogPriorHess(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zeros(length(θ), length(θ))
+EvalLogPriorHess(LogPriorFn::Function, θ::AbstractVector{<:Number}) = ForwardDiff.hessian(LogPriorFn, θ)
+
+
+
+loglikelihood(DM::AbstractDataModel; kwargs...) = θ -> loglikelihood(DM, θ; kwargs...)
+
 # import Distributions.loglikelihood
 """
     loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = loglikelihood(Data(DM), Predictor(DM), θ; kwargs...)
-loglikelihood(DM::AbstractDataModel; kwargs...) = θ -> loglikelihood(DM, θ; kwargs...)
+loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = loglikelihood(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
 
-@inline function loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _loglikelihood(DS, model, θ; kwargs...)
+loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _loglikelihood(DS, model, θ; kwargs...) + EvalLogPrior(LogPriorFn, θ)
+
+
+# Specialize this for different DataSet types
+@inline function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
     -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(InvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
 
-AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = AutoScore(Data(DM), Predictor(DM), θ; kwargs...)
-AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = AutoMetric(Data(DM), Predictor(DM), θ; kwargs...)
-AutoScore(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.gradient(x->loglikelihood(DS,model,x; kwargs...),θ)
-AutoMetric(DS::AbstractDataSet,model::ModelOrFunction,θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.hessian(x->(-loglikelihood(DS,model,x; kwargs...)),θ)
 
+AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = _AutoScore(Data(DM), Predictor(DM), θ; kwargs...) + EvalLogPriorGrad(LogPrior(DM), θ)
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = exp(EvalLogPrior(LogPrior(DM), θ)) * (_AutoMetric(Data(DM), Predictor(DM), θ; kwargs...) - EvalLogPriorHess(LogPrior(DM), θ))
+_AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.gradient(x->_loglikelihood(DS, model, x; kwargs...), θ)
+_AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.hessian(x->(-_loglikelihood(DS, model, x; kwargs...)), θ)
+
+
+
+Score(DM::AbstractDataModel; kwargs...) = θ -> Score(DM, θ; kwargs...)
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false))
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `Auto=Val(true)` uses automatic differentiation.
 """
-Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ; Auto=Auto, kwargs...)
+Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
 
-Score(DM::AbstractDataModel; Auto::Val=Val(false), kwargs...) = θ -> Score(DM, θ; Auto=Auto, kwargs...)
+Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _Score(DS, model, dmodel, θ; kwargs...)
+Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _Score(DS, model, dmodel, θ; kwargs...) + EvalLogPriorGrad(LogPriorFn, θ)
 
-# function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
-#     Auto && return AutoScore(DS,model,θ; kwargs...)
-#     _Score(DS,model,dmodel,θ; kwargs...)
-# end
-# @inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-#     transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
-# end
 
-function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
-    Score(DS, model, dmodel, θ, Auto; kwargs...)
-end
+# convert Auto from kwarg to arg
+_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = _Score(DS, model, dmodel, θ, Auto; kwargs...)
+# Delegate to AutoScore
+_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}; kwargs...) = _AutoScore(DS, model, θ; kwargs...)
 
-Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}; kwargs...) = AutoScore(DS,model,θ; kwargs...)
-@inline function Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
+
+# Specialize this for different DataSet types
+@inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
     transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
 
@@ -55,7 +74,7 @@ end
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
 """
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.)); dof::Int=pdim(DM), kwargs...) = ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=pdim(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=pdim(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))) - Confvol
 
 # Do not give default to third argument here such as to not overrule the defaults from above
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat; kwargs...) = WilksCriterion(DM, BigFloat.(θ), Confvol; kwargs...)
@@ -69,25 +88,6 @@ The keyword `dof` can be used to manually specify the degrees of freedom.
 """
 WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)::Bool = WilksCriterion(DM, θ, Confvol; kwargs...) < 0.
 
-
-# function FindConfBoundary(DM::DataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-#     ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-#     Confvol = ConfVol(Confnum);    Test(x::Real) = WilksTest(DM, MLE(DM) .+ (x .* BasisVector(1,pdim(DM))), Confvol)
-#     !(Test(0)) && throw(ArgumentError("FindConfBoundary: Given MLE not inside Confidence Interval."))
-#     stepsize = one(suff(MLE(DM)))/4.;  value = zero(suff(MLE(DM)))
-#     for i in 1:maxiter
-#         if Test(value + stepsize) # inside
-#             value += stepsize
-#             value > 20 && throw("FindConfBoundary: Value larger than 10.")
-#         else            #outside
-#             if stepsize < tol
-#                 return value .* BasisVector(1,pdim(DM)) .+ MLE(DM)
-#             end
-#             stepsize /= 10
-#         end
-#     end
-#     throw(Error("$maxiter iterations over. Value=$value, Stepsize=$stepsize"))
-# end
 
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000, dof::Int=pdim(DM))
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum)) : ConfVol(Confnum)
@@ -111,8 +111,7 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = ResidualSquares(Data(DM), Predictor(DM), θ)
-ResidualSquares(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}) = InnerProduct(InvCov(DS), ydata(DS) - EmbeddingMap(DS,model,θ))
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = InnerProduct(InvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
@@ -137,6 +136,7 @@ FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)
 
 
 inversefactor(m) = 1. / sqrt((m - 1.) + (m - 1.)^2)
+GetAlpha(x::AbstractVector{<:Number}) = GetAlpha(length(x))
 @inline function GetAlpha(n::Int)
     V = Vector{Float64}(undef,n)
     fill!(V,-inversefactor(n))
@@ -150,39 +150,38 @@ Calculates a direction (in parameter space) in which the value of the log-likeli
 `Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
-    OrthVF(Data(DM), Predictor(DM), dPredictor(DM), θ; alpha=alpha, Auto=Auto, kwargs...)
-end
-
-function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
-                alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-    S = -Score(DS, model, dmodel, θ; Auto=Auto, kwargs...);    P = prod(S);    VF = P ./ S
-    alpha .* VF |> normalize
+    S = -Score(DM, θ; Auto=Auto, kwargs...);    P = prod(S);    VF = P ./ S
+    normalize(alpha .* VF)
 end
 
+# function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
+#                 alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
+#     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
+#     S = -_Score(DS, model, dmodel, θ; Auto=Auto, kwargs...);    P = prod(S);    VF = P ./ S
+#     alpha .* VF |> normalize
+# end
 
+
+# Faster Method for Planar OrthVF
 """
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
-If a `Plane` is specified, the direction will be specified in the planar coordinates using a 2-component vector.
+Since a 2D `Plane` is specified, both the input `θ` as well as well as the output have 2 components.
 `Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel,PL::Plane,θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...)
-    S = transpose([PL.Vx PL.Vy]) * (-Score(DM, PlaneCoordinates(PL,θ); Auto=Auto, kwargs...))
+function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))); Auto::Val=Val(false), kwargs...)
+    S = transpose([PL.Vx PL.Vy]) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; Auto=Auto, kwargs...))
     P = prod(S)
-    return SA[-P/S[1],P/S[2]] |> normalize
+    normalize(SA[-P/S[1],P/S[2]])
 end
 
-
-FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM)) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start))
-function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::Union{Bool,AbstractVector}=false; kwargs...)
-    if isa(start,Vector)
-        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p; kwargs...)
-        return optimize(NegEll, BigFloat.(convert(Vector,start)), BFGS(), Optim.Options(g_tol=convert(BigFloat,10^(-precision(BigFloat)/30))), autodiff = :forward) |> Optim.minimizer
-    elseif isa(start,Bool)
-        return FindMLEBig(DS,model,FindMLE(DS,model))
-    end
+# Method for general functions F
+function OrthVF(F::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
+    S = ForwardDiff.gradient(F, θ);    P = prod(S);    VF = P ./ S
+    normalize(alpha .* VF)
 end
+
 
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
 GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = GetStartP(hint)
@@ -200,43 +199,54 @@ function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
     end
     # (Res ∈ M.Domain && M.InDomain(Res)) && return Res
     Res
-    # ElaborateGetStartP(DS, M; substitute=substitute)
 end
 
-function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
-    throw("Not programmed yet.")
+# function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
+#     throw("Not programmed yet.")
+# end
+
+
+
+FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
+function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
+                                    tol::Real=convert(BigFloat,10^(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), kwargs...)
+    NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
+    InformationGeometry.minimize(NegEll, BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)
 end
 
-function FindMLE(DM::AbstractDataModel, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
-    FindMLE(Data(DM), Predictor(DM), start; Big=Big, tol=tol)
+
+function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Function,Nothing}=LogPrior(DM); Big::Bool=false, tol::Real=1e-14, kwargs...)
+    FindMLE(Data(DM), Predictor(DM), start, LogPriorFn; Big=Big, tol=tol, kwargs...)
 end
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
-    (Big || tol < 2.3e-15) && return FindMLEBig(DS, model, start)
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
+    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-    if isa(start, Bool)
-        return curve_fit(DS, model, GetStartP(DS,model); tol=tol).param
+    if LogPriorFn === nothing
+        return curve_fit(DS, model, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-    elseif isa(start, AbstractVector)
-        if suff(start) == BigFloat
-            return FindMLEBig(DS, model, convert(Vector,start))
-        else
-            return curve_fit(DS, model, start; tol=tol).param
-            # return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
-        end
+    else
+        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
+        return InformationGeometry.minimize(NegEll, start, (model isa ModelMap ? model.Domain : nothing); tol=tol, kwargs...)
+        # return curve_fit(DS, model, start; tol=tol).param
+        # return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     end
 end
+
+
 # Slower than using curve_fit(; autodiff = :forward) but less prone to errors.
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::Union{Bool,AbstractVector}=false; Big::Bool=false, tol::Real=1e-14)
-    (Big || tol < 2.3e-15) && return FindMLEBig(DS, model, start)
-    if isa(start,Bool)
-        return curve_fit(DS, model, dmodel, GetStartP(DS,model); tol=tol).param
-    elseif isa(start, AbstractVector)
-        if suff(start) == BigFloat
-            return FindMLEBig(DS, model, convert(Vector,start))
-        else
-            return curve_fit(DS, model, dmodel, start; tol=tol).param
-        end
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
+    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
+    if LogPriorFn === nothing
+        return curve_fit(DS, model, dmodel, start; tol=tol).param
+        # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
+        # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
+    else
+        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
+        NegScore(p::AbstractVector{<:Number}) = -Score(DS,model,dmodel,p,LogPriorFn; kwargs...)
+        return InformationGeometry.minimize(NegEll, NegScore, start, (model isa ModelMap ? model.Domain : nothing); tol=tol, kwargs...)
+        # return curve_fit(DS, model, start; tol=tol).param
+        # return optimize(NegEll, convert(Vector,start), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
     end
 end
 
@@ -263,15 +273,10 @@ Basic method for constructing a curve lying on the confidence region associated 
 """
 function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
                             meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-    GenerateBoundary(Data(DM),Predictor(DM),dPredictor(DM),u0; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
-end
-
-function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    LogLikeOnBoundary = loglikelihood(DS, model, u0)
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
+    LogLikeOnBoundary = loglikelihood(DM, u0)
+    IntCurveODE!(du,u,p,t)  =  (du .= 0.1 * OrthVF(DM,u; Auto=Auto))
+    g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - loglikelihood(DM,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
@@ -284,13 +289,32 @@ function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::M
     end
 end
 
+# function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
+#                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
+#     u0 = !mfd ? PromoteStatic(u0, true) : u0
+#     LogLikeOnBoundary = loglikelihood(DS, model, u0)
+#     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+#     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
+#     terminatecondition(u,t,integrator) = u[2] - u0[2]
+#     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
+#     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
+#     CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+#     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
+#     if mfd
+#         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
+#     else
+#         return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
+#     end
+# end
+
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0))
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u; Auto=Auto)
-    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u))
+    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u, PlanarLogPrior; Auto=Auto)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
@@ -401,19 +425,14 @@ It then integrates from where this obstruction was met in the clockwise directio
 """
 function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
                                 redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-    GenerateInterruptedBoundary(Data(DM), Predictor(DM), dPredictor(DM), u0; Boundaries=Boundaries, tol=tol, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
-end
-
-function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-                                redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    LogLikeOnBoundary = loglikelihood(DS,model,u0)
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-    BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS, model, u)
+    LogLikeOnBoundary = loglikelihood(DM,u0)
+    IntCurveODE!(du,u,p,t)  =  (du .= 0.1 .* OrthVF(DM, u; Auto=Auto))
+    BackwardsIntCurveODE!(du,u,p,t)  =  (du .= -0.1 .* OrthVF(DM, u; Auto=Auto))
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, u)
 
     terminatecondition(u,t,integrator) = u[2] - u0[2]
-    Singularity(u,t,integrator) = det(FisherMetric(DS, dmodel, u)) - tol
+    Singularity(u,t,integrator) = det(FisherMetric(DM, u)) - tol
 
     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
@@ -434,8 +453,42 @@ function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction
     return redo ? sol2 : [sol1, sol2]
 end
 
+# function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
+#                                 redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
+#     u0 = !mfd ? PromoteStatic(u0, true) : u0
+#     LogLikeOnBoundary = loglikelihood(DS,model,u0)
+#     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+#     BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
+#     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS, model, u)
+#
+#     terminatecondition(u,t,integrator) = u[2] - u0[2]
+#     Singularity(u,t,integrator) = det(FisherMetric(DS, dmodel, u)) - tol
+#
+#     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
+#     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
+#     nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+#     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
+#
+#     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
+#     sol1 = mfd ? solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+#     if norm(sol1.u[end] - sol1.u[1]) < 10tol
+#         return sol1
+#     else
+#         nonmfdCB = ContinuousCallback(Singularity, terminate!)
+#         nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+#         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
+#         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
+#         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+#     end
+#     return redo ? sol2 : [sol1, sol2]
+# end
+
+
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
+
+FisherMetric(DM::AbstractDataModel; kwargs...) = θ -> FisherMetric(DM, θ; kwargs...)
+
 """
     FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
 Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
@@ -443,19 +496,25 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(Data(DM), dPredictor(DM), θ; kwargs...)
-FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, InvCov(DS), θ; kwargs...)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = FisherMetric(Data(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
 
-FisherMetric(DM::AbstractDataModel; kwargs...) = θ -> FisherMetric(DM, θ; kwargs...)
+FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _FisherMetric(DS, dmodel, θ; kwargs...)
+# ADD MINUS SIGN FOR LogPrior TERM TO ACCOUNT FOR NEGATIVE SIGN IN DEFINTION OF FISHER METRIC
+FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _FisherMetric(DS, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ)
+# FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = exp(EvalLogPrior(LogPriorFn, θ)) * (_FisherMetric(DS, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ))
+
+
+# Specialize this for other DataSet types
+_FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, InvCov(DS), θ; kwargs...)
+
 
 """
     GeometricDensity(DM::AbstractDataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = GeometricDensity(Data(DM), dPredictor(DM), θ; kwargs...)
-GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
+GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM, θ; kwargs...) |> det |> sqrt
+# GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
-
 GeometricDensity(DM::AbstractDataModel; kwargs...) = θ -> GeometricDensity(DM, θ; kwargs...)
 
 """
@@ -579,9 +638,8 @@ Returns a vector of the collective predictions of the `model` as evaluated at th
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
 """
-EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ; kwargs...)
-EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMap(DS, model, θ, WoundX(DS); kwargs...)
-EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
+EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ, woundX; kwargs...)
+EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
 
 _CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX, Val(false); kwargs...)
 _CustomOrNot(DS::AbstractDataSet, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding; kwargs...)
@@ -595,15 +653,16 @@ _CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number},
     EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) -> Matrix
 Returns the jacobian of the embedding map as evaluated at the x-values and the parameter configuration ``\\theta``.
 """
-EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ; kwargs...)
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DS, dmodel, θ, WoundX(DS); kwargs...)
+EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ, woundX; kwargs...)
+
 # Make sure θ is a float:
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:AbstractFloat}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:AbstractFloat}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, float.(θ), woundX; kwargs...)
 
 _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX, Val(false); kwargs...)
 _CustomOrNotdM(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, θ, woundX, dM.CustomEmbedding; kwargs...)
 
+# Specialize this for different Dataset types
 _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
 _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = dmodel(woundX, θ; kwargs...)
 
@@ -619,12 +678,13 @@ _CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Numbe
 
 
 # M ⟵ D
-Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwargs...) = F(EmbeddingMap(DM,θ; kwargs...))
+Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwargs...) = F(EmbeddingMap(DM, θ; kwargs...))
+
 """
     Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::Vector) -> Vector
 Pull-back of a covector to the parameter manifold ``T*\\mathcal{M} \\longleftarrow T*\\mathcal{D}``.
 """
-Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM,θ; kwargs...)) * ω
+Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM, θ; kwargs...)) * ω
 
 
 """
@@ -642,12 +702,7 @@ end
     Pushforward(DM::DataModel, X::AbstractVector, θ::AbstractVector) -> Vector
 Calculates the push-forward of a vector `X` from the parameter manifold to the data space ``T\\mathcal{M} \\longrightarrow T\\mathcal{D}``.
 """
-Pushforward(DM::AbstractDataModel, X::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DM,θ; kwargs...) * X
-
-
-# Compute all major axes of Fisher Ellipsoid from eigensystem of Fisher metric
-FisherEllipsoid(DM::DataModel, θ::AbstractVector{<:Number}) = FisherEllipsoid(p->FisherMetric(DM,p), θ)
-FisherEllipsoid(Metric::Function, θ::AbstractVector{<:Number}) = eigvecs(Metric(θ))
+Pushforward(DM::AbstractDataModel, X::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DM, θ; kwargs...) * X
 
 
 """
@@ -721,10 +776,11 @@ end
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-12, maxiter::Int=10000)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=pdim(DM), tol::Real=1e-12, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
+    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
-    Test(x::Number) = ChisqCDF(pdim(DM), abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.])))) - CF < 0.
+    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.], PlanarLogPrior)))) - CF < 0.
     !Test(0.) && return false
     [LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
 end

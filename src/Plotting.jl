@@ -128,13 +128,13 @@ function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<
     Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
                 ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
                 (x,p)->zeros(ydim(DS), length(mle)),
-                mle, loglikelihood(DS, model, mle), true); kwargs...)
+                mle, _loglikelihood(DS, model, mle), true); kwargs...)
 end
 function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
     Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
                 ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
                 (x,p)->zeros(ydim(DS), length(mle)),
-                mle, loglikelihood(DS, model, mle), true); kwargs...)
+                mle, _loglikelihood(DS, model, mle), true); kwargs...)
 end
 # function ResidualPlot(DM::AbstractDataModel; kwargs...)
 #     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")

@@ -29,10 +29,15 @@ length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
-    Mat = [PL.Vx PL.Vy]
+    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
-    planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * Mat
-    curve_fit(Data(DM), planarmod, planardmod, start; tol=tol).param
+    return try
+        # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
+        curve_fit(Data(DM), planarmod, start, PlanarLogPrior; tol=tol).param
+    catch;
+        planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
+        curve_fit(Data(DM), planarmod, planardmod, start, PlanarLogPrior; tol=tol).param
+    end
 end
 
 function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
@@ -40,8 +45,9 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
+    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     mle = MLEinPlane(DM, PL)
-    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM,PlaneCoordinates(PL, mle)), true)
+    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32

@@ -121,7 +121,7 @@ export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, Poly
 include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, sigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
-export Predictor, dPredictor, ConsistentElDims
+export Predictor, dPredictor, LogPrior, ConsistentElDims
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 

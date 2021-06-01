@@ -60,11 +60,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         MLEstash = Drop(MLE(DM), Comp)
         for (i,p) in enumerate(ps)
             NewModel = ProfilePredictor(DM, Comp, p)
-            MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash).param
-            Res[i] = loglikelihood(Data(DM), NewModel, MLEstash)
+            DroppedLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(InsertValAt(X,Comp,p)))
+            MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior).param
+            Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
+    Logmax != LogLikeMLE(DM) && @warn "Profile Likelihood analysis apparently found a likelihood value which is higher than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Res = map(x->InvConfVol.(ChisqCDF.(pdim(DM), 2(Logmax - x))), Res)
     [ps Res]
