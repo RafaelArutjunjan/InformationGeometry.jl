@@ -19,7 +19,7 @@ DM = DataModel(DS, model, [1.0,2.5])
 ```
 During the construction of a `DataModel` process which includes the search for the maximum likelihood estimate ``\\theta_\\text{MLE}``, multiple tests are run. If necessary, these tests can be skipped by appending `true` as the last argument in the constructor:
 ```julia
-DM = DataModel(DS, model, [-Inf,π,1+im], true)
+DM = DataModel(DS, model, [-Inf,π,1], true)
 ```
 
 If a `DataModel` is constructed as shown in the above examples, the gradient of the model with respect to the parameters `θ` (i.e. its "Jacobian") will be calculated using automatic differentiation. Alternatively, an explicit analytic expression for the Jacobian can be specified by hand:
@@ -33,7 +33,15 @@ DM = DataModel(DS, model, dmodel)
 The output of the Jacobian must be a matrix whose columns correspond to the partial derivatives with respect to different components of `θ` and whose rows correspond to evaluations at different components of `x`.
 Again, although it is not strictly required, outputting the Jacobian in form of a static matrix is typically beneficial for the overall performance.
 
-The `DataSet` contained in a `DataModel` named `DM` can be accessed via `Data(DM)`, whereas the model and its Jacobian can be used via `DM.model` and `DM.dmodel` respectively.
+It is also possible to specify a (logarithmized) prior distribution on the parameter space to the `DataModel` constructor after the initial guess for the MLE. For example:
+```julia
+using Distributions
+Dist = MvNormal(ones(2), [1 0; 0 3.])
+LogPriorFn(θ) = logpdf(Dist, θ)
+DM = DataModel(DS, model, [1.0,2.5], LogPriorFn)
+```
+
+The `DataSet` contained in a `DataModel` named `DM` can be accessed via `Data(DM)`, whereas the model and its Jacobian can be used via `Predictor(DM)` and `dPredictor(DM)` respectively. The MLE and the value of the log-likelihood at the MLE are accessible via `MLE(DM)` and `LogLikeMLE(DM)`. The logarithmized prior can be accessed via `LogPrior(DM)`.
 """
 struct DataModel <: AbstractDataModel
     Data::AbstractDataSet

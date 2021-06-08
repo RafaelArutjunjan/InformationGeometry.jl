@@ -772,11 +772,11 @@ end
 
 
 """
-    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-12) -> Union{Vector{Number},Bool}
+    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-8) -> Union{Vector{Number},Bool}
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=pdim(DM), tol::Real=1e-12, maxiter::Int=10000)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=pdim(DM), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
     PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))

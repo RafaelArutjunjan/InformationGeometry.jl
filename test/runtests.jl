@@ -103,8 +103,8 @@ end
     SIRinitial = X->([763.0-X[1], X[1], 0.0], X[2:3])
 
     # Use SplitterFunction SIRinitial to infer initial condition I₀ as first parameter
-    @test DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.5,0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
-    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.002,0.5]; tol=1e-6, meth=Tsit5()) isa DataModel
+    @test DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.5,0.002,0.5]; tol=1e-6) isa DataModel
+    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.002,0.5], true; meth=Tsit5()) isa DataModel
 end
 
 
