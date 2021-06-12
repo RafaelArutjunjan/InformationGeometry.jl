@@ -96,13 +96,13 @@ Returns a `DataFrame` whose columns respectively constitute the x-values, y-valu
 For `sigdigits > 0` the values are rounded to the specified number of significant digits.
 """
 function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
-    !(xdim(DS) == ydim(DS) == Int(size(sigma(DS),1)/Npoints(DS))) && throw("Not programmed yet.")
-    sig = sigma(DS)
+    !(xdim(DS) == ydim(DS) == Int(size(ysigma(DS),1)/Npoints(DS))) && throw("Not programmed yet.")
+    sig = ysigma(DS)
     !(typeof(sig) <: AbstractVector) && throw("Sigma not a vector, but instead $(typeof(sig)).")
     if sigdigits < 1
-        return DataFrame([xdata(DS) ydata(DS) sigma(DS)], :auto)
+        return DataFrame([xdata(DS) ydata(DS) ysigma(DS)], :auto)
     else
-        return DataFrame(round.([xdata(DS) ydata(DS) sigma(DS)]; sigdigits=sigdigits), :auto)
+        return DataFrame(round.([xdata(DS) ydata(DS) ysigma(DS)]; sigdigits=sigdigits), :auto)
     end
 end
 SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(Data(DM); sigdigits=sigdigits)

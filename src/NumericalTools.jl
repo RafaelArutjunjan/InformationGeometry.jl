@@ -15,7 +15,7 @@ suff(x::Complex) = real(x)
 suff(x::AbstractArray) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
-suff(args...) = suff(promote(args...)[1])
+suff(args...) = try suff(promote(args...)[1]) catch;  suff(args[1]) end
 
 
 """

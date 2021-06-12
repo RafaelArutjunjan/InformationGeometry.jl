@@ -12,7 +12,13 @@ ConsistentElDims(T::Tuple) = ConsistentElDims(collect(T))
 
 function HealthyCovariance(M::AbstractMatrix{<:Number})
     M = size(M,1) > size(M,2) ? Unwind(M) : M
-    M = isdiag(M) ? Diagonal(float.(M)) : float.(M)
+    M = if isdiag(M)
+        Diagonal(float.(M))
+    elseif sum(abs, M - Diagonal(float.(M))) < 1e-20
+        Diagonal(float.(M))
+    else
+        float.(M)
+    end
     if !isposdef(M)
         println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
         M = Symmetric(M)
@@ -42,7 +48,8 @@ length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
-sigma(DS::AbstractDataSet) = ysigma(DS)
+#sigma(DS::AbstractDataSet) = ysigma(DS)
+@deprecate sigma(x) ysigma(x) true
 
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
@@ -63,32 +70,11 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
-# for F in [xdata, ydata, sigma, xsigma, ysigma, InvCov, dims, Npoints, length, xdim, ydim,
-#                     logdetInvCov, WoundX, DataspaceDim, xnames, ynames, xdist, ydist]
-#     F(DM::AbstractDataModel) = F(Data(DM))
-# end
-xdata(DM::AbstractDataModel) = xdata(Data(DM))
-ydata(DM::AbstractDataModel) = ydata(Data(DM))
-sigma(DM::AbstractDataModel) = sigma(Data(DM))
-xsigma(DM::AbstractDataModel) = xsigma(Data(DM))
-ysigma(DM::AbstractDataModel) = ysigma(Data(DM))
-InvCov(DM::AbstractDataModel) = InvCov(Data(DM))
-
-Npoints(DM::AbstractDataModel) = Npoints(Data(DM))
-length(DM::AbstractDataModel) = length(Data(DM))
-xdim(DM::AbstractDataModel) = xdim(Data(DM))
-ydim(DM::AbstractDataModel) = ydim(Data(DM))
-dims(DM::AbstractDataModel) = dims(Data(DM))
-
-logdetInvCov(DM::AbstractDataModel) = logdetInvCov(Data(DM))
-WoundX(DM::AbstractDataModel) = WoundX(Data(DM))
-DataspaceDim(DM::AbstractDataModel) = DataspaceDim(Data(DM))
-
-xnames(DM::AbstractDataModel) = xnames(Data(DM))
-ynames(DM::AbstractDataModel) = ynames(Data(DM))
-
-xdist(DM::AbstractDataModel) = xdist(Data(DM))
-ydist(DM::AbstractDataModel) = ydist(Data(DM))
+for F in [  :xdata, :ydata, :xsigma, :ysigma, :InvCov,
+            :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
+            :logdetInvCov, :WoundX, :xnames, :ynames, :xdist, :ydist]
+    @eval $F(DM::AbstractDataModel) = $F(Data(DM))
+end
 
 
 # Generic Methods which are not simply passed through
@@ -97,7 +83,6 @@ pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
-
 
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false)
@@ -172,10 +157,10 @@ DataFrame(DS::AbstractDataSet; kwargs...) = SaveDataSet(DS; kwargs...)
 import Base.join
 function join(DS1::T, DS2::T) where T <: AbstractDataSet
     !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
-    NewΣ = if typeof(sigma(DS1)) <: AbstractVector && typeof(sigma(DS2)) <: AbstractVector
-        vcat(sigma(DS1), sigma(DS2))
+    NewΣ = if typeof(ysigma(DS1)) <: AbstractVector && typeof(ysigma(DS2)) <: AbstractVector
+        vcat(ysigma(DS1), ysigma(DS2))
     else
-        BlockMatrix(sigma(DS1), sigma(DS2))
+        BlockMatrix(ysigma(DS1), ysigma(DS2))
     end
     DataSet(vcat(xdata(DS1), xdata(DS2)), vcat(ydata(DS1), ydata(DS2)), NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
 end
@@ -190,7 +175,7 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
-    Σ = sigma(DS)
+    Σ = ysigma(DS)
     if typeof(Σ) <: AbstractVector
         Σ = Windup(Σ,ydim(DS))[range] |> Unwind
     elseif ydim(DS) == 1

@@ -12,7 +12,7 @@ using SafeTestsets
     p = rand(2)
 
     @test IsLinear(DM)
-    Dist = DataDist(ydata(DM),sigma(DM))
+    Dist = DataDist(ydata(DM),ysigma(DM))
     @test abs(loglikelihood(DM,p) - logpdf(Dist,EmbeddingMap(DM,p))) < 1e-13
     @test Score(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * gradlogpdf(Dist,EmbeddingMap(DM,p))
     @test FisherMetric(DM,p) ≈ transpose(EmbeddingMatrix(DM,p)) * inv(cov(Dist)) * EmbeddingMatrix(DM,p)
