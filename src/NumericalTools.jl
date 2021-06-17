@@ -138,6 +138,7 @@ InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), 
 InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
 
+
 import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
 ==(DS1::DataSetExact, DS2::DataSet) = DS2 == DS1
@@ -151,6 +152,31 @@ function ==(DS1::DataSet, DS2::DataSetExact)
     end
 end
 ==(DS1::AbstractDataSet, DS2::AbstractDataSet) = xdist(DS1) == xdist(DS2) && ydist(DS1) == ydist(DS2)
+
+
+
+## Differentiation
+
+GetGrad(ADmode::Symbol; kwargs...) = GetGrad(Val(ADmode); kwargs...)
+GetJac(ADmode::Symbol; kwargs...) = GetJac(Val(ADmode); kwargs...)
+GetHess(ADmode::Symbol; kwargs...) = GetHess(Val(ADmode); kwargs...)
+# Fall back to ForwarDiff as standard
+GetGrad(ADmode::Val{true}; kwargs...) = GetGrad(Val(:ForwardDiff); kwargs...)
+GetJac(ADmode::Val{true}; kwargs...) = GetJac(Val(:ForwardDiff); kwargs...)
+GetHess(ADmode::Val{true}; kwargs...) = GetHess(Val(:ForwardDiff); kwargs...)
+
+GetGrad(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.gradient
+GetJac(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.jacobian
+GetHess(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.hessian
+GetGrad(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.gradient
+GetJac(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.jacobian
+GetHess(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.hessian
+GetGrad(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.gradient(Func, p; kwargs...)[1]
+GetJac(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.jacobian(Func, p; kwargs...)[1]
+GetHess(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.hessian(Func, p; kwargs...)
+GetGrad(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func,p) -> FiniteDifferences.grad(central_fdm(order,1), Func, p; kwargs...)[1]
+GetJac(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func,p) -> FiniteDifferences.jacobian(central_fdm(order,1), Func, p; kwargs...)[1]
+GetHess(ADmode::Val{:FiniteDiff}; order::Int=5, kwargs...) = (Func,p) -> FiniteDifferences.jacobian(central_fdm(order,1), z->FiniteDifferences.grad(central_fdm(order,1), Func, z)[1], p)[1]
 
 
 

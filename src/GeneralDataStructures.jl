@@ -85,14 +85,16 @@ pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
 
-function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false)
-    Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
-    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = transpose(ForwardDiff.gradient(z->model(x,z; kwargs...),θ))
-    AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
-    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Symbol=:ForwardDiff, Kwargs...)
+    Grad, Jac = GetGrad(ADmode; Kwargs...), GetJac(ADmode; Kwargs...)
+
+    Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(Grad(z->model(x,z; kwargs...),θ))
+    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = transpose(Grad(z->model(x,z; kwargs...),θ))
+    AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
+    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
     # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
     # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(p->model(x,p),θ))
-    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.jacobian(p->model(x,p; kwargs...),θ)
+    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
     if ydim(DS) == 1
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
@@ -107,19 +109,38 @@ end
     DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet, model::Function, TryOptimize::Bool=false; custom::Bool=false)
+function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Symbol=:ForwardDiff, kwargs...)
     # Try to use symbolic dmodel:
     # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
-    if TryOptimize
+    if ADmode === :Symbolic
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
         Symbolic_dmodel != nothing && return Symbolic_dmodel
+        # Fall back to ForwarDiff if Symbolic differentiation did not work
+        ADmode = :ForwardDiff
     end
-    AutoDiffDmodel(DS, model; custom=custom)
+    AutoDiffDmodel(DS, model; custom=custom, ADmode=ADmode, kwargs...)
 end
-function DetermineDmodel(DS::AbstractDataSet, M::ModelMap, TryOptimize::Bool=false; custom::Bool=iscustom(M))
-    ModelMap(DetermineDmodel(DS, M.Map, TryOptimize; custom=custom), M)
+function DetermineDmodel(DS::AbstractDataSet, M::ModelMap; custom::Bool=iscustom(M), kwargs...)
+    ModelMap(DetermineDmodel(DS, M.Map; custom=custom, kwargs...), M)
 end
 
+
+MeasureAutoDiffPerformance(DM::AbstractDataModel; kwargs...) = MeasureAutoDiffPerformance(Data(DM), Predictor(DM), MLE(DM); kwargs...)
+function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector; kwargs...)
+    modes = [:ForwardDiff, :Zygote, :ReverseDiff, :Symbolic, :FiniteDiff]
+    perfs = Vector{Float64}(undef, length(modes))
+    for (i,mode) in enumerate(modes)
+        dmodel = DetermineDmodel(DS, model; ADmode=mode, kwargs...)
+        @assert EmbeddingMatrix(DS, dmodel, mle) isa AbstractMatrix
+        perfs[i] = @belapsed EmbeddingMatrix($DS, $dmodel, $mle)
+    end
+    M = sortslices([round.(perfs;sigdigits=4) modes]; dims=1)
+    Res = [M[:,2] M[:,1]]
+
+    println("$(Res)")
+    println("$(Res[1,1]) performed best at $(Res[1,2])s. Second best was $(Res[2,1]) at $(Res[2,2])s.")
+    Res
+end
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]

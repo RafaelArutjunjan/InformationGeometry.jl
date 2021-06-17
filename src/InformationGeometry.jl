@@ -8,10 +8,11 @@ using LinearAlgebra, Random, Distributions, DataFrames
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, DataInterpolations
-using ForwardDiff, BenchmarkTools, LsqFit, Measurements, HCubature
+using ForwardDiff, Zygote, ReverseDiff, FiniteDifferences
+using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
 using LibGEOS
-using RecipesBase, Plots, Optim
+using RecipesBase, Plots
 using TreeViews
 
 import SciMLBase: AbstractODESolution, AbstractODEFunction, remake
@@ -32,7 +33,6 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction, remake
 # Use information contained in ModelMap type to build Boundaries function
 # Add CompositeDataSet to master
 # Test F-Boundaries in more detail
-# Reactivate TryOptimize
 # Integrate along structural unidentifiability -- Switching ODE functions mid-integration: https://diffeq.sciml.ai/stable/basics/faq/
 # Symbolic Fisher? Christoffel (from 2nd derivatives)?
 # Use vector-callback with domain hypercube for continuous boundary detection
@@ -122,6 +122,7 @@ include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, xsigma, ysigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
 export Predictor, dPredictor, LogPrior, ConsistentElDims
+export MeasureAutoDiffPerformance
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
@@ -141,6 +142,15 @@ export Cov, LogLike, xdist, ydist, xsigma, ysigma
 
 include("DataStructures/CompositeDataSet.jl")
 export CompositeDataSet
+
+
+include("NumericalTools.jl")
+export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
+export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
+export GetGrad, GetJac, GetHess
+export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
+export LineSearch, MonteCarloArea
+export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("ConfidenceRegions.jl")
@@ -165,14 +175,6 @@ export ApproxInRegion, ShadowTheatre, CastShadow
 
 include("ProfileLikelihood.jl")
 export ProfileLikelihood, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
-
-
-include("NumericalTools.jl")
-export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
-export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
-export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
-export LineSearch, MonteCarloArea
-export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("Divergences.jl")

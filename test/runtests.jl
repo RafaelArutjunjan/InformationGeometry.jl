@@ -274,7 +274,7 @@ end
 
 
 @safetestset "Numerical Helper Functions" begin
-    using InformationGeometry, Test
+    using InformationGeometry, Test, BenchmarkTools, ForwardDiff
 
     # Compare Integrate1D and IntegrateND
 
@@ -291,4 +291,21 @@ end
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
     @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
+
+    # Differentiation
+    X = ForwardDiff.gradient(x->x[1]^2 + exp(x[2]), [5,10.])
+    Y = ForwardDiff.jacobian(x->[x[1]^2 + exp(x[2])], [5,10.])
+    Z = ForwardDiff.hessian(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.])
+
+    function MyTest(ADmode::Symbol; kwargs...)
+        Grad, Jac = GetGrad(ADmode; kwargs...), GetJac(ADmode; kwargs...)
+        Hess = GetHess(ADmode; kwargs...)
+        @test Grad(x->x[1]^2 + exp(x[2]), [5,10.]) ≈ X
+        @test Jac(x->[x[1]^2 + exp(x[2])], [5,10.]) ≈ Y
+        @test Hess(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.]) ≈ Z
+    end
+
+    for ADmode ∈ [:ForwardDiff, :Zygote, :ReverseDiff, :FiniteDiff]
+        MyTest(ADmode)
+    end
 end

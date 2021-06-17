@@ -50,11 +50,11 @@ struct DataModel <: AbstractDataModel
     MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
-    DataModel(DF::DataFrame, args...) = DataModel(DataSet(DF),args...)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),SkipTests)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false) = DataModel(DS,model,DetermineDmodel(DS,model),mle,SkipTests)
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
-        DataModel(DS, model, DetermineDmodel(DS,model), mle, LogPriorFn, SkipTests)
+    DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model),SkipTests; kwargs...)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...),mle,SkipTests)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; kwargs...)
+        DataModel(DS, model, DetermineDmodel(DS,model; kwargs...), mle, LogPriorFn, SkipTests)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false)
         SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
