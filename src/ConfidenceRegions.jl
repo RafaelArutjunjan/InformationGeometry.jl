@@ -8,14 +8,14 @@ likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
 
 # Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
-EvalLogPrior(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zero(suff(θ))
-EvalLogPrior(LogPriorFn::Function, θ::AbstractVector{<:Number}) = LogPriorFn(θ)
+EvalLogPrior(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zero(suff(θ))
+EvalLogPrior(LogPriorFn::Function, θ::AbstractVector{<:Number}; kwargs...) = LogPriorFn(θ)
 
-EvalLogPriorGrad(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zeros(length(θ))
-EvalLogPriorGrad(LogPriorFn::Function, θ::AbstractVector{<:Number}) = ForwardDiff.gradient(LogPriorFn, θ)
+EvalLogPriorGrad(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zeros(length(θ))
+EvalLogPriorGrad(LogPriorFn::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode; kwargs...)(LogPriorFn, θ)
 
-EvalLogPriorHess(NoPrior::Nothing, θ::AbstractVector{<:Number}) = zeros(length(θ), length(θ))
-EvalLogPriorHess(LogPriorFn::Function, θ::AbstractVector{<:Number}) = ForwardDiff.hessian(LogPriorFn, θ)
+EvalLogPriorHess(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zeros(length(θ), length(θ))
+EvalLogPriorHess(LogPriorFn::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode; kwargs...)(LogPriorFn, θ)
 
 
 
@@ -39,10 +39,10 @@ end
 
 
 
-AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = _AutoScore(Data(DM), Predictor(DM), θ; kwargs...) + EvalLogPriorGrad(LogPrior(DM), θ)
-AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = exp(EvalLogPrior(LogPrior(DM), θ)) * (_AutoMetric(Data(DM), Predictor(DM), θ; kwargs...) - EvalLogPriorHess(LogPrior(DM), θ))
-_AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.gradient(x->_loglikelihood(DS, model, x; kwargs...), θ)
-_AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = ForwardDiff.hessian(x->(-_loglikelihood(DS, model, x; kwargs...)), θ)
+AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoScore(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) + EvalLogPriorGrad(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoMetric(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
+_AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode)(x->_loglikelihood(DS, model, x; kwargs...), θ)
+_AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode)(x->(-_loglikelihood(DS, model, x; kwargs...)), θ)
 
 
 
@@ -61,8 +61,8 @@ Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::
 # convert Auto from kwarg to arg
 _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; Auto::Val=Val(false), kwargs...) = _Score(DS, model, dmodel, θ, Auto; kwargs...)
 # Delegate to AutoScore
-_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}; kwargs...) = _AutoScore(DS, model, θ; kwargs...)
-
+_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{true}; kwargs...) = _AutoScore(DS, model, θ; ADmode=Auto, kwargs...)
+_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Union{Symbol,Val}; kwargs...) = _AutoScore(DS, model, θ; ADmode=Auto, kwargs...)
 
 # Specialize this for different DataSet types
 @inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
@@ -177,8 +177,8 @@ function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, 
 end
 
 # Method for general functions F
-function OrthVF(F::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
-    S = ForwardDiff.gradient(F, θ);    P = prod(S);    VF = P ./ S
+function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
+    S = GetGrad(ADmode)(F, θ);    P = prod(S);    VF = P ./ S
     normalize(alpha .* VF)
 end
 

@@ -310,8 +310,8 @@ end
 function EmbedModelVia(M::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
     ModelMap(EmbedModelVia(M.Map, F), (M.InDomain∘F), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
-function EmbedDModelVia(dmodel::Function, F::Function; Kwargs...)
-    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * ForwardDiff.jacobian(F, θ)
+function EmbedDModelVia(dmodel::Function, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * GetJac(ADmode)(F, θ)
 end
 function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
     ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain∘F), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)

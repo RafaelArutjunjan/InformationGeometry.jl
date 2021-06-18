@@ -93,7 +93,7 @@ function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false
     AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
     # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
-    # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(ForwardDiff.gradient(p->model(x,p),θ))
+    # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(Grad(p->model(x,p),θ))
     CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
     if ydim(DS) == 1
         custom && return CustomAutodmodelN
@@ -130,9 +130,13 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
     modes = [:ForwardDiff, :Zygote, :ReverseDiff, :Symbolic, :FiniteDiff]
     perfs = Vector{Float64}(undef, length(modes))
     for (i,mode) in enumerate(modes)
-        dmodel = DetermineDmodel(DS, model; ADmode=mode, kwargs...)
-        @assert EmbeddingMatrix(DS, dmodel, mle) isa AbstractMatrix
-        perfs[i] = @belapsed EmbeddingMatrix($DS, $dmodel, $mle)
+        perfs[i] = try
+            dmodel = DetermineDmodel(DS, model; ADmode=mode, kwargs...)
+            @assert EmbeddingMatrix(DS, dmodel, mle) isa AbstractMatrix
+            @belapsed EmbeddingMatrix($DS, $dmodel, $mle)
+        catch;
+            Inf
+        end
     end
     M = sortslices([round.(perfs;sigdigits=4) modes]; dims=1)
     Res = [M[:,2] M[:,1]]

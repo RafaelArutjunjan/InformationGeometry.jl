@@ -180,6 +180,22 @@ GetHess(ADmode::Val{:FiniteDiff}; order::Int=5, kwargs...) = (Func,p) -> FiniteD
 
 
 
+GetGrad!(ADmode::Symbol; kwargs...) = GetGrad!(Val(ADmode); kwargs...)
+GetJac!(ADmode::Symbol; kwargs...) = GetJac!(Val(ADmode); kwargs...)
+GetHess!(ADmode::Symbol; kwargs...) = GetHess!(Val(ADmode); kwargs...)
+# Fall back to ForwarDiff as standard
+GetGrad!(ADmode::Val{true}; kwargs...) = GetGrad!(Val(:ForwardDiff); kwargs...)
+GetJac!(ADmode::Val{true}; kwargs...) = GetJac!(Val(:ForwardDiff); kwargs...)
+GetHess!(ADmode::Val{true}; kwargs...) = GetHess!(Val(:ForwardDiff); kwargs...)
+
+GetGrad!(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.gradient!
+GetJac!(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.jacobian!
+GetHess!(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.hessian!
+GetGrad!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.gradient!
+GetJac!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.jacobian!
+GetHess!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.hessian!
+
+
 """
     Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
 Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
@@ -401,7 +417,7 @@ TotalLeastSquares(DM::AbstractDataModel, args...; kwargs...) = TotalLeastSquares
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE, model); tol::Real=1e-13, rescale::Bool=true, kwargs...)
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE, model); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), tol::Real=1e-13, rescale::Bool=true, kwargs...)
     # Improve starting values by fitting with ordinary least squares first
     initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initial; tol=tol, kwargs...).param
     if xdist(DSE) isa InformationGeometry.Dirac
@@ -417,8 +433,8 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::A
     end
     u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE), ydata(DSE))
     f(p) = u * (predictY(p) - Ydata)
-    dfnormalized(p) = u * normalizedjac(ForwardDiff.jacobian(predictY,p), xlen)
-    df(p) = u * ForwardDiff.jacobian(predictY,p)
+    dfnormalized(p) = u * normalizedjac(GetJac(ADmode)(predictY,p), xlen)
+    df(p) = u * GetJac(ADmode)(predictY,p)
     p0 = vcat(xdata(DSE), initial)
     R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
