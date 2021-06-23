@@ -580,18 +580,18 @@ Given a confidence interval `sol`, the pointwise confidence band around the mode
 by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=200)
+                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
     ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100))
     ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
 end
-function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
+function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
     ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
@@ -606,7 +606,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     return M
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=200)
+function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
     @assert length(Planes) == length(sols)
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
