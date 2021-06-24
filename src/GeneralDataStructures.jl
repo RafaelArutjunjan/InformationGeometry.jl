@@ -54,12 +54,24 @@ DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
 
+dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
+
 Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
 xdim(DS::AbstractDataSet) = xdim(dims(DS))
 ydim(DS::AbstractDataSet) = ydim(dims(DS))
 Npoints(dims::Tuple{Int,Int,Int}) = dims[1]
 xdim(dims::Tuple{Int,Int,Int}) = dims[2]
 ydim(dims::Tuple{Int,Int,Int}) = dims[3]
+
+
+_WoundX(DS::AbstractDataSet, WoundX::Nothing) = xdata(DS)
+_WoundX(DS::AbstractDataSet, WoundX::AbstractVector) = WoundX
+
+# Can eliminate specialized methods
+function InformNames(DS::T, xnames::AbstractVector{String}, ynames::AbstractVector{String}) where T <: AbstractDataSet
+    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
+    remake(DS; xnames=xnames, ynames=ynames)
+end
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
@@ -72,7 +84,7 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :InvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
-            :logdetInvCov, :WoundX, :xnames, :ynames, :xdist, :ydist]
+            :logdetInvCov, :WoundX, :xnames, :ynames, :xdist, :ydist, :dist]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
 
@@ -159,8 +171,8 @@ end
 
 
 
-DataDist(Y::AbstractVector, Sig::AbstractVector, dist=Normal) = product_distribution([dist(Y[i],Sig[i]) for i in eachindex(Y)])
-DataDist(Y::AbstractVector, Sig::AbstractMatrix, dist=MvNormal) = dist(Y, HealthyCovariance(Sig))
+DataDist(Y::AbstractVector, Sig::AbstractVector, Dist=Normal) = product_distribution([Dist(Y[i],Sig[i]) for i in eachindex(Y)])
+DataDist(Y::AbstractVector, Sig::AbstractMatrix, Dist=MvNormal) = Dist(Y, HealthyCovariance(Sig))
 yDataDist(DS::AbstractDataSet) = DataDist(ydata(DS), ysigma(DS))
 xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), HealthyCovariance(xsigma(DS)))
 yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))

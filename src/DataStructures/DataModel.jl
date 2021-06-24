@@ -128,4 +128,4 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 
 
-InformNames(DM::AbstractDataModel, xnames::Vector{String}, ynames::Vector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), true)
+InformNames(DM::AbstractDataModel, xnames::Vector{String}, ynames::Vector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)

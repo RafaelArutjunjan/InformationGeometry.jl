@@ -1,27 +1,4 @@
 
-# Define as subtype of continuous distribution to get accepted by methods more seamlessly
-# although it is actually discontinuous.
-struct Dirac <: ContinuousMultivariateDistribution
-    μ::AbstractVector{<:Number}
-    Dirac(μ) = new(float.(Unwind(μ)))
-end
-
-import Base.length
-length(d::InformationGeometry.Dirac) = length(d.μ)
-
-import Distributions: insupport, mean, cov, invcov, pdf, logpdf
-insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
-mean(d::InformationGeometry.Dirac) = d.μ
-cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
-invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1. : 0.
-logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
-
-
-# Fix gradlogpdf for Cauchy distribution and product distributions in general
-import Distributions: gradlogpdf
-gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
-gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
 
 
 struct DataSetExact <: AbstractDataSet
@@ -91,10 +68,9 @@ ynames::Vector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX,
 
 dims(DSE::DataSetExact) = DSE.dims
 InvCov(DSE::DataSetExact) = DSE.InvCov
-# WoundX(DS::DataSetExact) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+
+
 WoundX(DS::DataSetExact) = _WoundX(DS, DS.WoundX)
-_WoundX(DS::DataSetExact, WoundX::Nothing) = xdata(DS)
-_WoundX(DS::DataSetExact, WoundX::AbstractVector) = WoundX
 
 xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
@@ -109,8 +85,9 @@ xdata(DSE::DataSetExact) = data(DSE,xdist)
 ydata(DSE::DataSetExact) = data(DSE,ydist)
 
 Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
-Sigma(P::Distribution) = P.Σ
-Sigma(P::InformationGeometry.Dirac) = cov(P)
+# I thought this was faster but it occasionally causes type problems with PDDiagMat etc.
+# Sigma(P::Distribution) = P.Σ
+Sigma(P::Distribution) = cov(P)
 # Sigma(P::Distribution) = try P.Σ catch; cov(P) end
 xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
@@ -118,10 +95,11 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
 
-function InformNames(DS::DataSetExact, xnames::Vector{String}, ynames::Vector{String})
-    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
-    DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), InvCov(DS), WoundX(DS), xnames, ynames)
-end
+# function InformNames(DS::DataSetExact, xnames::Vector{String}, ynames::Vector{String})
+#     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
+#     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), InvCov(DS), WoundX(DS), xnames, ynames)
+# end
+
 
 InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)

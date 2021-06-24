@@ -143,8 +143,93 @@ end
 #     Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
 # end
 
-meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
+
+
+function _PrepareEllipsePlot(pos::AbstractVector{<:Number}, cov::AbstractMatrix{<:Number}; N::Int=100)
+    @assert length(pos) == size(cov,1) == size(cov,2)
+    C = cholesky(collect(cov)).U
+    if length(pos) == 2
+        ran = range(0, 2π; length=N)
+        M = Unpack([pos + C*[cos(α),sin(α)] for α in ran])
+        return view(M,:,1), view(M,:,2)
+    elseif length(pos) == 3
+        θran = range(0, π; length=N);  ϕran = range(0, 2π; length=N)
+        # M = mapreduce(x->transpose(pos + C * x), vcat, eachrow([cos.(ϕran).*sin.(θran) sin.(ϕran).*sin.(θran) cos.(θran)]))
+        M = Unpack([pos + C*[cos(ϕ)*sin(θ),sin(ϕ)*sin(θ),cos(θ)] for θ in θran for ϕ in ϕran])
+        #return view(M,:,1), view(M,:,2), view(M,:,3)
+        M[:,1], M[:,2], M[:,3]
+    else
+        throw("Cannot plot Ellipses for dim > 3.")
+    end
+end
+
+
+function PlotEllipse(pos::AbstractVector{<:Number}, cov::AbstractMatrix{<:Number}; OverWrite::Bool=false, N::Int=100, c=:blue, kwargs...)
+    @assert length(pos) == size(cov,1) == size(cov,2)
+    @assert 2 ≤ length(pos) ≤ 3
+    F = OverWrite ? Plots.plot : Plots.plot!
+    F([pos]; marker=:hex, markersize=1.5, markeralpha=1, c=c, label="")
+    M = _PrepareEllipsePlot(pos, cov; N=N)
+    Plots.plot!(M...; label="", fillalpha=0.2, lw=0, seriestype=[:shape,], c=c, kwargs...)
+end
+
+function ToEllipsoidTuples(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int})
+    @assert length(X) == size(Σ,1) == size(Σ,2) == dims[1]*(dims[2] + dims[3])
+    Xit = Iterators.partition(1:dims[1]*dims[2], dims[2])
+    Yit = Iterators.partition(dims[1]*dims[2]+1:dims[1]*(dims[2] + dims[3]), dims[3])
+    function _Sub(X,Σ,tup)
+        inds = vcat(tup[1],tup[2])
+        view(X,inds), view(Σ, inds, inds)
+    end
+    [_Sub(X,Σ,tup) for tup in Iterators.zip(Xit,Yit)]
+end
+
+
+function FromEllipsoidTuples(M::AbstractVector{<:Tuple{AbstractVector{<:Number}, AbstractMatrix{<:Number}}}, dims::Tuple{Int,Int,Int})
+    @assert length(M) == dims[1] && ConsistentElDims(getindex.(M,1)) == dims[2] + dims[3]
+    X = vcat(mapreduce(x->x[1][1:dims[2]], vcat, M), mapreduce(x->x[1][1+dims[2]:end], vcat, M))
+    Σ = Matrix{suff(M)}(undef,dims[1]*(dims[2] + dims[3]), dims[1]*(dims[2] + dims[3]))
+    for (i,tup) in enumerate(Iterators.zip(Iterators.partition(1:dims[1]*dims[2], dims[2]),Iterators.partition(dims[1]*dims[2]+1:dims[1]*(dims[2] + dims[3]), dims[3])))
+        inds = vcat(tup[1],tup[2])
+        view(Σ,inds,inds) .= M[i][2]
+    end;    X, HealthyCovariance(Σ)
+end
+
+PlotEllipses(GDS::GeneralizedDataSet; kwargs...) = PlotEllipses(dist(GDS), dims(GDS); kwargs...)
+PlotEllipses(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}; kwargs...) = PlotEllipses(mean(dist), cov(dist), dims; kwargs...)
+function PlotEllipses(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}; OverWrite::Bool=true, c=:blue, kwargs...)
+    @assert length(X) == size(Σ,1) == size(Σ,2) == dims[1]*(dims[2] + dims[3])
+    @assert 2 ≤ dims[2] + dims[3] ≤ 3
+    p = []
+    OverWrite && Plots.plot()
+    Ellipses = ToEllipsoidTuples(X,Σ,dims)
+    for (x, σ) in Ellipses
+        p = PlotEllipse(x, σ; OverWrite=false, c=c, kwargs...)
+    end;    display(p)
+end
+
+
+RecipesBase.@recipe function f(GDS::GeneralizedDataSet)
+    @assert xdim(GDS) + ydim(GDS) == 2
+    names = vcat(xnames(GDS),ynames(GDS))
+    xguide --> names[1]
+    yguide --> names[2]
+    N = xdim(GDS) + ydim(GDS) == 2 ? 200 : 80
+    for (x,σ) in ToEllipsoidTuples(mean(dist(GDS)),cov(dist(GDS)),dims(GDS))
+        A = cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))']
+        @series begin
+            seriesalpha --> 0.3
+            label := ""
+            fillcolor --> :blue
+            Plots.Shape(x[1] .+ A[1,:], x[2] .+ A[2,:])
+        end
+    end
+end
+
+
+
+meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
 function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))

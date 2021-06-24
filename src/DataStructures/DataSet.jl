@@ -109,17 +109,16 @@ end
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 
 InvCov(DS::DataSet) = DS.InvCov
-# WoundX(DS::DataSet) = xdim(DS) < 2 ? xdata(DS) : DS.WoundX
+
+
 WoundX(DS::DataSet) = _WoundX(DS, DS.WoundX)
-_WoundX(DS::DataSet, WoundX::Nothing) = xdata(DS)
-_WoundX(DS::DataSet, WoundX::AbstractVector) = WoundX
 
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
 
-function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
-    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
-    DataSet(xdata(DS), ydata(DS), InvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
-end
+# function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
+#     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
+#     DataSet(xdata(DS), ydata(DS), InvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
+# end

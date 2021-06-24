@@ -118,9 +118,14 @@ export EmbedModelVia, Embedding
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
 
 
+include("DataStructures/DistributionTypes.jl")
+export Dirac, GeneralProduct
+
+
 include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, xsigma, ysigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
+export xdist, ydist, dist
 export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
@@ -131,17 +136,20 @@ include("DataStructures/DataSet.jl")
 export DataSet
 
 
-include("DataStructures/DataModel.jl")
-export DataModel
-
-
 include("DataStructures/DataSetExact.jl")
-export DataSetExact, Dirac
-export Cov, LogLike, xdist, ydist, xsigma, ysigma
+export DataSetExact, LogLike
 
 
 include("DataStructures/CompositeDataSet.jl")
 export CompositeDataSet
+
+
+include("DataStructures/GeneralizedDataSet.jl")
+export GeneralizedDataSet
+
+
+include("DataStructures/DataModel.jl")
+export DataModel
 
 
 include("NumericalTools.jl")
@@ -203,7 +211,7 @@ export Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
-export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError
+export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError, PlotEllipses
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
