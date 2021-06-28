@@ -46,7 +46,8 @@ HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}) = Unwind(X)
 import Base.length
 length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
-logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
+# Becomes dangerous now that there is a distinction between yInvCov and xInvCov
+# logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 #sigma(DS::AbstractDataSet) = ysigma(DS)
 @deprecate sigma(x) ysigma(x) true
@@ -82,7 +83,7 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
-for F in [  :xdata, :ydata, :xsigma, :ysigma, :InvCov,
+for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :xnames, :ynames, :xdist, :ydist, :dist]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))

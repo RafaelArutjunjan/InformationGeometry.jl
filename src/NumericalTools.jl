@@ -387,23 +387,23 @@ end
 
 function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
-    u = cholesky(InvCov(DS)).U
+    u = cholesky(yInvCov(DS)).U
     !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     p0 = convert(Vector, initial)
     R = LsqFit.OnceDifferentiable(f, p0, copy(f(p0)); inplace = false, autodiff = :forward)
-    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
 function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
-    u = cholesky(InvCov(DS)).U
+    u = cholesky(yInvCov(DS)).U
     !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     df(p) = u * EmbeddingMatrix(DS, dmodel, p)
     p0 = convert(Vector, initial)
     R = LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
-    LsqFit.lmfit(R, p0, InvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
 function normalizedjac(M::AbstractMatrix{<:Number}, xlen::Int)
@@ -417,12 +417,12 @@ TotalLeastSquares(DM::AbstractDataModel, args...; kwargs...) = TotalLeastSquares
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DSE, model); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), tol::Real=1e-13, rescale::Bool=true, kwargs...)
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DSE, model); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), tol::Real=1e-13, rescale::Bool=true, kwargs...)
     # Improve starting values by fitting with ordinary least squares first
-    initial = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initial; tol=tol, kwargs...).param
+    initialp = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initialp; tol=tol, kwargs...).param
     if xdist(DSE) isa InformationGeometry.Dirac
         println("xdist of given data is Dirac, can only use ordinary least squares.")
-        return xdata(DSE), initial
+        return xdata(DSE), initialp
     end
 
     plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
@@ -435,7 +435,7 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::A
     f(p) = u * (predictY(p) - Ydata)
     dfnormalized(p) = u * normalizedjac(GetJac(ADmode)(predictY,p), xlen)
     df(p) = u * GetJac(ADmode)(predictY,p)
-    p0 = vcat(xdata(DSE), initial)
+    p0 = vcat(xdata(DSE), initialp)
     R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
     Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
@@ -451,22 +451,23 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     Res = if Domain === nothing
-        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
+minimize(FdF::Tuple{Function,Function}, args...; kwargs...) = minimize(FdF[1], FdF[2], args...; kwargs...)
 function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     # Wrap dF to make it inplace
     newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
     Res = if Domain === nothing
-        optimize(F, newdF, float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
@@ -477,12 +478,12 @@ Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)
 function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
-    HalfSig = cholesky(InvCov(DS)).U
+    HalfSig = cholesky(yInvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, x)), p)
     InformationGeometry.minimize(F, start, Domain; tol=tol, kwargs...)
 end
 function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing); tol::Real=1e-10, p::Real=1, kwargs...)
-    HalfSig = cholesky(InvCov(DS)).U
+    HalfSig = cholesky(yInvCov(DS)).U
     F(x::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS)), p)
     function dFp(x::AbstractVector)
         z = HalfSig * (EmbeddingMap(DS, M, x) - ydata(DS))

@@ -34,7 +34,7 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
 
 # Specialize this for different DataSet types
 @inline function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(InvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
+    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
 
@@ -66,7 +66,7 @@ _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ:
 
 # Specialize this for different DataSet types
 @inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
-    transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (InvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
+    transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (yInvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
 
 
@@ -111,7 +111,7 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = InnerProduct(InvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = InnerProduct(yInvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
@@ -221,7 +221,7 @@ end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-    if LogPriorFn === nothing
+    if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
@@ -237,7 +237,7 @@ end
 # Slower than using curve_fit(; autodiff = :forward) but less prone to errors.
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
-    if LogPriorFn === nothing
+    if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, dmodel, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
@@ -505,7 +505,7 @@ FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:
 
 
 # Specialize this for other DataSet types
-_FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, InvCov(DS), θ; kwargs...)
+_FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
 
 """
@@ -736,7 +736,7 @@ Compares the AICc values of both models at best fit and estimates probability th
 First entry of tuple returns which model is more likely to be correct (1 or 2) whereas the second entry returns the ratio of probabilities.
 """
 function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel; kwargs...)
-    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2) && InvCov(DM1) == InvCov(DM2)) && throw("Not comparing against same data!")
+    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2) && yInvCov(DM1) == yInvCov(DM2)) && throw("Not comparing against same data!")
     Mod1 = AICc(DM1,MLE(DM1); kwargs...);      Mod2 = AICc(DM2,MLE(DM2); kwargs...)
     res = (Int((Mod1 > Mod2) + 1), round(exp(0.5*abs(Mod2-Mod1)),sigdigits=5))
     println("Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values.")

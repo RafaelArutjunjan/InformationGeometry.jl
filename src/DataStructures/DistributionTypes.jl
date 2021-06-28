@@ -23,8 +23,8 @@ length(P::GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
 import Distributions: insupport, mean, cov, invcov, pdf, logpdf, gradlogpdf, product_distribution
 # insupport(P::GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
 # sum(!insupport(P.v[i],X[i]) for i in 1:length(P.v)) == 0
-mean(P::GeneralProduct) = reduce(vcat, map(mean, P.v))
-cov(P::GeneralProduct) = BlockMatrix(map(cov, P.v)...)
+mean(P::GeneralProduct) = reduce(vcat, map(GetMean, P.v))
+cov(P::GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
 
 
 for F = (:logpdf, :gradlogpdf)
@@ -44,7 +44,7 @@ end
 
 
 pdf(P::GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
-invcov(P::GeneralProduct) = BlockMatrix(map(invcov,P.v)...)
+invcov(P::GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
 product_distribution(X::AbstractVector{<:ContinuousMultivariateDistribution}) = GeneralProduct(X)
 
 

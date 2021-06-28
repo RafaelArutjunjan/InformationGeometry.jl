@@ -105,15 +105,19 @@ Basically all functions which can be called on other data containers such as `Da
 """
 struct CompositeDataSet <: AbstractDataSet
     DSs::Vector{<:AbstractDataSet}
+    InvCov::AbstractMatrix{<:Number}
     logdetInvCov::Real
     WoundX::AbstractVector
     SharedYdim::Val
     function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet})
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
-        CompositeDataSet(DSs, logdet(mapreduce(InvCov, BlockMatrix, DSs)), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
+        InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
+        CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
     end
-    CompositeDataSet(DSs::Vector{<:AbstractDataSet}, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val) = new(DSs, logdetInvCov, WoundX, SharedYdim)
+    function CompositeDataSet(DSs::Vector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val)
+        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim)
+    end
 end
 CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
@@ -124,6 +128,7 @@ end
 # For SciMLBase.remake
 CompositeDataSet(;
 DSs::Vector{<:AbstractDataSet}=[DataSet([0.],[0.],[1.])],
+InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
 SharedYdim::Val=Val(true)) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim)
@@ -139,7 +144,7 @@ BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, 
 
 ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce
 xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce
-InvCov(CDS::CompositeDataSet) = mapreduce(InvCov, BlockMatrix, Data(CDS))
+yInvCov(CDS::CompositeDataSet) = mapreduce(yInvCov, BlockMatrix, Data(CDS))
 
 Npoints(CDS::CompositeDataSet) = mapreduce(Npoints, +, Data(CDS))
 ydim(CDS::CompositeDataSet) = mapreduce(ydim, +, Data(CDS))
@@ -154,9 +159,6 @@ xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
 ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 
 
-
-
-TreeViews.numberofnodes(x::CompositeDataSet) = 1
 
 function InformNames(CDS::CompositeDataSet, xnames::Vector{String}, ynames::Vector{String})
     CompositeDataSet(InformNames(Data(CDS), xnames, ynames))

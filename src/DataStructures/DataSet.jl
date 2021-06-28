@@ -103,12 +103,12 @@ dims(DS::DataSet) = DS.dims
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 function ysigma(DS::DataSet)
-    sig = !issparse(InvCov(DS)) ? inv(InvCov(DS)) : inv(convert(Matrix,InvCov(DS)))
+    sig = !issparse(yInvCov(DS)) ? inv(yInvCov(DS)) : inv(convert(Matrix,yInvCov(DS)))
     return isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
 end
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 
-InvCov(DS::DataSet) = DS.InvCov
+yInvCov(DS::DataSet) = DS.InvCov
 
 
 WoundX(DS::DataSet) = _WoundX(DS, DS.WoundX)
@@ -120,5 +120,5 @@ ynames(DS::DataSet) = DS.ynames
 
 # function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
-#     DataSet(xdata(DS), ydata(DS), InvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
+#     DataSet(xdata(DS), ydata(DS), yInvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
 # end

@@ -67,8 +67,8 @@ ynames::Vector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX,
 
 
 dims(DSE::DataSetExact) = DSE.dims
-InvCov(DSE::DataSetExact) = DSE.InvCov
-
+yInvCov(DSE::DataSetExact) = DSE.InvCov
+xInvCov(DSE::DataSetExact) = InvCov(xdist(DSE))
 
 WoundX(DS::DataSetExact) = _WoundX(DS, DS.WoundX)
 
@@ -80,9 +80,8 @@ GetMean(P::Product) = [location(P.v[i]) for i in 1:length(P)]
 GetMean(P::Distribution) = mean(P)
 # GetMean(P::Distribution) = P.μ
 
-data(DSE::DataSetExact,F::Function) = GetMean(F(DSE))
-xdata(DSE::DataSetExact) = data(DSE,xdist)
-ydata(DSE::DataSetExact) = data(DSE,ydist)
+xdata(DSE::DataSetExact) = GetMean(xdist(DSE))
+ydata(DSE::DataSetExact) = GetMean(ydist(DSE))
 
 Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
 # I thought this was faster but it occasionally causes type problems with PDDiagMat etc.
@@ -97,7 +96,7 @@ ynames(DSE::DataSetExact) = DSE.ynames
 
 # function InformNames(DS::DataSetExact, xnames::Vector{String}, ynames::Vector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
-#     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), InvCov(DS), WoundX(DS), xnames, ynames)
+#     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), yInvCov(DS), WoundX(DS), xnames, ynames)
 # end
 
 

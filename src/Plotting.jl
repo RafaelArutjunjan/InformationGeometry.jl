@@ -197,7 +197,7 @@ function FromEllipsoidTuples(M::AbstractVector{<:Tuple{AbstractVector{<:Number},
 end
 
 PlotEllipses(GDS::GeneralizedDataSet; kwargs...) = PlotEllipses(dist(GDS), dims(GDS); kwargs...)
-PlotEllipses(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}; kwargs...) = PlotEllipses(mean(dist), cov(dist), dims; kwargs...)
+PlotEllipses(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}; kwargs...) = PlotEllipses(GetMean(dist), Sigma(dist), dims; kwargs...)
 function PlotEllipses(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}; OverWrite::Bool=true, c=:blue, kwargs...)
     @assert length(X) == size(Σ,1) == size(Σ,2) == dims[1]*(dims[2] + dims[3])
     @assert 2 ≤ dims[2] + dims[3] ≤ 3
@@ -210,13 +210,13 @@ function PlotEllipses(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int
 end
 
 
-RecipesBase.@recipe function f(GDS::GeneralizedDataSet)
+RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVector{<:Number}=xdata(GDS))
     @assert xdim(GDS) + ydim(GDS) == 2
     names = vcat(xnames(GDS),ynames(GDS))
     xguide --> names[1]
     yguide --> names[2]
     N = xdim(GDS) + ydim(GDS) == 2 ? 200 : 80
-    for (x,σ) in ToEllipsoidTuples(mean(dist(GDS)),cov(dist(GDS)),dims(GDS))
+    for (x,σ) in ToEllipsoidTuples(GetMean(dist(GDS)),Sigma(dist(GDS)),dims(GDS))
         A = cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))']
         @series begin
             seriesalpha --> 0.3
