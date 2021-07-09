@@ -930,7 +930,7 @@ end
 
 """
     LeftOfLine(q₁::AbstractVector, q₂::AbstractVector, p::AbstractVector) -> Bool
-Checks if point `p` is left of the line from `q₁` to `q₂` via `det([q₁-p  q₂-p])` for 2D points.
+Checks if point `p` is left of the line from `q₁` to `q₂` via `det([q₁-p  q₂-p]) > 0` for 2D points.
 """
 function LeftOfLine(q₁::AbstractVector, q₂::AbstractVector, p::AbstractVector)::Bool
     @assert length(q₁) == length(q₂) == length(p) == 2
@@ -939,7 +939,7 @@ end
 
 # Copied from Luxor.jl
 """
-    isinside(p, pol; allowonedge=false) -> Bool
+    isinside(p, pointlist) -> Bool
 Is a point `p` inside a polygon defined by a counterclockwise list of points.
 """
 function isinside(p::AbstractVector{<:Number}, pointlist::AbstractVector{<:AbstractVector})

@@ -119,7 +119,7 @@ end
 
 
 """
-    DetermineDmodel(DS::AbstractDataSet, model::Function)::Function
+    DetermineDmodel(DS::AbstractDataSet, model::Function; ADmode::Symbol=:ForwardDiff)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
 function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Symbol=:ForwardDiff, kwargs...)
@@ -204,7 +204,7 @@ function join(DS1::T, DS2::T) where T <: AbstractDataSet
 end
 join(DM1::AbstractDataModel, DM2::AbstractDataModel) = DataModel(join(Data(DM1),Data(DM2)), Predictor(DM1), dPredictor(DM1))
 join(DS1::T, DS2::T, args...) where T <: Union{AbstractDataSet,AbstractDataModel} = join(join(DS1,DS2), args...)
-join(DSVec::Vector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = join(DSVec...)
+join(DSVec::AbstractVector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = join(DSVec...)
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))

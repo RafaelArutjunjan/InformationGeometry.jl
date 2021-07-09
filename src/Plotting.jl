@@ -174,6 +174,28 @@ function PlotEllipse(pos::AbstractVector{<:Number}, cov::AbstractMatrix{<:Number
     Plots.plot!(M...; label="", fillalpha=0.2, lw=0, seriestype=[:shape,], c=c, kwargs...)
 end
 
+
+
+function ToEllipsoidTuples(DS::AbstractDataSet)
+    X, Σ = if xdim(DS) > 0
+        vcat(xdata(DS), ydata(DS)), BlockMatrix(HealthyCovariance(xsigma(DS)), HealthyCovariance(ysigma(DS)))
+    elseif xdim(DS) == 0 && ydim(DS) > 1
+        throw("Not programmed yet.")
+    else
+        throw("Error.")
+    end
+    ToEllipsoidTuples(X, Σ, dims(DS))
+end
+
+function ToEllipsoidTuples(X::AbstractVector, Σ::AbstractMatrix)
+    @assert length(X) % 2 == 0
+    @info "ToEllipsoidTuples: No dims given, assuming xdim = ydim = 1"
+    ToEllipsoidTuples(X, Σ, (length(X)÷2, 1, 1))
+end
+
+"""
+Expects [xdata;ydata] as format for X (and Σ).
+"""
 function ToEllipsoidTuples(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int})
     @assert length(X) == size(Σ,1) == size(Σ,2) == dims[1]*(dims[2] + dims[3])
     Xit = Iterators.partition(1:dims[1]*dims[2], dims[2])
@@ -185,6 +207,14 @@ function ToEllipsoidTuples(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{In
     [_Sub(X,Σ,tup) for tup in Iterators.zip(Xit,Yit)]
 end
 
+
+"""
+Returns [xdata;ydata] as format for X (and Σ).
+"""
+function FromEllipsoidTuples(M::AbstractVector{<:Tuple{AbstractVector{<:Number}, AbstractMatrix{<:Number}}})
+    @info "FromEllipsoidTuples: No dims given, assuming xdim = 1, ydim = $(length(M[1][1])-1)"
+    FromEllipsoidTuples(M, (length(M), 1, length(M[1][1])-1))
+end
 
 function FromEllipsoidTuples(M::AbstractVector{<:Tuple{AbstractVector{<:Number}, AbstractMatrix{<:Number}}}, dims::Tuple{Int,Int,Int})
     @assert length(M) == dims[1] && ConsistentElDims(getindex.(M,1)) == dims[2] + dims[3]

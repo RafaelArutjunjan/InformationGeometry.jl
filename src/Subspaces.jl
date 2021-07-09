@@ -193,7 +193,8 @@ CubeWidths(X)
 struct HyperCube{Q<:Number} <: Cuboid
     L::AbstractVector{Q}
     U::AbstractVector{Q}
-    function HyperCube(lowers::AbstractVector{<:Number},uppers::AbstractVector{<:Number}; Padding::Number=0.)
+    HyperCube(C::HyperCube; Padding::Number=0.) = HyperCube(C.L, C.U; Padding=Padding)
+    function HyperCube(lowers::AbstractVector{<:Number}, uppers::AbstractVector{<:Number}; Padding::Number=0.)
         @assert length(lowers) == length(uppers)
         if Padding != 0.
             diff = (uppers - lowers) .* (Padding / 2.)
@@ -303,7 +304,11 @@ function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
     range(Domain[1], Domain[2]; length=N) |> collect
 end
 
-
+import Base.range
+function range(C::HyperCube; length::Int=100, kwargs...)
+    @assert size(C.L,1) == 1 && length > 1
+    range(C.L[1], C.U[1]; length=length, kwargs...)
+end
 
 DropCubeDim(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})

@@ -17,6 +17,10 @@ struct GeneralizedDataSet <: AbstractDataSet
         GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), xnames(DS), ynames(DS))
     end
     GeneralizedDataSet(args...) = DataSetExact(args...) |> GeneralizedDataSet
+    function GeneralizedDataSet(X::AbstractVector{<:Number}, Σ::AbstractMatrix{<:Number})
+        @info "GeneralizedDataSet: Assuming MvNormal as data distribution and continuing."
+        GeneralizedDataSet(MvNormal(X, Σ))
+    end
     function GeneralizedDataSet(dist::ContinuousMultivariateDistribution)
         @assert length(dist) % 2 == 0
         @warn "No dims given for distribution, assuming xdim = ydim = 1 and continuing."

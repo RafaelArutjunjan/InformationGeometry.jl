@@ -51,7 +51,7 @@ struct DataModel <: AbstractDataModel
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model),SkipTests; kwargs...)
+    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...), SkipTests)
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...),mle,SkipTests)
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; kwargs...)
         DataModel(DS, model, DetermineDmodel(DS,model; kwargs...), mle, LogPriorFn, SkipTests)

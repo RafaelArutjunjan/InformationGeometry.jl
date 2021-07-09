@@ -7,7 +7,7 @@ using LinearAlgebra, Random, Distributions, DataFrames
 
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
-using ModelingToolkit, DataInterpolations
+using ModelingToolkit, Symbolics, DataInterpolations
 using ForwardDiff, Zygote, ReverseDiff, FiniteDifferences
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics

@@ -7,9 +7,9 @@ Getxyp(DS::AbstractDataSet, M::ModelMap) = M.xyp
 
 SymbolicArguments(args...) = SymbolicArguments(Getxyp(args...))
 function SymbolicArguments(xyp::Tuple{Int,Int,Int})
-    @variables x[1:xyp[1]] y[1:xyp[2]] θ[1:xyp[3]]
-    X = xyp[1] == 1 ? x[1] : x;         Y = xyp[2] == 1 ? y[1] : y
+    @variables X[1:xyp[1]] Y[1:xyp[2]] θ[1:xyp[3]] x y
     X, Y, θ
+    (xyp[1] == 1 ? x : X), (xyp[2] == 1 ? y : Y), θ
 end
 
 
@@ -40,7 +40,7 @@ end
 
 function SymbolicModel(DM::AbstractDataModel)
     expr = ToExpr(DM)
-    expr === nothing ? "Cannot represent given model symbolically." : "y(x,θ) = $expr"
+    expr === nothing ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
 end
 
 function SymbolicdModel(DM::AbstractDataModel)
@@ -48,7 +48,7 @@ function SymbolicdModel(DM::AbstractDataModel)
         println("Given Model jacobian not symbolic. Trying to apply OptimizedDM() first.")
         odm = OptimizedDM(DM)
         if ToExpr(odm) === nothing
-            return "Cannot represent given jacobian symbolically."
+            return "Unable to represent given jacobian symbolically."
         else
             X, Y, θ = SymbolicArguments(odm)
             return "(∂y/∂θ)(x,θ) = $(dPredictor(odm)(X, θ))"
@@ -72,25 +72,25 @@ function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, tim
     ModelMap(model, M), ModelMap(dmodel, M)
 end
 function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    modelexpr = ToExpr(model, xyp; timeout=timeout)
+    modelexpr = ToExpr(model, xyp; timeout=timeout) |> Symbolics.simplify
     modelexpr == nothing && return nothing, nothing
 
     X, Y, θ = SymbolicArguments(xyp)
 
     # Need to make sure that modelexpr is of type Vector{Num}, not just Num
-    modelexpr = xyp[2] == 1 ? [ModelingToolkit.simplify(modelexpr)] : ModelingToolkit.simplify(modelexpr)
-    derivative = ModelingToolkit.jacobian(modelexpr, θ; simplify=true)
+    !(modelexpr isa AbstractVector{<:Num}) && (modelexpr = [modelexpr])
+    derivative = Symbolics.jacobian(modelexpr, θ; simplify=true)
 
     ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
 end
 
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}};
                                                         inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
-    parallelization = parallel ? ModelingToolkit.MultithreadedForm() : ModelingToolkit.SerialForm()
+    parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
     OptimizedModel = try
-        ModelingToolkit.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
+        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
     catch;
-        ModelingToolkit.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
+        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
     end
     ### Pretty Function names
     if IsJacobian
@@ -111,7 +111,7 @@ end
 
 function OptimizedDM(DM::AbstractDataModel)
     model, dmodel = Optimize(DM)
-    # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl
+    # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
     if dmodel != nothing
         return DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM))
     else
