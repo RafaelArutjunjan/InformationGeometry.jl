@@ -156,9 +156,23 @@ end
 
 
 ## Differentiation
-
+"""
+    GetGrad(ADmode::Symbol; kwargs...) -> Function
+Returns a function which generates gradients via the method specified by `ADmode`.
+This outputted function has argument structure (F::Function, x::AbstractVector) -> AbstractVector.
+"""
 GetGrad(ADmode::Symbol; kwargs...) = GetGrad(Val(ADmode); kwargs...)
+"""
+    GetJac(ADmode::Symbol; kwargs...) -> Function
+Returns a function which generates jacobians via the method specified by `ADmode`.
+This outputted function has argument structure (F::Function, x::AbstractVector) -> AbstractMatrix.
+"""
 GetJac(ADmode::Symbol; kwargs...) = GetJac(Val(ADmode); kwargs...)
+"""
+    GetHess(ADmode::Symbol; kwargs...) -> Function
+Returns a function which generates hessians via the method specified by `ADmode`.
+This outputted function has argument structure (F::Function, x::Number) -> AbstractMatrix.
+"""
 GetHess(ADmode::Symbol; kwargs...) = GetHess(Val(ADmode); kwargs...)
 # Fall back to ForwarDiff as standard
 GetGrad(ADmode::Val{true}; kwargs...) = GetGrad(Val(:ForwardDiff); kwargs...)
@@ -171,9 +185,9 @@ GetHess(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.hessian
 GetGrad(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.gradient
 GetJac(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.jacobian
 GetHess(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.hessian
-GetGrad(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.gradient(Func, p; kwargs...)[1]
-GetJac(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.jacobian(Func, p; kwargs...)[1]
-GetHess(ADmode::Val{:Zygote}; order::Int=0, kwargs...) = (Func,p) -> Zygote.hessian(Func, p; kwargs...)
+GetGrad(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func,p) -> Zygote.gradient(Func, p; kwargs...)[1]
+GetJac(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func,p) -> Zygote.jacobian(Func, p; kwargs...)[1]
+GetHess(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func,p) -> Zygote.hessian(Func, p; kwargs...)
 GetGrad(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func,p) -> FiniteDifferences.grad(central_fdm(order,1), Func, p; kwargs...)[1]
 GetJac(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func,p) -> FiniteDifferences.jacobian(central_fdm(order,1), Func, p; kwargs...)[1]
 GetHess(ADmode::Val{:FiniteDiff}; order::Int=5, kwargs...) = (Func,p) -> FiniteDifferences.jacobian(central_fdm(order,1), z->FiniteDifferences.grad(central_fdm(order,1), Func, z)[1], p)[1]

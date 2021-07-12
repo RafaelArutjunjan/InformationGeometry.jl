@@ -326,6 +326,25 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     end
 end
 
+# Plots contours of 2D function.
+function GenerateBoundary(F::Function, OrthVF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
+    @assert length(u0) == 2
+    u0 = !mfd ? PromoteStatic(u0, true) : u0
+    FuncOnBoundary = F(u0)
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(u)
+    g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
+    terminatecondition(u,t,integrator) = u[2] - u0[2]
+    CB = ContinuousCallback(terminatecondition,terminate!,nothing)
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
+    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
+    if mfd
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
+    else
+        return solve(prob,meth; reltol=tol,abstol=tol,callback=CB, kwargs...)
+    end
+end
+
 """
     ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=false, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30)
 Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidence region is intersected by a family of `Plane`s in the directions specified by the keyword `Dirs`.
@@ -776,7 +795,7 @@ end
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=pdim(DM), tol::Real=1e-8, maxiter::Int=10000)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
     PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
@@ -819,10 +838,26 @@ end
 Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
 """
 function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200)
-    L = sqrt(InvChisqCDF(pdim(DM),ConfVol(Confnum))) .* cholesky(inv(Symmetric(FisherMetric(DM,MLE(DM))))).L
-    C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],pdim(DM)) for α in range(0,2π,length=N)]);Padding=Padding) for dims in permutations(1:pdim(DM),2)]
-    TranslateCube(union(C), MLE(DM))
+    # LinearCuboid(Symmetric(InvChisqCDF(pdim(DM),ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding, N=N)
+    BoundingBox(Symmetric(InvChisqCDF(pdim(DM),ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding)
 end
+
+# Formula from https://tavianator.com/2014/ellipsoid_bounding_boxes.html
+function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); Padding::Number=1/30)
+    @assert size(Σ,1) == size(Σ,2) == length(μ)
+    E = eigen(Σ)
+    offsets = [dot(E.values, E.vectors[i,:].^2) for i in 1:length(E.values)] .|> sqrt
+    HyperCube(μ-offsets, μ+offsets; Padding=Padding)
+end
+
+# This is really inefficient, use eigenvalues and eigenvectors instead.
+# function LinearCuboid(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); Padding::Number=1/30, N::Int=200)
+#     @assert size(Σ,1) == size(Σ,2) == length(μ)
+#     @assert isposdef(Σ)
+#     L = cholesky(Symmetric(Σ)).L
+#     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],length(μ)) for α in range(0,2π,length=N)]);Padding=Padding) for dims in Combinatorics.permutations(1:length(μ),2)]
+#     TranslateCube(union(C), μ)
+# end
 
 """
     IntersectCube(DM::AbstractDataModel,Cube::HyperCube,Confnum::Real=1.; Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=31) -> Vector{Plane}
@@ -832,10 +867,10 @@ The keyword `N` can be used to approximately control the number of planes which 
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
 function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3), tol::Real=1e-8)
-    (!allunique(Dirs) || !all(x->(1 ≤ x ≤ pdim(DM)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
-    PL = Plane(Center(Cube), BasisVector(Dirs[1],pdim(DM)), BasisVector(Dirs[2],pdim(DM)))
+    (!allunique(Dirs) || !all(x->(1 ≤ x ≤ length(Cube)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
+    PL = Plane(Center(Cube), BasisVector(Dirs[1], length(Cube)), BasisVector(Dirs[2],length(Cube)))
     width = CubeWidths(Cube)[Dirs[3]]
-    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],pdim(DM)), Confnum; N=N, tol=tol)
+    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],length(Cube)), Confnum; N=N, tol=tol)
 end
 
 """
@@ -845,7 +880,7 @@ If necessary, planes are removed or more planes added such that the maximal fami
 """
 function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
-    Planes = ParallelPlanes(PL, v, range(-0.5,0.5,length=N))
+    Planes = ParallelPlanes(PL, v, range(-0.5,0.5; length=N))
     AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
 end
 
