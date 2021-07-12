@@ -95,7 +95,7 @@ model::ModelOrFunction=(x,p)->-Inf,
 dmodel::ModelOrFunction=(x,p)->[-Inf],
 MLE::AbstractVector{<:Number}=[-Inf],
 LogLikeMLE::Real=-Inf,
-LogPrior::Union{Function,Nothing}=nothing) = DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPrior)
+LogPrior::Union{Function,Nothing}=nothing) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior)
 
 
 # Specialized methods for DataModel

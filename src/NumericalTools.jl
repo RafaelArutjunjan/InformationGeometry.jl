@@ -433,8 +433,9 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     end
     u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE), ydata(DSE))
     f(p) = u * (predictY(p) - Ydata)
-    dfnormalized(p) = u * normalizedjac(GetJac(ADmode)(predictY,p), xlen)
-    df(p) = u * GetJac(ADmode)(predictY,p)
+    Jac = GetJac(ADmode)
+    dfnormalized(p) = u * normalizedjac(Jac(predictY,p), xlen)
+    df(p) = u * Jac(predictY,p)
     p0 = vcat(xdata(DSE), initialp)
     R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
