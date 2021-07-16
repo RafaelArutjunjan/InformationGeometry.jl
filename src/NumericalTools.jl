@@ -456,6 +456,15 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
 end
 
+function TotalLeastSquares(DS::AbstractDataSet, args...; kwargs...)
+    if sum(abs, xsigma(DS)) == 0.0
+        throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
+    else
+        println("TotalLeastSquares: Not yet specialized for $(typeof(DS)). Trying to convert to DataSetExact and continuing.")
+        TotalLeastSquares(DataSetExact(DS), args...; kwargs...)
+    end
+end
+
 
 """
     minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector

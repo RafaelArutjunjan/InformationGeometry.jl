@@ -81,6 +81,15 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     end
 end
 
+
+RecipesBase.@recipe function f(DSs::AbstractVector{<:AbstractDataSet})
+    layout := length(DSs)
+    for x in DSs
+        @series begin x end
+    end
+end
+
+
 RecipesBase.@recipe function f(LU::HyperCube)
     length(LU.U) != 2 && throw("Cube not Planar, cannot Plot Box.")
     rectangle(LU)[:,1], rectangle(LU)[:,2]

@@ -207,10 +207,11 @@ end
 
 
 
-FindMLEBig(DM::DataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
+FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
                                     tol::Real=convert(BigFloat,10^(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), kwargs...)
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
+    sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     InformationGeometry.minimize(NegEll, BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)
 end
 
@@ -220,6 +221,7 @@ function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM),
 end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
+    sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
     if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, start; tol=tol).param
@@ -237,6 +239,7 @@ end
 # Slower than using curve_fit(; autodiff = :forward) but less prone to errors.
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
+    sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, dmodel, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
