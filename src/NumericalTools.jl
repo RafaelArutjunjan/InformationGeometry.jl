@@ -155,6 +155,30 @@ end
 
 
 
+"""
+    KillAfter(F::Function, args...; timeout::Real=5, kwargs...)
+Tries to evaluate a given function `F` before a set `timeout` limit is reached and interrupts the evaluation and returns `nothing` if necessary.
+NOTE: The given function is evaluated via F(args...; kwargs...).
+"""
+function KillAfter(F::Function, args...; timeout::Real=5, kwargs...)
+    Res = nothing
+    G() = try F(args...; kwargs...) catch Err
+        if Err isa DivideError
+            @warn "KillAfter: Could not evaluate given Function $(nameof(F)) before timeout limit of $timeout seconds was reached."
+        else
+            @warn "KillAfter: Could not evaluate given Function $(nameof(F)) because error was thrown: $Err."
+        end
+    end
+    task = @async(G())
+    if timedwait(()->istaskdone(task), timeout) == :timed_out
+        @async(Base.throwto(task, DivideError())) # kill task
+    else
+        Res = fetch(task)
+    end;    Res
+end
+
+
+
 ## Differentiation
 """
     GetGrad(ADmode::Symbol; kwargs...) -> Function
@@ -208,6 +232,43 @@ GetHess!(ADmode::Val{:ForwardDiff}; kwargs...) = ForwardDiff.hessian!
 GetGrad!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.gradient!
 GetJac!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.jacobian!
 GetHess!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.hessian!
+
+
+"""
+    GetSymbolicDerivative(F::Function, inputdim::Int=GetArgLength(F), deriv::Symbol=:jacobian; timeout::Real=5, inplace::Bool=false, parallel::Bool=false)
+Computes symbolic derivatives, including `:jacobian`, `:gradient`, `:hessian` and `:derivative` which are specified via `deriv`.
+Special care has to be taken that the correct `inputdim` is specified! Silent errors may occur otherwise.
+"""
+function GetSymbolicDerivative(F::Function, inputdim::Int=GetArgLength(F), deriv::Symbol=:jacobian; timeout::Real=5, inplace::Bool=false, parallel::Bool=false)
+    @assert deriv ∈ [:derivative, :gradient, :jacobian, :hessian]
+    @variables x X[1:inputdim]
+    var = inputdim > 1 ? X : (try F(1.0); x catch; X end)
+    Fexpr = KillAfter(F, var; timeout=timeout)
+    # Warning already thrown in KillAfter
+    (Fexpr === nothing) && return nothing
+    GetSymbolicDerivative(Fexpr, var, deriv; inplace=inplace, parallel=parallel)
+end
+GetSymbolicDerivative(F::Function, deriv::Symbol; kwargs...) = GetSymbolicDerivative(F, GetArgLength(F), deriv; kwargs...)
+function GetSymbolicDerivative(Fexpr::Union{<:AbstractVector{<:Num},<:Num}, var::Union{<:AbstractVector{<:Num},<:Num}, deriv::Symbol=:jacobian; inplace::Bool=false, parallel::Bool=false)
+    if deriv == :jacobian
+        @assert (Fexpr isa AbstractVector{<:Num}) && (var isa AbstractVector{<:Num}) "Got $deriv but Fexpr=$(typeof(Fexpr)) and argument=$(typeof(var))."
+    elseif deriv == :gradient || deriv == :hessian
+        @assert (Fexpr isa Num) && (var isa AbstractVector{<:Num}) "Got $deriv but Fexpr=$(typeof(Fexpr)) and argument=$(typeof(var))."
+    elseif deriv == :derivative
+        @assert (Fexpr isa Num) && (var isa Num) "Got $deriv but Fexpr=$(typeof(Fexpr)) and argument=$(typeof(var))."
+    else
+        throw("Invalid deriv type: $deriv.")
+    end
+
+    derivative = (@eval Symbolics.$deriv)(Fexpr, var; simplify=true)
+
+    parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
+    try
+        Symbolics.build_function(derivative, var; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
+    catch;
+        Symbolics.build_function(derivative, var; expression=Val{false}, parallel=parallelization)
+    end
+end
 
 
 """

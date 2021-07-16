@@ -13,29 +13,16 @@ function SymbolicArguments(xyp::Tuple{Int,Int,Int})
 end
 
 
-ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Data(DM), Predictor(DM); timeout=timeout)
+ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); timeout=timeout)
 ToExpr(DS::AbstractDataSet, model::Function; timeout::Real=5) = ToExpr(model, (xdim(DS),ydim(DS),pdim(DS,model)); timeout=timeout)
 ToExpr(DS::AbstractDataSet, M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
 ToExpr(M::ModelMap; timeout::Real=5) = ToExpr(M.Map, M.xyp; timeout=timeout)
+ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}; timeout::Real=5) = xyp == M.xyp ? ToExpr(M.Map, M.xyp; timeout=timeout) : throw("Inconsistent xyp information.")
 
 function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
     X, Y, θ = SymbolicArguments(xyp)
-
+    KillAfter(model, X, θ; timeout=timeout)
     # Add option for models which are already inplace
-    function TryOptim(model,X,θ)
-        try
-            model(X,θ)
-        catch;
-            # @warn "ToExpr: Unable to convert given function to symbolic expression."
-        end
-    end
-    modelexpr = nothing
-    task = @async(TryOptim(model,X,θ))
-    if timedwait(()->istaskdone(task), timeout) == :timed_out
-        @async(Base.throwto(task, DivideError())) # kill task
-    else
-        modelexpr = fetch(task)
-    end;    modelexpr
 end
 
 function SymbolicModel(DM::AbstractDataModel)

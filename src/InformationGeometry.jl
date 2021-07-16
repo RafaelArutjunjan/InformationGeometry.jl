@@ -155,7 +155,7 @@ export DataModel
 include("NumericalTools.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
-export GetGrad, GetJac, GetHess
+export KillAfter, GetGrad, GetJac, GetHess
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
 export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
