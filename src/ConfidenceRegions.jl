@@ -19,7 +19,7 @@ EvalLogPriorHess(LogPriorFn::Function, θ::AbstractVector{<:Number}; ADmode::Uni
 
 
 
-loglikelihood(DM::AbstractDataModel; kwargs...) = θ -> loglikelihood(DM, θ; kwargs...)
+loglikelihood(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> loglikelihood(DM, θ; kwargs...)
 
 # import Distributions.loglikelihood
 """
@@ -46,7 +46,7 @@ _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Nu
 
 
 
-Score(DM::AbstractDataModel; kwargs...) = θ -> Score(DM, θ; kwargs...)
+Score(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> Score(DM, θ; kwargs...)
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false))
@@ -509,7 +509,7 @@ end
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 
-FisherMetric(DM::AbstractDataModel; kwargs...) = θ -> FisherMetric(DM, θ; kwargs...)
+FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM, θ; kwargs...)
 
 """
     FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
@@ -537,7 +537,7 @@ Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\math
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM, θ; kwargs...) |> det |> sqrt
 # GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
-GeometricDensity(DM::AbstractDataModel; kwargs...) = θ -> GeometricDensity(DM, θ; kwargs...)
+GeometricDensity(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> GeometricDensity(DM, θ; kwargs...)
 
 """
     ConfidenceRegionVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...) -> Real
