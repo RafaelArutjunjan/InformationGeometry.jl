@@ -25,7 +25,7 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
     if Boundaries === nothing
         return solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=ContinuousCallback(Boundaries,terminate!), kwargs...)
     end
 end
 
@@ -153,8 +153,9 @@ function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Vect
 end
 
 
-function ConfidenceBoundaryViaGeodesic(DM::AbstractDataModel,Metric::Function,InitialPos::AbstractVector,InitialVel::AbstractVector,Conf::Real=ConfVol(1),Endtime::Real=50.0; kwargs...)
-    WilksCond = LogLikeMLE(DM) - (1/2)*quantile(Chisq(length(MLE)),Conf)
+function BoundaryViaGeodesic(DM::AbstractDataModel, Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector,
+                                    Conf::Real=ConfVol(1),Endtime::Real=50.0; dof::Int=length(MLE(DM)), kwargs...)
+    WilksCond = LogLikeMLE(DM) - (1/2)*quantile(Chisq(dof),Conf)
     BoundaryFunc(u,t,int) = loglikelihood(DM, u[1:end÷2]) < WilksCond
     ComputeGeodesic(Metric, InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
@@ -162,12 +163,12 @@ end
 ###############################################################
 
 
-function pConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N::Int=100;
+function pConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Number=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=true)
     ConstParamGeodesics(Metric,MLE,Endtime,N;Boundaries=Boundaries, tol=tol, parallel=parallel)
 end
 
-function ConstParamGeodesics(Metric::Function,MLE::Vector,Endtime::Number=10.,N::Int=100;
+function ConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Number=10.,N::Int=100;
     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
     Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2π;length=N)];    solving = 0
     Map = parallel ? pmap : map

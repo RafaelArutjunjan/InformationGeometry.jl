@@ -588,9 +588,9 @@ function VisualizeSols(CBs::Vector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:le
     end; p
 end
 
-VisualizeGeos(sol::AbstractODESolution; OverWrite::Bool=false, leg::Bool=false) = VisualizeGeos([sol]; OverWrite=OverWrite, leg=leg)
-function VisualizeGeos(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false)
-    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg)
+VisualizeGeos(sol::AbstractODESolution; kwargs...) = VisualizeGeos([sol]; kwargs...)
+function VisualizeGeos(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false, kwargs...)
+    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg, kwargs...)
 end
 
 
