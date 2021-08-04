@@ -342,9 +342,9 @@ function GenerateBoundary(F::Function, OrthVF::Function, u0::AbstractVector{<:Nu
     CB = Boundaries != nothing ? CallbackSet(CB, ContinuousCallback(Boundaries, terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=CB, kwargs...)
+        return solve(prob, meth; reltol=tol,abstol=tol, callback=CB, kwargs...)
     end
 end
 

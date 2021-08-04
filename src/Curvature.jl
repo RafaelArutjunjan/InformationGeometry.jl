@@ -1,9 +1,18 @@
 
 
-# Forwarding to Metric methods
-for F in [:MetricPartials, :AutoMetricPartials, :ChristoffelSymbol, :ChristoffelPartials, :Riemann, :Ricci, :RicciScalar, :Weyl]
-    @eval $F(DM::AbstractDataModel, args...; BigCalc::Bool=false, kwargs...) = $F(FisherMetric(DM; kwargs...), args...; BicCalc=BigCalc)
-end
+# Forwarding to Metric methods ## Does not seem to work for some reason?
+# for Func in [:MetricPartials, :AutoMetricPartials, :ChristoffelSymbol, :ChristoffelPartials, :Riemann, :Ricci, :RicciScalar, :Weyl]
+#     @eval ($Func(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = $Func(FisherMetric(DM; kwargs...), θ; BicCalc=BigCalc))
+# end
+
+MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = MetricPartials(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+AutoMetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = AutoMetricPartials(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = ChristoffelSymbol(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = ChristoffelPartials(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = Riemann(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = Ricci(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = RicciScalar(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
+Weyl(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = Weyl(FisherMetric(DM; kwargs...), θ; BigCalc=BigCalc)
 
 # function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
 #     BigCalc && (θ = BigFloat.(θ))

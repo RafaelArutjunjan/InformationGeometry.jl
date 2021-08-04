@@ -153,11 +153,11 @@ function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Vect
 end
 
 
-function BoundaryViaGeodesic(DM::AbstractDataModel, Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector,
-                                    Conf::Real=ConfVol(1),Endtime::Real=50.0; dof::Int=length(MLE(DM)), kwargs...)
-    WilksCond = LogLikeMLE(DM) - (1/2)*quantile(Chisq(dof),Conf)
-    BoundaryFunc(u,t,int) = loglikelihood(DM, u[1:end÷2]) < WilksCond
-    ComputeGeodesic(Metric, InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
+function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
+                                    Confnum::Real=1, Endtime::Real=500.0; dof::Int=length(MLE(DM)), kwargs...)
+    WilksCond = (1/2)*quantile(Chisq(dof),ConfVol(Confnum))
+    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, u[1:end÷2]) > WilksCond
+    ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
 
 ###############################################################
@@ -180,13 +180,14 @@ function ConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Numbe
     Map(Constructor,Initials)
 end
 
+BoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
 
 # Also add Plane method!
 function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false, kwargs...)
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
     widths = CubeWidths(Cube);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
     initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
-    OutsideBoundaries = Boundaries === nothing ? ((u,p,t) -> u[1:end÷2] ∉ Cube) : Boundaries
+    OutsideBoundaries = Boundaries === nothing ? BoundaryFunction(Cube) : Boundaries
     solving = 0
     function Constructor(InitialVel)
         solving += 1

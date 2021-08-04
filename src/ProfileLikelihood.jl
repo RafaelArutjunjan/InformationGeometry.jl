@@ -1,11 +1,8 @@
 
 
 
-function DropVec(i::Int, dim::Int)
-    keep = trues(dim);    keep[i] = false;    keep
-end
+DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
 Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
-
 
 
 # vcat(X[1:Comp-1], [Val], X[Comp:end])
@@ -45,15 +42,16 @@ ProfileDPredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) 
 ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, X->InsertValAt(X, Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDim(dM.Domain, Comp) : nothing))
 
 """
-    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50) -> N×2 Matrix
+    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = Vector{Float64}(undef, N)
+    path = SaveTrajectories ? Vector{Vector{Float64}}(undef, N) : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Res = map(x->loglikelihood(DM, [x]), ps)
     else
@@ -62,18 +60,27 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
             NewModel = ProfilePredictor(DM, Comp, p)
             DroppedLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(InsertValAt(X,Comp,p)))
             MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior).param
+            SaveTrajectories && (path[i] = MLEstash)
             Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     Logmax != LogLikeMLE(DM) && @warn "Profile Likelihood analysis apparently found a likelihood value which is higher than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    Res = map(x->InvConfVol.(ChisqCDF.(pdim(DM), 2(Logmax - x))), Res)
-    [ps Res]
+    Res = map(x->InvConfVol.(ChisqCDF.(dof, 2(Logmax - x))), Res)
+
+    if SaveTrajectories
+        for (i,p) in enumerate(ps)
+            insert!(path[i], Comp, p)
+        end
+        [ps Res], path
+    else
+        [ps Res]
+    end
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false)
-    GetProfile(DM, Comp, GetDomainTuple(DM, Comp, Confnum; ForcePositive=ForcePositive); N=N)
+function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, kwargs...)
+    GetProfile(DM, Comp, GetDomainTuple(DM, Comp, Confnum; ForcePositive=ForcePositive); N=N, kwargs...)
 end
 
 
@@ -85,20 +92,43 @@ Returns a vector of N×2 matrices where the first column of the n-th matrix spec
 The domain over which the profile likelihood is computed is not (yet) adaptively chosen. Instead the size of the domain is estimated from the inverse Fisher metric.
 Therefore, often has to pass higher value for `Confnum` to this method than the confidence level one is actually interested in, to ensure that it is still covered (if the model is even practically identifiable in the first place).
 """
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false)
-    ProfileLikelihood(DM, HyperCube([GetDomainTuple(DM, i, Confnum; ForcePositive=ForcePositive) for i in 1:pdim(DM)]); N=N, plot=plot, parallel=parallel)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, kwargs...)
+    ProfileLikelihood(DM, HyperCube([GetDomainTuple(DM, i, Confnum; ForcePositive=ForcePositive) for i in 1:pdim(DM)]); N=N, plot=plot, parallel=parallel, kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false, kwargs...)
     Map = parallel ? pmap : map
-    Profiles = Map(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N), 1:pdim(DM))
-    if plot
-        Pnames = Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")
-        PlotObjects = [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2), leg=false, xlabel=Pnames[i], ylabel="Conf. level [σ]") for i in 1:pdim(DM)]
-        Plots.plot(PlotObjects..., layout=pdim(DM)) |> display
-    end
+    Profiles = Map(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+    plot && ProfilePlotter(DM, Profiles)
     Profiles
 end
+
+
+function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector; kwargs...)
+    Pnames = Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")
+    PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
+        [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel="Conf. level [σ]") for i in 1:length(Profiles)]
+    else
+        P1 = [Plots.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel="Conf. level [σ]") for i in 1:length(Profiles)]
+        if length(Profiles) ≤ 3
+            P2 = PlotProfileTrajectories(DM, Profiles)
+            vcat(P1,[P2])
+        else
+            P1
+        end
+    end
+    Plots.plot(PlotObjects...; layout=length(PlotObjects)) |> display
+end
+# Plot trajectories of Profile Likelihood
+function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite=true, kwargs...)
+    P = OverWrite ? Plots.plot() : Plots.plot!()
+    for i in 1:length(Profiles)
+        Plots.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i")
+    end
+    Plots.scatter!(P, [MLE(DM)]; marker=:hex, markersize=3, label="MLE")
+    P
+end
+
 
 """
     InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}) -> Vector{Function}

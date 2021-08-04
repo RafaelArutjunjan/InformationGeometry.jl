@@ -190,14 +190,14 @@ export KullbackLeibler
 
 
 include("Geodesics.jl")
-export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach
+export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach, BoundaryFunction
 export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, GeodesicEnergy, ExponentialMap, LogarithmicMap, KarcherMean, MBAM
 # Needs redo:
 # export ConstLengthGeodesics, ConstParamGeodesics
 
 
 include("Curvature.jl")
-export ChristoffelSymbol, ChristoffelTerm, Riemann, Ricci, RicciScalar
+export ChristoffelSymbol, Riemann, Ricci, RicciScalar
 # export Weyl
 # Also add Kretschmann, Schouten?
 
