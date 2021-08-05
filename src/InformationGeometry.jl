@@ -124,7 +124,7 @@ export Dirac, GeneralProduct
 
 include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
-export xdata, ydata, xsigma, ysigma, InvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
+export xdata, ydata, xsigma, ysigma, xInvCov, yInvCov, Npoints, xdim, ydim, pdim, DataspaceDim, Data, MLE, LogLikeMLE, WoundX
 export xdist, ydist, dist
 export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance

@@ -25,7 +25,7 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
     if Boundaries === nothing
         return solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=ContinuousCallback(Boundaries,terminate!), kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
     end
 end
 

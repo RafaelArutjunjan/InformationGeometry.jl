@@ -45,7 +45,7 @@ ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = 
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-14, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
 
@@ -59,7 +59,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         for (i,p) in enumerate(ps)
             NewModel = ProfilePredictor(DM, Comp, p)
             DroppedLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(InsertValAt(X,Comp,p)))
-            MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior).param
+            MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior; tol=tol, kwargs...).param
             SaveTrajectories && (path[i] = MLEstash)
             Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)
         end

@@ -283,7 +283,7 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, ContinuousCallback(Boundaries,terminate!)) : CB
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
@@ -301,7 +301,7 @@ end
 #     terminatecondition(u,t,integrator) = u[2] - u0[2]
 #     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
 #     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-#     CB = Boundaries != nothing ? CallbackSet(CB, ContinuousCallback(Boundaries,terminate!)) : CB
+#     CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
 #     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
 #     if mfd
 #         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
@@ -320,7 +320,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, ContinuousCallback(Boundaries, terminate!)) : CB
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
@@ -339,7 +339,7 @@ function GenerateBoundary(F::Function, OrthVF::Function, u0::AbstractVector{<:Nu
     g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, ContinuousCallback(Boundaries, terminate!)) : CB
+    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
@@ -458,7 +458,7 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
 
     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-    nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, ContinuousCallback(Boundaries,terminate!)) : nonmfdCB
+    nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 
     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
@@ -467,7 +467,7 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
         return sol1
     else
         nonmfdCB = ContinuousCallback(Singularity, terminate!)
-        nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, ContinuousCallback(Boundaries,terminate!)) : nonmfdCB
+        nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
@@ -488,7 +488,7 @@ end
 #
 #     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
 #     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-#     nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, ContinuousCallback(Boundaries,terminate!)) : nonmfdCB
+#     nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
 #     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 #
 #     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
@@ -497,7 +497,7 @@ end
 #         return sol1
 #     else
 #         nonmfdCB = ContinuousCallback(Singularity, terminate!)
-#         nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, ContinuousCallback(Boundaries,terminate!)) : nonmfdCB
+#         nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
 #         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 #         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
 #         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
