@@ -72,7 +72,7 @@ struct DataModel <: AbstractDataModel
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
-        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
+        new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn))
     end
 end
 
@@ -111,7 +111,6 @@ Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` wh
 For performance reasons, the maximum likelihood estimate is stored as a part of the `DataModel` type.
 """
 MLE(DM::DataModel) = DM.MLE
-FindMLE(DM::DataModel, args...; kwargs...) = MLE(DM)
 
 """
     LogLikeMLE(DM::DataModel) -> Real
@@ -129,3 +128,21 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 
 InformNames(DM::AbstractDataModel, xnames::Vector{String}, ynames::Vector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
+
+struct Prior <: Function
+    LogPriorFunc::Function
+    LogPriorGrad::Function
+    LogPriorHess::Function
+end
+Prior(Func::Nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = nothing
+Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, θ->GetGrad(ADmode)(Func,θ); ADmode=ADmode)
+Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, θ->GetHess(ADmode)(Func,θ))
+(P::Prior)(θ::AbstractVector{<:Number}) = P.LogPriorFunc(θ)
+
+LogPrior(P::Prior) = P.LogPriorFunc
+LogPriorGrad(P::Prior) = P.LogPriorGrad
+LogPriorHess(P::Prior) = P.LogPriorHess
+
+EvalLogPrior(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorFunc(θ)
+EvalLogPriorGrad(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorGrad(θ)
+EvalLogPriorHess(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorHess(θ)
