@@ -111,8 +111,8 @@ end
 #         println(io, mime, "Maximum Likelihood Estimate: $(MLE(DM))")
 #         println(io, mime, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
 #     end
-#     !isa(Expr, Nothing) && println(io, mime, "Model:  y(x,θ) = $Expr")
-#     (IsLin === nothing) && println(io, mime, "Model parametrization linear in n-th parameter: $(IsLin)")
+#   !isnothing(Expr) && println(io, "Model:  y(x,θ) = $Expr")
+#   !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 # end
 
 
@@ -132,6 +132,6 @@ function Base.show(io::IO, DM::AbstractDataModel)
         println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
-    !isa(Expr, Nothing) && println(io, "Model:  y(x,θ) = $Expr")
-    (IsLin === nothing) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
+    !isnothing(Expr) && println(io, "Model:  y(x,θ) = $Expr")
+    !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end

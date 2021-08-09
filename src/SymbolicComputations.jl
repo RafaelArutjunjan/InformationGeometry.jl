@@ -27,14 +27,14 @@ end
 
 function SymbolicModel(DM::AbstractDataModel)
     expr = ToExpr(DM)
-    expr === nothing ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
+    isnothing(expr) ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
 end
 
 function SymbolicdModel(DM::AbstractDataModel)
     if !GeneratedFromSymbolic(dPredictor(DM))
         println("Given Model jacobian not symbolic. Trying to apply OptimizedDM() first.")
         odm = OptimizedDM(DM)
-        if ToExpr(odm) === nothing
+        if isnothing(ToExpr(odm))
             return "Unable to represent given jacobian symbolically."
         else
             X, Y, θ = SymbolicArguments(odm)
@@ -60,7 +60,7 @@ function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, tim
 end
 function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
     modelexpr = ToExpr(model, xyp; timeout=timeout) |> Symbolics.simplify
-    modelexpr == nothing && return nothing, nothing
+    isnothing(modelexpr) && return nothing, nothing
 
     X, Y, θ = SymbolicArguments(xyp)
 
@@ -99,7 +99,7 @@ end
 function OptimizedDM(DM::AbstractDataModel)
     model, dmodel = Optimize(DM)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
-    if dmodel != nothing
+    if !isnothing(dmodel)
         return DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM))
     else
         # Get warning from Optimize() that symbolic optimization was unsuccessful

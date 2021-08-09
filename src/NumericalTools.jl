@@ -245,7 +245,7 @@ function GetSymbolicDerivative(F::Function, inputdim::Int=GetArgLength(F), deriv
     var = inputdim > 1 ? X : (try F(1.0); x catch; X end)
     Fexpr = KillAfter(F, var; timeout=timeout)
     # Warning already thrown in KillAfter
-    (Fexpr === nothing) && return nothing
+    isnothing(Fexpr) && return nothing
     GetSymbolicDerivative(Fexpr, var, deriv; inplace=inplace, parallel=parallel)
 end
 GetSymbolicDerivative(F::Function, deriv::Symbol; kwargs...) = GetSymbolicDerivative(F, GetArgLength(F), deriv; kwargs...)
@@ -287,9 +287,9 @@ function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=
     f(u,p,t) = F(t);    u0 = 0.
     if tol < 1e-15
         u0 = BigFloat(u0);        Interval = BigFloat.(Interval)
-        meth = (meth == nothing) ? Vern9() : meth
+        meth = isnothing(meth) ? Vern9() : meth
     else
-        meth = (meth == nothing) ? Tsit5() : meth
+        meth = isnothing(meth) ? Tsit5() : meth
     end
     if FullSol
         return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol)
@@ -463,7 +463,7 @@ end
 function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
     u = cholesky(yInvCov(DS)).U
-    !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
+    !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     p0 = convert(Vector, initial)
     R = LsqFit.OnceDifferentiable(f, p0, copy(f(p0)); inplace = false, autodiff = :forward)
@@ -473,7 +473,7 @@ end
 function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
     u = cholesky(yInvCov(DS)).U
-    !(LogPriorFn === nothing) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
+    !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     f(p) = u * (EmbeddingMap(DS, model, p) - Y)
     df(p) = u * EmbeddingMatrix(DS, dmodel, p)
     p0 = convert(Vector, initial)
@@ -535,7 +535,7 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 """
 function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
-    Res = if Domain === nothing
+    Res = if isnothing(Domain)
         optimize(F, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
@@ -548,7 +548,7 @@ function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Do
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     # Wrap dF to make it inplace
     newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
-    Res = if Domain === nothing
+    Res = if isnothing(Domain)
         optimize(F, newdF, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
@@ -600,7 +600,7 @@ function GetArgLength(F::Function; max::Int=100)::Int
     for i in 1:(max+1)
         try
             res = F(ones(i))
-            res === nothing ? throw("pdim: Function returned Nothing for i=$i.") : res
+            isnothing(res) ? throw("pdim: Function returned Nothing for i=$i.") : res
         catch y
             (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError)) && continue
             println("pdim: Encountered error in specification of model function.");     rethrow()

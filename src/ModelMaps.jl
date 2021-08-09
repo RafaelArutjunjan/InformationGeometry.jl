@@ -27,7 +27,7 @@ struct ModelMap
     end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{Vector{String},Bool}=false)
-        xyp = if Domain === nothing
+        xyp = if isnothing(Domain)
             xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
         else
@@ -48,7 +48,7 @@ struct ModelMap
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::Vector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
-        Domain = Domain === nothing ? FullDomain(xyp[3]) : Domain
+        Domain = isnothing(Domain) ? FullDomain(xyp[3]) : Domain
         new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
 end

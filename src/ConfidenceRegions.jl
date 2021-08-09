@@ -170,7 +170,7 @@ Calculates a direction (in parameter space) in which the value of the log-likeli
 Since a 2D `Plane` is specified, both the input `θ` as well as well as the output have 2 components.
 `Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))); Auto::Val=Val(false), kwargs...)
+function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))); Auto::Val=Val(false), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; Auto=Auto, kwargs...))
     P = prod(S)
     normalize(SA[-P/S[1],P/S[2]])
@@ -223,7 +223,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     # NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p)
-    if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
+    if isnothing(LogPriorFn) && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
@@ -240,7 +240,7 @@ end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    if LogPriorFn === nothing && !(DS isa GeneralizedDataSet)
+    if isnothing(LogPriorFn) && !(DS isa GeneralizedDataSet)
         return curve_fit(DS, model, dmodel, start; tol=tol).param
         # return InformationGeometry.minimize(NegEll, GetStartP(DS,model); meth=NelderMead(), tol=tol)
         # return optimize(NegEll, ones(pdim(DS,model)), BFGS(), Optim.Options(g_tol=tol), autodiff = :forward) |> Optim.minimizer
@@ -283,7 +283,7 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
@@ -301,7 +301,7 @@ end
 #     terminatecondition(u,t,integrator) = u[2] - u0[2]
 #     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
 #     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-#     CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+#     CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
 #     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
 #     if mfd
 #         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
@@ -314,13 +314,13 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u, PlanarLogPrior; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
+    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
@@ -339,7 +339,7 @@ function GenerateBoundary(F::Function, OrthVF::Function, u0::AbstractVector{<:Nu
     g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = Boundaries != nothing ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
+    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
@@ -458,7 +458,7 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
 
     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-    nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+    nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 
     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
@@ -467,7 +467,7 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
         return sol1
     else
         nonmfdCB = ContinuousCallback(Singularity, terminate!)
-        nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+        nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
@@ -488,7 +488,7 @@ end
 #
 #     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
 #     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-#     nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+#     nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
 #     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 #
 #     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
@@ -497,7 +497,7 @@ end
 #         return sol1
 #     else
 #         nonmfdCB = ContinuousCallback(Singularity, terminate!)
-#         nonmfdCB = Boundaries != nothing ? CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!)) : nonmfdCB
+#         nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
 #         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 #         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
 #         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
@@ -800,7 +800,7 @@ If such a point cannot be found (i.e. does not seem to exist), the method return
 """
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
-    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
     Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.], PlanarLogPrior)))) - CF < 0.
     !Test(0.) && return false

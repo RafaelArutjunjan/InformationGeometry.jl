@@ -29,7 +29,7 @@ length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
-    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
     return try
         # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
@@ -45,7 +45,7 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
-    PlanarLogPrior = LogPrior(DM) === nothing ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
     mle = MLEinPlane(DM, PL)
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
 end
@@ -394,7 +394,7 @@ function EmbeddedODESolution(u, u_analytic, errors, t, k, prob, alg, interp, den
 end
 function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Function=identity) where {T,N,uType}
     newu = map(Embedding, sol.u);    newk = [map(Embedding, k) for k in sol.k]
-    EmbeddedODESolution(newu, sol.u_analytic === nothing ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
+    EmbeddedODESolution(newu, isnothing(sol.u_analytic) ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
                  sol.errors, sol.t, newk, sol.prob, sol.alg,
                  sol.interp, # Leaving old interp object as is and only using embedding on calls of EmbeddedODESolution objects themselves.
                  false, sol.tslocation, sol.destats, sol.retcode, Embedding)

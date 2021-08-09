@@ -13,13 +13,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
     seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (:auto))
     linestyle -->       :solid
     RSEs = ResidualStandardError(DM, MLE)
-    RSEs = !(RSEs === nothing) ? convert.(Float64, RSEs) : RSEs
+    RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     label -->  if ydim(DM) == 1
         # "Fit with RSE≈$(RSEs[1])"
-        "Fit" * (RSEs === nothing ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
+        "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
     elseif ydim(DM) ≤ Npoints(DM)
         # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
-        reshape([ynames(DM)[i] * " Fit"*(RSEs === nothing ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
+        reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
     else
         reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
     end

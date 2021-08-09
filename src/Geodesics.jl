@@ -22,7 +22,7 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), vcat(InitialPos,InitialVel), (0.0,Endtime))
-    if Boundaries === nothing
+    if isnothing(Boundaries)
         return solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
         return solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
@@ -187,7 +187,7 @@ function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol:
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
     widths = CubeWidths(Cube);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
     initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
-    OutsideBoundaries = Boundaries === nothing ? BoundaryFunction(Cube) : Boundaries
+    OutsideBoundaries = isnothing(Boundaries) ? BoundaryFunction(Cube) : Boundaries
     solving = 0
     function Constructor(InitialVel)
         solving += 1
