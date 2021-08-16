@@ -181,7 +181,7 @@ export ApproxInRegion, ShadowTheatre, CastShadow
 
 
 include("ProfileLikelihood.jl")
-export ProfileLikelihood, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
+export ProfileLikelihood, PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
 
 
 include("Divergences.jl")

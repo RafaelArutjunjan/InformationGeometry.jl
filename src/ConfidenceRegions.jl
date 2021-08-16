@@ -704,7 +704,7 @@ Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwarg
 
 """
     Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::Vector) -> Vector
-Pull-back of a covector to the parameter manifold ``T*\\mathcal{M} \\longleftarrow T*\\mathcal{D}``.
+Pull-back of a covector to the parameter manifold ``T^*\\mathcal{M} \\longleftarrow T^*\\mathcal{D}``.
 """
 Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM, θ; kwargs...)) * ω
 

@@ -47,18 +47,18 @@ function SymbolicdModel(DM::AbstractDataModel)
 end
 
 
-function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    Optimize(Data(DM), Predictor(DM); inplace=inplace, timeout=timeout, parallel=parallel)
+function Optimize(DM::AbstractDataModel; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
+    Optimize(Data(DM), Predictor(DM); inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
 end
-function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
-    Optimize(model, Getxyp(DS, model); inplace=inplace, timeout=timeout, parallel=parallel)
+function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
+    Optimize(model, Getxyp(DS, model); inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
 end
-function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
+function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     xyp != M.xyp && throw("xyp inconsistent.")
-    model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout, parallel=parallel)
+    model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
     ModelMap(model, M), ModelMap(dmodel, M)
 end
-function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false)
+function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     modelexpr = ToExpr(model, xyp; timeout=timeout) |> Symbolics.simplify
     isnothing(modelexpr) && return nothing, nothing
 
@@ -68,36 +68,37 @@ function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false,
     !(modelexpr isa AbstractVector{<:Num}) && (modelexpr = [modelexpr])
     derivative = Symbolics.jacobian(modelexpr, θ; simplify=true)
 
-    ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true)
+    ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false, kwargs...), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true, kwargs...)
 end
 
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}};
-                                                        inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false)
+                                                        inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false, force_SA::Bool=IsJacobian, kwargs...)
     parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
     OptimizedModel = try
-        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
+        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization, force_SA=force_SA, kwargs...)[inplace ? 2 : 1]
     catch;
-        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization)
+        # no force_SA here
+        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization, kwargs...)
     end
     ### Pretty Function names
     if IsJacobian
         # THROWING AWAY KWARGS HERE!
-        SymbolicModelJacobian(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
-        function SymbolicModelJacobian!(y::Union{Number,AbstractMatrix{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
+        SymbolicModelJacobian(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; Kwargs...) = OptimizedModel(x, θ)
+        function SymbolicModelJacobian!(y::Union{Number,AbstractMatrix{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; Kwargs...)
             OptimizedModel(y, x, θ)
         end
         return inplace ? SymbolicModelJacobian! : SymbolicModelJacobian
     else
         # THROWING AWAY KWARGS HERE!
-        SymbolicModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(x, θ)
-        SymbolicModel!(y::Union{Number,AbstractVector{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...) = OptimizedModel(y, x, θ)
+        SymbolicModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; Kwargs...) = OptimizedModel(x, θ)
+        SymbolicModel!(y::Union{Number,AbstractVector{<:Number}}, x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; Kwargs...) = OptimizedModel(y, x, θ)
         return inplace ? SymbolicModel! : SymbolicModel
     end
 end
 
 
-function OptimizedDM(DM::AbstractDataModel)
-    model, dmodel = Optimize(DM)
+function OptimizedDM(DM::AbstractDataModel; kwargs...)
+    model, dmodel = Optimize(DM; kwargs...)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
     if !isnothing(dmodel)
         return DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM))
