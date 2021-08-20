@@ -239,17 +239,17 @@ GetHess!(ADmode::Val{:ReverseDiff}; kwargs...) = ReverseDiff.hessian!
 Computes symbolic derivatives, including `:jacobian`, `:gradient`, `:hessian` and `:derivative` which are specified via `deriv`.
 Special care has to be taken that the correct `inputdim` is specified! Silent errors may occur otherwise.
 """
-function GetSymbolicDerivative(F::Function, inputdim::Int=GetArgLength(F), deriv::Symbol=:jacobian; timeout::Real=5, inplace::Bool=false, parallel::Bool=false)
+function GetSymbolicDerivative(F::Function, inputdim::Int=GetArgLength(F), deriv::Symbol=:jacobian; timeout::Real=5, inplace::Bool=false, parallel::Bool=false, kwargs...)
     @assert deriv ∈ [:derivative, :gradient, :jacobian, :hessian]
     @variables x X[1:inputdim]
     var = inputdim > 1 ? X : (try F(1.0); x catch; X end)
     Fexpr = KillAfter(F, var; timeout=timeout)
     # Warning already thrown in KillAfter
     isnothing(Fexpr) && return nothing
-    GetSymbolicDerivative(Fexpr, var, deriv; inplace=inplace, parallel=parallel)
+    GetSymbolicDerivative(Fexpr, var, deriv; inplace=inplace, parallel=parallel, kwargs...)
 end
 GetSymbolicDerivative(F::Function, deriv::Symbol; kwargs...) = GetSymbolicDerivative(F, GetArgLength(F), deriv; kwargs...)
-function GetSymbolicDerivative(Fexpr::Union{<:AbstractVector{<:Num},<:Num}, var::Union{<:AbstractVector{<:Num},<:Num}, deriv::Symbol=:jacobian; inplace::Bool=false, parallel::Bool=false)
+function GetSymbolicDerivative(Fexpr::Union{<:AbstractVector{<:Num},<:Num}, var::Union{<:AbstractVector{<:Num},<:Num}, deriv::Symbol=:jacobian; inplace::Bool=false, parallel::Bool=false, kwargs...)
     if deriv == :jacobian
         @assert (Fexpr isa AbstractVector{<:Num}) && (var isa AbstractVector{<:Num}) "Got $deriv but Fexpr=$(typeof(Fexpr)) and argument=$(typeof(var))."
     elseif deriv == :gradient || deriv == :hessian
@@ -261,15 +261,21 @@ function GetSymbolicDerivative(Fexpr::Union{<:AbstractVector{<:Num},<:Num}, var:
     end
 
     derivative = (@eval Symbolics.$deriv)(Fexpr, var; simplify=true)
-
-    parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
-    try
-        Symbolics.build_function(derivative, var; expression=Val{false}, parallel=parallelization)[inplace ? 2 : 1]
-    catch;
-        Symbolics.build_function(derivative, var; expression=Val{false}, parallel=parallelization)
-    end
+    Builder(derivative, var; parallel=parallel, inplace=inplace, kwargs...)
 end
 
+"""
+    Builder(Fexpr::Union{<:AbstractVector{<:Num},<:Num}, args...; inplace::Bool=false, parallel::Bool=false, kwargs...)
+Builds `RuntimeGeneratedFunctions` from expressions via build_function().
+"""
+function Builder(Fexpr::Union{<:AbstractArray{<:Num},<:Num}, args...; inplace::Bool=false, parallel::Bool=false, kwargs...)
+    parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
+    try
+        Symbolics.build_function(Fexpr, args...; expression=Val{false}, parallel=parallelization, kwargs...)[inplace ? 2 : 1]
+    catch;
+        Symbolics.build_function(Fexpr, args...; expression=Val{false}, parallel=parallelization, kwargs...)
+    end
+end
 
 """
     Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)

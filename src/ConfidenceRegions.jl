@@ -155,14 +155,6 @@ function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::Abst
     normalize(alpha .* VF)
 end
 
-# function OrthVF(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number};
-#                 alpha::AbstractVector=GetAlpha(length(θ)), Auto::Val=Val(false), kwargs...)
-#     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-#     S = -_Score(DS, model, dmodel, θ; Auto=Auto, kwargs...);    P = prod(S);    VF = P ./ S
-#     alpha .* VF |> normalize
-# end
-
-
 # Faster Method for Planar OrthVF
 """
     OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Number}; Auto::Val=Val(false)) -> Vector
@@ -181,6 +173,32 @@ function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,
     S = GetGrad(ADmode)(F, θ);    P = prod(S);    VF = P ./ S
     normalize(alpha .* VF)
 end
+
+function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
+    dF = θ::AbstractVector -> GetGrad(ADmode)(F, θ)
+    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(dF, θ; alpha=alpha)
+end
+
+"""
+    _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
+Computes OrthVF by evaluating the GRADIENT dF.
+"""
+function _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
+    _turn(dF(θ), alpha)
+end
+
+function _turn(S::AbstractVector, α::AbstractVector)
+    # normalize!(map(/, α, S))
+    normalize!(map!(/, S, α, S))
+    # normalize!(α ./ S)
+end
+_turn(S::AbstractVector, α::AbstractVector, ::Val{true}) = _turn(S::AbstractVector, α::AbstractVector)
+
+function _turn(S::AbstractVector, α::AbstractVector, normalize::Val{false})
+    P = prod(S);    VF = P ./ S
+    alpha .* P ./ S
+end
+
 
 
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
@@ -271,7 +289,7 @@ end
 
 
 """
-    GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-14, meth=Tsit5(), mfd::Bool=true) -> ODESolution
+    GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
@@ -292,24 +310,6 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
     end
 end
 
-# function GenerateBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-#                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-#     u0 = !mfd ? PromoteStatic(u0, true) : u0
-#     LogLikeOnBoundary = loglikelihood(DS, model, u0)
-#     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-#     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS,model,u)
-#     terminatecondition(u,t,integrator) = u[2] - u0[2]
-#     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
-#     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-#     CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
-#     tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
-#     if mfd
-#         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
-#     else
-#         return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
-#     end
-# end
-
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
     @assert length(u0) == 2
@@ -329,13 +329,13 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     end
 end
 
-# Plots contours of 2D function.
-function GenerateBoundary(F::Function, OrthVF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
+GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = GenerateBoundary(F, x->GetGrad(ADmode)(F,x), u0; kwargs...)
+function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     FuncOnBoundary = F(u0)
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(u)
+    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * _OrthVF(dF,u)
     g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
@@ -474,37 +474,6 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
     end
     return redo ? sol2 : [sol1, sol2]
 end
-
-# function GenerateInterruptedBoundary(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, u0::AbstractVector{<:Number}; tol::Real=1e-9,
-#                                 redo::Bool=true, Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false), kwargs...)
-#     u0 = !mfd ? PromoteStatic(u0, true) : u0
-#     LogLikeOnBoundary = loglikelihood(DS,model,u0)
-#     IntCurveODE!(du,u,p,t)  =  du .= 0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-#     BackwardsIntCurveODE!(du,u,p,t)  =  du .= -0.1 .* OrthVF(DS,model,dmodel,u; Auto=Auto)
-#     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DS, model, u)
-#
-#     terminatecondition(u,t,integrator) = u[2] - u0[2]
-#     Singularity(u,t,integrator) = det(FisherMetric(DS, dmodel, u)) - tol
-#
-#     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
-#     nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-#     nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
-#     mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
-#
-#     tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
-#     sol1 = mfd ? solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
-#     if norm(sol1.u[end] - sol1.u[1]) < 10tol
-#         return sol1
-#     else
-#         nonmfdCB = ContinuousCallback(Singularity, terminate!)
-#         nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
-#         mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
-#         Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
-#         sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
-#     end
-#     return redo ? sol2 : [sol1, sol2]
-# end
-
 
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out

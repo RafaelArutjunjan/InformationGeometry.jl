@@ -326,6 +326,8 @@ function FaceCenters(Cube::HyperCube)
     vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
 end
 
+import Base: vcat
+vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0)
 
 import Base: union, intersect
 """
@@ -364,8 +366,10 @@ NegativeDomain(indxs::BoolVector) = HyperCube(fill(-Inf,length(indxs)), [(indxs[
 FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
 
 import Base.rand
-rand(Cube::HyperCube) = Cube.L + (Cube.U - Cube.L) .* rand(length(Cube.L))
-
+function rand(C::HyperCube)
+    f(l,u) = l + (u-l)*rand()
+    map(f,C.L,C.U)
+end
 
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType

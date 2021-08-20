@@ -73,13 +73,8 @@ end
 
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}};
                                                         inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false, force_SA::Bool=IsJacobian, kwargs...)
-    parallelization = parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm()
-    OptimizedModel = try
-        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization, force_SA=force_SA, kwargs...)[inplace ? 2 : 1]
-    catch;
-        # no force_SA here
-        Symbolics.build_function(modelexpr, X, P; expression=Val{false}, parallel=parallelization, kwargs...)
-    end
+    OptimizedModel = Builder(modelexpr, X, P; inplace=inplace, parallel=parallel, force_SA=force_SA, kwargs...)
+    
     ### Pretty Function names
     if IsJacobian
         # THROWING AWAY KWARGS HERE!
