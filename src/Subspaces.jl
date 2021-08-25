@@ -114,9 +114,9 @@ end
     MinimizeOnPlane(PL::Plane,F::Function,initial::AbstractVector=[1,-1.]; tol::Real=1e-5)
 Minimizes given function in Plane and returns the optimal point in the ambient space in which the plane lies.
 """
-function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1,-1.]; tol::Real=1e-5, meth::Optim.AbstractOptimizer=LBFGS(), kwargs...)
-    G(x) = F(PlaneCoordinates(PL,x))
-    X = InformationGeometry.minimize(G, initial; tol=tol, meth=meth, kwargs...)
+function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1e-2,-1e-2]; tol::Real=1e-5, meth::Optim.AbstractOptimizer=LBFGS(), kwargs...)
+    # G(x) = F(PlaneCoordinates(PL,x))
+    X = InformationGeometry.minimize(F∘PlaneCoordinates(PL), initial; tol=tol, meth=meth, kwargs...)
     # X = Optim.minimizer(optimize(G,initial, BFGS(), Optim.Options(g_tol=tol), autodiff = :forward))
     PlaneCoordinates(PL,X)
 end
@@ -366,7 +366,9 @@ NegativeDomain(indxs::BoolVector) = HyperCube(fill(-Inf,length(indxs)), [(indxs[
 FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
 
 import Base.rand
-function rand(C::HyperCube)
+rand(C::HyperCube) = rand(C, Val(length(C)))
+rand(C::HyperCube, ::Val{1}) = C.L[1] + (C.U[1] - C.L[1])*rand()
+function rand(C::HyperCube, ::Val)
     f(l,u) = l + (u-l)*rand()
     map(f,C.L,C.U)
 end

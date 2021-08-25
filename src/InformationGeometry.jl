@@ -11,7 +11,7 @@ using ModelingToolkit, Symbolics, DataInterpolations
 using ForwardDiff, Zygote, ReverseDiff, FiniteDifferences
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, TensorOperations, DataFrames, Roots, Combinatorics
-using LibGEOS
+using LibGEOS, Sobol
 using RecipesBase, Plots
 using TreeViews
 
@@ -189,7 +189,7 @@ export KullbackLeibler
 
 
 include("Geodesics.jl")
-export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach, BoundaryFunction
+export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach
 export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, GeodesicEnergy, ExponentialMap, LogarithmicMap, KarcherMean, MBAM
 # Needs redo:
 # export ConstLengthGeodesics, ConstParamGeodesics

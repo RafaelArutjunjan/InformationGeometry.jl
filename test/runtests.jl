@@ -253,7 +253,7 @@ end
     @test abs(RicciScalar(S2metric,rand(2)) - 2) < 5e-4
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22
 
-    @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 1e-9
+    @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
     @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-11
     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
 

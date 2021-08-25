@@ -186,13 +186,20 @@ Computes OrthVF by evaluating the GRADIENT dF.
 function _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
     _turn(dF(θ), alpha)
 end
+function _OrthVF!(Res::AbstractVector{<:Number}, dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
+    _turn!(Res, dF(θ), alpha)
+end
 
+function _turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector)
+    map!(/, Res, α, S)
+    normalize!(Res)
+end
 function _turn(S::AbstractVector, α::AbstractVector)
     # normalize!(map(/, α, S))
     normalize!(map!(/, S, α, S))
     # normalize!(α ./ S)
 end
-_turn(S::AbstractVector, α::AbstractVector, ::Val{true}) = _turn(S::AbstractVector, α::AbstractVector)
+_turn(S::AbstractVector, α::AbstractVector, normalize::Val{true}) = _turn(S::AbstractVector, α::AbstractVector)
 
 function _turn(S::AbstractVector, α::AbstractVector, normalize::Val{false})
     P = prod(S);    VF = P ./ S
@@ -201,29 +208,20 @@ end
 
 
 
-GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM))
-GetStartP(DS::AbstractDataSet, model::ModelOrFunction, hint::Int=pdim(DS,model)) = GetStartP(hint)
+GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM), pdim(DM))
+GetStartP(DS::AbstractDataSet, model::Function, hint::Int=pdim(DS,model)) = GetStartP(hint)
+GetStartP(DS::AbstractDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetStartP(model)
 GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
-function GetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
-    !isa(M.Domain, HyperCube) && return GetStartP(DS, M.Map)
-    Res = GetStartP(DS, M.Map, length(M.Domain))
-    (Res ∈ M.Domain && M.InDomain(Res)) && return Res
-
-    @inbounds for i in eachindex(Res)
-        val = 0.5 * (max(M.Domain.L[i], -substitute) + min(M.Domain.U[i], substitute))
-        if abs(val) < 1e-4      val = sign(val)*0.1     end
-        Res[i] = val * (1. + 0.05 * (rand() - 0.5))
+ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(M.Domain, M.InDomain; maxiters=maxiters)
+function ElaborateGetStartP(C::HyperCube, InDom::Function; maxiters::Int=5000)
+    X = rand(length(C));    i = 0;    S = Sobol.skip(SobolSeq(C.L, C.U), rand(1:10*maxiters); exact=true)
+    while i < maxiters
+        next!(S, X);    (InDom(X) && break);    i += 1
     end
-    # (Res ∈ M.Domain && M.InDomain(Res)) && return Res
-    Res
+    i == maxiters && throw("Unable to find point satisfying InDomain() inside HyperCube within $maxiters iterations.")
+    X
 end
-
-# function ElaborateGetStartP(DS::AbstractDataSet, M::ModelMap; substitute::Number=3000.)
-#     throw("Not programmed yet.")
-# end
-
-
 
 FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
@@ -287,6 +285,21 @@ function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real
     rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored...") : return rts
 end
 
+function SpatialBoundaryFunction(M::ModelMap)
+    function ModelMapBoundaries(u,p,t)
+        S = !(M.InDomain(u) && u ∈ M.Domain)
+        S && @warn "Curve ran into boundaries specified by ModelMap."
+        return S
+    end
+end
+function SpatialBoundaryFunction(M::ModelMap, PL::Plane)
+    function ModelMapBoundaries(u,p,t)
+        R = PlaneCoordinates(PL,u)
+        S = !(M.InDomain(R) && R ∈ M.Domain)
+        S && @warn "Curve ran into boundaries specified by ModelMap."
+        return S
+    end
+end
 
 """
     GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=true) -> ODESolution
@@ -301,8 +314,9 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
-    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM)),terminate!)) : CB
+    prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
     else
@@ -320,12 +334,13 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
-    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM),PL),terminate!)) : CB
+    prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     if mfd
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob,meth; reltol=tol,abstol=tol,callback=CB, kwargs...)
+        return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
 end
 
@@ -335,12 +350,13 @@ function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     FuncOnBoundary = F(u0)
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * _OrthVF(dF,u)
+    CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
+    IntCurveODE!(du,u,p,t)  =  CheatingOrth!(du, dF(u))
     g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = isnothing(Boundaries) ? CB : CallbackSet(CB, DiscreteCallback(Boundaries,terminate!))
-    tspan = (0.,1e5);    prob = ODEProblem(IntCurveODE!,u0,tspan)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     if mfd
         return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
@@ -457,22 +473,23 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
     Singularity(u,t,integrator) = det(FisherMetric(DM, u)) - tol
 
     ForwardsTerminate = ContinuousCallback(terminatecondition,terminate!,nothing)
-    nonmfdCB = CallbackSet(ForwardsTerminate, ContinuousCallback(Singularity,terminate!))
-    nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
-    mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
 
-    tspan = (0., 1e5);    Forwardprob = ODEProblem(IntCurveODE!,u0,tspan)
-    sol1 = mfd ? solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Forwardprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+    CB = ContinuousCallback(Singularity,terminate!)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM)),terminate!)) : CB
+    CB = mfd ? CallbackSet(CB, ManifoldProjection(g!)) : CB
+
+    Forwardprob = ODEProblem(IntCurveODE!, u0, (0., 1e5))
+    sol1 = solve(Forwardprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(ForwardsTerminate, CB), kwargs...)
+
     if norm(sol1.u[end] - sol1.u[1]) < 10tol
+        # closed loop, no apparent interruption or direct termination in worst case
         return sol1
     else
-        nonmfdCB = ContinuousCallback(Singularity, terminate!)
-        nonmfdCB = isnothing(Boundaries) ? nonmfdCB : CallbackSet(nonmfdCB, DiscreteCallback(Boundaries,terminate!))
-        mfdCB = CallbackSet(ManifoldProjection(g!), nonmfdCB)
-        Backprob = redo ? ODEProblem(BackwardsIntCurveODE!,sol1.u[end],tspan) : ODEProblem(BackwardsIntCurveODE!,u0,tspan)
-        sol2 = mfd ? solve(Backprob,meth; reltol=tol,abstol=tol,callback=mfdCB,kwargs...) : solve(Backprob,meth; reltol=tol,abstol=tol,callback=nonmfdCB,kwargs...)
+        Backprob = redo ? ODEProblem(BackwardsIntCurveODE!, sol1.u[end], (0., 1e5)) : ODEProblem(BackwardsIntCurveODE!, u0, (0., 1e5))
+        sol2 = solve(Backprob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
+        return redo ? sol2 : [sol1, sol2]
     end
-    return redo ? sol2 : [sol1, sol2]
 end
 
 
@@ -777,6 +794,8 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real
 end
 
 
+DoPruning(DM, Planes::AbstractVector{<:Plane}, Confnum; kwargs...) = Prune(DM, AntiPrune(DM, Planes, Confnum), Confnum; kwargs...)
+
 function Prune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
     CF = ConfVol(Confnum)
     Planes = copy(Pls)
@@ -822,14 +841,6 @@ function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); P
     HyperCube(μ-offsets, μ+offsets; Padding=Padding)
 end
 
-# This is really inefficient, use eigenvalues and eigenvectors instead.
-# function LinearCuboid(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); Padding::Number=1/30, N::Int=200)
-#     @assert size(Σ,1) == size(Σ,2) == length(μ)
-#     @assert isposdef(Σ)
-#     L = cholesky(Symmetric(Σ)).L
-#     C = [ConstructCube(Unpack([L * RotatedVector(α,dims[1],dims[2],length(μ)) for α in range(0,2π,length=N)]);Padding=Padding) for dims in Combinatorics.permutations(1:length(μ),2)]
-#     TranslateCube(union(C), μ)
-# end
 
 """
     IntersectCube(DM::AbstractDataModel,Cube::HyperCube,Confnum::Real=1.; Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=31) -> Vector{Plane}
@@ -852,8 +863,9 @@ If necessary, planes are removed or more planes added such that the maximal fami
 """
 function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8)
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
-    Planes = ParallelPlanes(PL, v, range(-0.5,0.5; length=N))
-    AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
+    # Planes = ParallelPlanes(PL, v, range(-0.5,0.5; length=N))
+    # AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
+    DoPruning(DM, ParallelPlanes(PL, v, range(-0.5,0.5;length=N)), Confnum; tol=tol)
 end
 
 

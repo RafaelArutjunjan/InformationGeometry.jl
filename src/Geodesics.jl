@@ -180,19 +180,29 @@ function ConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Numbe
     Map(Constructor,Initials)
 end
 
-BoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
+GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
+function GeodesicBoundaryFunction(M::ModelMap)
+    function ModelMapBoundaries(u,p,t)
+        S = !(M.InDomain(u[1:end÷2]) && u[1:end÷2] ∈ M.Domain)
+        S && @warn "Geodesic ran into boundaries specified by ModelMap."
+        return S
+    end
+end
 
 # Also add Plane method!
 function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false, kwargs...)
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
     widths = CubeWidths(Cube);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
     initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
-    OutsideBoundaries = isnothing(Boundaries) ? BoundaryFunction(Cube) : Boundaries
+    CB = DiscreteCallback(GeodesicBoundaryFunction(Cube))
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(GeodesicBoundaryFunction(Predictor(DM)),terminate!)) : CB
     solving = 0
     function Constructor(InitialVel)
         solving += 1
         println("Computing Geodesic $(solving) / $N")
-        ComputeGeodesic(Metric, MLE(DM), InitialVel, 10.0; tol=tol, Boundaries=OutsideBoundaries, kwargs...)
+        # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
+        ComputeGeodesic(Metric, MLE(DM), InitialVel, 10.0; tol=tol, Boundaries=nothing, callback=CB, kwargs...)
     end
     Map(Constructor, initialvels)
 end
@@ -292,28 +302,48 @@ function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<
     end
 end
 
+
+# function MBAMBoundaries(u, t, int, DM; componentlim::Real=1e4, singularlim::Real=1e-8)::Bool
+#     if !all(x->abs(x) < componentlim, u)
+#         @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
+#         return true
+#     elseif svdvals(FisherMetric(DM,u[1:end÷2]))[end] < singularlim
+#         @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
+#         return true
+#     else
+#         return false
+#     end
+# end
+
 """
 Return `true` when integration of ODE should be terminated.
 """
-function MBAMBoundaries(u, t, int, DM; componentlim = 1e3, singularlim = 1e-8)::Bool
-    if !all(x->x < componentlim, u)
-        @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
-        return true
-    elseif svdvals(FisherMetric(DM,u[1:Int(length(u)/2)]))[end] < singularlim
-        @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
-        return true
-    else
-        return false
+function MBAMBoundaries(DM::AbstractDataModel; componentlim::Real=1e4, singularlim::Real=1e-8)
+    function MBAMBoundary(u,t,int)
+        if !all(x->abs(x) < componentlim, u)
+            @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
+            return true
+        elseif svdvals(FisherMetric(DM, u[1:end÷2]))[end] < singularlim
+            @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
+            return true
+        else
+            return false
+        end
     end
 end
 
-function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), componentlim::Real=1e4, singularlim::Real=1e-8, kwargs...)
     InitialVel = normalize(LeastInformativeDirection(DM,MLE(DM)))
-    if typeof(Boundaries) == Nothing
-        MBAMboundary(u,t,int) = MBAMBoundaries(u,t,int,DM)
-        return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e3; Boundaries=MBAMboundary, tol=tol, meth=meth, kwargs...)
-    else
-        CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int,DM)
-        return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e3; Boundaries=CombinedBoundaries, tol=tol, meth=meth, kwargs...)
-    end
+    CB = DiscreteCallback(MBAMBoundaries(DM; componentlim=componentlim, singularlim=singularlim), terminate!)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(GeodesicBoundaryFunction(Predictor(DM)),terminate!)) : CB
+    # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
+    ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=nothing, callback=CB, tol=tol, meth=meth, kwargs...)
+    # if isnothing(Boundaries)
+    #     MBAMboundary(u,t,int) = MBAMBoundaries(u,t,int,DM)
+    #     return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=MBAMboundary, tol=tol, meth=meth, kwargs...)
+    # else
+    #     CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int,DM)
+    #     return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=CombinedBoundaries, tol=tol, meth=meth, kwargs...)
+    # end
 end

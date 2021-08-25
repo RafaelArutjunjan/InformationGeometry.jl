@@ -129,11 +129,15 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 InformNames(DM::AbstractDataModel, xnames::Vector{String}, ynames::Vector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 
+"""
+Can store Logarithmic Prior and its derivatives if they are known.
+"""
 struct Prior <: Function
     LogPriorFunc::Function
     LogPriorGrad::Function
     LogPriorHess::Function
 end
+# Dot not create Prior object when there is no prior.
 Prior(Func::Nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = nothing
 Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, θ->GetGrad(ADmode)(Func,θ); ADmode=ADmode)
 Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, θ->GetHess(ADmode)(Func,θ))
