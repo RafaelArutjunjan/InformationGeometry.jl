@@ -215,7 +215,8 @@ GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
 ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(M.Domain, M.InDomain; maxiters=maxiters)
 function ElaborateGetStartP(C::HyperCube, InDom::Function; maxiters::Int=5000)
-    X = rand(length(C));    i = 0;    S = Sobol.skip(SobolSeq(C.L, C.U), rand(1:10*maxiters); exact=true)
+    X = rand(length(C));    i = 0
+    S = Sobol.skip(SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
     while i < maxiters
         next!(S, X);    (InDom(X) && break);    i += 1
     end
@@ -287,15 +288,14 @@ end
 
 function SpatialBoundaryFunction(M::ModelMap)
     function ModelMapBoundaries(u,p,t)
-        S = !(M.InDomain(u) && u ∈ M.Domain)
+        S = !IsInDomain(M, u)
         S && @warn "Curve ran into boundaries specified by ModelMap."
         return S
     end
 end
 function SpatialBoundaryFunction(M::ModelMap, PL::Plane)
     function ModelMapBoundaries(u,p,t)
-        R = PlaneCoordinates(PL,u)
-        S = !(M.InDomain(R) && R ∈ M.Domain)
+        S = !IsInDomain(M, PlaneCoordinates(PL,u))
         S && @warn "Curve ran into boundaries specified by ModelMap."
         return S
     end
@@ -486,7 +486,7 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
         # closed loop, no apparent interruption or direct termination in worst case
         return sol1
     else
-        Backprob = redo ? ODEProblem(BackwardsIntCurveODE!, sol1.u[end], (0., 1e5)) : ODEProblem(BackwardsIntCurveODE!, u0, (0., 1e5))
+        Backprob = redo ? ODEProblem(BackwardsIntCurveODE!, sol1.u[end], (0., 4e5)) : ODEProblem(BackwardsIntCurveODE!, u0, (0., 4e5))
         sol2 = solve(Backprob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
         return redo ? sol2 : [sol1, sol2]
     end

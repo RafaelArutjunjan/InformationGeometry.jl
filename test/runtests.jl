@@ -112,15 +112,15 @@ end
     using InformationGeometry, Test
 
     PiDM = DataModel(DataSet([0,1], [0.5π,1.5π], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]>1, HyperCube([[0,5]])))
-    @test !Predictor(PiDM).InDomain([0.9]) && Predictor(PiDM).InDomain([1.1])
+    @test !IsInDomain(Predictor(PiDM), [0.9]) && IsInDomain(Predictor(PiDM), [1.1])
 
     # Translation
     PiDM2 = DataModel(Data(PiDM), TranslationTransform(Predictor(PiDM),[1.]))
-    @test !Predictor(PiDM2).InDomain([-0.1]) && Predictor(PiDM2).InDomain([0.1])
+    @test !IsInDomain(Predictor(PiDM2), [-0.1]) && IsInDomain(Predictor(PiDM2), [0.1])
 
     # LogTransform
     PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
-    @test !Predictor(PiDM3).InDomain(exp.([1])-[0.1]) && Predictor(PiDM3).InDomain(exp.([1])+[0.1])
+    @test !IsInDomain(Predictor(PiDM3), exp.([1])-[0.1]) && IsInDomain(Predictor(PiDM3), exp.([1])+[0.1])
 
     DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
     @test FisherMetric(LinearDecorrelation(DataModel(DS, (x,θ)->θ[1] * x + θ[2])), zeros(2)) ≈ [1 0; 0 1]
@@ -178,7 +178,6 @@ end
     DS = join(DS1, DS2);    model(x,θ) = θ[1] * x + θ[2];
     DM1 = DataModel(DS1,model);     DM = DataModel(DS,model);
 
-    # logprior(X) = logpdf(MvNormal(MLE(DM1), FisherMetric(DM1, MLE(DM1))), X)
     logprior(X) = loglikelihood(DM1, X)
 
     DM12 = DataModel(DS2, model, MLE(DM1), logprior)

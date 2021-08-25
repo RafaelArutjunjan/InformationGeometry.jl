@@ -359,11 +359,11 @@ import Base.==
 ==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
 ==(A::Plane, B::Plane) = A.stütz == B.stütz && A.Vx == B.Vx && A.Vy == B.Vy
 
-PositiveDomain(n::Int) = HyperCube(1e-16ones(n), fill(Inf,n))
-PositiveDomain(indxs::BoolVector) = HyperCube([(indxs[i] ? 1e-16 : -Inf) for i in eachindex(indxs)], fill(Inf,length(indxs)))
-NegativeDomain(n::Int) = HyperCube(fill(-Inf,n), -1e-16ones(n))
-NegativeDomain(indxs::BoolVector) = HyperCube(fill(-Inf,length(indxs)), [(indxs[i] ? -1e-16 : Inf) for i in eachindex(indxs)])
-FullDomain(n::Int) = HyperCube(fill(-Inf,n), fill(Inf,n))
+PositiveDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(1e-16ones(n), fill(maxval,n)))
+PositiveDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube([(indxs[i] ? 1e-16 : -maxval) for i in eachindex(indxs)], fill(maxval,length(indxs))))
+NegativeDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,n), -1e-16ones(n)))
+NegativeDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,length(indxs)), [(indxs[i] ? -1e-16 : maxval) for i in eachindex(indxs)]))
+FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,n), fill(maxval,n)))
 
 import Base.rand
 rand(C::HyperCube) = rand(C, Val(length(C)))

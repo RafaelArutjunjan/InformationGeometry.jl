@@ -82,6 +82,10 @@ isinplace(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
 
+IsInDomain(M::ModelMap, θ::AbstractVector) = (θ ∈ M.Domain && M.InDomain(θ))
+IsInDomain(M::ModelMap) = θ::AbstractVector -> (θ ∈ M.Domain && M.InDomain(θ))
+
+
 MakeCustom(F::Function, Domain::Union{Cuboid,Bool,Nothing}=nothing) = Domain isa Cuboid ? MakeCustom(ModelMap(F, Domain)) : MakeCustom(ModelMap(F))
 function MakeCustom(M::ModelMap)
     if iscustom(M)
@@ -116,11 +120,6 @@ function ModelMappize(DM::AbstractDataModel)
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM))
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM))
     DataModel(Data(DM), NewMod, NewdMod, MLE(DM))
-end
-
-
-function OutsideBoundariesFunction(M::ModelMap)
-    OutsideBoundaries(u,t,int)::Bool = !((Res ∈ M.Domain) && M.InDomain(Res))
 end
 
 
@@ -220,35 +219,35 @@ end
 Transforms the parameters of the model by the given scalar function `F` such that `newmodel(x, θ) = oldmodel(x, F.(θ))`.
 By providing `idxs`, one may restrict the application of the function `F` to specific parameter components.
 """
-function Transform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)))
+function Transform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), Transform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs))
+    DataModel(Data(DM), Transform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs); kwargs...)
 end
-function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)))
+function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), Transform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs))
+    DataModel(Data(DM), Transform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs); kwargs...)
 end
 
 
 LogTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log, exp)
-LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, log, exp, idxs)
+LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, log, exp, idxs; kwargs...)
 
 ExpTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp, log)
-ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, exp, log, idxs)
+ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, exp, log, idxs; kwargs...)
 
 Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, x->10^x)
-Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, log10, x->10^x, idxs)
+Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, log10, x->10^x, idxs; kwargs...)
 
 Power10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->10^x, log10)
-Power10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x->10^x, log10, idxs)
+Power10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x->10^x, log10, idxs; kwargs...)
 
 ReflectionTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
-ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x-> -x, x-> -x, idxs)
+ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x-> -x, x-> -x, idxs; kwargs...)
 
 ScaleTransform(M::ModelOrFunction, factor::Number, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->factor*x, x->x/factor)
-ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM))) = Transform(DM, x->factor*x, x->x/factor, idxs)
+ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x->factor*x, x->x/factor, idxs; kwargs...)
 
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
@@ -259,9 +258,9 @@ function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
     ModelMap(TranslationTransform(M.Map, v), θ->M.InDomain(θ + v), TranslateCube(M.Domain, -v), M.xyp, M.pnames, M.StaticOutput,
                                     M.inplace, M.CustomEmbedding)
 end
-function TranslationTransform(DM::AbstractDataModel, v::AbstractVector{<:Number})
+function TranslationTransform(DM::AbstractDataModel, v::AbstractVector{<:Number}; kwargs...)
     @assert pdim(DM) == length(v)
-    DataModel(Data(DM), TranslationTransform(Predictor(DM), v), MLE(DM)-v)
+    DataModel(Data(DM), TranslationTransform(Predictor(DM), v), MLE(DM)-v; kwargs...)
 end
 
 
@@ -274,9 +273,9 @@ function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
     ModelMap(LinearTransform(M.Map, A), θ->M.InDomain(A*θ), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
-function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number})
+function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}; kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2)
-    DataModel(Data(DM), LinearTransform(Predictor(DM), A), inv(A)*MLE(DM))
+    DataModel(Data(DM), LinearTransform(Predictor(DM), A), inv(A)*MLE(DM); kwargs...)
 end
 
 
@@ -290,13 +289,13 @@ function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVe
     ModelMap(AffineTransform(M.Map, A, v), θ->M.InDomain(A*θ+v), HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
-function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
     Ainv = inv(A)
-    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v), Ainv*(MLE(DM)-v))
+    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v), Ainv*(MLE(DM)-v); kwargs...)
 end
 
-LinearDecorrelation(DM::AbstractDataModel) = AffineTransform(DM, cholesky(Symmetric(inv(FisherMetric(DM, MLE(DM))))).L, MLE(DM))
+LinearDecorrelation(DM::AbstractDataModel; kwargs...) = AffineTransform(DM, cholesky(Symmetric(inv(FisherMetric(DM, MLE(DM))))).L, MLE(DM); kwargs...)
 
 
 """
@@ -308,6 +307,7 @@ function EmbedModelVia(model::Function, F::Function; Kwargs...)
     EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
 end
 function EmbedModelVia(M::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
+    @warn "Cannot infer new Domain HyperCube for general embeddings, using given $Domain."
     ModelMap(EmbedModelVia(M.Map, F), (M.InDomain∘F), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function EmbedDModelVia(dmodel::Function, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
@@ -322,8 +322,8 @@ end
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
 """
-function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)))
-    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start)
+function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start; kwargs...)
 end
 
 

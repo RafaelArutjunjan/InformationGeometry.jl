@@ -77,15 +77,19 @@ struct DataModel <: AbstractDataModel
 end
 
 function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}=nothing)
+    CheckModelHealth(DS, model)
+    if model isa ModelMap
+        !IsInDomain(model, MLE) && @warn "Supposed MLE $MLE not inside valid parameter domain specified for ModelMap. Consider specifying an appropriate intial parameter configuration."
+    end
     if LogPriorFn isa Function
         @assert LogPriorFn(MLE) isa Real && LogPriorFn(MLE) ≤ 0.0
+        !all(x->x ≤ 0.0, eigvals(EvalLogPriorHess(LogPriorFn, MLE))) && @warn "Hessian of specified LogPrior does not appear to be negative-semidefinite at MLE."
     end
-    CheckModelHealth(DS, model)
     S = Score(DS, model, dmodel, MLE, LogPriorFn)
-    norm(S) > sqrt(length(MLE))*1e-3 && @warn "Norm of gradient of log-likelihood at supposed MLE=$MLE comparatively large: $(norm(S))."
+    norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherMetric(DS, dmodel, MLE, LogPriorFn)
-    det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE=$MLE."
-    !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE=$MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+    det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
+    !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
 end
 
 # For SciMLBase.remake
