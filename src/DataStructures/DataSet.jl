@@ -70,7 +70,7 @@ struct DataSet <: AbstractDataSet
     function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int})
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
-        x = float.(x);  y = float.(y);  InvCov = HealthyCovariance(InvCov)
+        x = floatify(x);  y = floatify(y);  InvCov = HealthyCovariance(InvCov)
         if xdim(dims) == 1
             return DataSet(x, y, InvCov, dims, logdet(InvCov), nothing)
         else

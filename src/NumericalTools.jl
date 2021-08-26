@@ -17,6 +17,9 @@ suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
 suff(args...) = try suff(promote(args...)[1]) catch;  suff(args[1]) end
 
+floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = float.(x)
+floatify(x::AbstractFloat) = x;                     floatify(x::Number) = float(x)
+floatify(x) = float.(x)
 
 """
     MaximalNumberOfArguments(F::Function) -> Int
@@ -287,7 +290,7 @@ function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Boo
 end
 Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, FullSol=FullSol, meth=meth)
 function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
-    Interval = float.(Interval)
+    Interval = floatify(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
     f(u,p,t) = F(t);    u0 = 0.
@@ -542,10 +545,10 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     Res = if isnothing(Domain)
-        optimize(F, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
@@ -555,10 +558,10 @@ function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Do
     # Wrap dF to make it inplace
     newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
     Res = if isnothing(Domain)
-        optimize(F, newdF, float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), float.(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=float(timeout)); kwargs...)
+        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end

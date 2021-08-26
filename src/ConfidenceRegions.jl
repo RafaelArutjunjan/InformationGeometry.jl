@@ -648,13 +648,14 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ, woundX; kwargs...)
 EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
+EmbeddingMap(DS::Val, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
 
-_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX, Val(false); kwargs...)
-_CustomOrNot(DS::AbstractDataSet, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding; kwargs...)
+_CustomOrNot(DS::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX, Val(false); kwargs...)
+_CustomOrNot(DS::Union{Val,AbstractDataSet}, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding; kwargs...)
 
-# Specialize this for different Dataset types
-_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
-_CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
+# Specialize this for different Dataset types e.g. via ::Val{CompositeDataSet}
+_CustomOrNot(::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+_CustomOrNot(::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
 
 
 """
@@ -662,17 +663,15 @@ _CustomOrNot(DS::AbstractDataSet, model::Function, θ::AbstractVector{<:Number},
 Returns the jacobian of the embedding map as evaluated at the x-values and the parameter configuration ``\\theta``.
 """
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ, woundX; kwargs...)
+EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
+EmbeddingMatrix(DS::Val, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
 
-# Make sure θ is a float:
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:AbstractFloat}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
-EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, float.(θ), woundX; kwargs...)
+_CustomOrNotdM(DS::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, floatify(θ), woundX, Val(false); kwargs...)
+_CustomOrNotdM(DS::Union{Val,AbstractDataSet}, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, floatify(θ), woundX, dM.CustomEmbedding; kwargs...)
 
-_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX, Val(false); kwargs...)
-_CustomOrNotdM(DS::AbstractDataSet, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, θ, woundX, dM.CustomEmbedding; kwargs...)
-
-# Specialize this for different Dataset types
-_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
-_CustomOrNotdM(DS::AbstractDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = dmodel(woundX, θ; kwargs...)
+# Specialize this for different Dataset types e.g. via ::Val{CompositeDataSet}
+_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
+_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}; kwargs...) = dmodel(woundX, θ; kwargs...)
 
 
 ### very slightly faster apparently

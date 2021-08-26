@@ -1,15 +1,15 @@
 
 
-ToDataVec(M::AbstractVector) = float.(M)
+ToDataVec(M::AbstractVector) = floatify(M)
 ToDataVec(M::AbstractMatrix) = reduce(vcat, collect(eachrow(ToArray(M))))
 ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
 
-ToArray(df::AbstractVector{<:Real}) = df .|> float
-ToArray(df::AbstractMatrix) = size(df,2) == 1 ? float.(df[:,1]) : float.(df)
-ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, float.(df[:,1])) : convert(Matrix{suff(df)}, float.(df))
+ToArray(df::AbstractVector{<:Real}) = df |> floatify
+ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
+ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, floatify(df[:,1])) : convert(Matrix{suff(df)}, floatify(df))
 function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
     !all(x-> !ismissing(x), df) && throw("Input contains missing values.")
-    convert(Vector{suff(df[1])},float.(df))
+    convert(Vector{suff(df[1])},floatify(df))
 end
 
 
@@ -121,7 +121,7 @@ struct CompositeDataSet <: AbstractDataSet
 end
 CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
-    CompositeDataSet(ReadIn(float.(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
+    CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
 end
 
 

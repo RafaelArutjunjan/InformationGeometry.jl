@@ -13,11 +13,11 @@ ConsistentElDims(T::Tuple) = ConsistentElDims(collect(T))
 function HealthyCovariance(M::AbstractMatrix{<:Number})
     M = size(M,1) > size(M,2) ? Unwind(M) : M
     M = if isdiag(M)
-        Diagonal(float.(M))
-    elseif sum(abs, M - Diagonal(float.(M))) < 1e-20
-        Diagonal(float.(M))
+        Diagonal(floatify(M))
+    elseif sum(abs, M - Diagonal(floatify(M))) < 1e-20
+        Diagonal(floatify(M))
     else
-        float.(M)
+        floatify(M)
     end
     if !isposdef(M)
         println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
@@ -29,7 +29,7 @@ function HealthyCovariance(M::AbstractMatrix{<:Number})
 end
 HealthyCovariance(D::Diagonal) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
 # Interpret vector as uncertainties, therefore square before converting to Matrix
-HealthyCovariance(X::AbstractVector{<:Number}) = all(x->x>0, X) ? Diagonal(float.(X).^2) : throw("Not all given uncertainties positive: $(X)")
+HealthyCovariance(X::AbstractVector{<:Number}) = all(x->x>0, X) ? Diagonal(floatify(X).^2) : throw("Not all given uncertainties positive: $(X)")
 HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}) = Unwind(X)
 
 

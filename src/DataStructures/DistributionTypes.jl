@@ -64,7 +64,7 @@ pdf at μ takes value 1 and 0 everywhere else.
 """
 struct Dirac <: ContinuousMultivariateDistribution
     μ::AbstractVector{<:Number}
-    Dirac(μ) = new(float.(Unwind(μ)))
+    Dirac(μ) = new(floatify(Unwind(μ)))
 end
 
 import Base.length

@@ -83,7 +83,7 @@ end
 # function NormalDist(DM::DataModel,p::Vector)::Distribution
 #     if length(ydata(DM)[1]) == 1
 #         length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),ysigma(DM)[1])
-#         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(float.(ysigma(DM).^2)))
+#         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(floatify(ysigma(DM).^2)))
 #     else
 #         throw("Not programmed yet.")
 #     end

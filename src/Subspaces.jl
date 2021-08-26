@@ -16,11 +16,11 @@ struct Plane
         (Make2ndOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
 
         if length(stütz) < 20
-            stütz = SVector{length(Vx)}(float.(stütz));     Vx = SVector{length(Vx)}(float.(Vx))
-            Vy = SVector{length(Vx)}(float.(Vy))
+            stütz = SVector{length(Vx)}(floatify(stütz));     Vx = SVector{length(Vx)}(floatify(Vx))
+            Vy = SVector{length(Vx)}(floatify(Vy))
             return new(stütz, Vx, Vy)
         else
-            return new(float.(stütz), float.(Vx), float.(Vy))
+            return new(floatify(stütz), floatify(Vx), floatify(Vy))
         end
     end
 end
@@ -105,7 +105,7 @@ ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
 IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = abs(dot(PL.Vx, v)) < 4e-15 && abs(dot(PL.Vy, v)) < 4e-15
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
-    Basis = GramSchmidt(float.([X,Y]))
+    Basis = GramSchmidt(floatify([X,Y]))
     # Maybe add check for orientation?
     return Basis[2]
 end
@@ -148,7 +148,7 @@ function GramSchmidt(v::AbstractVector,dim::Int=length(v))
     GramSchmidt([normalize(Basis[i]) for i in 1:length(Basis)])
 end
 function GramSchmidt(Basis::AbstractVector{<:AbstractVector})
-    ONBasis = float.(Basis)
+    ONBasis = floatify(Basis)
     for j in 1:length(Basis)
         for i in 2:j
             ONBasis[j] .-= ProjectOnto(Basis[j],ONBasis[i-1])
@@ -202,9 +202,9 @@ struct HyperCube{Q<:Number} <: Cuboid
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")
         if length(lowers) < 20
-            return new{suff(lowers)}(SVector{length(lowers)}(float.(lowers)), SVector{length(uppers)}(float.(uppers)))
+            return new{suff(lowers)}(SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers)))
         else
-            return new{suff(lowers)}(float.(lowers),float.(uppers))
+            return new{suff(lowers)}(floatify(lowers),floatify(uppers))
         end
     end
     function HyperCube(H::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.)
