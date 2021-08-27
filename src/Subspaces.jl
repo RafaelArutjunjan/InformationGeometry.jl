@@ -373,6 +373,10 @@ function rand(C::HyperCube, ::Val)
     map(f,C.L,C.U)
 end
 
+import Base.clamp
+clamp(x::AbstractVector, C::HyperCube) = clamp(x, C.L, C.U)
+
+
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType
     u_analytic::uType2

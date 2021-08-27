@@ -175,8 +175,7 @@ function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,
 end
 
 function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
-    dF = θ::AbstractVector -> GetGrad(ADmode)(F, θ)
-    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(dF, θ; alpha=alpha)
+    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(GetGrad(ADmode, F), θ; alpha=alpha)
 end
 
 """
@@ -344,7 +343,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     end
 end
 
-GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = GenerateBoundary(F, x->GetGrad(ADmode)(F,x), u0; kwargs...)
+GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
 function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2

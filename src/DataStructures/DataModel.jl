@@ -143,8 +143,8 @@ struct Prior <: Function
 end
 # Dot not create Prior object when there is no prior.
 Prior(Func::Nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = nothing
-Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, θ->GetGrad(ADmode)(Func,θ); ADmode=ADmode)
-Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, θ->GetHess(ADmode)(Func,θ))
+Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GetGrad(ADmode, Func); ADmode=ADmode)
+Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, GetHess(ADmode,Func))
 (P::Prior)(θ::AbstractVector{<:Number}) = P.LogPriorFunc(θ)
 
 LogPrior(P::Prior) = P.LogPriorFunc

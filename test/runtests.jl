@@ -297,8 +297,7 @@ end
     Z = ForwardDiff.hessian(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.])
 
     function MyTest(ADmode::Symbol; kwargs...)
-        Grad, Jac = GetGrad(ADmode; kwargs...), GetJac(ADmode; kwargs...)
-        Hess = GetHess(ADmode; kwargs...)
+        Grad, Jac, Hess = GetGrad(ADmode; kwargs...), GetJac(ADmode; kwargs...), GetHess(ADmode; kwargs...)
         @test Grad(x->x[1]^2 + exp(x[2]), [5,10.]) ≈ X
         @test Jac(x->[x[1]^2 + exp(x[2])], [5,10.]) ≈ Y
         @test Hess(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.]) ≈ Z
