@@ -15,7 +15,7 @@ end
 
 
 """
-    InformNames(DS::AbstractDataSet, sys::ODESystem, observables::Vector{<:Int})
+    InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
 Copy the state names saved in `ODESystem` to `DS`.
 """
 function InformNames(DS::AbstractDataSet, sys::ModelingToolkit.AbstractSystem, observables::Union{BoolArray,AbstractVector{<:Int}})

@@ -47,6 +47,7 @@ _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Nu
 
 
 Score(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> Score(DM, θ; kwargs...)
+NegScore(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> -Score(DM, θ; kwargs...)
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; Auto::Val=Val(false))
@@ -103,11 +104,11 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15,
 end
 
 
-# function FtestPrepared(DM::DataModel, θ::Vector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
+# function FtestPrepared(DM::DataModel, θ::AbstractVector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
 #     n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./ysigma(DM)).^2)
 #     S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
 # end
-# Ftest(DM::DataModel, θ::Vector, MLE::Vector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
+# Ftest(DM::DataModel, θ::AbstractVector, MLE::AbstractVector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
@@ -129,7 +130,7 @@ end
 
 
 FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
-# function Ftest2(DM::DataModel, point::Vector{T}, MLE::Vector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
+# function Ftest2(DM::DataModel, point::AbstractVector{T}, MLE::AbstractVector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
 #     n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./ysigma(DM)).^2)
 #     FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
 # end
@@ -157,12 +158,12 @@ end
 
 # Faster Method for Planar OrthVF
 """
-    OrthVF(DM::DataModel, PL::Plane, θ::Vector{<:Number}; Auto::Val=Val(false)) -> Vector
+    OrthVF(DM::DataModel, PL::Plane, θ::AbstractVector{<:Number}; Auto::Val=Val(false)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 Since a 2D `Plane` is specified, both the input `θ` as well as well as the output have 2 components.
 `Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))); Auto::Val=Val(false), kwargs...)
+function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)); Auto::Val=Val(false), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; Auto=Auto, kwargs...))
     P = prod(S)
     normalize(SA[-P/S[1],P/S[2]])
@@ -170,7 +171,7 @@ end
 
 # Method for general functions F
 function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
-    S = GetGrad(ADmode)(F, θ);    P = prod(S);    VF = P ./ S
+    S = GetGrad(ADmode,F)(θ);    P = prod(S);    VF = P ./ S
     normalize(alpha .* VF)
 end
 
@@ -388,7 +389,7 @@ IsStructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwar
 function StructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
     find_zeros(t->GeometricDensity(DM,sol(t); kwargs...), sol.t[1], sol.t[end])
 end
-function StructurallyIdentifiable(DM::AbstractDataModel, sols::Vector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
+function StructurallyIdentifiable(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
     parallel ? pmap(x->StructurallyIdentifiable(DM,x; kwargs...), sols) : map(x->StructurallyIdentifiable(DM,x; kwargs...), sols)
 end
 
@@ -552,10 +553,10 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, sol::AbstractODESolution;
         IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE, kwargs...)
     end
 end
-function ConfidenceRegionVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     ConfidenceRegionVolume(DM, Tup[1], Tup[2]; N=N, WE=WE, Approx=Approx, kwargs...)
 end
-function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
         IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE)
@@ -594,10 +595,10 @@ function CoordinateVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::In
         IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), z->one(suff(z)); N=N, WE=WE, kwargs...)
     end
 end
-function CoordinateVolume(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function CoordinateVolume(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     CoordinateVolume(DM, Tup[1], Tup[2]; N=N, WE=WE, Approx=Approx, kwargs...)
 end
-function CoordinateVolume(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
+function CoordinateVolume(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
         IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->one(suff(z)); N=N, WE=WE)
@@ -687,14 +688,14 @@ _CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVecto
 Pullback(DM::AbstractDataModel, F::Function, θ::AbstractVector{<:Number}; kwargs...) = F(EmbeddingMap(DM, θ; kwargs...))
 
 """
-    Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::Vector) -> Vector
+    Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector) -> Vector
 Pull-back of a covector to the parameter manifold ``T^*\\mathcal{M} \\longleftarrow T^*\\mathcal{D}``.
 """
 Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = transpose(EmbeddingMatrix(DM, θ; kwargs...)) * ω
 
 
 """
-    Pullback(DM::DataModel, G::AbstractArray{<:Number,2}, θ::Vector) -> Matrix
+    Pullback(DM::DataModel, G::AbstractArray{<:Number,2}, θ::AbstractVector) -> Matrix
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = Pullback(Data(DM), dPredictor(DM), G, θ; kwargs...)
@@ -778,13 +779,16 @@ end
 
 
 """
-    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-8) -> Union{Vector{Number},Bool}
+    FindConfBoundaryOnPlane(DM::AbstractDataModel,PL::Plane,Confnum::Real=1.; tol::Real=1e-8) -> Union{AbstractVector{<:Number},Bool}
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
-    CF = ConfVol(Confnum);      mle = MLEinPlane(DM, PL; tol=1e-8);      model = Predictor(DM)
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; kwargs...)
+    FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; kwargs...)
+end
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
+    CF = ConfVol(Confnum);      model = Predictor(DM)
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
     Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.], PlanarLogPrior)))) - CF < 0.
     !Test(0.) && return false
@@ -794,7 +798,7 @@ end
 
 DoPruning(DM, Planes::AbstractVector{<:Plane}, Confnum; kwargs...) = Prune(DM, AntiPrune(DM, Planes, Confnum), Confnum; kwargs...)
 
-function Prune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
+function Prune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
     CF = ConfVol(Confnum)
     Planes = copy(Pls)
     while length(Planes) > 2
@@ -807,7 +811,7 @@ function Prune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; to
     return Planes
 end
 
-function AntiPrune(DM::AbstractDataModel, Pls::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
+function AntiPrune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
     Planes = copy(Pls)
     length(Planes) < 2 && throw("Not enough Planes to infer translation direction.")
     CF = ConfVol(Confnum)
@@ -855,7 +859,7 @@ function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.;
 end
 
 """
-    IntersectRegion(DM::AbstractDataModel,PL::Plane,v::Vector{<:Number},Confnum::Real=1.; N::Int=31) -> Vector{Plane}
+    IntersectRegion(DM::AbstractDataModel,PL::Plane,v::AbstractVector{<:Number},Confnum::Real=1.; N::Int=31) -> Vector{Plane}
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
@@ -873,10 +877,10 @@ function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Rea
 end
 
 """
-    MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Val=Val(false), meth=Tsit5(), mfd::Bool=false)
+    MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, Auto::Val=Val(false), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::Vector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Val=Val(false),
+function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, parallel::Bool=false, kwargs...)
     Map = parallel ? pmap : map
     Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Planes)
@@ -891,9 +895,9 @@ function Thinner(S::AbstractVector{<:AbstractVector{<:Number}}; threshold::Real=
     end;    Res
 end
 
-CastShadow(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, args...; kwargs...) = CastShadow(DM, Tup[1], Tup[2], args...; kwargs...)
-CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}; kwargs...) = CastShadow(DM, Planes, sols, dirs[1], dirs[2]; kwargs...)
-function CastShadow(DM::DataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, dir1::Int, dir2::Int; threshold::Real=0.2)
+CastShadow(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}, args...; kwargs...) = CastShadow(DM, Tup[1], Tup[2], args...; kwargs...)
+CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}; kwargs...) = CastShadow(DM, Planes, sols, dirs[1], dirs[2]; kwargs...)
+function CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, dir1::Int, dir2::Int; threshold::Real=0.2)
     @assert length(Planes) == length(sols)
     @assert pdim(DM) == length(Planes[1])
     @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
@@ -994,7 +998,7 @@ Especially well-suited for hypothesis testing once a confidence boundary has bee
 """
 ApproxInRegion(sol::AbstractODESolution, p::AbstractVector{<:Number}) = isinside(p, sol.u)
 
-function ApproxInRegion(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, p::AbstractVector{<:Number})
+function ApproxInRegion(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, p::AbstractVector{<:Number})
     !(ConsistentElDims(Planes) == length(p) == 3) && throw("ApproxInRegion: Cannot determine for length(p) > 3.")      # Unclear how to do this for higher dimensions.
     @assert length(Planes) == length(sols) && all(x->length(x.u[1])==2, sols)
     # Assuming all planes parallel
@@ -1010,7 +1014,7 @@ GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=length(
 GetConfnum(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
 GetConfnum(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
 
-function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; kwargs...)
+function GetConfnum(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; kwargs...)
     Nums = [GetConfnum(DM, Planes[i], sols[i]; kwargs...) for i in eachindex(Planes)]
     mean = sum(Nums) / length(Nums)
     !all(x->abs(x-mean) < 1e-5, Nums) && @warn "High Variance in given Confnums, continuing anyway with arithmetic mean."
@@ -1018,17 +1022,17 @@ function GetConfnum(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector
 end
 
 struct ConfidenceBoundary
-    sols::Vector{<:AbstractODESolution}
+    sols::AbstractVector{<:AbstractODESolution}
     Confnum::Real
     MLE::AbstractVector{<:Number}
-    pnames::Vector{String}
+    pnames::AbstractVector{String}
 end
 
 function ConfidenceBoundary(DM::AbstractDataModel, sol::AbstractODESolution)
     @assert pdim(DM) == length(sol.u[1]) == 2
     ConfidenceBoundary([sol], GetConfnum(DM, sol), MLE(DM), pnames(DM))
 end
-function ConfidenceBoundary(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution})
+function ConfidenceBoundary(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution})
     @assert length(Planes) == length(sols)
     ConfidenceBoundary(EmbeddedODESolution(sols, Planes), GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
 end

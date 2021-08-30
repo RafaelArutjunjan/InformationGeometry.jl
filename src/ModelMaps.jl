@@ -3,30 +3,35 @@
 
 # Callback triggers when Boundaries is `true`.
 """
-Container for model functions which carries additional information, e.g. about the parameter domain on which it is valid.
+    ModelMap(Map::Function, InDomain::Function, Domain::HyperCube)
+A container which stores additional information about a model map, in particular its domain of validity.
+`Map` is the actual map `(x,θ) -> model(x,θ).`
+`Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
+For more complicated boundary constraints, a `Bool`-valued function `InDomain` can be specified which should return `false` when a parameter configuration `θ` which is not in the valid domain.
+
 """
 struct ModelMap
     Map::Function
     InDomain::Function
     Domain::Union{Cuboid,Nothing}
     xyp::Tuple{Int,Int,Int}
-    pnames::Vector{String}
+    pnames::AbstractVector{<:String}
     StaticOutput::Val
     inplace::Val
     CustomEmbedding::Val
     # Given: Bool-valued domain function
-    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{Vector{String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
         ModelMap(model, InDomain, nothing, xyp; pnames=pnames)
     end
     # Given: HyperCube
-    function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{Vector{String},Bool}=false)
+    function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{AbstractVector{<:String},Bool}=false)
         # Change this to θ -> true to avoid double checking cuboid. Obviously make sure Boundaries() is constructed using both the function test
         # and the Cuboid test first before changing this.
         InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
         xyp isa Bool ? ModelMap(model, InDomain, Domain; pnames=pnames) : ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
     # Given: Function only (potentially) -> Find xyp
-    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{Vector{String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
         xyp = if isnothing(Domain)
             xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
@@ -47,7 +52,7 @@ struct ModelMap
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                        pnames::Vector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
+                        pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
         Domain = isnothing(Domain) ? FullDomain(xyp[3]) : Domain
         new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
@@ -62,7 +67,7 @@ Map::Function=x->Inf,
 InDomain::Function=x->false,
 Domain::Union{Cuboid,Nothing}=nothing,
 xyp::Tuple{Int,Int,Int}=(1,1,1),
-pnames::Vector{String}=["θ"],
+pnames::AbstractVector{String}=["θ"],
 StaticOutput::Val=Val(true),
 inplace::Val=Val(true),
 CustomEmbedding::Val=Val(true)) = ModelMap(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
@@ -70,7 +75,7 @@ CustomEmbedding::Val=Val(true)) = ModelMap(Map, InDomain, Domain, xyp, pnames, S
 
 
 
-function InformNames(M::ModelMap, pnames::Vector{String})
+function InformNames(M::ModelMap, pnames::AbstractVector{String})
     @assert length(pnames) == M.xyp[3]
     ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
@@ -319,7 +324,7 @@ function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(
 end
 
 """
-    Embedding(DM::AbstractDataModel, F::Function, start::Vector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
+    Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
 """

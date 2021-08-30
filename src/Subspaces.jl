@@ -122,7 +122,7 @@ function MinimizeOnPlane(PL::Plane, F::Function, initial::AbstractVector=[1e-2,-
 end
 
 """
-    ProjectOnto(v::Vector, u::Vector)
+    ProjectOnto(v::AbstractVector, u::AbstractVector)
 Project `v` onto `u`.
 """
 ProjectOnto(v::AbstractVector, u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
@@ -186,7 +186,7 @@ HyperCube(collect([-7,7.] for i in 1:3))
 Examples of quantities that can be computed from and operations involving a `HyperCube` object `X`:
 ```julia
 CubeVol(X)
-TranslateCube(X,v::Vector)
+TranslateCube(X,v::AbstractVector)
 CubeWidths(X)
 ```
 """
@@ -251,12 +251,12 @@ ConstructCube(PL::Plane, sol::AbstractODESolution; Padding::Number=0.) = Constru
 function ConstructCube(sol::AbstractODESolution, Npoints::Int=200; Padding::Number=0.)
     ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end];length=Npoints))); Padding=Padding)
 end
-function ConstructCube(sols::Vector{<:AbstractODESolution}, Npoints::Int=200; Padding::Number=0.)
+function ConstructCube(sols::AbstractVector{<:AbstractODESolution}, Npoints::Int=200; Padding::Number=0.)
     mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)
 end
 
-ConstructCube(Tup::Tuple{Vector{<:Plane},Vector{<:AbstractODESolution}}; Padding=0.) = ConstructCube(Tup[1], Tup[2]; Padding=Padding)
-function ConstructCube(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}; Padding=0.)
+ConstructCube(Tup::Tuple{AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}; Padding=0.) = ConstructCube(Tup[1], Tup[2]; Padding=Padding)
+function ConstructCube(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; Padding=0.)
     @assert length(Planes) == length(sols)
     reduce(union, map((x,y)->ConstructCube(x,y; Padding=Padding), Planes, sols))
 end
@@ -274,13 +274,13 @@ Computes volume of a `HyperCube` as the product of its sidelengths.
 CubeVol(Cube::HyperCube) = prod(CubeWidths(Cube))
 
 """
-    Center(Cube::HyperCube) |> Vector
+    Center(Cube::HyperCube) -> Vector
 Returns center of mass of `Cube`.
 """
 Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
 
 """
-    TranslateCube(Cube::HyperCube,x::Vector{<:Number}) -> HyperCube
+    TranslateCube(Cube::HyperCube,x::AbstractVector{<:Number}) -> HyperCube
 Returns a `HyperCube` object which has been translated by `x`.
 """
 TranslateCube(Cube::HyperCube, x::AbstractVector{<:Number}) = HyperCube(Cube.L + x, Cube.U + x)
@@ -332,11 +332,11 @@ vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U);
 import Base: union, intersect
 """
     intersect(A::HyperCube, B::HyperCube) -> HyperCube
-    intersect(Cubes::Vector{<:HyperCube}) -> HyperCube
+    intersect(Cubes::AbstractVector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which is the intersection of the given `HyperCube`s.
 """
 intersect(A::HyperCube, B::HyperCube) = intersect([A, B])
-function intersect(Cubes::Vector{<:HyperCube})
+function intersect(Cubes::AbstractVector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([maximum(col) for col in eachcol(LowerMatrix)], [minimum(col) for col in eachcol(UpperMatrix)])
@@ -344,12 +344,12 @@ end
 
 """
     union(A::HyperCube, B::HyperCube) -> HyperCube
-    union(Cubes::Vector{<:HyperCube}) -> HyperCube
+    union(Cubes::AbstractVector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which contains both given `HyperCube`s.
 That is, the returned cube is strictly speaking not the union, but a cover (which contains the union).
 """
 union(A::HyperCube, B::HyperCube) = union([A, B])
-function union(Cubes::Vector{<:HyperCube})
+function union(Cubes::AbstractVector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([minimum(col) for col in eachcol(LowerMatrix)], [maximum(col) for col in eachcol(UpperMatrix)])
@@ -410,9 +410,9 @@ function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Fun
                  false, sol.tslocation, sol.destats, sol.retcode, Embedding)
 end
 EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) = EmbeddedODESolution(sol, PlaneCoordinates(PL))
-function EmbeddedODESolution(sols::Vector{<:AbstractODESolution}, Planes::Vector{<:Plane})
+function EmbeddedODESolution(sols::AbstractVector{<:AbstractODESolution}, Planes::AbstractVector{<:Plane})
     @assert length(sols) == length(Planes)
     map(EmbeddedODESolution, sols, Planes)
 end
-EmbeddedODESolution(PL::Union{Plane, Vector{<:Plane}}, sol::Union{AbstractODESolution,Vector{<:AbstractODESolution}}) = EmbeddedODESolution(sol, PL)
+EmbeddedODESolution(PL::Union{Plane, AbstractVector{<:Plane}}, sol::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}) = EmbeddedODESolution(sol, PL)
 EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)

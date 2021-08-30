@@ -505,10 +505,10 @@ Deplanarize(PL::Plane,sol::AbstractODESolution; N::Int=500) = Deplanarize(PL,sol
 Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::AbstractVector{<:Number}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
 
 """
-    VisualizeSols(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=true)
+    VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::Vector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
+function VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSols(sol; vars=vars, leg=leg, kwargs...)
@@ -539,7 +539,7 @@ function VisualizeSols(PL::Plane, sol::AbstractODESolution; vars::Tuple=Tuple(1:
         return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
     end
 end
-function VisualizeSols(PL::Plane, sols::Vector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
+function VisualizeSols(PL::Plane, sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSols(PL, sol; N=N, vars=vars, leg=leg, kwargs...)
@@ -547,7 +547,7 @@ function VisualizeSols(PL::Plane, sols::Vector{<:AbstractODESolution}; vars::Tup
 end
 
 VisualizeSols(X::Tuple, args...; kwargs...) = VisualizeSols(X..., args...; kwargs...)
-function VisualizeSols(PL::Vector{<:Plane},sols::Vector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
+function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
                 OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && Plots.plot()
@@ -579,7 +579,7 @@ function VisualizeSols(CB::ConfidenceBoundary; vars::Tuple=Tuple(1:length(CB.MLE
     end; p
 end
 
-function VisualizeSols(CBs::Vector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:length(CBs[1].MLE)), OverWrite::Bool=true, kwargs...)
+function VisualizeSols(CBs::AbstractVector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:length(CBs[1].MLE)), OverWrite::Bool=true, kwargs...)
     @assert all(x->x.MLE==CBs[1].MLE, CBs)
     @assert allunique(map(x->x.Confnum,CBs))
     p = OverWrite ? Plots.scatter([CBs[1].MLE]; label="MLE") : []
@@ -589,7 +589,7 @@ function VisualizeSols(CBs::Vector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:le
 end
 
 VisualizeGeos(sol::AbstractODESolution; kwargs...) = VisualizeGeos([sol]; kwargs...)
-function VisualizeGeos(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false, kwargs...)
+function VisualizeGeos(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false, kwargs...)
     VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg, kwargs...)
 end
 
@@ -597,7 +597,7 @@ end
 function VisualizeSolPoints(sol::AbstractODESolution; kwargs...)
     Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex, markersize=2, kwargs...)
 end
-function VisualizeSolPoints(sols::Vector{<:AbstractODESolution}; OverWrite::Bool=false, kwargs...)
+function VisualizeSolPoints(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
     for sol in sols
         p = VisualizeSolPoints(sol; kwargs...)
@@ -611,7 +611,7 @@ XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Paddi
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
-# function GetExtrema(DM::AbstractDataModel,sols::Union{ODESolution,Vector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+# function GetExtrema(DM::AbstractDataModel,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
 #     low = Inf;   up = -Inf
 #     for sol in sols
 #         Y = map(Z->DM.model(X,sol(Z)), range(sol.t[1],sol.t[end]; length=N))
@@ -620,7 +620,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #         if up < tempup      up = tempup         end
 #     end;    (low, up)
 # end
-# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{ODESolution,Vector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
 #     low = Inf;   up = -Inf
 #     for sol in sols
 #         templow, tempup = map(t->DM.model(X,PlaneCoordinates(PL,sol(t))), range(sol.t[1],sol.t[end]; length=N)) |> extrema
@@ -628,7 +628,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #         if up < tempup      up = tempup         end
 #     end;    (low, up)
 # end
-# function GetExtrema(DM::AbstractDataModel,PL::Vector{<:Plane},sols::Vector{<:AbstractODESolution},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+# function GetExtrema(DM::AbstractDataModel,PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
 #     length(PL) != length(sols) && throw("Dimensional Mismatch.")
 #     low = Inf;   up = -Inf
 #     for i in 1:length(sols)
@@ -642,7 +642,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #     ConfidenceBands(DM::DataModel,sol::AbstractODESolution,domain::HyperCube; N::Int=200)
 # Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 # """
-# function ConfidenceBands(DM::AbstractDataModel,sols::Union{ODESolution,Vector{<:AbstractODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
+# function ConfidenceBands(DM::AbstractDataModel,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
 #     !(length(domain) == xdim(DM)) && throw("Dimensionality of domain inconsistent with xdim.")
 #     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
 #     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
@@ -655,7 +655,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #     return [Unpack(collect(X)) low up]
 # end
 #
-# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,Vector{<:Plane}},sols::Union{ODESolution,Vector{<:AbstractODESolution}},
+# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,AbstractVector{<:Plane}},sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},
 #                                             domain::HyperCube=XCube(DM); N::Int=200, Np::Int=300)
 #     length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
 #     !(length(Planes) == 1 || length(Planes) == length(sols)) && throw("Number of Planes inconsisten with number of ODESolutions.")
@@ -703,19 +703,19 @@ end
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain`
 by evaluating the model on the boundary of the confidence region.
 """
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
                             N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
     ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:Vector{<:Plane},Vector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100))
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100))
     ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
 end
-function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
     ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
@@ -730,7 +730,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,Vector{<
     return M
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
     @assert length(Planes) == length(sols)
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
@@ -891,7 +891,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
 end
 
 """
-    PlotMatrix(Mat::Matrix, MLE::Vector; N::Int=400)
+    PlotMatrix(Mat::Matrix, MLE::AbstractVector; N::Int=400)
 Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
 
 Example:
@@ -912,7 +912,7 @@ end
 
 
 
-function PlotCurves(Curves::Vector{<:AbstractODESolution}; N::Int=100)
+function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100)
     p = [];    A = Array{Float64,2}(undef,N,2)
     for sol in Curves
         ran = range(sol.t[1],sol.t[end],length=N)
@@ -980,11 +980,11 @@ function RectToTriangFacets(M::Matrix{<:Int})
     end;    G
 end
 """
-    CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true) -> (Matrix{Float64}, Matrix{Int64})
+    CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true) -> (Matrix{Float64}, Matrix{Int64})
 Returns a N×3 matrix whose rows correspond to the coordinates of various points in 3D space as the first argument.
 The second Matrix is either N×4 or N×3 depending on the value of `rectangular` and enumerates the points which are to be connected up to a rectangular or triangular face in counter-clockwise fashion. The indices of the points correspond to the lines in the first Matrix.
 """
-function CreateMesh(Planes::Vector{<:Plane}, Sols::Vector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=false)
+function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=false)
     Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in 1:length(Sols)])
     M = RectangularFacetIndices(N)
     Facets = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])

@@ -104,7 +104,7 @@ Also, `xerrs=true` can be used to indicate that the `x`-values also carry uncert
 Basically all functions which can be called on other data containers such as `DataSet` have been specialized to also work with `CompositeDataSet`s.
 """
 struct CompositeDataSet <: AbstractDataSet
-    DSs::Vector{<:AbstractDataSet}
+    DSs::AbstractVector{<:AbstractDataSet}
     InvCov::AbstractMatrix{<:Number}
     logdetInvCov::Real
     WoundX::AbstractVector
@@ -115,7 +115,7 @@ struct CompositeDataSet <: AbstractDataSet
         InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
         CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
     end
-    function CompositeDataSet(DSs::Vector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val)
         new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim)
     end
 end
@@ -127,7 +127,7 @@ end
 
 # For SciMLBase.remake
 CompositeDataSet(;
-DSs::Vector{<:AbstractDataSet}=[DataSet([0.],[0.],[1.])],
+DSs::AbstractVector{<:AbstractDataSet}=[DataSet([0.],[0.],[1.])],
 InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
@@ -160,10 +160,10 @@ ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 
 
 
-function InformNames(CDS::CompositeDataSet, xnames::Vector{String}, ynames::Vector{String})
+function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
     CompositeDataSet(InformNames(Data(CDS), xnames, ynames))
 end
-function InformNames(DSs::Vector{<:AbstractDataSet}, xnames::Vector{String}, ynames::Vector{String})
+function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
     # Use InformNames for single DataSet recursively
     @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
     Res = Vector{AbstractDataSet}(undef, length(DSs))

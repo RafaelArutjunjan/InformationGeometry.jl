@@ -7,8 +7,8 @@ struct DataSetExact <: AbstractDataSet
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix{<:Number}
     WoundX::Union{AbstractVector,Nothing}
-    xnames::Vector{String}
-    ynames::Vector{String}
+    xnames::AbstractVector{String}
+    ynames::AbstractVector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])))
@@ -49,7 +49,7 @@ struct DataSetExact <: AbstractDataSet
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                    xnames::Vector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::Vector{String}=CreateSymbolNames(xdim(dims),"y"))
+                    xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"))
         new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
     end
 end
@@ -62,8 +62,8 @@ ydist::Distribution=Normal(0,1),
 dims::Tuple{Int,Int,Int}=(1,1,1),
 InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
 WoundX::Union{AbstractVector,Nothing}=nothing,
-xnames::Vector{String}=["x"],
-ynames::Vector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames)
+xnames::AbstractVector{String}=["x"],
+ynames::AbstractVector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames)
 
 
 dims(DSE::DataSetExact) = DSE.dims
@@ -94,7 +94,7 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
 
-# function InformNames(DS::DataSetExact, xnames::Vector{String}, ynames::Vector{String})
+# function InformNames(DS::DataSetExact, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), yInvCov(DS), WoundX(DS), xnames, ynames)
 # end

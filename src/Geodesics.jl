@@ -30,7 +30,7 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
 end
 
 """
-    ComputeGeodesic(DM::DataModel, InitialPos::Vector, InitialVel::Vector, Endtime::Number=50.;
+    ComputeGeodesic(DM::DataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.;
                                     Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, approx::Bool=false, meth=Tsit5())
 Constructs geodesic with given initial position and velocity.
 It is possible to specify a boolean-valued function `Boundaries(u,t,int)`, which terminates the integration process when it returns `true`.
@@ -90,7 +90,7 @@ end
 
 
 # Input Array of Geodesics, Output Array of its endpoints
-function Endpoints(Geodesics::Vector{<:AbstractODESolution})
+function Endpoints(Geodesics::AbstractVector{<:AbstractODESolution})
     Endpoints = Vector{Vector{Float64}}(undef,0)
     Numb = Int(length(Geodesics[1].u[1])/2)
     for Curve in Geodesics
@@ -100,11 +100,11 @@ function Endpoints(Geodesics::Vector{<:AbstractODESolution})
 end
 
 """
-    EvaluateEach(geos::Vector{<:AbstractODESolution}, Ts::Vector) -> Vector
+    EvaluateEach(geos::AbstractVector{<:AbstractODESolution}, Ts::AbstractVector) -> Vector
 Evalues a family `geos` of geodesics on a set of parameters `Ts`. `geos[1]` is evaluated at `Ts[1]`, `geos[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
-function EvaluateEach(sols::Vector{<:AbstractODESolution}, Ts::AbstractVector{<:Number})
+function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractVector{<:Number})
     length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
     n = Int(length(sols[1].u[1])/2)
     Res = Vector{Vector{Float64}}(undef,0)
@@ -126,7 +126,7 @@ end
 
 
 ################################################################ MERGE THESE FUNCTION VARIATIONS
-# function ConstLengthGeodesics(DM::DataModel,Metric::Function,MLE::Vector,Conf::Float64=ConfVol(1),N::Int=100)
+# function ConstLengthGeodesics(DM::DataModel,Metric::Function,MLE::AbstractVector,Conf::Float64=ConfVol(1),N::Int=100)
 #     angles = [2*pi*n/N      for n in 1:N]
 #     sols = Vector{ODESolution}(undef,0)
 #     for α in angles
@@ -140,7 +140,7 @@ end
 # end
 
 # ADAPT FOR PLANES
-function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Vector, Conf::Real=ConfVol(1), N::Int=100; tol::Real=6e-11)
+function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::AbstractVector, Conf::Real=ConfVol(1), N::Int=100; tol::Real=6e-11)
     angles = [2π*n/N      for n in 1:N]
     Initials = [ [MLE...,cos(alpha),sin(alpha)] for alpha in angles]
     solving = 0

@@ -233,14 +233,14 @@ end
         metric = zeros(suff(ϕ),2,2);    metric[1,1] = 1.;    metric[2,2] = sin(θ)^2
         metric
     end
-    S2metric(p::Vector) = S2metric(p...)
+    S2metric(p::AbstractVector) = S2metric(p...)
 
     function S2Christoffel(θ,ϕ)
         Symbol = zeros(suff(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
         Symbol[2,1,2] = cot(θ);    Symbol[2,2,1] = cot(θ)
         Symbol
     end
-    S2Christoffel(p::Vector) = S2Christoffel(p...)
+    S2Christoffel(p::AbstractVector) = S2Christoffel(p...)
     ConstMetric(x) = [1. 0.; 0. 1.]
 
     # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar

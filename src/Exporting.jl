@@ -38,13 +38,13 @@ function Dehomogenize(V::AbstractVector, N::Int=500)
 end
 
 """
-    SaveConfidence(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
-    SaveConfidence(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+    SaveConfidence(sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+    SaveConfidence(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
 Returns a `Matrix` of with `N` rows corresponding to the number of evaluations of each `ODESolution` in `sols`.
 The colums correspond to the various components of the evaluated solutions.
 E.g. for an `ODESolution` with 3 components, the 4. column in the `Matrix` corresponds to the evaluated first components of `sols[2]`.
 """
-function SaveConfidence(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+function SaveConfidence(sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     mapreduce(sol->SaveConfidence(sol,N; sigdigits=sigdigits,adaptive=adaptive), hcat, sols)
 end
 function SaveConfidence(sol::AbstractODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
@@ -52,18 +52,18 @@ function SaveConfidence(sol::AbstractODESolution, N::Int=500; sigdigits::Int=7, 
     round.(Unpack(map(sol,Ts)); sigdigits=sigdigits)
 end
 
-function SaveConfidence(Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+function SaveConfidence(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     length(Planes) != length(sols) && throw("Dimensional Mismatch: length(Planes)=$(length(Planes)), length(sols)=$(length(sols)).")
     mapreduce((PL,sol)->SaveConfidence(PL, sol, N; sigdigits=sigdigits,adaptive=adaptive), hcat, Planes, sols)
 end
-function SaveConfidence(PL::Plane, sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+function SaveConfidence(PL::Plane, sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     mapreduce(sol->SaveConfidence(PL,sol,N; sigdigits=sigdigits,adaptive=adaptive), hcat, sols)
 end
 function SaveConfidence(PL::Plane, sol::AbstractODESolution, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     Ts = adaptive ? SaveAdaptive(sol, N) : range(sol.t[1], sol.t[end]; length=N)
     round.(Deplanarize(PL,sol,Ts); sigdigits=sigdigits)
 end
-# function SaveConfidence(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+# function SaveConfidence(sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
 #     d = length(sols[1].u[1]);    Res = Array{Float64}(undef,N,d*length(sols))
 #     for (i,sol) in enumerate(sols)
 #         Res[:,((i-1)*d+1):(d*i)] = SaveConfidence(sol, N; sigdigits=sigdigits, adaptive=adaptive)
@@ -75,12 +75,12 @@ end
 # end
 
 """
-    SaveGeodesics(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
+    SaveGeodesics(sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true) -> Matrix
 Returns a `Matrix` of with `N` rows corresponding to the number of evaluations of each `ODESolution` in `sols`.
 The colums correspond to the various components of the evaluated solutions.
 Since the solution objects for geodesics contain the velocity as the second half of the components, only the first half of the components is saved.
 """
-function SaveGeodesics(sols::Vector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
+function SaveGeodesics(sols::AbstractVector{<:AbstractODESolution}, N::Int=500; sigdigits::Int=7, adaptive::Bool=true)
     d = length(sols[1].u[1])/2 |> Int;      Res = Array{Float64}(undef,N,d*length(sols))
     for (i,sol) in enumerate(sols)
         Res[:,((i-1)*d+1):(d*i)] = SaveGeodesics(sol, N; sigdigits=sigdigits, adaptive=adaptive)

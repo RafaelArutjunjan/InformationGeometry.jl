@@ -29,7 +29,7 @@ MaximalNumberOfArguments(F::Function) = maximum([length(Base.unwrap_unionall(m.s
 
 
 """
-    Unpack(Z::Vector{S}) where S <: Union{Vector,Tuple} -> Matrix
+    Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple} -> Matrix
 Converts vector of vectors to a matrix whose n-th column corresponds to the n-th component of the inner vectors.
 """
 @inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple}
@@ -249,7 +249,7 @@ GetDoubleJac(ADmode::Val, F::DFunction) = EvalddF(F)
 function GetDoubleJac(ADmode::Val, F::Function; Kwargs...)
     m = GetArgLength(F);    f = length(F(ones(m)))
     if f == 1
-        EvaluateDoubleJacobian(p) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(F,z)), p), m, m)
+        EvaluateDoubleJac(p) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(F,z)), p), m, m)
     else
         EvaluateDoubleJacobian(p) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(F,z)), p), f, m, m)
     end
@@ -428,7 +428,7 @@ end
 
 """
     IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::AbstractODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
-    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+    IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
 Integrates a function `F` over the intersection of `Domain` and the polygon defined by `sol`.
 """
 function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::AbstractODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
@@ -438,10 +438,10 @@ function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::Hype
     MonteCarloArea(Integrand, Domain, N; WE=WE)
 end
 
-function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Tup::Tuple{<:Vector{<:Plane},<:Vector{<:AbstractODESolution}}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Tup::Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     IntegrateOverApproxConfidenceRegion(DM, Domain, Tup[1], Tup[2], F; N=N, WE=WE, kwargs...)
 end
-function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::Vector{<:Plane}, sols::Vector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM) == ConsistentElDims(Planes)
     @assert length(Planes) == length(sols)
     Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? F(X) : zero(suff(X))
@@ -601,9 +601,9 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     end
     u = cholesky(BlockMatrix(InvCov(xdist(DSE)),InvCov(ydist(DSE)))).U;    Ydata = vcat(xdata(DSE), ydata(DSE))
     f(p) = u * (predictY(p) - Ydata)
-    Jac = GetJac(ADmode)
-    dfnormalized(p) = u * normalizedjac(Jac(predictY,p), xlen)
-    df(p) = u * Jac(predictY,p)
+    Jac = GetJac(ADmode, predictY)
+    dfnormalized(p) = u * normalizedjac(Jac(p), xlen)
+    df(p) = u * Jac(p)
     p0 = vcat(xdata(DSE), initialp)
     R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
@@ -627,7 +627,7 @@ end
 
 
 """
-    minimize(F::Function, start::Vector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
+    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
 Minimizes the scalar input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
@@ -657,7 +657,7 @@ function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Do
 end
 
 """
-    RobustFit(DM::AbstractDataModel, start::Vector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
+    RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, args...; kwargs...) = RobustFit(Data(DM), Predictor(DM), args...; kwargs...)

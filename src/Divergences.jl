@@ -76,11 +76,11 @@ end
 
 
 # """
-#     NormalDist(DM::DataModel,p::Vector) -> Distribution
+#     NormalDist(DM::DataModel,p::AbstractVector) -> Distribution
 # Constructs either `Normal` or `MvNormal` type from `Distributions.jl` using data and a parameter configuration.
 # This makes the assumption, that the errors associated with the data are normal.
 # """
-# function NormalDist(DM::DataModel,p::Vector)::Distribution
+# function NormalDist(DM::DataModel,p::AbstractVector)::Distribution
 #     if length(ydata(DM)[1]) == 1
 #         length(ydata(DM)) == 1 && return Normal(ydata(DM)[1] .- DM.model(xdata(DM)[1],p),ysigma(DM)[1])
 #         return MvNormal(ydata(DM) .- map(x->DM.model(x,p),xdata(DM)),diagm(floatify(ysigma(DM).^2)))
@@ -90,7 +90,7 @@ end
 # end
 
 # """
-#     KullbackLeibler(DM::DataModel,p::Vector,q::Vector)
+#     KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector)
 # Calculates Kullback-Leibler divergence under the assumption of a normal likelihood.
 # """
 # KullbackLeibler(DM::DataModel,p::AbstractVector,q::AbstractVector) = KullbackLeibler(NormalDist(DM,p),NormalDist(DM,q))

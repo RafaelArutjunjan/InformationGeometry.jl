@@ -42,8 +42,8 @@ struct DataSet <: AbstractDataSet
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
     WoundX::Union{AbstractVector,Nothing}
-    xnames::Vector{String}
-    ynames::Vector{String}
+    xnames::AbstractVector{String}
+    ynames::AbstractVector{String}
     function DataSet(DF::Union{DataFrame,AbstractMatrix})
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
         DataSet(ToCols(Matrix(DF))...)
@@ -82,7 +82,7 @@ struct DataSet <: AbstractDataSet
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, CreateSymbolNames(xdim(dims),"x"), CreateSymbolNames(ydim(dims),"y"))
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::Vector{String}, ynames::Vector{String})
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
         new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
     end
 end
@@ -95,8 +95,8 @@ InvCov::AbstractMatrix=Diagonal([1.]),
 dims::Tuple{Int,Int,Int}=(1,1,1),
 logdetInvCov::Real=-Inf,
 WoundX::Union{AbstractVector,Nothing}=nothing,
-xnames::Vector{String}=["x"],
-ynames::Vector{String}=["y"]) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
+xnames::AbstractVector{String}=["x"],
+ynames::AbstractVector{String}=["y"]) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
 
 # Specialized methods for DataSet
 dims(DS::DataSet) = DS.dims
@@ -118,7 +118,7 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
 
-# function InformNames(DS::DataSet, xnames::Vector{String}, ynames::Vector{String})
+# function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSet(xdata(DS), ydata(DS), yInvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
 # end
