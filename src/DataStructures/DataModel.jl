@@ -133,24 +133,31 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 InformNames(DM::AbstractDataModel, xnames::AbstractVector{String}, ynames::AbstractVector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 
+abstract type DFunction <: Function end
 """
 Can store Logarithmic Prior and its derivatives if they are known.
 """
-struct Prior <: Function
-    LogPriorFunc::Function
-    LogPriorGrad::Function
-    LogPriorHess::Function
+struct Prior <: DFunction
+    F::Function
+    dF::Function
+    ddF::Function
 end
 # Dot not create Prior object when there is no prior.
 Prior(Func::Nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = nothing
 Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GetGrad(ADmode, Func); ADmode=ADmode)
 Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, GetHess(ADmode,Func))
-(P::Prior)(θ::AbstractVector{<:Number}) = P.LogPriorFunc(θ)
+(P::Prior)(θ::AbstractVector{<:Number}) = EvalF(P, θ)
 
-LogPrior(P::Prior) = P.LogPriorFunc
-LogPriorGrad(P::Prior) = P.LogPriorGrad
-LogPriorHess(P::Prior) = P.LogPriorHess
+EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
+EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
+EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
 
-EvalLogPrior(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorFunc(θ)
-EvalLogPriorGrad(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorGrad(θ)
-EvalLogPriorHess(P::Prior, θ::AbstractVector{<:Number}; kwargs...) = P.LogPriorHess(θ)
+EvalF(D::DFunction, x; kwargs...) = D.F(x);    EvaldF(D::DFunction, x; kwargs...) = D.dF(x);      EvalddF(D::DFunction, x; kwargs...) = D.ddF(x)
+EvalF(D::DFunction) = D.F;          EvaldF(D::DFunction) = D.dF;            EvalddF(D::DFunction) = D.ddF
+
+EvalF(F::Function, x; kwargs...) = F(x; kwargs...)
+EvaldF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode; kwargs...)(F, x)
+EvalddF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode; kwargs...)(F, x)
+
+EvalF(D::Nothing; kwargs...) = x->zero(suff(x));    EvaldF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x));    EvalddF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x),length(x))
+EvalF(D::Nothing, x; kwargs...) = zero(suff(x));    EvaldF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x));    EvalddF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x),length(x))

@@ -29,7 +29,7 @@ length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
     planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
     return try
         # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
@@ -45,7 +45,7 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
     mle = MLEinPlane(DM, PL)
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
 end
@@ -73,7 +73,7 @@ Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.st
 
 IsOnPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL))::Bool = DistanceToPlane(PL, x, ProjectionOp) < 4e-15
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
-RotatePlane(PL::Plane, rads::Real=π/2) = Plane(PL.stütz,cos(rads)*PL.Vx + sin(rads)*PL.Vy, cos(rads)*PL.Vy - sin(rads)*PL.Vx)
+RotatePlane(PL::Plane, rads::Real=π/2) = ((S,C) = sincos(rads);   Plane(PL.stütz, C*PL.Vx + S*PL.Vy, C*PL.Vy - S*PL.Vx))
 function RotationMatrix(PL::Plane, rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
     W = PL.Vx*transpose(PL.Vy) - PL.Vy*transpose(PL.Vx)

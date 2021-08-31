@@ -229,23 +229,23 @@ GetDoubleJac(ADmode::Symbol, args...; kwargs...) = GetDoubleJac(Val(ADmode), arg
 
 GetDeriv(ADmode::Val; Kwargs...) = EvaluateDerivative(F::Function, X; kwargs...) = _GetDeriv(ADmode; Kwargs...)(F, X; kwargs...)
 GetDeriv(ADmode::Val, F::Function; Kwargs...) = EvaluateDeriv(X) = _GetDeriv(ADmode::Val; Kwargs...)(F, X)
-GetDeriv(ADmode::Val, F::DFunction) = EvaldF(F)
+GetDeriv(ADmode::Val, F::DFunction; Kwargs...) = EvaldF(F)
 # GetDeriv(ADmode::Val{:Symbolic}, F::Function) = ...
 
 GetGrad(ADmode::Val; Kwargs...) = EvaluateGradient(F::Function, X; kwargs...) = _GetGrad(ADmode; Kwargs...)(F, X; kwargs...)
 GetGrad(ADmode::Val, F::Function; Kwargs...) = EvaluateGradient(X) = _GetGrad(ADmode::Val; Kwargs...)(F, X)
-GetGrad(ADmode::Val, F::DFunction) = EvaldF(F)
+GetGrad(ADmode::Val, F::DFunction; Kwargs...) = EvaldF(F)
 
 GetJac(ADmode::Val; Kwargs...) = EvaluateJacobian(F::Function, X; kwargs...) = _GetJac(ADmode; Kwargs...)(F, X; kwargs...)
 GetJac(ADmode::Val, F::Function; Kwargs...) = EvaluateJacobian(X) = _GetJac(ADmode::Val; Kwargs...)(F, X)
-GetJac(ADmode::Val, F::DFunction) = EvaldF(F)
+GetJac(ADmode::Val, F::DFunction; Kwargs...) = EvaldF(F)
 
 GetHess(ADmode::Val; Kwargs...) = EvaluateHessian(F::Function, X; kwargs...) = _GetHess(ADmode; Kwargs...)(F, X; kwargs...)
 GetHess(ADmode::Val, F::Function; Kwargs...) = EvaluateHess(X) = _GetHess(ADmode::Val; Kwargs...)(F, X)
-GetHess(ADmode::Val, F::DFunction) = EvalddF(F)
+GetHess(ADmode::Val, F::DFunction; Kwargs...) = EvalddF(F)
 
 GetDoubleJac(ADmode::Val; Kwargs...) = EvaluateDoubleJacobian(F::Function, X; kwargs...) = _GetDoubleJac(ADmode; Kwargs...)(F, X; kwargs...)
-GetDoubleJac(ADmode::Val, F::DFunction) = EvalddF(F)
+GetDoubleJac(ADmode::Val, F::DFunction; Kwargs...) = EvalddF(F)
 function GetDoubleJac(ADmode::Val, F::Function; Kwargs...)
     m = GetArgLength(F);    f = length(F(ones(m)))
     if f == 1
@@ -480,6 +480,20 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
 
+# function AltLineSearch(Test::Function, x::Number, Domain::Tuple{<:Number,<:Number}=(zero(suff(x)), 1e4*one(suff(x)));
+#                     tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1())
+#     @assert Domain[1] < Domain[2]
+#     try
+#         if meth isa Roots.AbstractNonBracketing
+#             find_zero(z-> F(z) - x, 0.5one(suff(x)), meth; xatol=tol)
+#         else
+#             find_zero(z-> F(z) - x, Domain, meth; xatol=tol)
+#         end
+#     catch err
+#         @warn "invert() errored: $(nameof(typeof(err))). Assuming result is bracketed by $Domain and falling back to Bisection-like method."
+#         find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol)
+#     end
+# end
 
 function MonteCarloArea(Test::Function,Cube::HyperCube,N::Int=Int(1e7); WE::Bool=false)
     if WE

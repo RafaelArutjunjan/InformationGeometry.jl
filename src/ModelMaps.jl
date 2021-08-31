@@ -25,10 +25,7 @@ struct ModelMap
     end
     # Given: HyperCube
     function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{AbstractVector{<:String},Bool}=false)
-        # Change this to θ -> true to avoid double checking cuboid. Obviously make sure Boundaries() is constructed using both the function test
-        # and the Cuboid test first before changing this.
-        InDomain(θ::AbstractVector{<:Number})::Bool = θ ∈ Domain
-        xyp isa Bool ? ModelMap(model, InDomain, Domain; pnames=pnames) : ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
+        xyp isa Bool ? ModelMap(model, θ::AbstractVector{<:Number}->true, Domain; pnames=pnames) : ModelMap(model, θ::AbstractVector{<:Number}->true, Domain, xyp; pnames=pnames)
     end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)

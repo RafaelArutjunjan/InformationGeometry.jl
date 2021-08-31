@@ -7,18 +7,8 @@ Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` 
 likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
 
-# Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
-EvalLogPrior(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zero(suff(θ))
-EvalLogPrior(LogPriorFn::Function, θ::AbstractVector{<:Number}; kwargs...) = LogPriorFn(θ)
 
-EvalLogPriorGrad(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zeros(length(θ))
-EvalLogPriorGrad(LogPriorFn::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode; kwargs...)(LogPriorFn, θ)
-
-EvalLogPriorHess(NoPrior::Nothing, θ::AbstractVector{<:Number}; kwargs...) = zeros(length(θ), length(θ))
-EvalLogPriorHess(LogPriorFn::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode; kwargs...)(LogPriorFn, θ)
-
-
-
+## Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
 loglikelihood(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> loglikelihood(DM, θ; kwargs...)
 
 # import Distributions.loglikelihood
@@ -328,7 +318,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(PlaneCoordinates(PL,X)))
+    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u, PlanarLogPrior; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
@@ -783,7 +773,7 @@ end
 Computes point inside the plane `PL` which lies on the boundary of a confidence region of level `Confnum`.
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; kwargs...)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, kwargs...)
     FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; kwargs...)
 end
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)

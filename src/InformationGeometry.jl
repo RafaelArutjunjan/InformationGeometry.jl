@@ -15,7 +15,10 @@ using LibGEOS, Sobol
 using RecipesBase, Plots
 using TreeViews
 
-import SciMLBase: AbstractODESolution, AbstractODEFunction, remake
+import SciMLBase: AbstractODESolution, AbstractODEFunction
+
+import SciMLBase: remake
+export remake
 
 
 ############## TODOs ##############
