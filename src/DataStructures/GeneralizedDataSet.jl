@@ -33,7 +33,7 @@ struct GeneralizedDataSet <: AbstractDataSet
     function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"))
         @assert Npoints(dims) > 0 && xdim(dims) ≥ 0 && ydim(dims) > 0
         @assert xdim(dims) == length(xnames) && ydim(dims) == length(ynames)
-        @assert WoundX isa AbstractVector ? (ConsistentElDims(WoundX) == xdim(dims)) : (xdim(dims) < 2)
+        @assert (WoundX isa AbstractVector ? (ConsistentElDims(WoundX) == xdim(dims)) : (xdim(dims) < 2))
 
         if isseparable(dist)
             @info "Got separable distribution in GeneralizedDataSet, returning DataSetExact instead."

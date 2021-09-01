@@ -326,6 +326,26 @@ function FaceCenters(Cube::HyperCube)
     vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
 end
 
+"""
+    Corners(C::HyperCube) -> Vector{Vector}
+Returns the `2^n` corner points of a `n`-dimensional `HyperCube`.
+"""
+Corners(C::HyperCube{T}) where T<:Number = Corners([T[]], [(C.L[i], C.U[i]) for i in 1:length(C)])
+function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tuple})
+    length(C) == 0 && return Res
+    Tup = popfirst!(C)
+    n = length(Res)
+    for r in Res
+        append!(r, Tup[1])
+    end
+    Res = vcat(Res,Res)
+    for i in n+1:2n
+        Res[i][end] = Tup[2]
+    end
+    Corners(Res,C)
+end
+
+
 import Base: vcat
 vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0)
 

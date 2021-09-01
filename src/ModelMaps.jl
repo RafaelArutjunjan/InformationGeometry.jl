@@ -13,7 +13,7 @@ For more complicated boundary constraints, a `Bool`-valued function `InDomain` c
 struct ModelMap
     Map::Function
     InDomain::Function
-    Domain::Union{Cuboid,Nothing}
+    Domain::Cuboid
     xyp::Tuple{Int,Int,Int}
     pnames::AbstractVector{<:String}
     StaticOutput::Val
@@ -50,8 +50,7 @@ struct ModelMap
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
-        Domain = isnothing(Domain) ? FullDomain(xyp[3]) : Domain
-        new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+        new(Map, InDomain, (isnothing(Domain) ? FullDomain(xyp[3]) : Domain), xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
