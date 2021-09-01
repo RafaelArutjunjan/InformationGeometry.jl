@@ -184,7 +184,7 @@ GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
 function GeodesicBoundaryFunction(M::ModelMap)
     function ModelMapBoundaries(u,p,t)
         S = !IsInDomain(M, u[1:end÷2])
-        S && @warn "Geodesic ran into boundaries specified by ModelMap."
+        S && @warn "Geodesic ran into boundaries specified by ModelMap at $(u[1:end÷2])."
         return S
     end
 end

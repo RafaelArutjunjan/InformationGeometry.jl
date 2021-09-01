@@ -20,10 +20,10 @@ Various geometric quantities which are intrinsic to the parameter manifold ``\ma
 Score(::DataModel,::Vector{Float64})
 FisherMetric(::DataModel,::Vector{Float64})
 GeometricDensity(::DataModel,::Vector{Float64})
-ChristoffelSymbol(::DataModel,::Vector{Float64})
-Riemann(::DataModel,::Vector{Float64})
-Ricci(::DataModel,::Vector{Float64})
-RicciScalar(::DataModel,::Vector{Float64})
+ChristoffelSymbol(::Function,::Vector{Float64})
+Riemann(::Function,::Vector{Float64})
+Ricci(::Function,::Vector{Float64})
+RicciScalar(::Function,::Vector{Float64})
 ```
 
 Further, studying the geodesics associated with a metric manifold can yield insights into its geometry.

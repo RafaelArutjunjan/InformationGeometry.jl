@@ -21,7 +21,8 @@ using Distributions, Random, BenchmarkTools
 Random.seed!(123)
 X = collect(1:300);     Y = 0.02*X.^2 - 5*X .+ 10 + rand(Normal(0,5),300)
 
-DM = DataModel(DataSet(X, Y, 5 .* ones(300) + 2rand(300)), (x,θ)->sinh(θ[1])*x^2 + (θ[2]+θ[3])*x + (θ[2]-θ[3]))
+DS = DataSet(X, Y, 5 .* ones(300) + 2rand(300))
+DM = DataModel(DS, (x,θ)->sinh(θ[1])*x^2 + (θ[2]+θ[3])*x + (θ[2]-θ[3]))
 
 sendto(workers(); DM=DM)
 

@@ -274,14 +274,14 @@ end
 function SpatialBoundaryFunction(M::ModelMap)
     function ModelMapBoundaries(u,p,t)
         S = !IsInDomain(M, u)
-        S && @warn "Curve ran into boundaries specified by ModelMap."
+        S && @warn "Curve ran into boundaries specified by ModelMap at $u."
         return S
     end
 end
 function SpatialBoundaryFunction(M::ModelMap, PL::Plane)
     function ModelMapBoundaries(u,p,t)
         S = !IsInDomain(M, PlaneCoordinates(PL,u))
-        S && @warn "Curve ran into boundaries specified by ModelMap."
+        S && @warn "Curve ran into boundaries specified by ModelMap at $u."
         return S
     end
 end
@@ -393,7 +393,7 @@ computes the ``1\\sigma``, ``2\\sigma`` and ``3\\sigma`` confidence regions asso
 
 Keyword arguments:
 * `IsConfVol = true` can be used to specify the desired confidence level directly in terms of a probability ``p \\in [0,1]`` instead of in units of standard deviations ``\\sigma``,
-* `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-12`),
+* `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-9`),
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
 * `Auto = Val(true)` can be chosen to compute the derivatives of the likelihood using automatic differentiation,
 * `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects,
@@ -426,7 +426,7 @@ end
 
 
 """
-    InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
+    InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
                                 redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
@@ -439,7 +439,7 @@ function InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Bound
 end
 
 """
-    GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-12,
+    GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
                                 redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, Auto::Val=Val(false), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
