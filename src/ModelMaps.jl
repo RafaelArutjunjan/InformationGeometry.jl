@@ -39,7 +39,7 @@ struct ModelMap
         end
         ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
-    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{Vector{String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
         StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(false), Val(false))

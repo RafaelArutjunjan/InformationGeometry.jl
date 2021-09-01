@@ -31,8 +31,8 @@ end
 
 AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoScore(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) + EvalLogPriorGrad(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
 AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoMetric(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
-_AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode)(x->_loglikelihood(DS, model, x; kwargs...), θ)
-_AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode)(x->(-_loglikelihood(DS, model, x; kwargs...)), θ)
+_AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, x->_loglikelihood(DS, model, x; kwargs...))(θ)
+_AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, x->-_loglikelihood(DS, model, x; kwargs...))(θ)
 
 
 
@@ -173,17 +173,12 @@ end
     _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
 Computes OrthVF by evaluating the GRADIENT dF.
 """
-function _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
-    _turn(dF(θ), alpha)
-end
-function _OrthVF!(Res::AbstractVector{<:Number}, dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)))
-    _turn!(Res, dF(θ), alpha)
-end
+_OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn(dF(θ), alpha)
+_OrthVF!(Res::AbstractVector{<:Number}, dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn!(Res, dF(θ), alpha)
 
-function _turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector)
-    map!(/, Res, α, S)
-    normalize!(Res)
-end
+_turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector) = (map!(/, Res, α, S);    normalize!(Res))
+
+# Out-of-place versions
 function _turn(S::AbstractVector, α::AbstractVector)
     # normalize!(map(/, α, S))
     normalize!(map!(/, S, α, S))
@@ -341,8 +336,8 @@ function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     FuncOnBoundary = F(u0)
     CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
-    IntCurveODE!(du,u,p,t)  =  CheatingOrth!(du, dF(u))
-    g!(resid,u,p,t)  =  resid[1] = FuncOnBoundary - F(u)
+    IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
+    g!(resid,u,p,t)  =  (resid[1] = FuncOnBoundary - F(u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB

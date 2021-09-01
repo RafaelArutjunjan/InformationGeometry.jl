@@ -15,6 +15,7 @@ using LibGEOS, Sobol
 using RecipesBase, Plots
 using TreeViews
 
+import DataInterpolations: AbstractInterpolation
 import SciMLBase: AbstractODESolution, AbstractODEFunction
 
 import SciMLBase: remake
@@ -89,7 +90,6 @@ export remake
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
 abstract type Cuboid end
-
 export AbstractDataSet, AbstractDataModel, Cuboid
 
 

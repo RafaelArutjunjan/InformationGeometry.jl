@@ -4,42 +4,46 @@
 DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
 Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
 
-
-# vcat(X[1:Comp-1], [Val], X[Comp:end])
-InsertValAt(X::AbstractVector{<:Number}, Comp::Int, Val::AbstractFloat) = insert!(copy(X), Comp, Val)
-# Shouldn't need this:
-InsertValAt(X::Number, Comp::Int, Val::AbstractFloat) = InsertValAt([X], Comp, Val)
-
-"""
-Naively computes approximate 1D domain from inverse Fisher metric at MLE.
-"""
-function GetDomainTuple(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false)::Tuple
-    @assert 1 ≤ Comp ≤ pdim(DM)
-    ApproxDev = try
-        sqrt(inv(FisherMetric(DM, MLE(DM)))[Comp,Comp])
-    catch;
-        try
-            1 / sqrt(FisherMetric(DM, MLE(DM))[Comp,Comp])
-        catch;
-            1e-8
-        end
-    end
-    ApproxDev *= sqrt(InvChisqCDF(pdim(DM), ConfVol(Confnum)))
-    ForcePositive && @assert MLE(DM)[Comp]+ApproxDev > 0.
-
-    # If Bio model, the pinned rate parameter should remain positive
-    start = (MLE(DM)[Comp]-ApproxDev < 0. && ForcePositive) ? 1e-12 : MLE(DM)[Comp]-ApproxDev
-    # ps = range(start, MLE(DM)[Comp]+ApproxDev; length=N)
-    (start, MLE(DM)[Comp]+ApproxDev)
-end
-
+ValInserter(Component::Int, Value::AbstractFloat) = ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
 
 
 ProfilePredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) = ProfilePredictor(Predictor(DM), Comp, PinnedValue)
-ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, X->InsertValAt(X, Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDim(M.Domain, Comp) : nothing))
+ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDim(M.Domain, Comp) : nothing))
 
 ProfileDPredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) = ProfileDPredictor(dPredictor(DM), Comp, PinnedValue)
-ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, X->InsertValAt(X, Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDim(dM.Domain, Comp) : nothing))
+ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDim(dM.Domain, Comp) : nothing))
+
+
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1))
+    function _GetApproxWidth(F::AbstractMatrix, Comp::Int; failed::Real=1e-8)
+        try
+            sqrt(inv(F)[Comp,Comp])
+        catch;
+            try     # For structurally unidentifiable models, return value given by "failed".
+                1 / sqrt(F[Comp,Comp])
+            catch;  failed  end
+        end
+    end
+    widths = sqrt(InvChisqCDF(dof, ConfVol(Confnum))) .* [_GetApproxWidth(F, i) for i in 1:size(F,1)]
+end
+
+GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...) = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; kwargs...)
+"""
+Computes approximate width of Confidence Region from Fisher Metric and return this domain as a `HyperCube`.
+Ensures that this width is positive even for structurally unidentifiable models.
+"""
+function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), ForcePositive::Bool=false)
+    @assert size(F,1) == size(F,2) == length(mle)
+    widths = _WidthsFromFisher(F, Confnum; dof=dof)
+    @assert all(x->x>0, widths)
+    L = mle - widths;   U = mle + widths
+    if ForcePositive
+        clamp!(L, 1e-14ones(length(L)), 1e20ones(length(L)))
+        clamp!(U, 1e-14ones(length(L)), 1e20ones(length(L)))
+    end
+    HyperCube(L,U)
+end
+
 
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
@@ -58,7 +62,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         MLEstash = Drop(MLE(DM), Comp)
         for (i,p) in enumerate(ps)
             NewModel = ProfilePredictor(DM, Comp, p)
-            DroppedLogPrior = isnothing(LogPrior(DM)) ? nothing : (X->LogPrior(DM)(InsertValAt(X,Comp,p)))
+            DroppedLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘ValInserter(Comp,p)
             MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior; tol=tol, kwargs...).param
             SaveTrajectories && (path[i] = MLEstash)
             Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)
@@ -79,8 +83,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     end
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, kwargs...)
-    GetProfile(DM, Comp, GetDomainTuple(DM, Comp, Confnum; ForcePositive=ForcePositive); N=N, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false, kwargs...)
+    GetProfile(DM, Comp, (C=GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); (C.L[Comp], C.U[Comp])); kwargs...)
 end
 
 
@@ -92,8 +96,8 @@ Returns a vector of N×2 matrices where the first column of the n-th matrix spec
 The domain over which the profile likelihood is computed is not (yet) adaptively chosen. Instead the size of the domain is estimated from the inverse Fisher metric.
 Therefore, often has to pass higher value for `Confnum` to this method than the confidence level one is actually interested in, to ensure that it is still covered (if the model is even practically identifiable in the first place).
 """
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, kwargs...)
-    ProfileLikelihood(DM, HyperCube([GetDomainTuple(DM, i, Confnum; ForcePositive=ForcePositive) for i in 1:pdim(DM)]); N=N, plot=plot, parallel=parallel, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive::Bool=false, kwargs...)
+    ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); kwargs...)
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false, kwargs...)
@@ -104,12 +108,14 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, 
 end
 
 
-function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector; kwargs...)
-    Pnames = Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")
+function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
+    Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), kwargs...)
+    @assert length(Profiles) == length(Profiles)
+    Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
-        [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel="Conf. level [σ]") for i in 1:length(Profiles)]
+        [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
     else
-        P1 = [Plots.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel="Conf. level [σ]") for i in 1:length(Profiles)]
+        P1 = [Plots.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
         if length(Profiles) ≤ 3
             P2 = PlotProfileTrajectories(DM, Profiles)
             vcat(P1,[P2])
@@ -142,17 +148,20 @@ end
     ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.; Padding::Real=0.)
+function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; Padding::Real=0.)
+    ProfileBox(Fs, MLE(DM), Confnum; Padding)
+end
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0.)
     domains = map(F->(F.t[1], F.t[end]), Fs)
     crossings = [find_zeros(x->(Fs[i](x)-Confnum), domains[i][1], domains[i][2]) for i in 1:length(Fs)]
     for i in 1:length(crossings)
         if length(crossings[i]) == 2
             continue
         elseif length(crossings[i]) == 1
-            if MLE(DM)[i] < crossings[i][1]     # crossing is upper bound
-                crossings[i] = [-10000.0, crossings[i][1]]
+            if mle[i] < crossings[i][1]     # crossing is upper bound
+                crossings[i] = [-1e5, crossings[i][1]]
             else
-                crossings[i] = [crossings[i][1], 10000.0]
+                crossings[i] = [crossings[i][1], 1e5]
             end
         else
             throw("Error for i = $i")
