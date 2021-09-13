@@ -203,7 +203,7 @@ function ElaborateGetStartP(C::HyperCube, InDom::Function; maxiters::Int=5000)
     X = rand(length(C));    i = 0
     S = Sobol.skip(SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
     while i < maxiters
-        next!(S, X);    (InDom(X) && break);    i += 1
+        Sobol.next!(S, X);    (InDom(X) && break);    i += 1
     end
     i == maxiters && throw("Unable to find point satisfying InDomain() inside HyperCube within $maxiters iterations.")
     X
@@ -375,7 +375,7 @@ function StructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolutio
     find_zeros(t->GeometricDensity(DM,sol(t); kwargs...), sol.t[1], sol.t[end])
 end
 function StructurallyIdentifiable(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
-    parallel ? pmap(x->StructurallyIdentifiable(DM,x; kwargs...), sols) : map(x->StructurallyIdentifiable(DM,x; kwargs...), sols)
+    (parallel ? pmap : map)(x->StructurallyIdentifiable(DM,x; kwargs...), sols)
 end
 
 
@@ -401,14 +401,13 @@ Keyword arguments:
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, Auto::Val=Val(false),
-                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
-    Map = parallel ? pmap : map
     if pdim(DM) == 1
-        return Map(x->ConfidenceRegion(DM,x; tol=tol, dof=dof), Range)
+        return (parallel ? pmap : map)(x->ConfidenceRegion(DM,x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
-        sols = Map(x->ConfidenceRegion(DM,x; tol=tol, dof=dof, Boundaries=Boundaries,meth=meth,mfd=mfd,Auto=Auto,kwargs...), Range)
+        sols = (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Range)
         if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
@@ -868,7 +867,11 @@ Intersects the confidence boundary of level `Confnum` with `Planes` and computes
 function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, Auto::Val=Val(false),
                         Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, parallel::Bool=false, kwargs...)
     Map = parallel ? pmap : map
-    Map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Planes)
+    if parallel
+        @showprogress 1 "Computing planar solutions... " pmap(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Planes)
+    else
+        @showprogress 1 "Computing planar solutions... " map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Planes)
+    end
 end
 
 
@@ -939,7 +942,7 @@ end
 Checks if point `p` is left of the line from `q₁` to `q₂` via `det([q₁-p  q₂-p]) > 0` for 2D points.
 """
 function LeftOfLine(q₁::AbstractVector, q₂::AbstractVector, p::AbstractVector)::Bool
-    @assert length(q₁) == length(q₂) == length(p) == 2
+    # @assert length(q₁) == length(q₂) == length(p) == 2
     (q₁[1] - p[1]) * (q₂[2] - p[2]) - (q₂[1] - p[1]) * (q₁[2] - p[2]) > 0
 end
 
@@ -949,6 +952,7 @@ end
 Is a point `p` inside a polygon defined by a counterclockwise list of points.
 """
 function isinside(p::AbstractVector{<:Number}, pointlist::AbstractVector{<:AbstractVector})
+    @assert ConsistentElDims(pointlist) == length(p) == 2
     c = false
     @inbounds for counter in eachindex(pointlist)
         q1 = pointlist[counter]

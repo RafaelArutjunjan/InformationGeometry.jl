@@ -334,15 +334,16 @@ Corners(C::HyperCube{T}) where T<:Number = Corners([T[]], [(C.L[i], C.U[i]) for 
 function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tuple})
     length(C) == 0 && return Res
     Tup = popfirst!(C)
-    n = length(Res)
-    for r in Res
-        append!(r, Tup[1])
-    end
-    Res = vcat(Res,Res)
-    for i in n+1:2n
-        Res[i][end] = Tup[2]
-    end
-    Corners(Res,C)
+    Corners(vcat([append!(copy(r), Tup[1]) for r in Res], [append!(copy(r), Tup[2]) for r in Res]), C)
+    # n = length(Res)
+    # for r in Res
+    #     append!(r, Tup[1])
+    # end
+    # NewRes = vcat(Res,Res)
+    # for i in n+1:2n
+    #     NewRes[i][end] = Tup[2]
+    # end
+    # Corners(NewRes,C)
 end
 
 

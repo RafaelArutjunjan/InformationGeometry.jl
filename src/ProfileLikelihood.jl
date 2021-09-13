@@ -101,8 +101,11 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false, kwargs...)
-    Map = parallel ? pmap : map
-    Profiles = Map(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+    Profiles = if parallel
+        @showprogress 1 "Computing Profiles... " pmap(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+    else
+        @showprogress 1 "Computing Profiles... " map(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+    end
     plot && ProfilePlotter(DM, Profiles)
     Profiles
 end

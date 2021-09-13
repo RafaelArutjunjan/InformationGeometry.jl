@@ -26,7 +26,7 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
 end
 
 function SymbolicModel(DM::AbstractDataModel)
-    expr = ToExpr(DM)
+    expr = @suppress_err ToExpr(DM)
     isnothing(expr) ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
 end
 
@@ -74,7 +74,7 @@ end
 function ExprToModelMap(X::Union{Num,AbstractVector{<:Num}}, P::AbstractVector{Num}, modelexpr::Union{Num,AbstractArray{<:Num}};
                                                         inplace::Bool=false, parallel::Bool=false, IsJacobian::Bool=false, force_SA::Bool=IsJacobian, kwargs...)
     OptimizedModel = Builder(modelexpr, X, P; inplace=inplace, parallel=parallel, force_SA=force_SA, kwargs...)
-    
+
     ### Pretty Function names
     if IsJacobian
         # THROWING AWAY KWARGS HERE!

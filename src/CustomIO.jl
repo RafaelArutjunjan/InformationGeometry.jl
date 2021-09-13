@@ -117,7 +117,7 @@ end
 
 
 function Base.show(io::IO, DM::AbstractDataModel)
-    Expr = ToExpr(Data(DM), Predictor(DM))
+    Expr = SymbolicModel(DM)
     IsLin = try IsLinearParameter(DM) catch; nothing end
     println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
@@ -132,6 +132,6 @@ function Base.show(io::IO, DM::AbstractDataModel)
         println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
         println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     end
-    !isnothing(Expr) && println(io, "Model:  y(x,θ) = $Expr")
+    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
 end
