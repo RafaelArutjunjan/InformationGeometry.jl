@@ -8,7 +8,6 @@ A container which stores additional information about a model map, in particular
 `Map` is the actual map `(x,θ) -> model(x,θ).`
 `Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
 For more complicated boundary constraints, a `Bool`-valued function `InDomain` can be specified which should return `false` when a parameter configuration `θ` which is not in the valid domain.
-
 """
 struct ModelMap
     Map::Function

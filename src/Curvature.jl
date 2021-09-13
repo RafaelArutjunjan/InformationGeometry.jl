@@ -40,11 +40,14 @@ function AutoMetricPartials(Metric::Function, θ::AbstractVector{<:Number}; kwar
     AutoMetricPartials!(PDV, Metric, θ; kwargs...); PDV
 end
 function AutoMetricPartials!(PDV::AbstractArray{<:Float64,3}, Metric::Function, θ::AbstractVector{<:Float64}; BigCalc::Bool=false, ADmode::Union{Val,Symbol}=:ForwardDiff)
-    J = GetJac(ADmode,Metric)(θ)
-    for i in 1:length(θ)
-        PDV[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
-    end
+    BigCalc && (θ = BigFloat.(θ))
+    PDV[:] = vec(GetJac(ADmode,Metric)(θ))
+    # J = GetJac(ADmode,Metric)(θ)
+    # for i in 1:length(θ)
+    #     PDV[:,:,i] = reshape(J[:,i], (length(θ),length(θ)))
+    # end
 end
+
 function AutoMetricPartials!(Metric::Function, θ::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=:ForwardDiff, kwargs...)
     PDV = Array{Float64}(undef, length(θ), length(θ), length(θ))
     MetricPartials!(PDV, Metric, θ; kwargs...); PDV
