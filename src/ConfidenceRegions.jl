@@ -407,7 +407,11 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
     if pdim(DM) == 1
         return (parallel ? pmap : map)(x->ConfidenceRegion(DM,x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
-        sols = (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Range)
+        sols = if parallel
+            @showprogress 1 "Computing boundaries... " pmap(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Range)
+        else
+            @showprogress 1 "Computing boundaries... " map(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...), Range)
+        end
         if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
