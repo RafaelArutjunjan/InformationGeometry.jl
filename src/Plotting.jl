@@ -950,6 +950,18 @@ function PlotAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<
     [X Z]
 end
 
+PhaseSpacePlot(DM::AbstractDataModel; kwargs...) = PhaseSpacePlot(DM, (C=InformationGeometry.XCube(DM); range(C.L[1], C.U[1]; length=300)); kwargs...)
+function PhaseSpacePlot(DM::AbstractDataModel, ts::AbstractVector{<:Number}, mle::AbstractVector{<:Number}=MLE(DM); OverWrite::Bool=true, kwargs...)
+    OverWrite && plot()
+    p = scatter!(collect(Iterators.partition(ydata(DM),ydim(DM))); label="Observed Data")
+    p = if ydim(DM) == 2
+        plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", markeralpha=0, linealpha=1, kwargs...)
+    elseif ydim(DM) == 3
+        plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", zlabel="$(ynames(DM)[3])", markeralpha=0, linealpha=1, kwargs...)
+    else
+        throw("Cannot display phase space for ydim=$(ydim(DM)).")
+    end;    display(p);    p
+end
 
 
 # Helper methods for creating a rectangular or triangular mesh from the outputs of MincedBoundaries()

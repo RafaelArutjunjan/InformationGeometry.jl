@@ -205,7 +205,7 @@ export ChristoffelSymbol, Riemann, Ricci, RicciScalar
 
 
 include("DiffEqModels.jl")
-export GetModel
+export GetModel, ModifyODEmodel
 
 
 include("SymbolicComputations.jl")
@@ -216,7 +216,7 @@ include("Plotting.jl")
 export FittedPlot, ResidualPlot, PlotScalar, PlotLoglikelihood, Plot2DVF, ResidualSquaredError, PlotEllipses
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix
-export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve
+export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve, PhaseSpacePlot
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 
 

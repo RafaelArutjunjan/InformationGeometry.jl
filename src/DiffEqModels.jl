@@ -241,3 +241,28 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
     end
     MakeCustom(ODEModel, Domain)
 end
+
+
+ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) = ModifyODEmodel(DM, Predictor(DM), NewObservationFunc)
+function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFunc::Function)
+    # Model.Map isa DEModel && return ModifyDEModel(Model, NewObservationFunc)
+    Eval = try
+        Model(WoundX(DM)[1], MLE(DM); FullSol=true).u[1]
+    catch;
+        throw("It appears as though the given model is not an ODEmodel")
+    end
+    F = CompleteObservationFunction(NewObservationFunc)
+    out = F(Eval, WoundX(DM)[1], MLE(DM))
+    function NewMap(x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+        FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
+        sol = Model.Map(x, θ; FullSol=true, saveat=x, kwargs...)
+        length(sol.u) != length(x) && throw("ODE integration failed, maybe try using a lower tolerance value.")
+        [F(sol.u[i], sol.t[i], θ) for i in 1:length(x)] |> Reduction
+    end
+    function NewMap(x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+        FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
+        sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        F(sol.u[end], sol.t[end], θ)
+    end
+    ModelMap(NewMap, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
+end

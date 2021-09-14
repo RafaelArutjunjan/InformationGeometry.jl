@@ -2,8 +2,8 @@
 
 
 """
-Data structure which can take general x-y-covariance into account.
-Also 0-dim x-values possible, i.e. only ydata.
+    GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}=(length(dist), 1, 1))
+Data structure which can take general x-y-covariance into account where `dims=(Npoints, xdim, ydim)` indicates the dimensionality of the data.
 """
 struct GeneralizedDataSet <: AbstractDataSet
     dist::ContinuousMultivariateDistribution

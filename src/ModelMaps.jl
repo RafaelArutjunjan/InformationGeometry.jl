@@ -32,15 +32,16 @@ struct ModelMap
             xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
         else
-            plen = length(Domain);      startp = GetStartP(plen)
+            startp = ElaborateGetStartP(Domain, InDomain)
             xlen = GetArgLength(x->model(x,startp));    testout = model((xlen < 2 ? 1. : ones(xlen)), startp)
-            (xlen, size(testout,1), plen)
+            (xlen, size(testout,1), length(Domain))
         end
         ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
     function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
-        StaticOutput = typeof(model((xyp[1] < 2 ? 1. : ones(xyp[1])), ones(xyp[3]))) <: SVector
+        startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
+        StaticOutput = model((xyp[1] < 2 ? 1. : ones(xyp[1])), startp) isa SVector
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(false), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
