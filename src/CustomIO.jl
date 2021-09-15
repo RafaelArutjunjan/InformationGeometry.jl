@@ -51,7 +51,7 @@ import Base: show
 function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
     println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
-    if typeof(DS) == DataSetExact
+    if DS isa DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
             println(io, "Standard deviation associated with x-data:")
             show(io, mime, xsigma(DS))
@@ -74,7 +74,7 @@ end
 function Base.show(io::IO, DS::AbstractDataSet)
     println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
-    if typeof(DS) == DataSetExact
+    if DS isa DataSetExact
         if typeof(xsigma(DS)) <: AbstractVector
             println(io, "Standard deviation associated with x-data:")
             show(io, xsigma(DS))
@@ -94,26 +94,17 @@ function Base.show(io::IO, DS::AbstractDataSet)
     end
 end
 
-##### StaticOutput?
-# function Base.show(io::IO, mime::MIME"text/plain", DM::AbstractDataModel)
-#     Expr = ToExpr(Data(DM), Predictor(DM))
-#     IsLin = try IsLinearParameter(DM) catch; nothing end
-#     println(io, mime, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-#     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
-#         "generated via automatic differentiation"
-#     elseif GeneratedFromSymbolic(dPredictor(DM))
-#         "symbolically provided"
-#     else
-#         "manually provided by user"
-#     end
-#     println(io, mime, "Model jacobian " * Jac)
-#     if DM isa DataModel
-#         println(io, mime, "Maximum Likelihood Estimate: $(MLE(DM))")
-#         println(io, mime, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
-#     end
-#   !isnothing(Expr) && println(io, "Model:  y(x,θ) = $Expr")
-#   !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
-# end
+
+function Base.show(io::IO, mime::MIME"text/plain", GDS::GeneralizedDataSet)
+    println(io, "$(nameof(typeof(GDS))) with N=$(Npoints(GDS)), xdim=$(xdim(GDS)) and ydim=$(ydim(GDS)):")
+    print(io, "Combined x-y data: ");    show(io, mime, GetMean(dist(GDS)));    print(io, "\n")
+    print(io, "Combined x-y covariance: ");    show(io, mime, Sigma(dist(GDS)));    print(io, "\n")
+end
+function Base.show(io::IO, GDS::GeneralizedDataSet)
+    println(io, "$(nameof(typeof(GDS))) with N=$(Npoints(GDS)), xdim=$(xdim(GDS)) and ydim=$(ydim(GDS)):")
+    print(io, "Combined x-y data: ");    show(io, GetMean(dist(GDS)));    print(io, "\n")
+    print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
+end
 
 
 function Base.show(io::IO, DM::AbstractDataModel)
