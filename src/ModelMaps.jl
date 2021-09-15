@@ -3,15 +3,17 @@
 
 # Callback triggers when Boundaries is `true`.
 """
-    ModelMap(Map::Function, InDomain::Function, Domain::HyperCube)
+    ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::HyperCube)
+    ModelMap(Map::Function, InDomain::Function, xyp::Tuple{Int,Int,Int})
 A container which stores additional information about a model map, in particular its domain of validity.
-`Map` is the actual map `(x,θ) -> model(x,θ).`
-`Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
-For more complicated boundary constraints, a `Bool`-valued function `InDomain` can be specified which should return `false` when a parameter configuration `θ` which is not in the valid domain.
+`Map` is the actual map `(x,θ) -> model(x,θ)`. `Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
+For more complicated boundary constraints, scalar function `InDomain` can be specified, which should be strictly positive on the valid parameter domain.
+Note: A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
+Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
 struct ModelMap
     Map::Function
-    InDomain::Function
+    InDomain::Union{Nothing,Function}
     Domain::Cuboid
     xyp::Tuple{Int,Int,Int}
     pnames::AbstractVector{<:String}
@@ -24,10 +26,10 @@ struct ModelMap
     end
     # Given: HyperCube
     function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{AbstractVector{<:String},Bool}=false)
-        xyp isa Bool ? ModelMap(model, θ::AbstractVector{<:Number}->true, Domain; pnames=pnames) : ModelMap(model, θ::AbstractVector{<:Number}->true, Domain, xyp; pnames=pnames)
+        xyp isa Bool ? ModelMap(model, nothing, Domain; pnames=pnames) : ModelMap(model, nothing, Domain, xyp; pnames=pnames)
     end
     # Given: Function only (potentially) -> Find xyp
-    function ModelMap(model::Function, InDomain::Function=θ::AbstractVector{<:Number}->true, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
         xyp = if isnothing(Domain)
             xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
             (xlen, size(testout,1), plen)
@@ -38,7 +40,7 @@ struct ModelMap
         end
         ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
     end
-    function ModelMap(model::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
         startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         StaticOutput = model((xyp[1] < 2 ? 1. : ones(xyp[1])), startp) isa SVector
@@ -48,9 +50,11 @@ struct ModelMap
     ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
-    function ModelMap(Map::Function, InDomain::Function, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
+    function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
-        new(Map, InDomain, (isnothing(Domain) ? FullDomain(xyp[3]) : Domain), xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+        isnothing(Domain) && (Domain = FullDomain(xyp[3], 1e5))
+        InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
+        new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
@@ -60,14 +64,13 @@ ModelOrFunction = Union{Function,ModelMap}
 # For SciMLBase.remake
 ModelMap(;
 Map::Function=x->Inf,
-InDomain::Function=x->false,
+InDomain::Union{Nothing,Function}=nothing,
 Domain::Union{Cuboid,Nothing}=nothing,
 xyp::Tuple{Int,Int,Int}=(1,1,1),
 pnames::AbstractVector{String}=["θ"],
 StaticOutput::Val=Val(true),
 inplace::Val=Val(true),
 CustomEmbedding::Val=Val(true)) = ModelMap(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
-
 
 
 
@@ -83,8 +86,16 @@ isinplace(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
 
-IsInDomain(M::ModelMap, θ::AbstractVector) = (θ ∈ M.Domain && M.InDomain(θ))
-IsInDomain(M::ModelMap) = θ::AbstractVector -> (θ ∈ M.Domain && M.InDomain(θ))
+IsInDomain(M::ModelMap) = θ::AbstractVector -> IsInDomain(M, θ)
+IsInDomain(M::ModelMap, θ::AbstractVector) = IsInDomain(M.InDomain, M.Domain, θ)
+IsInDomain(InDomain::Union{Nothing,Function}, Domain::Union{Nothing,Cuboid}, θ::AbstractVector) = (_TestInDomain(InDomain, θ) && _TestDomain(Domain, θ))
+
+# Eval InDomain function
+_TestInDomain(::Nothing, θ::AbstractVector) = true
+_TestInDomain(InDomain::Function, θ::AbstractVector) = InDomain(θ) > 0
+# Eval Domain HyperCube
+_TestDomain(::Nothing, θ::AbstractVector) = true       # Excluded
+_TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 
 
 MakeCustom(F::Function, Domain::Union{Cuboid,Bool,Nothing}=nothing) = Domain isa Cuboid ? MakeCustom(ModelMap(F, Domain)) : MakeCustom(ModelMap(F))
@@ -133,8 +144,8 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
         function ConcatenatedModel(x::Number, θ::AbstractVector{<:Number}; kwargs...)
             map(model->model(x, θ; kwargs...), Mods) |> Reduction
         end
-        EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
-        EbdMap(model::Function,θ::AbstractVector,woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
+        EbdMap(model::Function, θ::AbstractVector, woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+        EbdMap(model::Function, θ::AbstractVector, woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
         function ConcatenatedModel(X::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
             if any(iscustom, Mods)
                 Res = if any(m->m.xyp[2]>1, Mods)
@@ -166,7 +177,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
                 return map(z->NConcatenatedModel(z, θ; kwargs...), X) |> Reduction
             end
         end
-        return ModelMap(NConcatenatedModel,reduce(union, (z->z.Domain).(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
+        return ModelMap(NConcatenatedModel, reduce(union, (z->z.Domain).(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
     end
 end
 
@@ -188,7 +199,7 @@ Transform(model::Function, idxs::BoolVector, Transform::Function, InverseTransfo
 
 # Try to do a bit of inference for the new domain here!
 function Transform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
-    TransformedDomain(θ::AbstractVector{<:Number}) = M.InDomain(_Apply(θ, Transform, idxs))
+    TransformedDomain = M.InDomain isa Function ? (θ::AbstractVector{<:Number} -> M.InDomain(_Apply(θ, Transform, idxs))) : nothing
     mono = Monotonicity(Transform, (1e-12,50.))
     NewCube = if mono == :increasing
         HyperCube(_Apply(M.Domain.L, InverseTransform, idxs), _Apply(M.Domain.U, InverseTransform, idxs))
@@ -256,7 +267,7 @@ function TranslationTransform(F::Function, v::AbstractVector{<:Number})
 end
 function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
     @assert length(M.Domain) == length(v)
-    ModelMap(TranslationTransform(M.Map, v), θ->M.InDomain(θ + v), TranslateCube(M.Domain, -v), M.xyp, M.pnames, M.StaticOutput,
+    ModelMap(TranslationTransform(M.Map, v), (M.InDomain isa Function ? (θ->M.InDomain(θ + v)) : nothing), TranslateCube(M.Domain, -v), M.xyp, M.pnames, M.StaticOutput,
                                     M.inplace, M.CustomEmbedding)
 end
 function TranslationTransform(DM::AbstractDataModel, v::AbstractVector{<:Number}; kwargs...)
@@ -271,7 +282,7 @@ end
 function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
     @assert length(M.Domain) == size(A,1) == size(A,2)
     Ainv = inv(A)
-    ModelMap(LinearTransform(M.Map, A), θ->M.InDomain(A*θ), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
+    ModelMap(LinearTransform(M.Map, A), (M.InDomain isa Function ? (θ->M.InDomain(A*θ)) : nothing), HyperCube(Ainv * M.Domain.L, Ainv * M.Domain.U),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}; kwargs...)
@@ -287,7 +298,7 @@ end
 function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
     @assert length(M.Domain) == size(A,1) == size(A,2) == length(v)
     Ainv = inv(A)
-    ModelMap(AffineTransform(M.Map, A, v), θ->M.InDomain(A*θ+v), HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)),
+    ModelMap(AffineTransform(M.Map, A, v), (M.InDomain isa Function ? (θ->M.InDomain(A*θ+v)) : nothing), HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)),
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; kwargs...)
@@ -309,14 +320,14 @@ function EmbedModelVia(model::Function, F::Function; Kwargs...)
 end
 function EmbedModelVia(M::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
     @warn "Cannot infer new Domain HyperCube for general embeddings, using given $Domain."
-    ModelMap(EmbedModelVia(M.Map, F), (M.InDomain∘F), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
+    ModelMap(EmbedModelVia(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function EmbedDModelVia(dmodel::Function, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     Jac = GetJac(ADmode,F)
     EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * Jac(θ)
 end
 function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
-    ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain∘F), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
+    ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain isa Function ? (dM.InDomain∘F) : nothing), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
 end
 
 """

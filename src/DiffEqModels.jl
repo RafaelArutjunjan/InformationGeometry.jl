@@ -76,11 +76,11 @@ function GetModel(Sys::ModelingToolkit.AbstractSystem, u0::Union{AbstractArray{<
         GetArgLength(u0)
     end
     xyp = (1, ylen, plen)
-    Domain = isa(Domain, Bool) ? FullDomain(xyp[3]) : Domain
+    Domain = isa(Domain, Bool) ? FullDomain(xyp[3], 1e5) : Domain
 
     pnames = plen - length(pnames) > 0 ? vcat(CreateSymbolNames(plen - length(pnames), "u"), pnames) : pnames
     # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
-    ModelMap(Model, θ->true, Domain, xyp, pnames, Val(false), Val(false), Val(true))
+    ModelMap(Model, nothing, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
 
 

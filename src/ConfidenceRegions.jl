@@ -199,13 +199,13 @@ GetStartP(DS::AbstractDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetSta
 GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
 ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(M.Domain, M.InDomain; maxiters=maxiters)
-function ElaborateGetStartP(C::HyperCube, InDom::Function; maxiters::Int=5000)
+function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     X = rand(length(C));    i = 0
     S = Sobol.skip(SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
     while i < maxiters
-        Sobol.next!(S, X);    (InDom(X) && break);    i += 1
+        Sobol.next!(S, X);    (_TestInDomain(InDom, X) && break);    i += 1
     end
-    i == maxiters && throw("Unable to find point satisfying InDomain() inside HyperCube within $maxiters iterations.")
+    i == maxiters && throw("Unable to find point p satisfying InDomain(p) > 0 inside HyperCube within $maxiters iterations.")
     X
 end
 
