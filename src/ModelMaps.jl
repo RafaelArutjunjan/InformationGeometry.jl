@@ -319,7 +319,7 @@ function EmbedModelVia(model::Function, F::Function; Kwargs...)
     EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
 end
 function EmbedModelVia(M::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
-    @warn "Cannot infer new Domain HyperCube for general embeddings, using given $Domain."
+    @warn "Cannot infer new Domain HyperCube for general embeddings, using $Domain."
     ModelMap(EmbedModelVia(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function EmbedDModelVia(dmodel::Function, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)

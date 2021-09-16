@@ -4,7 +4,10 @@
 DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
 Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
 
-ValInserter(Component::Int, Value::AbstractFloat) = ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
+function ValInserter(Component::Int, Value::AbstractFloat)
+    ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
+    ValInsertionEmbedding(P::SVector) = insert(P, Component, Value)
+end
 
 
 ProfilePredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) = ProfilePredictor(Predictor(DM), Comp, PinnedValue)

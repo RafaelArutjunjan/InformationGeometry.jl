@@ -657,18 +657,13 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
 end
 
 function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DS, model); tol::Real=1e-13, kwargs...)
-    if sum(abs, xsigma(DS)) == 0.0
-        throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
-    else
-        xlen = Npoints(DS)*xdim(DS)
-        Cost(x::AbstractVector) = -logpdf(dist(DS), x)
-        function predictY(ξ::AbstractVector)
-            x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
-            # INPLACE EmbeddingMap!() would be great here!
-            vcat(x, EmbeddingMap(DS, model, p, Windup(x,xdim(DS))))
-        end
-        InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; tol=tol, kwargs...)
+    sum(abs, xsigma(DS)) == 0.0 && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
+    xlen = Npoints(DS)*xdim(DS);    Cost(x::AbstractVector) = -logpdf(dist(DS), x)
+    function predictY(ξ::AbstractVector)
+        x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
+        vcat(x, EmbeddingMap(DS, model, p, Windup(x,xdim(DS))))
     end
+    InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; tol=tol, kwargs...)
 end
 
 
