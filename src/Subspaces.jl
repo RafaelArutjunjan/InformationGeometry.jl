@@ -310,7 +310,7 @@ function range(C::HyperCube; length::Int=100, kwargs...)
     range(C.L[1], C.U[1]; length=length, kwargs...)
 end
 
-DropCubeDim(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
+DropCubeDims(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
     keep = trues(length(Cube));     keep[dims] .= false

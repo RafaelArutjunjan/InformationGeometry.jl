@@ -1,20 +1,59 @@
 
 
+# DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
+# Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
+Drop(X::AbstractVector, i::Int) = (Z=copy(X);   splice!(Z,i);   Z)
+Drop(X::SVector, i::Int) = (Z=convert(Vector,X);   splice!(Z,i);   Z)
 
-DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
-Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
-
+"""
+    ValInserter(Component::Int, Value::AbstractFloat) -> Function
+Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
+In effect, this allows one to pin an input component at a specific value.
+"""
 function ValInserter(Component::Int, Value::AbstractFloat)
     ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
-    ValInsertionEmbedding(P::SVector) = insert(P, Component, Value)
+    ValInsertionEmbedding(P::SVector) = insert(copy(P), Component, Value)
+end
+
+# https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
+_SortTogether(A,B; rev=false, kwargs...) = getindex.((A, B), (sortperm(A; rev=rev, kwargs...),))
+
+"""
+    ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}) -> Function
+Returns an embedding function which inserts `Values` in the specified `Components`.
+In effect, this allows one to pin multiple input components at a specific values.
+"""
+function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
+    @assert length(Components) == length(Values)
+    if diff(Components) == ones(length(Components)-1) # consecutive components.
+        ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=copy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
+        ConsecutiveInsertionEmbedding(P::SVector) = (Res=convert(Vector,P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
+    else
+        # Sort components to avoid shifts in indices through repeated insertion.
+        components, values = _SortTogether(Components, Values)
+        function ValInsertionEmbedding(P::AbstractVector)
+            Res = copy(P)
+            for i in eachindex(components)
+                insert!(Res, components[i], values[i])
+            end;    Res
+        end
+        function ValInsertionEmbedding(P::SVector)
+            Res = copy(P)
+            for i in eachindex(components)
+                Res = insert(Res, components[i], values[i])
+            end;    Res
+        end
+    end
 end
 
 
-ProfilePredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) = ProfilePredictor(Predictor(DM), Comp, PinnedValue)
-ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDim(M.Domain, Comp) : nothing))
+ProfilePredictor(DM::AbstractDataModel, args...) = ProfilePredictor(Predictor(DM), args...)
+ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDims(M.Domain, Comp) : nothing))
+ProfilePredictor(M::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=(M isa ModelMap ? DropCubeDims(M.Domain, Comps) : nothing))
 
-ProfileDPredictor(DM::AbstractDataModel, Comp::Int, PinnedValue::AbstractFloat) = ProfileDPredictor(dPredictor(DM), Comp, PinnedValue)
-ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDim(dM.Domain, Comp) : nothing))
+ProfileDPredictor(DM::AbstractDataModel, args...) = ProfileDPredictor(dPredictor(DM), args...)
+ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comp) : nothing))
+ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comps) : nothing))
 
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1))
