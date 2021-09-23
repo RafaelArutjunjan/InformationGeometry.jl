@@ -245,7 +245,7 @@ Returns a `HyperCube` which encloses the extrema of the columns of the input mat
 ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
 ConstructCube(PL::Plane, sol::AbstractODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
-
+ConstructCube(Ps::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.) = ConstructCube(Unpack(Ps); Padding=Padding)
 
 # Could speed this up by just using the points in sol.u without interpolation.
 function ConstructCube(sol::AbstractODESolution, Npoints::Int=200; Padding::Number=0.)
@@ -313,8 +313,9 @@ end
 DropCubeDims(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
-    keep = trues(length(Cube));     keep[dims] .= false
-    HyperCube(Cube.L[keep], Cube.U[keep])
+    HyperCube(Drop(Cube.L, dims), Drop(Cube.L, dims))
+    # keep = trues(length(Cube));     keep[dims] .= false
+    # HyperCube(Cube.L[keep], Cube.U[keep])
 end
 
 """

@@ -5,6 +5,11 @@
 Drop(X::AbstractVector, i::Int) = (Z=copy(X);   splice!(Z,i);   Z)
 Drop(X::SVector, i::Int) = (Z=convert(Vector,X);   splice!(Z,i);   Z)
 
+_Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
+Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=copy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
+Drop(X::SVector, Components::AbstractVector{<:Int}) = (Z=convert(Vector,X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
+# If known to be sorted already, can interate via Iterators.reverse(X)
+
 """
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
 Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
@@ -16,7 +21,7 @@ function ValInserter(Component::Int, Value::AbstractFloat)
 end
 
 # https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
-_SortTogether(A,B; rev=false, kwargs...) = getindex.((A, B), (sortperm(A; rev=rev, kwargs...),))
+_SortTogether(A::AbstractVector{<:Int}, B::AbstractVector; rev::Bool=false, kwargs...) = issorted(A; rev=rev) ? (A,B) : getindex.((A, B), (sortperm(A; rev=rev, kwargs...),))
 
 """
     ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}) -> Function
