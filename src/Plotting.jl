@@ -891,7 +891,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
 end
 
 """
-    PlotMatrix(Mat::Matrix, MLE::AbstractVector; N::Int=400)
+    PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector; N::Int=400)
 Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
 
 Example:
@@ -969,22 +969,18 @@ end
 """
 Returns Array of vertex numbers where every row constitutes a trapezoid for two adjacent curves from which N samples have been drawn.
 """
-function RectangularFacetIndices(N::Int=20, zerobased::Bool=false)
+function RectangularFaceIndices(N::Int=20, zerobased::Bool=false)
     G = Matrix{Int64}(undef,0,4)
     for i in 0:(N-2)
         G = vcat(G,[i i+1 N+i+1 N+i])
     end
-    # Facet indices zero-based or one-based?
-    if zerobased
-        return vcat(G,[N-1 0 N 2N-1])
-    else
-        return vcat(G,[N-1 0 N 2N-1]) .+ 1
-    end
+    # Face indices zero-based or one-based?
+    zerobased ? vcat(G,[N-1 0 N 2N-1]) : vcat(G,[N-1 0 N 2N-1]) .+ 1
 end
 """
 Turns Array which specifies trapezoidal faces into triangular connections.
 """
-function RectToTriangFacets(M::Matrix{<:Int})
+function RectToTriangFaces(M::AbstractMatrix{<:Int})
     G = Matrix{Int64}(undef,2size(M,1),3)
     for i in 1:size(M,1)
         G[2i-1,:] = [M[i,1], M[i,2], M[i,4]]
@@ -998,32 +994,31 @@ The second Matrix is either N×4 or N×3 depending on the value of `rectangular`
 """
 function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=false)
     Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in 1:length(Sols)])
-    M = RectangularFacetIndices(N)
-    Facets = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
-    if !rectangular
-        Facets = RectToTriangFacets(Facets)
-    end
-    if pointy
-        linep1 = size(Vertices,1) + 1
-        # add two points on the top and bottom of the confidence region
-        p1 = 0.45 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
-        p2 = 0.45 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
-
-        # HyperPlane()
-
-        Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
-        connectp1, connectp2 = if rectangular
-            reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]),
-            reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
-        else
-            reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]),
-            reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
-        end
-        Facets = vcat(Facets, connectp1, connectp2)
-    end
-    return Vertices, Facets
+    M = RectangularFaceIndices(N)
+    Faces = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
+    !rectangular && (Faces = RectToTriangFaces(Faces))
+    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces))
+    Vertices, Faces
 end
-function ToObj(Vertices::Matrix, Facets::Matrix)
+function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix)
+    linep1 = size(Vertices,1) + 1
+    # add two points on the top and bottom of the confidence region
+    p1 = 0.45 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
+    p2 = 0.45 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+
+    Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
+    connectp1, connectp2 = if rectangular
+        reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]),
+        reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+    else
+        reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]),
+        reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+    end
+    Faces = vcat(Faces, connectp1, connectp2)
+    Vertices, Faces
+end
+
+function ToObj(Vertices::AbstractMatrix, Faces::AbstractMatrix)
     text = ""
     for i in 1:size(Vertices,1)
         text *= "v"
@@ -1033,18 +1028,16 @@ function ToObj(Vertices::Matrix, Facets::Matrix)
         text *= '\n'
     end
     # ONE-BASED facet indices for .obj files
-    for i in 1:size(Facets,1)
+    for i in 1:size(Faces,1)
         text *= "f"
-        for j in 1:size(Facets,2)
-            text *= " $(Facets[i,j])"
+        for j in 1:size(Faces,2)
+            text *= " $(Faces[i,j])"
         end
         text *= '\n'
-    end
-    text
+    end;    text
 end
-function WriteObj(Vertices::Matrix, Facets::Matrix, path::String="D:/Boundary.obj")
+function WriteObj(Vertices::AbstractMatrix, Faces::AbstractMatrix, path::String="D:/Boundary.obj")
     open(path,"w") do f
-        write(f,ToObj(Vertices,Facets))
-    end
-    return
+        write(f,ToObj(Vertices,Faces))
+    end;    return
 end
