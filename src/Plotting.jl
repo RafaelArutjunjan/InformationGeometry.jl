@@ -997,10 +997,10 @@ function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:Abst
     M = RectangularFaceIndices(N)
     Faces = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
     !rectangular && (Faces = RectToTriangFaces(Faces))
-    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces))
+    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces; rectangular=rectangular, N=N))
     Vertices, Faces
 end
-function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix)
+function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix; rectangular::Bool=true, N::Int=2*length(Sols))
     linep1 = size(Vertices,1) + 1
     # add two points on the top and bottom of the confidence region
     p1 = 0.45 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
@@ -1008,11 +1008,11 @@ function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:Abstrac
 
     Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
     connectp1, connectp2 = if rectangular
-        reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]),
-        reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+        vcat(reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]), [N 1 linep1 linep1]),
+        vcat(reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)]), [linep1-1 ((length(Sols)-1)*N+1) linep1+1 linep1+1])
     else
-        reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]),
-        reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)])
+        vcat(reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]), [N 1 linep1]),
+        vcat(reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)]), [linep1-1 ((length(Sols)-1)*N+1) linep1+1])
     end
     Faces = vcat(Faces, connectp1, connectp2)
     Vertices, Faces
