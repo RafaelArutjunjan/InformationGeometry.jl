@@ -2,9 +2,9 @@
 
 *A Julia package for differential-geometric analyses of parameter inference problems.*
 
-| **Documentation** | **Build Status** |
-|:-----------------:|:----------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] |
+| **Documentation** | **Build Status** | **DOI** |
+|:-----------------:|:----------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] | [![][doi-img]][doi-url] |
 
 
 In essence, the functionality provided by **InformationGeometry.jl** revolves around analyzing the parameter space associated with mathematical models, given observed data.
@@ -44,3 +44,6 @@ Examples and other resources detailing how to use this package can be found in t
 
 [codecov-img]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl
+
+[doi-img]: https://zenodo.org/badge/291016637.svg
+[doi-url]: https://zenodo.org/badge/latestdoi/291016637
