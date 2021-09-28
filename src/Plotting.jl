@@ -43,11 +43,7 @@ end
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    Σ_x = if DS isa DataSetExact
-        typeof(xsigma(DS)) <: AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)
-    else
-        nothing
-    end
+    Σ_x = DS isa DataSetExact ? (xsigma(DS) isa AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)) : nothing
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
@@ -870,16 +866,10 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
             if WilksTestPrepared(DM,num,LogLikeMLE,Confvol)
                 for i in 1:length(X)
                     Y = Predictor(DM)(X[i],num)
-                    if Y > up[i]
-                        up[i] = Y
-                    end
-                    if Y < low[i]
-                        low[i] = Y
-                    end
+                    Y > up[i] && (up[i] = Y)
+                    Y < low[i] && (low[i] = Y)
                 end
-            else
-                i = i-1
-            end
+            else i = i-1 end
         end
         Plots.plot!(X,low)
         Plots.plot!(X,up) |> display

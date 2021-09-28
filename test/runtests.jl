@@ -82,11 +82,15 @@ end
     @test norm(Center(ProfBox) - Center(ExactBox)) < 1e-5
     @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
     @test 0 < PracticallyIdentifiable(Mats) < 2
+
+    # Method for general cost functions on 2D domains
+    sol = GenerateBoundary(x->-norm(x,1.5), [1., 0])
+    @test 0.23 ≤ length(GenerateBoundary(x->-norm(x,1.5), [1., 0]; Boundaries=(u,t,int)->u[1]<0.).u) / length(sol.u) ≤ 0.27
 end
 
 
 @safetestset "ODE-based models" begin
-    using InformationGeometry, Test, OrdinaryDiffEq
+    using InformationGeometry, Test, OrdinaryDiffEq, LinearAlgebra
 
     function SIR!(du,u,p,t)
         S, I, R = u
@@ -103,8 +107,10 @@ end
     SIRinitial = X->([763.0-X[1], X[1], 0.0], X[2:3])
 
     # Use SplitterFunction SIRinitial to infer initial condition I₀ as first parameter
-    @test DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.5,0.002,0.5]; tol=1e-6) isa DataModel
-    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.002,0.5], true; meth=Tsit5()) isa DataModel
+    SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.6,0.0023,0.46]; tol=1e-6)
+    @test SIRDM isa DataModel
+    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.0022,0.45], true; meth=Tsit5(), tol=1e-6) isa DataModel
+    @test norm(2*EmbeddingMap(Data(SIRDM), Predictor(SIRDM), MLE(SIRDM)) - EmbeddingMap(Data(SIRDM), ModifyODEmodel(SIRDM, x->2*x[2]), MLE(SIRDM))) < 2e-4
 end
 
 
@@ -262,7 +268,7 @@ end
     @test abs(RicciScalar(S2metric,rand(BigFloat,2)) - 2) < 2e-22
 
     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
-    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-11
+    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-9
     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)

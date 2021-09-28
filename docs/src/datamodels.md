@@ -16,3 +16,7 @@ DataModel
 ```
 
 "Simple" `DataSet`s and `DataModel`s can be visualized directly via `plot(DM)` using pre-written recipes for the [**Plots.jl**](https://github.com/JuliaPlots/Plots.jl) package.
+
+```@docs
+ModelMap
+```

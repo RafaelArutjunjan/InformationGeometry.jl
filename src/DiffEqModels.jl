@@ -242,14 +242,17 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
     MakeCustom(ODEModel, Domain)
 end
 
-
+"""
+    ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) -> ModelMap
+Constructs a new `ModelMap` with new observation function `f(u,t,θ)` from a given ODE-based `DataModel`.
+"""
 ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) = ModifyODEmodel(DM, Predictor(DM), NewObservationFunc)
 function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFunc::Function)
     # Model.Map isa DEModel && return ModifyDEModel(Model, NewObservationFunc)
     Eval = try
         Model(WoundX(DM)[1], MLE(DM); FullSol=true).u[1]
     catch;
-        throw("It appears as though the given model is not an ODEmodel")
+        throw("It appears as though the given model is not an ODEmodel.")
     end
     F = CompleteObservationFunction(NewObservationFunc)
     out = F(Eval, WoundX(DM)[1], MLE(DM))

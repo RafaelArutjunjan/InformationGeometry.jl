@@ -88,8 +88,11 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15,
     else
         MLE(DM)
     end
-    Test(x) = WilksTest(DM, x .* BasisVector(1,pdim(DM)) + mle, CF; dof=dof)
-    res = MLE(DM) .+ LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
+    Test(x) = WilksTest(DM, x .* BasisVector(1, length(mle)) + mle, CF; dof=dof)
+    FindConfBoundary(Test, mle; tol=tol, maxiter=maxiter)
+end
+function FindConfBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, maxiter::Int=10000)
+    res = mle + LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1, length(mle))
     tol < 2e-15 ? res : convert(Vector{Float64}, res)
 end
 
@@ -307,9 +310,9 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
     CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM)),terminate!)) : CB
     prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     if mfd
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
 end
 
@@ -327,30 +330,36 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM),PL),terminate!)) : CB
     prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     if mfd
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
 end
 
+"""
+General function `F` with 2D domain whose Hessian should be negative-definite everywhere, i.e. negative cost function.
+"""
 GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
 function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
-    u0 = !mfd ? PromoteStatic(u0, true) : u0
-    FuncOnBoundary = F(u0)
+    !mfd && (u0 = PromoteStatic(u0, true))
     CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
-    g!(resid,u,p,t)  =  (resid[1] = FuncOnBoundary - F(u))
+    solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol, callback=_CallbackConstructor(F, u0; Boundaries=Boundaries, mfd=mfd), kwargs...)
+end
+
+"""
+Constructs appropriate callback kwarg for 2D cost function including the termination condition when the integral curve has closed, optional manifold projection.
+"""
+function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false)
+    FuncOnBoundary = F(u0)
+    g!(resid,u,p,t) = (resid[1] = FuncOnBoundary - F(u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
-    CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
-    prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
-    if mfd
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
-    else
-        return solve(prob, meth; reltol=tol,abstol=tol, callback=CB, kwargs...)
-    end
+    CB = ContinuousCallback(terminatecondition, terminate!, nothing)
+    !isnothing(Boundaries) && (CB = CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)))
+    mfd && (CB = CallbackSet(CB, ManifoldProjection(g!)))
+    CB
 end
 
 """
@@ -361,14 +370,14 @@ The `Plane`s and their embedded 2D confidence boundaries are returned as the res
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, Auto::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
     if pdim(DM) == 1
-        return ConfidenceInterval1D(DM, Confnum; tol=tol)
+        ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
-        return GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol, dof=dof); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
+        GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol, dof=dof); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, Auto=Auto, kwargs...)
     else
         # println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
         Cube = LinearCuboid(DM, Confnum)
         Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N, tol=tol)
-        return Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel, kwargs...)
+        Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, Auto=Auto, meth=meth, mfd=mfd, parallel=parallel, kwargs...)
     end
 end
 

@@ -30,25 +30,22 @@ export remake
 
 # Employ ShadowTheatre to project simultaneous x-θ-confidence regions to M.
 # Geodesic coordinates - use geodesic radius and angles to specify parameter configurations.
-# General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
+# ADD TESTS: General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
-# Finish Boundaries() specification methods in confidence boundary and geodesic construction
-# Use information contained in ModelMap type to build Boundaries function
-# Add CompositeDataSet to master
+# ADD TESTS: Add CompositeDataSet to master
 # Test F-Boundaries in more detail
 # Integrate along structural unidentifiability -- Switching ODE functions mid-integration: https://diffeq.sciml.ai/stable/basics/faq/
+# Use InDomain function specified for ModelMaps for constrained optimization.
 # Symbolic Fisher? Christoffel (from 2nd derivatives)?
 # Use vector-callback with domain hypercube for continuous boundary detection
 
 # Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
 # Employ MultistartOptimization for obtaining the MLE.
 # Try to recognize which components of θ are inside an exponential such that `log` leads to linear parametrization -> i.e. compare EmbeddingMatrices
-# Add GeneralProductDistribution to master
 
 #### Cosmetic / Convenience
 
 # Custom type for confidence boundaries?
-# Use try catch; to recognize automatically when solution runs into chart boundary.
 # Show distribution types for DataSetExact
 # Infer variable names from DataFrames
 # Save Symbolic Expressions for models (if available) and display them
@@ -58,6 +55,7 @@ export remake
 
 #### Performance / Optimization
 
+# Make OrthVF in-place everywhere
 # Optimize GetModel() for ODEs for performance by only executing ODEFunction once
 # Use IntegrateND() instead of MonteCarloArea()
 # Implement formula to obtain bounding box of hyperellipse exactly.
@@ -65,7 +63,6 @@ export remake
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computations
 # Use Cuba.jl for Monte Carlo integration
 # Generalize FisherMetric to other error distributions
-# Redo Geodesic methods
 
 
 #### Tests to add
@@ -78,12 +75,9 @@ export remake
 
 #### Miscellaneous
 
-# Get Travis working again
-# Redo README.md
 # Add exporting methods and detailed examples to docs
 # Improve ConfidenceBands
 # Fix FindConfBoundary() and GenerateBoundary() for BigFloat    -- does it work now? Add a test
-# Has PlotUtils.jl released a version with adapted_grid() yet? Restrict compat to that version and delete duplicated source code
 # Make user-facing keywords (even) more uniform: tol, meth, Big, ...
 
 
