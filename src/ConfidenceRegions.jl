@@ -346,14 +346,13 @@ function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number
     !mfd && (u0 = PromoteStatic(u0, true))
     CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
-    solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol, callback=_CallbackConstructor(F, u0; Boundaries=Boundaries, mfd=mfd), kwargs...)
+    solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol, callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
 end
 
 """
 Constructs appropriate callback kwarg for 2D cost function including the termination condition when the integral curve has closed, optional manifold projection.
 """
-function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false)
-    FuncOnBoundary = F(u0)
+function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}, FuncOnBoundary::Real; Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false)
     g!(resid,u,p,t) = (resid[1] = FuncOnBoundary - F(u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition, terminate!, nothing)

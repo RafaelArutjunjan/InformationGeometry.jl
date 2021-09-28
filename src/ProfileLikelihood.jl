@@ -3,11 +3,11 @@
 # DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
 # Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
 Drop(X::AbstractVector, i::Int) = (Z=copy(X);   splice!(Z,i);   Z)
-Drop(X::SVector, i::Int) = (Z=convert(Vector,X);   splice!(Z,i);   Z)
+Drop(X::Union{SVector,MVector}, i::Int) = (Z=convert(Vector,X);   splice!(Z,i);   Z)
 
 _Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
 Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=copy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
-Drop(X::SVector, Components::AbstractVector{<:Int}) = (Z=convert(Vector,X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
+Drop(X::Union{SVector,MVector}, Components::AbstractVector{<:Int}) = (Z=convert(Vector,X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
 # If known to be sorted already, can interate via Iterators.reverse(X)
 
 """
@@ -17,7 +17,7 @@ In effect, this allows one to pin an input component at a specific value.
 """
 function ValInserter(Component::Int, Value::AbstractFloat)
     ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
-    ValInsertionEmbedding(P::SVector) = insert(copy(P), Component, Value)
+    ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(copy(P), Component, Value)
 end
 
 # https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
@@ -32,7 +32,7 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
     @assert length(Components) == length(Values)
     if diff(Components) == ones(length(Components)-1) # consecutive components.
         ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=copy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
-        ConsecutiveInsertionEmbedding(P::SVector) = (Res=convert(Vector,P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
+        ConsecutiveInsertionEmbedding(P::Union{SVector,MVector}) = (Res=convert(Vector,P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
     else
         # Sort components to avoid shifts in indices through repeated insertion.
         components, values = _SortTogether(Components, Values)
@@ -42,7 +42,7 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
                 insert!(Res, components[i], values[i])
             end;    Res
         end
-        function ValInsertionEmbedding(P::SVector)
+        function ValInsertionEmbedding(P::Union{SVector,MVector})
             Res = copy(P)
             for i in eachindex(components)
                 Res = insert(Res, components[i], values[i])
