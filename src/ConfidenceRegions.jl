@@ -350,14 +350,17 @@ function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number
 end
 
 """
-Constructs appropriate callback kwarg for 2D cost function including the termination condition when the integral curve has closed, optional manifold projection.
+Constructs appropriate callback kwarg for 2D cost function consisting of
+- the termination condition when the integral curve has closed,
+- a domain check based on `Boundaries` kwarg,
+- optional manifold projection.
 """
 function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}, FuncOnBoundary::Real; Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false)
-    g!(resid,u,p,t) = (resid[1] = FuncOnBoundary - F(u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition, terminate!, nothing)
     !isnothing(Boundaries) && (CB = CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)))
-    mfd && (CB = CallbackSet(CB, ManifoldProjection(g!)))
+    g!(resid,u,p,t) = (resid[1] = FuncOnBoundary - F(u))
+    mfd && (CB = CallbackSet(ManifoldProjection(g!), CB)) # Eval projection first
     CB
 end
 

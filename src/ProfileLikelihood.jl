@@ -1,13 +1,14 @@
 
 
-# DropVec(i::Int, dim::Int) = (keep = trues(dim);    keep[i] = false;    keep)
-# Drop(X::AbstractVector, i::Int) = X[DropVec(i, length(X))]
-Drop(X::AbstractVector, i::Int) = (Z=copy(X);   splice!(Z,i);   Z)
-Drop(X::Union{SVector,MVector}, i::Int) = (Z=convert(Vector,X);   splice!(Z,i);   Z)
+# Returns a copy of type `Vector`, i.e. is not typesafe!
+SafeCopy(X::AbstractVector) = copy(X)
+SafeCopy(X::AbstractRange) = collect(X)
+SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
+
+Drop(X::AbstractVector, i::Int) = (Z=SafeCopy(X);   splice!(Z,i);   Z)
 
 _Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
-Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=copy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
-Drop(X::Union{SVector,MVector}, Components::AbstractVector{<:Int}) = (Z=convert(Vector,X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
+Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=SafeCopy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
 # If known to be sorted already, can interate via Iterators.reverse(X)
 
 """
@@ -16,7 +17,7 @@ Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}
 In effect, this allows one to pin an input component at a specific value.
 """
 function ValInserter(Component::Int, Value::AbstractFloat)
-    ValInsertionEmbedding(P::AbstractVector) = insert!(copy(P), Component, Value)
+    ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
     ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(copy(P), Component, Value)
 end
 
@@ -30,14 +31,14 @@ In effect, this allows one to pin multiple input components at a specific values
 """
 function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
     @assert length(Components) == length(Values)
-    if diff(Components) == ones(length(Components)-1) # consecutive components.
-        ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=copy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
-        ConsecutiveInsertionEmbedding(P::Union{SVector,MVector}) = (Res=convert(Vector,P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
+    length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
+    if length(Components) ≥ 2 && diff(Components) == ones(length(Components)-1) # consecutive components.
+        ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
     else
         # Sort components to avoid shifts in indices through repeated insertion.
         components, values = _SortTogether(Components, Values)
         function ValInsertionEmbedding(P::AbstractVector)
-            Res = copy(P)
+            Res = SafeCopy(P)
             for i in eachindex(components)
                 insert!(Res, components[i], values[i])
             end;    Res
@@ -50,6 +51,9 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
         end
     end
 end
+
+InsertIntoFirst(X::AbstractVector{<:Number}) = PassingIntoLast(θ::AbstractVector{<:Number}) = [X;θ]
+InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVector{<:Number}) = [X;θ]
 
 
 ProfilePredictor(DM::AbstractDataModel, args...) = ProfilePredictor(Predictor(DM), args...)

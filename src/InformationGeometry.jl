@@ -179,7 +179,7 @@ export ApproxInRegion, ShadowTheatre, CastShadow
 
 include("ProfileLikelihood.jl")
 export ProfileLikelihood, PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
-
+export ValInserter, InsertIntoFirst, InsertIntoLast
 
 include("Divergences.jl")
 export KullbackLeibler
