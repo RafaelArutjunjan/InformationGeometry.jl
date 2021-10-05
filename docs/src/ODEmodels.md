@@ -18,7 +18,7 @@ While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEq
 #         Dt(R) ~ +γ * I]
 
 # SIRstates = [S, I, R];    SIRparams = [β, γ]
-# SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
+# @named SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
 ```
 ```julia
 using InformationGeometry, ModelingToolkit
@@ -31,7 +31,7 @@ SIReqs = [ Dt(S) ~ -β * I * S,
         Dt(R) ~ +γ * I]
 
 SIRstates = [S, I, R];    SIRparams = [β, γ]
-SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
+@named SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
 ```
 Here, the parameter `β` denotes the transmission rate of the disease and `γ` is the recovery rate. Note that in the symbolic scheme of [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl), the equal sign is represented via `~`.
 

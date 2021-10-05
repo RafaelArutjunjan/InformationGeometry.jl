@@ -881,19 +881,21 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
 end
 
 """
-    PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector; N::Int=400)
-Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `MLE`.
+    PlotMatrix(Mat::AbstractMatrix, mle::AbstractVector; N::Int=400)
+Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `mle`.
+By providing information on the confidence level of the given matrix via the `Confnum` kwarg, a correction factor is computed to rescale the given matrix appropriately.
 
 Example:
 ```
-PlotMatrix(inv(FisherMetric(DM,MLE)),MLE)
+PlotMatrix(inv(FisherMetric(DM,mle)),mle)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); corrected::Bool=true, dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
-    C = corrected ? sqrt(quantile(Chisq(length(MLE)),ConfVol(1))) .* cholesky(Symmetric(Mat)).L : 1.0
-    angles = range(0,2π;length=N)
-    F(α::Number) = MLE + C * RotatedVector(α,dims[1],dims[2],length(MLE))
+    corr = Confnum != 0. ? sqrt(quantile(Chisq(length(MLE)),ConfVol(Confnum))) : 1.0
+    C = corr .* cholesky(Symmetric(Mat)).L
+    angles = range(0, 2π; length=N)
+    F(α::Number) = MLE + C * RotatedVector(α, dims[1], dims[2], length(MLE))
     Data = Unpack(F.(angles))
     Pl = OverWrite ? Plots.plot : Plots.plot!
     if plot   display(Pl(ToCols(Data)...; label="Matrix", kwargs...))  end

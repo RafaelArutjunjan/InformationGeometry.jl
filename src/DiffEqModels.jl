@@ -45,14 +45,14 @@ end
 
 
 
-function GetModel(Sys::ModelingToolkit.AbstractSystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0));
+function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{AbstractArray{<:Number},Function}, observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0));
                 Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
-    sys = Sys isa ReactionSystem ? convert(ODESystem, Sys) : Sys
+    # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     Model = if sys isa ModelingToolkit.AbstractODESystem
         GetModel(ODEFunction{inplace}(sys), u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     else
-        throw("Not programmed yet.")
+        throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end
     if Model isa ModelMap       Model = Model.Map    end
     pnames = ModelingToolkit.get_ps(sys) .|> string
@@ -256,16 +256,16 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
     end
     F = CompleteObservationFunction(NewObservationFunc)
     out = F(Eval, WoundX(DM)[1], MLE(DM))
-    function NewMap(x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+    function NewODEmodel(x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
         FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
         sol = Model.Map(x, θ; FullSol=true, saveat=x, kwargs...)
         length(sol.u) != length(x) && throw("ODE integration failed, maybe try using a lower tolerance value.")
         [F(sol.u[i], sol.t[i], θ) for i in 1:length(x)] |> Reduction
     end
-    function NewMap(x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+    function NewODEmodel(x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
         FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
         F(sol.u[end], sol.t[end], θ)
     end
-    ModelMap(NewMap, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
+    ModelMap(NewODEmodel, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
 end
