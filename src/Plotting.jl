@@ -958,25 +958,35 @@ end
 
 # Helper methods for creating a rectangular or triangular mesh from the outputs of MincedBoundaries()
 
+
+# function RectangularFaceIndices(N::Int=20, zerobased::Bool=false)
+#     G = Matrix{Int64}(undef,N,4)
+#     for i in 1:(N-1)
+#         G[i,:] = SA[i, i+1, N+i+1, N+i]
+#     end;    G[N,:] = SA[N, 1, N+1, 2N]
+#     zerobased && (G .-= 1)
+#     G
+# end
 """
 Returns Array of vertex numbers where every row constitutes a trapezoid for two adjacent curves from which N samples have been drawn.
 """
-function RectangularFaceIndices(N::Int=20, zerobased::Bool=false)
-    G = Matrix{Int64}(undef,0,4)
-    for i in 0:(N-2)
-        G = vcat(G,[i i+1 N+i+1 N+i])
-    end
-    # Face indices zero-based or one-based?
-    zerobased ? vcat(G,[N-1 0 N 2N-1]) : vcat(G,[N-1 0 N 2N-1]) .+ 1
+RectangularFaceIndices(N::Int, zerobased::Bool=false) = (G=Matrix{Int64}(undef,N,4); RectangularFaceIndices!(G, zerobased); G)
+function RectangularFaceIndices!(G::AbstractMatrix{<:Int}, zerobased::Bool=false)
+    N, cols = size(G);    @assert cols == 4
+    @inbounds for i in Base.OneTo(N-1)
+        G[i,:] = SA[i, i+1, N+i+1, N+i]
+    end;    G[N,:] = SA[N, 1, N+1, 2N]
+    zerobased && (G .-= 1)
+    nothing
 end
+
 """
-Turns Array which specifies trapezoidal faces into triangular connections.
+Turns Array which specifies rectangular faces into triangular faces.
 """
 function RectToTriangFaces(M::AbstractMatrix{<:Int})
-    G = Matrix{Int64}(undef,2size(M,1),3)
-    for i in 1:size(M,1)
-        G[2i-1,:] = [M[i,1], M[i,2], M[i,4]]
-        G[2i,:] = M[i,2:4]
+    G = Matrix{Int64}(undef, 2size(M,1), 3)
+    @inbounds for i in Base.OneTo(size(M,1))
+        G[2i-1,:], G[2i,:] = SA[M[i,1], M[i,2], M[i,4]], SA[M[i,2], M[i,3], M[i,4]]
     end;    G
 end
 """
@@ -989,17 +999,17 @@ function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:Abst
     M = RectangularFaceIndices(N)
     Faces = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
     !rectangular && (Faces = RectToTriangFaces(Faces))
-    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces; rectangular=rectangular, N=N))
+    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces; N=N))
     Vertices, Faces
 end
-function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix; rectangular::Bool=true, N::Int=2*length(Sols))
+function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix, fact::Real=1.4; N::Int=2*length(Sols))
     linep1 = size(Vertices,1) + 1
     # add two points on the top and bottom of the confidence region
-    p1 = 0.45 * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
-    p2 = 0.45 * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+    p1 = (fact-1) * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
+    p2 = (fact-1) * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
 
     Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
-    connectp1, connectp2 = if rectangular
+    connectp1, connectp2 = if size(Faces,2) == 4
         vcat(reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]), [N 1 linep1 linep1]),
         vcat(reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)]), [linep1-1 ((length(Sols)-1)*N+1) linep1+1 linep1+1])
     else
@@ -1061,7 +1071,7 @@ function AddCaps(X::M, Y::M, Z::M, fact::Real=1.4) where M <: AbstractMatrix{<:N
     function rowmean(X::M, Y::M, Z::M, i::Int) where M <: AbstractMatrix{<:Number}
         point = zeros(3)
         for j in 1:size(X,2)
-            point += [X[i,j], Y[i,j], Z[i,j]]
+            point += SA[X[i,j], Y[i,j], Z[i,j]]
         end;    point / size(X,2)
     end
     # cap1 = (z = rowmean(X,Y,Z,2);   z + fact*(rowmean(X,Y,Z,1) - z))
