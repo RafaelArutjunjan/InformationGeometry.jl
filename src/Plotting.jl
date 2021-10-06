@@ -1033,3 +1033,60 @@ function WriteObj(Vertices::AbstractMatrix, Faces::AbstractMatrix, path::String=
         write(f,ToObj(Vertices,Faces))
     end;    return
 end
+
+
+"""
+    PolarSolution(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}) -> Function
+Returns spherical function `f: [0,π]×[0,2π] ⟶ R^3` `(θ, ϕ) ⟼ [x(θ, ϕ), y(θ, ϕ), z(θ, ϕ)]` which returns closest point on confidence boundary corresponding to the given angular coordinates.
+"""
+function PolarSolution(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution})
+    @assert 3 == length(Planes[1])
+    len = length(Planes)
+    PolarToInd(θ::Real, n::Int=len) = ceil(Int, θ/π * (n-1)) + 1
+    function SurfacePoint(θ::Real, ϕ::Real)
+        @assert 0 ≤ θ ≤ π "θ not in range."
+        ind = PolarToInd(θ)
+        SurfacePoint(Planes[ind], sols[ind], ϕ)
+    end
+    function SurfacePoint(PL::Plane, sol::AbstractODESolution, ϕ::Real)
+        # @assert 0 ≤ ϕ ≤ 2π "ϕ not in range."
+        PlaneCoordinates(PL, sol(sol.t[end] * ϕ / (2π)))
+    end
+end
+
+
+function AddCaps(X::M, Y::M, Z::M, fact::Real=1.4) where M <: AbstractMatrix{<:Number}
+    # thetas varies along rows, phis varies along columns
+    @assert size(X) == size(Y) == size(Z)
+    function rowmean(X::M, Y::M, Z::M, i::Int) where M <: AbstractMatrix{<:Number}
+        point = zeros(3)
+        for j in 1:size(X,2)
+            point += [X[i,j], Y[i,j], Z[i,j]]
+        end;    point / size(X,2)
+    end
+    # cap1 = (z = rowmean(X,Y,Z,2);   z + fact*(rowmean(X,Y,Z,1) - z))
+    # cap2 = (z = rowmean(X,Y,Z, size(X,1)-1);   z + fact*(rowmean(X,Y,Z, size(X,1)) - z))
+    n = (i=1; normalize(cross([X[i,3], Y[i,3], Z[i,3]]-[X[i,2], Y[i,2], Z[i,2]], [X[i,1], Y[i,1], Z[i,1]]-[X[i,2], Y[i,2], Z[i,2]])))
+    height = dot(n, [X[1,1], Y[1,1], Z[1,1]]-[X[2,1], Y[2,1], Z[2,1]])
+    cap1 = rowmean(X, Y, Z, 1) + (fact-1)*height*n
+    cap2 = rowmean(X, Y, Z, size(X,1)) - (fact-1)*height*n
+    vcat(transpose(cap1[1]*ones(size(X,2))), X, transpose(cap2[1]*ones(size(X,2)))),
+    vcat(transpose(cap1[2]*ones(size(X,2))), Y, transpose(cap2[2]*ones(size(X,2)))),
+    vcat(transpose(cap1[3]*ones(size(X,2))), Z, transpose(cap2[3]*ones(size(X,2))))
+end
+
+"""
+    ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(sols)) -> Tuple{Matrix,Matrix,Matrix}
+Returns tuple of three `length(Planes) × N` matrices `X, Y, Z` for plotting of confidence boundary surfaces in 3D with tools such as Makie.
+"""
+function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(sols))
+    θs = range(0, π; length=size(Planes,1));    ϕs = range(0, 2π; length=N);    P = PolarSolution(Planes, sols)
+    X = Array{Float64}(undef, length(θs), length(ϕs));    Y = Array{Float64}(undef, length(θs), length(ϕs));    Z = Array{Float64}(undef, length(θs), length(ϕs))
+    for i in 1:length(θs)
+        for j in 1:length(ϕs)
+            # X[i,j], Y[i,j], Z[i,j] = P(θs[i], ϕs[j])
+            X[i,j], Y[i,j], Z[i,j] = P(Planes[i], sols[i], ϕs[j])
+        end
+    end
+    fact == 0.0 ? (X, Y, Z) : AddCaps(X, Y, Z, fact)
+end
