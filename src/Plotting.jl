@@ -994,21 +994,29 @@ end
 Returns a N×3 matrix whose rows correspond to the coordinates of various points in 3D space as the first argument.
 The second Matrix is either N×4 or N×3 depending on the value of `rectangular` and enumerates the points which are to be connected up to a rectangular or triangular face in counter-clockwise fashion. The indices of the points correspond to the lines in the first Matrix.
 """
-function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=false)
+function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=true)
     Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in 1:length(Sols)])
     M = RectangularFaceIndices(N)
     Faces = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
     !rectangular && (Faces = RectToTriangFaces(Faces))
-    pointy && (Vertices, Faces = AddCaps(Planes, Sols, Vertices, Faces; N=N))
+    pointy && return AddCaps(Planes, Sols, Vertices, Faces, fact; N=N)
     Vertices, Faces
 end
 function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, Vertices::AbstractMatrix, Faces::AbstractMatrix, fact::Real=1.4; N::Int=2*length(Sols))
+    @assert length(Planes[1]) == 3 # Can relax this if cross() is extended to higher dims
+    @assert fact ≥ 1
     linep1 = size(Vertices,1) + 1
+    function rowmean(PL::Plane, sol::AbstractODESolution, N::Int)
+        PlaneCoordinates(PL, sum(sol(t) for t in range(sol.t[1], sol.t[end]; length=N))/N)
+    end
     # add two points on the top and bottom of the confidence region
-    p1 = (fact-1) * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
-    p2 = (fact-1) * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
+    n = cross(Planes[1].Vx, Planes[1].Vy) |> normalize
+    height = dot(n, Planes[1].stütz - Planes[2].stütz)
+    p1 = rowmean(Planes[1], Sols[1], N) + (fact-1)*height*n
+    p2 = rowmean(Planes[end], Sols[end], N) - (fact-1)*height*n
+    # p1 = (fact-1) * (Planes[1].stütz - Planes[2].stütz) + Planes[1].stütz
+    # p2 = (fact-1) * (Planes[end].stütz - Planes[end-1].stütz) + Planes[end].stütz
 
-    Vertices = vcat(Vertices, vcat(transpose(p1), transpose(p2)))
     connectp1, connectp2 = if size(Faces,2) == 4
         vcat(reduce(vcat, [[i i+1 linep1 linep1] for i in 1:(N-1)]), [N 1 linep1 linep1]),
         vcat(reduce(vcat, [[i i+1 linep1+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)]), [linep1-1 ((length(Sols)-1)*N+1) linep1+1 linep1+1])
@@ -1016,8 +1024,7 @@ function AddCaps(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:Abstrac
         vcat(reduce(vcat, [[i i+1 linep1] for i in 1:(N-1)]), [N 1 linep1]),
         vcat(reduce(vcat, [[i i+1 linep1+1] for i in ((length(Sols)-1)*N + 1):(linep1-2)]), [linep1-1 ((length(Sols)-1)*N+1) linep1+1])
     end
-    Faces = vcat(Faces, connectp1, connectp2)
-    Vertices, Faces
+    vcat(Vertices, vcat(transpose(p1), transpose(p2))), vcat(Faces, connectp1, connectp2)
 end
 
 function ToObj(Vertices::AbstractMatrix, Faces::AbstractMatrix)
@@ -1068,6 +1075,7 @@ end
 function AddCaps(X::M, Y::M, Z::M, fact::Real=1.4) where M <: AbstractMatrix{<:Number}
     # thetas varies along rows, phis varies along columns
     @assert size(X) == size(Y) == size(Z)
+    @assert fact ≥ 1
     function rowmean(X::M, Y::M, Z::M, i::Int) where M <: AbstractMatrix{<:Number}
         point = zeros(3)
         for j in 1:size(X,2)
@@ -1089,7 +1097,7 @@ end
     ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(sols)) -> Tuple{Matrix,Matrix,Matrix}
 Returns tuple of three `length(Planes) × N` matrices `X, Y, Z` for plotting of confidence boundary surfaces in 3D with tools such as Makie.
 """
-function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(sols))
+function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(sols), pointy::Bool=true)
     θs = range(0, π; length=size(Planes,1));    ϕs = range(0, 2π; length=N);    P = PolarSolution(Planes, sols)
     X = Array{Float64}(undef, length(θs), length(ϕs));    Y = Array{Float64}(undef, length(θs), length(ϕs));    Z = Array{Float64}(undef, length(θs), length(ϕs))
     for i in 1:length(θs)
@@ -1098,5 +1106,6 @@ function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:Abst
             X[i,j], Y[i,j], Z[i,j] = P(Planes[i], sols[i], ϕs[j])
         end
     end
-    fact == 0.0 ? (X, Y, Z) : AddCaps(X, Y, Z, fact)
+    pointy && return AddCaps(X, Y, Z, fact)
+    (X, Y, Z)
 end
