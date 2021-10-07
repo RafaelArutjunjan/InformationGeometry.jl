@@ -313,7 +313,7 @@ end
 DropCubeDims(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
-    HyperCube(Drop(Cube.L, dims), Drop(Cube.L, dims))
+    HyperCube(Drop(Cube.L, dims), Drop(Cube.U, dims))
     # keep = trues(length(Cube));     keep[dims] .= false
     # HyperCube(Cube.L[keep], Cube.U[keep])
 end
@@ -424,6 +424,12 @@ function EmbeddedODESolution(u, u_analytic, errors, t, k, prob, alg, interp, den
     typeof(t), typeof(k), typeof(prob), typeof(alg), typeof(interp),typeof(destats)}(
     u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding)
 end
+
+"""
+    EmbeddedODESolution(sol::AbstractODESolution, Embedding::Function) -> AbstractODESolution
+    EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) -> AbstractODESolution
+Maps the solution `sol(t)` to some ODE into a larger space via `Embedding∘sol`.
+"""
 function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Function=identity) where {T,N,uType}
     newu = map(Embedding, sol.u);    newk = [map(Embedding, k) for k in sol.k]
     EmbeddedODESolution(newu, isnothing(sol.u_analytic) ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
