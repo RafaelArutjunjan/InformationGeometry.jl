@@ -95,6 +95,10 @@ function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::R
     HyperCube(L,U)
 end
 
+# USE NelderMead for ODEmodels!!!!!
+IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))
+IsDEbased(F::ModelMap) = IsDEbased(F.Map)
+IsDEbased(DM::AbstractDataModel) = IsDEbased(Predictor(DM))
 
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
@@ -203,7 +207,7 @@ end
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; Padding::Real=0.)
-    ProfileBox(Fs, MLE(DM), Confnum; Padding)
+    ProfileBox(Fs, MLE(DM), Confnum; Padding=Padding)
 end
 function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0.)
     domains = map(F->(F.t[1], F.t[end]), Fs)
@@ -224,7 +228,7 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
     HyperCube(minimum.(crossings), maximum.(crossings); Padding=Padding)
 end
 ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=1; Padding::Real=0.) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding=Padding)
-ProfileBox(DM::AbstractDataModel, Confnum::Real; N::Int=50, Padding::Real=0., add::Real=1.5) = ProfileBox(DM, ProfileLikelihood(DM, Confnum+add; N=N, plot=false), Confnum; Padding=Padding)
+ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=1.5, kwargs...) = ProfileBox(DM, ProfileLikelihood(DM, Confnum+add; plot=false, kwargs...), Confnum; Padding=Padding)
 
 
 
