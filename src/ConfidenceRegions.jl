@@ -856,9 +856,10 @@ This depends on whether more (or fewer) planes than `N` are necessary to cover t
 """
 function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3), tol::Real=1e-8)
     (!allunique(Dirs) || !all(x->(1 ≤ x ≤ length(Cube)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
-    PL = Plane(Center(Cube), BasisVector(Dirs[1], length(Cube)), BasisVector(Dirs[2],length(Cube)))
-    width = CubeWidths(Cube)[Dirs[3]]
-    IntersectRegion(DM, PL, width * BasisVector(Dirs[3],length(Cube)), Confnum; N=N, tol=tol)
+    widths = CubeWidths(Cube)
+    # PL = Plane(Center(Cube), BasisVector(Dirs[1], length(Cube)), BasisVector(Dirs[2],length(Cube)))
+    PL = Plane(Center(Cube), 0.5widths[Dirs[1]]*BasisVector(Dirs[1], length(Cube)), 0.5widths[Dirs[2]]*BasisVector(Dirs[2],length(Cube)))
+    IntersectRegion(DM, PL, widths[Dirs[3]] * BasisVector(Dirs[3],length(Cube)), Confnum; N=N, tol=tol)
 end
 
 """
