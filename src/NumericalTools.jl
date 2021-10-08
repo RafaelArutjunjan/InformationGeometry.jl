@@ -673,26 +673,36 @@ Minimizes the scalar input function using the given `start` using algorithms fro
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
 """
-function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
+    options = if isnothing(Fthresh)
+        Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+    else  # stopping criterion via callback kwarg
+        Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+    end
     Res = if isnothing(Domain)
-        optimize(F, floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
+        optimize(F, floatify(start), meth, options; kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
+        optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
 minimize(FdF::Tuple{Function,Function}, args...; kwargs...) = minimize(FdF[1], FdF[2], args...; kwargs...)
-function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     # Wrap dF to make it inplace
     newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
+    options = if isnothing(Fthresh)
+        Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+    else  # stopping criterion via callback kwarg
+        Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+    end
     Res = if isnothing(Domain)
-        optimize(F, newdF, floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
+        optimize(F, newdF, floatify(start), meth, options; kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout)); kwargs...)
+        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end
