@@ -120,9 +120,9 @@ function ChristoffelPartials!(∂Γ::AbstractArray{<:Number,4}, Metric::Function
     Γ₁ = Array{suff(θ),3}(undef, length(θ), length(θ), length(θ));  Γ₂ = Array{suff(θ),3}(undef, length(θ), length(θ), length(θ))
     for i in 1:length(θ)
         # ∂Γ[i,:,:,:] .= (1/(2*h))*(ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
-        ChristoffelSymbol!!(FPDV, Γ₁, Metric, θ + h*BasisVector(i,length(θ)), ADmode; BigCalc=BigCalc)
-        ChristoffelSymbol!!(FPDV, Γ₂, Metric, θ - h*BasisVector(i,length(θ)), ADmode; BigCalc=BigCalc)
-        ∂Γ[:,:,:,i] = (1/(2*h))*(Γ₁ - Γ₂)
+        ChristoffelSymbol!!(FPDV, Γ₂, Metric, θ + h*BasisVector(i,length(θ)), ADmode; BigCalc=BigCalc)
+        ChristoffelSymbol!!(FPDV, Γ₁, Metric, θ - h*BasisVector(i,length(θ)), ADmode; BigCalc=BigCalc)
+        ∂Γ[:,:,:,i] = (1/(2*h))*(Γ₂ - Γ₁)
     end;    nothing
 end
 function ChristoffelPartials!(∂Γ::AbstractArray{<:Number,4}, Metric::Function, θ::AbstractVector{<:Number}, ADmode::Val; BigCalc::Bool=false)
@@ -154,7 +154,10 @@ Assumes index structure (∂Γ)ₐᵇₑⱼ where the FIRST index denotes direct
 ```
 """
 function RiemannFirstInd!(Riem::AbstractArray{<:Number,4}, ∂Γ::AbstractArray{<:Number,4}, Γ::AbstractArray{<:Number,3})
-    @tullio Riem[i,j,k,l] = ∂Γ[k,i,j,l] - ∂Γ[l,i,j,k] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    # @tensor Riem[i,j,k,l] = ∂Γ[k,i,j,l] - ∂Γ[l,i,j,k] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    # With Tullio, this needs to be split over two lines!!! (Why?!)
+    @tullio Riem[i,j,k,l] = ∂Γ[k,i,j,l] - ∂Γ[l,i,j,k]
+    @tullio Riem[i,j,k,l] += Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
     nothing
 end
 """
@@ -164,7 +167,10 @@ Assumes index structure (∂Γ)ᵇₑⱼₐ = Γᵇₑⱼ,ₐ where the LAST ind
 ```
 """
 function RiemannLastInd!(Riem::AbstractArray{<:Number,4}, ∂Γ::AbstractArray{<:Number,4}, Γ::AbstractArray{<:Number,3})
-    @tullio Riem[i,j,k,l] = ∂Γ[i,j,l,k] - ∂Γ[i,j,k,l] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    # @tensor Riem[i,j,k,l] = ∂Γ[i,j,l,k] - ∂Γ[i,j,k,l] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    # With Tullio, this needs to be split over two lines!!! (Why?!)
+    @tullio Riem[i,j,k,l] = ∂Γ[i,j,l,k] - ∂Γ[i,j,k,l]
+    @tullio Riem[i,j,k,l] += Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
     nothing
 end
 
