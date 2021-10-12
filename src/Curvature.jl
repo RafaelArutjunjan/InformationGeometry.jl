@@ -50,7 +50,7 @@ end
 # function ChristoffelSymbol(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
 #     Finv = inv(Metric(θ));    FPDV = MetricPartials(Metric, θ; BigCalc=BigCalc)
 #     if (suff(θ) == Float64) && BigCalc     FPDV = convert(Array{Float64,3}, FPDV)    end
-#     @tensor Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
+#     @tullio Christoffels[a,i,j] := ((1/2) * Finv)[a,m] * (FPDV[j,m,i] + FPDV[m,i,j] - FPDV[i,j,m])
 # end
 
 # Accuracy ≈ 3e-11
@@ -79,7 +79,7 @@ end
 
 
 function PDV2Christoffel!(Γ::AbstractArray{<:Number,3}, InvMetric::AbstractMatrix{<:Number}, PDV::AbstractArray{<:Number,3})
-    @tensor Γ[a,i,j] = ((1/2) * InvMetric)[a,m] * (PDV[j,m,i] + PDV[m,i,j] - PDV[i,j,m])
+    @tullio Γ[a,i,j] = ((1/2) * InvMetric)[a,m] * (PDV[j,m,i] + PDV[m,i,j] - PDV[i,j,m])
     nothing
 end
 function PDV2Christoffel(InvMetric::AbstractMatrix{<:Number}, PDV::AbstractArray{<:Number,3})
@@ -89,11 +89,11 @@ end
 
 function PDV2Christoffel2!(Γ::AbstractArray{<:Number,3}, InvMetric::AbstractMatrix{<:Number}, PDV::AbstractArray{<:Number,3})
     # Use symmetry in lower indices of Christoffel symbols due to Levi--Civita connection to eliminate one term in contraction
-    @tensor Γ[a,i,j] = InvMetric[a,m] * (PDV[m,j,i] - (0.5*PDV)[i,j,m])
+    @tullio Γ[a,i,j] = InvMetric[a,m] * (PDV[m,j,i] - (0.5*PDV)[i,j,m])
     nothing
 end
 
-ChristoffelTerm(Γ::AbstractArray{<:Number,3}, v::AbstractVector{<:Number}) = @tensor Res[a] := (-1*Γ)[a,b,c] * v[b] * v[c]
+ChristoffelTerm(Γ::AbstractArray{<:Number,3}, v::AbstractVector{<:Number}) = @tullio Res[a] := (-1*Γ)[a,b,c] * v[b] * v[c]
 
 
 # function ChristoffelPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
@@ -142,7 +142,7 @@ function Riemann(Metric::Function, θ::AbstractVector{<:Number}; ADmode::Val=Val
         ∂Γ = convert(Array{Float64,4}, ∂Γ)
     end
     Γ = ChristoffelSymbol(Metric, θ; ADmode=ADmode, BigCalc=BigCalc)
-    # @tensor Riem[m,i,k,p] := DownUpDownDown[k,m,i,p] - DownUpDownDown[p,m,i,k] + Gamma[a,i,p]*Gamma[m,a,k] - Gamma[a,i,k]*Gamma[m,a,p]
+    # @tullio Riem[m,i,k,p] := DownUpDownDown[k,m,i,p] - DownUpDownDown[p,m,i,k] + Gamma[a,i,p]*Gamma[m,a,k] - Gamma[a,i,k]*Gamma[m,a,p]
     Riem = Array{suff(θ)}(undef, length(θ), length(θ), length(θ), length(θ))
     RiemannLastInd!(Riem, ∂Γ, Γ);  Riem
 end
@@ -154,7 +154,7 @@ Assumes index structure (∂Γ)ₐᵇₑⱼ where the FIRST index denotes direct
 ```
 """
 function RiemannFirstInd!(Riem::AbstractArray{<:Number,4}, ∂Γ::AbstractArray{<:Number,4}, Γ::AbstractArray{<:Number,3})
-    @tensor Riem[i,j,k,l] = ∂Γ[k,i,j,l] - ∂Γ[l,i,j,k] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    @tullio Riem[i,j,k,l] = ∂Γ[k,i,j,l] - ∂Γ[l,i,j,k] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
     nothing
 end
 """
@@ -164,7 +164,7 @@ Assumes index structure (∂Γ)ᵇₑⱼₐ = Γᵇₑⱼ,ₐ where the LAST ind
 ```
 """
 function RiemannLastInd!(Riem::AbstractArray{<:Number,4}, ∂Γ::AbstractArray{<:Number,4}, Γ::AbstractArray{<:Number,3})
-    @tensor Riem[i,j,k,l] = ∂Γ[i,j,l,k] - ∂Γ[i,j,k,l] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
+    @tullio Riem[i,j,k,l] = ∂Γ[i,j,l,k] - ∂Γ[i,j,k,l] + Γ[i,a,k]*Γ[a,j,l] - Γ[i,a,l]*Γ[a,j,k]
     nothing
 end
 
@@ -177,7 +177,7 @@ function Ricci(Metric::Function, θ::AbstractVector{<:Number}; kwargs...)
     Riem = Riemann(Metric, θ; kwargs...)
     # For some reason, it is necessary to prefill here.
     RIC = zeros(suff(θ), length(θ), length(θ))
-    @tensor RIC[a,b] = Riem[c,a,c,b]
+    @tullio RIC[a,b] = Riem[c,a,c,b]
 end
 
 """
@@ -195,9 +195,9 @@ function Weyl(Metric::Function, θ::AbstractVector{<:Number}; kwargs...)
     length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
     Riem = Riemann(Metric, θ; kwargs...)
     g = BigCalc ? Metric(BigFloat.(θ)) : Metric(θ)
-    @tensor Ric[a,b] := Riem[m,a,m,b]
-    @tensor PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
-    @tensor PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
-    @tensor Rlow[a,b,c,d] := g[a,e] * Riem[e,b,c,d]
+    @tullio Ric[a,b] := Riem[m,a,m,b]
+    @tullio PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
+    @tullio PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
+    @tullio Rlow[a,b,c,d] := g[a,e] * Riem[e,b,c,d]
     Rlow .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
 end
