@@ -148,7 +148,10 @@ include("DataStructures/DataModel.jl")
 export DataModel, Prior
 
 
-include("NumericalTools.jl")
+include("NumericalTools/Miscellaneous.jl")
+include("NumericalTools/Differentiation.jl")
+include("NumericalTools/Integration.jl")
+include("NumericalTools/Optimization.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export KillAfter, GetDeriv, GetGrad, GetJac, GetHess, GetDoubleJac
