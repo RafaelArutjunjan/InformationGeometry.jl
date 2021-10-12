@@ -16,6 +16,8 @@ suff(x::AbstractArray) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
 suff(args...) = try suff(promote(args...)[1]) catch;  suff(args[1]) end
+# Allow for differentiation through suff arrays. NEEDS TESTING.
+suff(x::ForwardDiff.Dual) = typeof(x)
 
 floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = float.(x)
 floatify(x::AbstractFloat) = x;                     floatify(x::Number) = float(x)
@@ -217,7 +219,7 @@ This outputted function has argument structure `(F::Function, x::Number) -> Abst
 GetHess(ADmode::Symbol, args...; kwargs...) = GetHess(Val(ADmode), args...; kwargs...)
 """
     GetDoubleJac(ADmode::Symbol; kwargs...) -> Function
-Returns second derivatives of a multivariate function via the method specified by `ADmode`.
+Returns second derivatives of a vector-valued function via the method specified by `ADmode`.
 For available backends, see `InformationGeometry.diff_backends()`.
 This outputted function has argument structure `(F::Function, x::AbstractVector) -> AbstractArray{3}`.
 
