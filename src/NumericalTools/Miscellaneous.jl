@@ -12,7 +12,7 @@ suff(x::Float32) = Float32
 suff(x::Float16) = Float16
 suff(x::Real) = Float64
 suff(x::Num) = Num
-suff(x::Complex) = real(x)
+suff(x::Complex) = suff(real(x))
 suff(x::AbstractArray) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
@@ -212,14 +212,23 @@ function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
     try         return (1, GetArgLength(p->model(1.,p); max=max))       catch; end
     for i in 2:(max + 1)
         plen = try      GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
-        i == (max + 1) ? throw("Wasn't able to find config.") : return (i, plen)
+        i == (max + 1) ? throw("Wasn't able to find config for max=$max.") : return (i, plen)
     end
 end
 GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 
-
-function GetArgLength(F::Function; max::Int=100)::Int
-    max < 1 && throw("pdim: max = $max too small.")
+function GetArgLength(F::Function; max::Int=100)
+    num = MaximalNumberOfArguments(F)
+    if num == 1
+         _GetArgLengthOutOfPlace(F; max=max)
+    elseif num == 2
+        _GetArgLengthInPlace(F; max=max)
+    else
+        throw("Given function $F appears to take $num number of arguments.")
+    end
+end
+function _GetArgLengthOutOfPlace(F::Function; max::Int=100)
+    @assert max > 1
     try     F(1.);  return 1    catch; end
     for i in 1:(max+1)
         try
@@ -232,7 +241,37 @@ function GetArgLength(F::Function; max::Int=100)::Int
         i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
     end
 end
-
+# NEEDS TESTING.
+function _GetArgLengthInPlace(F::Function; max::Int=100)
+    @assert max > 1
+    res = 1.;     Res = zeros(max);     RES = zeros(max,max);   RESS = zeros(max,max,max)
+    function _TryOn(output, input)
+        try
+            F(output, input)
+            return length(input)
+        catch y
+            if !(isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError))
+                println("pdim: Encountered error in specification of model function.");     rethrow()
+            end
+            nothing
+        end
+    end
+    function TryAll(input)
+        !isnothing(_TryOn(res, input)) && return length(input)
+        !isnothing(_TryOn(Res, input)) && return length(input)
+        !isnothing(_TryOn(RES, input)) && return length(input)
+        !isnothing(_TryOn(RESS, input)) && return length(input)
+        nothing
+    end
+    X = TryAll(1.);    !isnothing(X) && return 1
+    i = 1
+    while i < max+1
+        X = TryAll(ones(i))
+        !isnothing(X) && return i
+        i += 1
+    end
+    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
+end
 
 
 normalize(x::AbstractVector{<:Number}, scaling::Float64=1.0) = (scaling / norm(x)) * x
