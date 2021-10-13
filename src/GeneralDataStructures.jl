@@ -98,16 +98,22 @@ pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
 
-function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Symbol=:ForwardDiff, Kwargs...)
-    Grad, Jac = GetGrad(ADmode; Kwargs...), GetJac(ADmode; Kwargs...)
-
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    Grad, Jac = _GetGrad(ADmode; Kwargs...), _GetJac(ADmode; Kwargs...)
+    GradPass, JacPass = _GetGradPass, _GetJacPass
+    ## Allow for symbolic passthrough here
     Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(Grad(z->model(x,z; kwargs...),θ))
+    Autodmodel(x::Number,θ::AbstractVector{<:Num}; kwargs...) = transpose(GradPass(z->model(x,z; kwargs...),θ))
     NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = transpose(Grad(z->model(x,z; kwargs...),θ))
-    AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
+    NAutodmodel(x::AbstractVector{<:Number},θ::AbstractVector{<:Num}; kwargs...) = transpose(GradPass(z->model(x,z; kwargs...),θ))
+    AutodmodelN(x::Number,θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...), θ)
+    AutodmodelN(x::Number,θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...), θ)
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
+    NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
     # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
     # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(Grad(p->model(x,p),θ))
     CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
+    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
     if ydim(DS) == 1
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
@@ -119,18 +125,17 @@ end
 
 
 """
-    DetermineDmodel(DS::AbstractDataSet, model::Function; ADmode::Symbol=:ForwardDiff)::Function
+    DetermineDmodel(DS::AbstractDataSet, model::Function; ADmode::Union{Symbol,Val}=:ForwardDiff)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Symbol=:ForwardDiff, kwargs...)
-    # Try to use symbolic dmodel:
+function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
     # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
-    if ADmode === :Symbolic
+    if ADmode === :Symbolic || ADmode isa Val{:Symbolic}
         Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
         !isnothing(Symbolic_dmodel) && return Symbolic_dmodel
         # Fall back to ForwarDiff if Symbolic differentiation did not work
         @info "Falling back to ForwardDiff for model jacobian."
-        ADmode = :ForwardDiff
+        ADmode = Val(:ForwardDiff)
     end
     AutoDiffDmodel(DS, model; custom=custom, ADmode=ADmode, kwargs...)
 end

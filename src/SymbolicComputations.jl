@@ -7,10 +7,15 @@ Getxyp(DS::AbstractDataSet, M::ModelMap) = M.xyp
 
 SymbolicArguments(args...) = SymbolicArguments(Getxyp(args...))
 function SymbolicArguments(xyp::Tuple{Int,Int,Int})
-    @variables X[1:xyp[1]] Y[1:xyp[2]] θ[1:xyp[3]] x y
-    X, Y, θ
-    (xyp[1] == 1 ? x : X), (xyp[2] == 1 ? y : Y), θ
+    (xyp[1] == 1 ? (@variables x)[1] : (@variables x[1:xyp[1]])[1]),
+    (xyp[2] == 1 ? (@variables y)[1] : (@variables y[1:xyp[2]])[1]),
+    (@variables θ[1:xyp[3]])[1]
 end
+# function SymbolicArguments(xyp::Tuple{Int,Int,Int})
+#     @variables X[1:xyp[1]] Y[1:xyp[2]] θ[1:xyp[3]] x y
+#     X, Y, θ
+#     (xyp[1] == 1 ? x : X), (xyp[2] == 1 ? y : Y), θ
+# end
 
 
 ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); timeout=timeout)
