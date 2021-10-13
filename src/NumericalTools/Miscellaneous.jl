@@ -17,8 +17,10 @@ suff(x::AbstractArray) = suff(x[1])
 suff(x::DataFrame) = suff(x[1,1])
 suff(x::Tuple) = suff(x...)
 suff(args...) = try suff(promote(args...)[1]) catch;  suff(args[1]) end
-# Allow for differentiation through suff arrays. NEEDS TESTING.
+# Allow for differentiation through suff arrays.
 suff(x::ForwardDiff.Dual) = typeof(x)
+suff(x::ReverseDiff.TrackedReal) = typeof(x)
+
 
 floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = float.(x)
 floatify(x::AbstractFloat) = x;                     floatify(x::Number) = float(x)

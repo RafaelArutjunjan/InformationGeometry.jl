@@ -200,8 +200,14 @@ _GetMatrixJacPass(F::Function, X) = SymbolicPassthrough(F(X), X, :matrixjacobian
 GetGrad!(ADmode::Symbol, args...; kwargs...) = GetGrad!(Val(ADmode), args...; kwargs...)
 GetJac!(ADmode::Symbol, args...; kwargs...) = GetJac!(Val(ADmode), args...; kwargs...)
 GetHess!(ADmode::Symbol, args...; kwargs...) = GetHess!(Val(ADmode), args...; kwargs...)
-
 GetMatrixJac!(ADmode::Symbol, args...; kwargs...) = GetMatrixJac!(Val(ADmode), args...; kwargs...)
+
+# No Passthrough for these
+GetGrad!(ADmode::Val, args...; kwargs...) = _GetGrad!(ADmode, args...; kwargs...)
+GetJac!(ADmode::Val, args...; kwargs...) = _GetJac!(ADmode, args...; kwargs...)
+GetHess!(ADmode::Val, args...; kwargs...) = _GetHess!(ADmode, args...; kwargs...)
+GetMatrixJac!(ADmode::Val, args...; kwargs...) = _GetMatrixJac!(ADmode, args...; kwargs...)
+
 
 function GetGrad!(ADmode::Val, F::Function; Kwargs...)
     EvaluateGradient!(Y::AbstractVector{<:Number}, X::AbstractVector{<:Number}) = _GetGrad!(ADmode; Kwargs...)(Y, F, X)
@@ -216,8 +222,9 @@ function GetHess!(ADmode::Val, F::Function; Kwargs...)
     EvaluateHess!(Y::AbstractMatrix{<:Num}, X::AbstractVector{<:Num}) = _GetHessPass!(Y, F, X)
 end
 
+# Looks like for in-place functor jacobian! there is no difference for any array shape
 function GetMatrixJac!(ADmode::Val, F::Function; Kwargs...)
-    m = GetArgLength(F);    f = size(F(ones(m)))
+    # m = GetArgLength(F);    f = size(F(ones(m)))
     EvaluateMatrixJacobian(Y::AbstractArray{<:Number}, X::AbstractVector{<:Number}) = _GetJac!(ADmode)(Y, F, X) # DELIBERATE!!!! GetJac!() recognizes output format from given Array
     EvaluateMatrixJacobian(Y::AbstractArray{<:Num}, X::AbstractVector{<:Num}) = _GetMatrixJacPass!(Y, F, X)
 end

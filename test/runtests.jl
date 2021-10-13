@@ -244,11 +244,10 @@ end
 @safetestset "Differential Geometry" begin
     using InformationGeometry, Test, LinearAlgebra, StaticArrays
 
-    S2metric((θ,ϕ)) = Diagonal([1.0, sin(θ)^2])
+    S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
     function S2Christoffel((θ,ϕ))
         Symbol = zeros(suff(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
-        Symbol[2,1,2] = cot(θ);    Symbol[2,2,1] = cot(θ)
-        Symbol
+        Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
     end
     # Calculation by hand works out such that in this special case:
     S2Ricci(x) = S2metric(x)
@@ -321,8 +320,10 @@ end
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
     @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
+end
 
-    # Differentiation
+@safetestset "Differentiation" begin
+    using InformationGeometry, Test, Symbolics, ForwardDiff
     X = ForwardDiff.gradient(x->x[1]^2 + exp(x[2]), [5,10.])
     Y = ForwardDiff.jacobian(x->[x[1]^2 + exp(x[2])], [5,10.])
     Z = ForwardDiff.hessian(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.])

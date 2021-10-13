@@ -156,8 +156,8 @@ EvalF(D::DFunction, x; kwargs...) = D.F(x);    EvaldF(D::DFunction, x; kwargs...
 EvalF(D::DFunction) = D.F;          EvaldF(D::DFunction) = D.dF;            EvalddF(D::DFunction) = D.ddF
 
 EvalF(F::Function, x; kwargs...) = F(x; kwargs...)
-EvaldF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode; kwargs...)(F, x)
-EvalddF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode; kwargs...)(F, x)
+EvaldF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, F; kwargs...)(x)
+EvalddF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, F; kwargs...)(x)
 
 EvalF(D::Nothing; kwargs...) = x->zero(suff(x));    EvaldF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x));    EvalddF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x),length(x))
 EvalF(D::Nothing, x; kwargs...) = zero(suff(x));    EvaldF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x));    EvalddF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x),length(x))

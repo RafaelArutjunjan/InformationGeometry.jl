@@ -150,11 +150,13 @@ export DataModel, Prior
 
 include("NumericalTools/Miscellaneous.jl")
 include("NumericalTools/Differentiation.jl")
+export GetDeriv, GetGrad, GetJac, GetMatrixJac, GetHess, GetDoubleJac
+export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
-export KillAfter, GetDeriv, GetGrad, GetJac, GetHess, GetDoubleJac
+export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
 export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
