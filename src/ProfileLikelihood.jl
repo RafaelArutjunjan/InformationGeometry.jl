@@ -144,7 +144,7 @@ end
 
 
 """
-    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false) -> Vector{Matrix}
+    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> Vector{Matrix}
 Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
 Returns a vector of N×2 matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
 
@@ -184,12 +184,16 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Plots.plot(PlotObjects...; layout=length(PlotObjects)) |> display
 end
 # Plot trajectories of Profile Likelihood
+"""
+    PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; OverWrite=true, kwargs...)
+"""
 function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite=true, kwargs...)
+    @assert Profiles[1][1] isa AbstractMatrix{<:Number} && Profiles[1][2] isa AbstractVector{<:AbstractVector{<:Number}}
     P = OverWrite ? Plots.plot() : Plots.plot!()
     for i in 1:length(Profiles)
-        Plots.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i")
+        Plots.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
     end
-    Plots.scatter!(P, [MLE(DM)]; marker=:hex, markersize=3, label="MLE")
+    Plots.scatter!(P, [MLE(DM)]; marker=:hex, markersize=3, label="MLE", kwargs...)
     P
 end
 
