@@ -115,9 +115,9 @@ end
 
 GetMatrixJac(ADmode::Val; Kwargs...) = EvaluateMatrixJacobian(F::Function, X; kwargs...) = _GetMatrixJac(ADmode; Kwargs...)(F, X; kwargs...)
 GetMatrixJac(ADmode::Val, F::DFunction; Kwargs...) = EvaldF(F)
-function GetMatrixJac(ADmode::Val, F::Function; Kwargs...)
-    m = GetArgLength(F);    f = size(F(ones(m)))
-    EvaluateMatrixJacobian(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode)(vec∘F, X), f..., m)
+function GetMatrixJac(ADmode::Val, F::Function, m=GetArgLength(F); kwargs...)
+    f = size(F(ones(m)))
+    EvaluateMatrixJacobian(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode; kwargs...)(vec∘F, X), f..., m)
     EvaluateMatrixJacobian(X::AbstractVector{<:Num}) = _GetMatrixJacPass(F, X)
 end
 function GetMatrixJac(ADmode::Val{:Symbolic}, F::Function; kwargs...)
@@ -129,18 +129,18 @@ function GetMatrixJac(ADmode::Val{:Symbolic}, F::Function; kwargs...)
 end
 # For emergencies: needs an extra evaluation of function to determine length(Func(p))
 function _GetMatrixJac(ADmode::Val; kwargs...)
-    Functor(Func::Function, X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode)(vec∘Func, X), size(Func(X))..., length(p))
+    Functor(Func::Function, X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode; kwargs...)(vec∘Func, X), size(Func(X))..., length(X))
 end
 
 GetDoubleJac(ADmode::Val; Kwargs...) = EvaluateDoubleJacobian(F::Function, X; kwargs...) = _GetDoubleJac(ADmode; Kwargs...)(F, X; kwargs...)
 GetDoubleJac(ADmode::Val, F::DFunction; Kwargs...) = EvalddF(F)
-function GetDoubleJac(ADmode::Val, F::Function; Kwargs...)
+function GetDoubleJac(ADmode::Val, F::Function; kwargs...)
     m = GetArgLength(F);    f = length(F(ones(m)))
     if f == 1
-        EvaluateDoubleJac(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(F,z)), X), m, m)
+        EvaluateDoubleJac(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode; kwargs...)(vec∘(z->_GetJac(ADmode; kwargs...)(F,z)), X), m, m)
         EvaluateDoubleJac(X::AbstractVector{<:Num}) = _GetDoubleJacPass(F, X)
     else
-        EvaluateDoubleJacobian(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(F,z)), X), f, m, m)
+        EvaluateDoubleJacobian(X::AbstractVector{<:Number}) = reshape(_GetJac(ADmode; kwargs...)(vec∘(z->_GetJac(ADmode; kwargs...)(F,z)), X), f, m, m)
         EvaluateDoubleJacobian(X::AbstractVector{<:Num}) = _GetDoubleJacPass(F, X)
     end
 end
@@ -153,7 +153,7 @@ function GetDoubleJac(ADmode::Val{:Symbolic}, F::Function; kwargs...)
 end
 # For emergencies: needs an extra evaluation of function to determine length(Func(p))
 function _GetDoubleJac(ADmode::Val; kwargs...)
-    Functor(Func::Function, X) = reshape(_GetJac(ADmode)(vec∘(z->_GetJac(ADmode)(Func,z)), X), length(Func(X)), length(X), length(X))
+    Functor(Func::Function, X) = reshape(_GetJac(ADmode; kwargs...)(vec∘(z->_GetJac(ADmode; kwargs...)(Func,z)), X), length(Func(X)), length(X), length(X))
 end
 
 
@@ -180,8 +180,8 @@ _GetGrad(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func::Function,p;Kwa
 _GetJac(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func::Function,p;Kwargs...) -> Zygote.jacobian(Func, p; kwargs...)[1]
 _GetHess(ADmode::Val{:Zygote}; order::Int=-1, kwargs...) = (Func::Function,p;Kwargs...) -> Zygote.hessian(Func, p; kwargs...)
 # Deriv not available for FiniteDifferences
-_GetGrad(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func::Function,p;Kwargs...) -> FiniteDifferences.grad(central_fdm(order,1), Func, p; kwargs...)[1]
-_GetJac(ADmode::Val{:FiniteDiff}; order::Int=2, kwargs...) = (Func::Function,p;Kwargs...) -> FiniteDifferences.jacobian(central_fdm(order,1), Func, p; kwargs...)[1]
+_GetGrad(ADmode::Val{:FiniteDiff}; order::Int=3, kwargs...) = (Func::Function,p;Kwargs...) -> FiniteDifferences.grad(central_fdm(order,1), Func, p; kwargs...)[1]
+_GetJac(ADmode::Val{:FiniteDiff}; order::Int=3, kwargs...) = (Func::Function,p;Kwargs...) -> FiniteDifferences.jacobian(central_fdm(order,1), Func, p; kwargs...)[1]
 _GetHess(ADmode::Val{:FiniteDiff}; order::Int=5, kwargs...) = (Func::Function,p;Kwargs...) -> FiniteDifferences.jacobian(central_fdm(order,1), z->FiniteDifferences.grad(central_fdm(order,1), Func, z)[1], p)[1]
 
 

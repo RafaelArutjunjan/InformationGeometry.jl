@@ -159,5 +159,5 @@ EvalF(F::Function, x; kwargs...) = F(x; kwargs...)
 EvaldF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, F; kwargs...)(x)
 EvalddF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, F; kwargs...)(x)
 
-EvalF(D::Nothing; kwargs...) = x->zero(suff(x));    EvaldF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x));    EvalddF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x),length(x))
+# EvalF(D::Nothing; kwargs...) = x->zero(suff(x));    EvaldF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x));    EvalddF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x),length(x))
 EvalF(D::Nothing, x; kwargs...) = zero(suff(x));    EvaldF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x));    EvalddF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x),length(x))
