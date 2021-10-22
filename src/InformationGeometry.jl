@@ -48,7 +48,6 @@ export remake
 # Custom type for confidence boundaries?
 # Show distribution types for DataSetExact
 # Infer variable names from DataFrames
-# Save Symbolic Expressions for models (if available) and display them
 # IO methods for ModelMaps in general
 # Add measures of practical unidentifiability (eigenvalues of Fisher?)
 
@@ -58,7 +57,6 @@ export remake
 # Make OrthVF in-place everywhere
 # Optimize GetModel() for ODEs for performance by only executing ODEFunction once
 # Use IntegrateND() instead of MonteCarloArea()
-# Implement formula to obtain bounding box of hyperellipse exactly.
 # Remove Plots.jl dependency and instead write recipes for VisualizeSols and others
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computations
 # Use Cuba.jl for Monte Carlo integration
@@ -150,6 +148,7 @@ export DataModel, Prior
 
 include("NumericalTools/Miscellaneous.jl")
 include("NumericalTools/Differentiation.jl")
+export diff_backends
 export GetDeriv, GetGrad, GetJac, GetMatrixJac, GetHess, GetDoubleJac
 export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 include("NumericalTools/Integration.jl")
