@@ -44,11 +44,11 @@ struct ModelMap
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
         startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         StaticOutput = model((xyp[1] < 2 ? 1. : ones(xyp[1])), startp) isa SVector
-        ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(false), Val(false))
+        Inplace = MaximalNumberOfArguments(model) > 2
+        ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(Inplace), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
     ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
@@ -128,6 +128,7 @@ function CreateSymbolNames(n::Int, base::String="θ")
 end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
+
 function ModelMappize(DM::AbstractDataModel)
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM))
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM))

@@ -172,7 +172,7 @@ export FisherMetric, GeometricDensity
 export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
-export EmbeddingMap, EmbeddingMatrix, Pullback, Pushforward
+export EmbeddingMap, EmbeddingMatrix, EmbeddingMap!, EmbeddingMatrix!, Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
@@ -207,7 +207,7 @@ export GetModel, ModifyODEmodel
 
 
 include("SymbolicComputations.jl")
-export Optimize, OptimizedDM, SymbolicModel, SymbolicdModel
+export Optimize, OptimizedDM, InplaceDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")

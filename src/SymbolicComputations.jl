@@ -11,11 +11,6 @@ function SymbolicArguments(xyp::Tuple{Int,Int,Int})
     (xyp[2] == 1 ? (@variables y)[1] : (@variables y[1:xyp[2]])[1]),
     (@variables θ[1:xyp[3]])[1]
 end
-# function SymbolicArguments(xyp::Tuple{Int,Int,Int})
-#     @variables X[1:xyp[1]] Y[1:xyp[2]] θ[1:xyp[3]] x y
-#     X, Y, θ
-#     (xyp[1] == 1 ? x : X), (xyp[2] == 1 ? y : Y), θ
-# end
 
 
 ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); timeout=timeout)
@@ -101,4 +96,10 @@ function OptimizedDM(DM::AbstractDataModel; kwargs...)
     model, dmodel = Optimize(DM; kwargs...)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
     !isnothing(dmodel) ? DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM)) : DM
+end
+
+function InplaceDM(DM::AbstractDataModel; inplace::Bool=true, kwargs...)
+    model!, dmodel! = Optimize(DM; inplace=inplace, kwargs...)
+    isnothing(dmodel!) && throw("Could not create inplace version of given DataModel.")
+    DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM))
 end
