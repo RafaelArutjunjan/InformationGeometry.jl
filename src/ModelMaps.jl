@@ -1,5 +1,14 @@
 
 
+function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=100)
+    if MaximalNumberOfArguments(model) == 2
+        model((xlen < 2 ? rand() : rand(xlen)), startp)
+    else
+        Res = fill(-Inf, max)
+        model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
+        Res[1:(findfirst(isinf, Res) - 1)]
+    end
+end
 
 # Callback triggers when Boundaries is `true`.
 """
@@ -30,25 +39,21 @@ struct ModelMap
     end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
-        xyp = if isnothing(Domain)
-            xlen, plen = GetArgSize(model);     testout = model((xlen < 2 ? 1. : ones(xlen)), GetStartP(plen))
-            (xlen, size(testout,1), plen)
-        else
-            startp = ElaborateGetStartP(Domain, InDomain)
-            xlen = GetArgLength(x->model(x,startp));    testout = model((xlen < 2 ? 1. : ones(xlen)), startp)
-            (xlen, size(testout,1), length(Domain))
-        end
-        ModelMap(model, InDomain, Domain, xyp; pnames=pnames)
+        startp = isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain)
+        xlen = MaximalNumberOfArguments(model) > 2 ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
+        testout = _TestOut(model, startp, xlen)
+        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); pnames=pnames)
     end
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
         pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
         startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
-        StaticOutput = model((xyp[1] < 2 ? 1. : ones(xyp[1])), startp) isa SVector
+        testout = _TestOut(model, startp, xyp[1])
+        StaticOutput = testout isa SVector
         Inplace = MaximalNumberOfArguments(model) > 2
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(Inplace), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
+    ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplace(M)) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, Val(inplace), M.CustomEmbedding)
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
@@ -132,7 +137,7 @@ pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 function ModelMappize(DM::AbstractDataModel)
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM))
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM))
-    DataModel(Data(DM), NewMod, NewdMod, MLE(DM))
+    DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM))
 end
 
 

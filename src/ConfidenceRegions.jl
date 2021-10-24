@@ -293,6 +293,18 @@ function SpatialBoundaryFunction(M::ModelMap, PL::Plane)
     end
 end
 
+
+function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
+    @assert size(M,1) == size(M,2) == length(μ) && Dirs[1] != Dirs[2]
+    a, b = factor*sqrt(1/M[Dirs[1],Dirs[1]]), factor*sqrt(1/M[Dirs[2],Dirs[2]])
+    if all(x->x==0, μ)
+        ix -> SA[1/a,1/b].*ix,          x -> SA[a,b].*x
+    else
+        mle2d = μ[[Dirs[1],Dirs[2]]]
+        ix -> mle2d + SA[1/a,1/b].*ix,  x -> SA[a,b].*(x-mle2d)
+    end
+end
+
 """
     GenerateBoundary(DM::DataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=true) -> ODESolution
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
@@ -313,6 +325,29 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
         solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
     else
         solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
+    end
+end
+function GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
+                            meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), Auto::Val=ADmode, kwargs...)
+    Emb, iEmb = Rescaling(FisherMetric(DM, MLE(DM)), MLE(DM))
+    u0 = !mfd ? PromoteStatic(iEmb(u0), true) : iEmb(u0)
+    EmbLikelihood = loglikelihood(DM)∘Emb
+    LogLikeOnBoundary = EmbLikelihood(u0)
+    CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
+    Grad = GetGrad(Auto, EmbLikelihood)
+    IntCurveODE!(du,u,p,t) = CheatingOrth!(du, Grad(u))
+    g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - Emblikelihood(u))
+    terminatecondition(u,t,integrator) = u[2] - u0[2]
+    # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
+    CB = ContinuousCallback(terminatecondition,terminate!,nothing)
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback((u,p,t)->Boundaries(Emb(u),p,t),terminate!)) : CB
+    SPB = SpatialBoundaryFunction(Predictor(DM))
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback((u,p,t)->SPB(Emb(u),p,t),terminate!)) : CB
+    prob = ODEProblem(IntCurveODE!, u0, (0.,1e5))
+    if mfd
+        EmbeddedODESolution(solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...), Emb)
+    else
+        EmbeddedODESolution(solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...), Emb)
     end
 end
 
@@ -721,7 +756,7 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::Function, θ::Ab
     end
 end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
-    @inbounds for (i, row) in enumerate(Iterators.partition(1:DataspaceDim(DS), T))
+    @inbounds for (i, row) in enumerate(Iterators.partition(1:size(J,1), T))
         dmodel!(view(J,row,:), woundX[i], θ; kwargs...)
     end
 end

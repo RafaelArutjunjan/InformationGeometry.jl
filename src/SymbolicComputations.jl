@@ -56,7 +56,7 @@ end
 function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     xyp != M.xyp && throw("xyp inconsistent.")
     model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
-    ModelMap(model, M), ModelMap(dmodel, M)
+    ModelMap(model, M; inplace=inplace), ModelMap(dmodel, M; inplace=inplace)
 end
 function Optimize(model::Function, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     modelexpr = ToExpr(model, xyp; timeout=timeout) |> Symbolics.simplify
@@ -99,7 +99,7 @@ function OptimizedDM(DM::AbstractDataModel; kwargs...)
 end
 
 function InplaceDM(DM::AbstractDataModel; inplace::Bool=true, kwargs...)
-    model!, dmodel! = Optimize(DM; inplace=inplace, kwargs...)
-    isnothing(dmodel!) && throw("Could not create inplace version of given DataModel.")
-    DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM))
+    model!, dmodel! = Optimize(ModelMappize(DM); inplace=inplace, kwargs...)
+    (isnothing(model!) || isnothing(dmodel!)) && throw("Could not create inplace version of given DataModel.")
+    DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM), true)
 end

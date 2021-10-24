@@ -209,15 +209,21 @@ end
 
 
 """
-    GetArgSize(model::ModelOrFunction; max::Int=100)::Tuple{Int,Int}
+    GetArgSize(model::ModelOrFunction; max::Int=100)
 Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
 """
-function GetArgSize(model::Function; max::Int=100)::Tuple{Int,Int}
-    try         return (1, GetArgLength(p->model(1.,p); max=max))       catch; end
-    for i in 2:(max + 1)
-        plen = try      GetArgLength(p->model(ones(i),p); max=max)      catch; continue end
-        i == (max + 1) ? throw("Wasn't able to find config for max=$max.") : return (i, plen)
-    end
+GetArgSize(model::Function; max::Int=100) = GetArgSize(model, Val(MaximalNumberOfArguments(model) > 2); max=max)
+function GetArgSize(model::Function, inplace::Val{false}; max::Int=100)
+    try return (1, GetArgLength(p->model(rand(),p); max=max)) catch; end
+    for i in 2:max
+        try return (i,GetArgLength(p->model(rand(i),p); max=max)) catch; end
+    end;    throw("Wasn't able to find config for max=$max.")
+end
+function GetArgSize(model!::Function, inplace::Val{true}; max::Int=100)
+    try return (1, GetArgLength((Res,p)->model!(Res,rand(),p); max=max)) catch; end
+    for i in 2:max
+        try return (i,GetArgLength((Res,p)->model!(Res,rand(i),p); max=max)) catch; end
+    end;    throw("Wasn't able to find config for max=$max.")
 end
 GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 
@@ -243,21 +249,20 @@ function _GetArgLengthOutOfPlace(F::Function; max::Int=100)
     for i in 1:(max+1)
         try
             res = F(rand(i))
-            isnothing(res) ? throw("pdim: Function returned Nothing for i=$i.") : res
+            !isnothing(res) && return i
         catch y
             (isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError)) && continue
             println("pdim: Encountered error in specification of model function.");     rethrow()
         end
-        i == (max + 1) ? throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?")) : return i
-    end
+    end;    throw(ArgumentError("pdim: Parameter space appears to have >$max dims."))
 end
 function _GetArgLengthInPlace(F::Function; max::Int=100)
     @assert max > 1
     res = 1.;     Res = zeros(max);     RES = zeros(max,max);   RESS = zeros(max,max,max)
     function _TryOn(output, input)
         try
-            F(output, input)
-            return length(input)
+            res = F(output, input)
+            !isnothing(res) && return length(input)
         catch y
             if !(isa(y, BoundsError) || isa(y, MethodError) || isa(y, DimensionMismatch) || isa(y, ArgumentError) || isa(y, AssertionError))
                 println("pdim: Encountered error in specification of model function.");     rethrow()
@@ -274,12 +279,11 @@ function _GetArgLengthInPlace(F::Function; max::Int=100)
     end
     X = TryAll(rand());    !isnothing(X) && return 1
     i = 1
-    while i < max+1
+    while i ≤ max
         X = TryAll(rand(i))
         !isnothing(X) && return i
         i += 1
-    end
-    throw(ArgumentError("pdim: Parameter space appears to have >$max dims. Aborting. Maybe wrong type of x was inserted?"))
+    end;    throw(ArgumentError("pdim: Parameter space appears to have >$max dims."))
 end
 
 

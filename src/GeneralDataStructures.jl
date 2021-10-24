@@ -191,7 +191,13 @@ xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
     pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-pdim(DS::AbstractDataSet, model::ModelOrFunction) = xdim(DS) < 2 ? GetArgLength(p->model(xdata(DS)[1],p)) : GetArgLength(p->model(xdata(DS)[1:xdim(DS)],p))
+function pdim(DS::AbstractDataSet, model::ModelOrFunction)
+    if MaximalNumberOfArguments(model) == 2
+        GetArgLength(p->model(WoundX(DS)[1],p))
+    else
+        GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))
+    end
+end
 
 
 # DataFrame(DM::DataModel) = DataFrame(Data(DM))
