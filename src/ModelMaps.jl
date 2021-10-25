@@ -313,7 +313,8 @@ function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::
     DataModel(Data(DM), AffineTransform(Predictor(DM), A, v), Ainv*(MLE(DM)-v); kwargs...)
 end
 
-_GetDecorrelationTransform(DM::AbstractDataModel) = (cholesky(Symmetric(inv(FisherMetric(DM, MLE(DM))))).L, MLE(DM))
+_GetDecorrelationTransform(DM::AbstractDataModel) = (_GetDecorrelationTransform(FisherMetric(DM, MLE(DM))), MLE(DM))
+_GetDecorrelationTransform(M::AbstractMatrix) = cholesky(Symmetric(inv(M))).L
 LinearDecorrelation(DM::AbstractDataModel; kwargs...) = ((M,X) =_GetDecorrelationTransform(DM); AffineTransform(DM, M, X; kwargs...))
 
 function DecorrelationTransforms(DM::AbstractDataModel)

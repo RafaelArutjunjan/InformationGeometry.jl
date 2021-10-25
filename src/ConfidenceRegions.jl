@@ -285,23 +285,28 @@ function SpatialBoundaryFunction(M::ModelMap)
         return S
     end
 end
-function SpatialBoundaryFunction(M::ModelMap, PL::Plane)
-    function ModelMapBoundaries(u,p,t)
-        S = !IsInDomain(M, PlaneCoordinates(PL,u))
-        S && @warn "Curve ran into boundaries specified by ModelMap at $u."
-        return S
-    end
-end
 
 
-function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
+function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
     @assert size(M,1) == size(M,2) == length(μ) && Dirs[1] != Dirs[2]
-    a, b = factor*sqrt(1/M[Dirs[1],Dirs[1]]), factor*sqrt(1/M[Dirs[2],Dirs[2]])
-    if all(x->x==0, μ)
-        ix -> SA[1/a,1/b].*ix,          x -> SA[a,b].*x
+    if Full
+        S = SMatrix{2,2}(factor*_GetDecorrelationTransform(M[[Dirs[1],Dirs[2]],[Dirs[1],Dirs[2]]]))
+        # S = SA[C[Dirs[1],Dirs[1]] C[Dirs[1],Dirs[2]]; C[Dirs[2],Dirs[1]] C[Dirs[2],Dirs[2]]]
+        iS = inv(S)
+        if all(x->x==0, μ)
+            ix -> iS*ix,          x -> S*x
+        else
+            mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
+            ix -> mle2d + iS*ix,  x -> S*(x-mle2d)
+        end
     else
-        mle2d = μ[[Dirs[1],Dirs[2]]]
-        ix -> mle2d + SA[1/a,1/b].*ix,  x -> SA[a,b].*(x-mle2d)
+        a, b = factor*sqrt(1/M[Dirs[1],Dirs[1]]), factor*sqrt(1/M[Dirs[2],Dirs[2]])
+        if all(x->x==0, μ)
+            ix -> SA[1/a,1/b].*ix,          x -> SA[a,b].*x
+        else
+            mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
+            ix -> mle2d + SA[1/a,1/b].*ix,  x -> SA[a,b].*(x-mle2d)
+        end
     end
 end
 
@@ -327,9 +332,12 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
         solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
 end
+"""
+    GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
+"""
 function GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
-                            meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), Auto::Val=ADmode, kwargs...)
-    Emb, iEmb = Rescaling(FisherMetric(DM, MLE(DM)), MLE(DM))
+                meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), Auto::Val=ADmode, FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
+    Emb, iEmb = Rescaling(FisherMetric(DM, MLE(DM)), MLE(DM); Full=FullRescale)
     u0 = !mfd ? PromoteStatic(iEmb(u0), true) : iEmb(u0)
     EmbLikelihood = loglikelihood(DM)∘Emb
     LogLikeOnBoundary = EmbLikelihood(u0)
@@ -340,46 +348,60 @@ function GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; 
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback((u,p,t)->Boundaries(Emb(u),p,t),terminate!)) : CB
-    SPB = SpatialBoundaryFunction(Predictor(DM))
-    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback((u,p,t)->SPB(Emb(u),p,t),terminate!)) : CB
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, Emb),terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)), Emb),terminate!)) : CB
     prob = ODEProblem(IntCurveODE!, u0, (0.,1e5))
-    if mfd
-        EmbeddedODESolution(solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...), Emb)
+    sol = if mfd
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB,ManifoldProjection(g!)), kwargs...)
     else
-        EmbeddedODESolution(solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...), Emb)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
+    Embedded ? EmbeddedODESolution(sol, Emb) : sol
 end
 
+EmbedCallbackFunc(Boundaries::Function, PL::Plane) = EmbedCallbackFunc(Boundaries, PlaneCoordinates(PL))
+EmbedCallbackFunc(Boundaries::Function, Emb::Function) = (u,p,t)->Boundaries(Emb(u),p,t)
+
+EmbedLogPrior(N::Nothing, args...) = nothing
+EmbedLogPrior(DM::AbstractDataModel, PL::Plane) = EmbedLogPrior(LogPrior(DM), PL::Plane)
+EmbedLogPrior(F::Function, PL::Plane) = EmbedLogPrior(F, PlaneCoordinates(PL))
+EmbedLogPrior(F::Function, Emb::Function) = F∘Emb
+
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Auto::Val=Val(false), Embedded::Bool=false, kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
+    PlanarLogPrior = EmbedLogPrior(DM, PL)
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
     IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u, PlanarLogPrior; Auto=Auto)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
-    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
-    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(SpatialBoundaryFunction(Predictor(DM),PL),terminate!)) : CB
+    CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, PL),terminate!)) : CB
+    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)),PL),terminate!)) : CB
     prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
-    if mfd
+    sol = if mfd
         solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!)), kwargs...)
     else
         solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
     end
+    Embedded ? EmbeddedODESolution(sol, PL) : sol
 end
 
 """
 General function `F` with 2D domain whose Hessian should be negative-definite everywhere, i.e. negative cost function.
 """
-GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
-function GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
+function GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; Embedded::Bool=true, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+    Emb, iEmb = Rescaling(-GetHess(ADmode, F)(u0)) # ); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
+    sol = _GenerateBoundary(F∘Emb, iEmb(u0); ADmode=ADmode, kwargs...)
+    Embedded ? EmbeddedODESolution(sol, Emb) : sol
+end
+_GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = _GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
+function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
     !mfd && (u0 = PromoteStatic(u0, true))
-    CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
+    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du); nothing)
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
     solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol, callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
 end
@@ -1087,7 +1109,7 @@ end
 
 
 """
-    ApproxInRegion(sol::ODESolution, p::AbstractVector{<:Number}) -> Bool
+    ApproxInRegion(sol::AbstractODESolution, p::AbstractVector{<:Number}) -> Bool
 Blazingly fast approximative test whether a point lies within the polygon defined by the base points of a 2D ODESolution.
 Especially well-suited for hypothesis testing once a confidence boundary has been explicitly computed.
 """

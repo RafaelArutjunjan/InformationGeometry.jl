@@ -415,6 +415,7 @@ struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <
     Embedding::Function
 end
 (ES::EmbeddedODESolution)(t::Real,deriv::Type=Val{0};idxs=nothing,continuity=:left) = ES.Embedding(ES.interp(t,idxs,deriv,ES.prob.p,continuity))
+(ES::EmbeddedODESolution)(Ts::AbstractVector{<:Real},deriv::Type=Val{0};kwargs...) = map(t->ES(t,deriv;kwargs...),Ts)
 # Need to use push-forward to embed vectors, i.e. ForwardDiff.jacobian(Embedding, basepoint) * tangentvector
 # (ES::EmbeddedODESolution)(v,t,deriv::Type=Val{0};idxs=nothing,continuity=:left) = sol.interp(v,t,idxs,deriv,sol.prob.p,continuity)
 
@@ -435,7 +436,7 @@ function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Fun
     EmbeddedODESolution(newu, isnothing(sol.u_analytic) ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
                  sol.errors, sol.t, newk, sol.prob, sol.alg,
                  sol.interp, # Leaving old interp object as is and only using embedding on calls of EmbeddedODESolution objects themselves.
-                 false, sol.tslocation, sol.destats, sol.retcode, Embedding)
+                 sol.dense, sol.tslocation, sol.destats, sol.retcode, Embedding)
 end
 EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) = EmbeddedODESolution(sol, PlaneCoordinates(PL))
 function EmbeddedODESolution(sols::AbstractVector{<:AbstractODESolution}, Planes::AbstractVector{<:Plane})

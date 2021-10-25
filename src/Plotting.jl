@@ -591,7 +591,8 @@ end
 
 
 function VisualizeSolPoints(sol::AbstractODESolution; kwargs...)
-    Plots.plot!([sol.u[i][1] for i in 1:length(sol.t)], [sol.u[i][2] for i in 1:length(sol.t)]; marker=:hex, markersize=2, kwargs...)
+    Plots.plot!(sol.u; marker=:hex, line=:dash, linealpha=1, markersize=2, kwargs...)
+    VisualizeSols(sol; OverWrite=false, kwargs...)
 end
 function VisualizeSolPoints(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=false, kwargs...)
     p = [];     OverWrite && Plots.plot()
@@ -607,7 +608,7 @@ XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Paddi
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
-# function GetExtrema(DM::AbstractDataModel,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+# function GetExtrema(DM::AbstractDataModel,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
 #     low = Inf;   up = -Inf
 #     for sol in sols
 #         Y = map(Z->DM.model(X,sol(Z)), range(sol.t[1],sol.t[end]; length=N))
@@ -616,7 +617,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #         if up < tempup      up = tempup         end
 #     end;    (low, up)
 # end
-# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
+# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
 #     low = Inf;   up = -Inf
 #     for sol in sols
 #         templow, tempup = map(t->DM.model(X,PlaneCoordinates(PL,sol(t))), range(sol.t[1],sol.t[end]; length=N)) |> extrema
@@ -638,7 +639,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #     ConfidenceBands(DM::DataModel,sol::AbstractODESolution,domain::HyperCube; N::Int=200)
 # Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
 # """
-# function ConfidenceBands(DM::AbstractDataModel,sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
+# function ConfidenceBands(DM::AbstractDataModel,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
 #     !(length(domain) == xdim(DM)) && throw("Dimensionality of domain inconsistent with xdim.")
 #     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
 #     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
@@ -651,7 +652,7 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #     return [Unpack(collect(X)) low up]
 # end
 #
-# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,AbstractVector{<:Plane}},sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}},
+# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,AbstractVector{<:Plane}},sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},
 #                                             domain::HyperCube=XCube(DM); N::Int=200, Np::Int=300)
 #     length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
 #     !(length(Planes) == 1 || length(Planes) == length(sols)) && throw("Number of Planes inconsisten with number of ODESolutions.")
@@ -711,7 +712,7 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
     ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{ODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
