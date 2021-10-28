@@ -177,17 +177,10 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
 
-# function AltLineSearch(Test::Function, x::Number, Domain::Tuple{<:Number,<:Number}=(zero(suff(x)), 1e4*one(suff(x)));
-#                     tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1())
-#     @assert Domain[1] < Domain[2]
-#     try
-#         if meth isa Roots.AbstractNonBracketing
-#             find_zero(z-> F(z) - x, 0.5one(suff(x)), meth; xatol=tol)
-#         else
-#             find_zero(z-> F(z) - x, Domain, meth; xatol=tol)
-#         end
-#     catch err
-#         @warn "invert() errored: $(nameof(typeof(err))). Assuming result is bracketed by $Domain and falling back to Bisection-like method."
-#         find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol)
-#     end
-# end
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12) where T<:Real
+    find_zero(Test, Domain, meth; xatol=tol, xrtol=tol)
+end
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,10^(-precision(BigFloat)/10))) where T<:BigFloat
+    Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-14, xrtol=1e-14)
+    find_zero(Test, (BigFloat(Res-2e-14),BigFloat(Res+2e-14)), Bisection(); xatol=tol, xrtol=tol)
+end

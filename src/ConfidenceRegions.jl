@@ -156,7 +156,7 @@ Calculates a direction (in parameter space) in which the value of the log-likeli
 Since a 2D `Plane` is specified, both the input `θ` as well as well as the output have 2 components.
 `Auto=Val(true)` uses automatic differentiation to calculate the score.
 """
-function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=(isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)); Auto::Val=Val(false), kwargs...)
+function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=EmbedLogPrior(DM,PL); Auto::Val=Val(false), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; Auto=Auto, kwargs...))
     P = prod(S)
     normalize(SA[-P/S[1],P/S[2]])
@@ -363,7 +363,7 @@ EmbedCallbackFunc(Boundaries::Function, PL::Plane) = EmbedCallbackFunc(Boundarie
 EmbedCallbackFunc(Boundaries::Function, Emb::Function) = (u,p,t)->Boundaries(Emb(u),p,t)
 
 EmbedLogPrior(N::Nothing, args...) = nothing
-EmbedLogPrior(DM::AbstractDataModel, PL::Plane) = EmbedLogPrior(LogPrior(DM), PL::Plane)
+EmbedLogPrior(DM::AbstractDataModel, PL) = EmbedLogPrior(LogPrior(DM), PL)
 EmbedLogPrior(F::Function, PL::Plane) = EmbedLogPrior(F, PlaneCoordinates(PL))
 EmbedLogPrior(F::Function, Emb::Function) = F∘Emb
 
@@ -391,11 +391,14 @@ end
 """
 General function `F` with 2D domain whose Hessian should be negative-definite everywhere, i.e. negative cost function.
 """
-function GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; Embedded::Bool=true, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+GenerateBoundary(args...; kwargs...) = _GenerateBoundary(args...; kwargs...)
+
+function GenerateBoundary2(F::Function, u0::AbstractVector{<:Number}; Embedded::Bool=true, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     Emb, iEmb = Rescaling(-GetHess(ADmode, F)(u0)) # ); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
     sol = _GenerateBoundary(F∘Emb, iEmb(u0); ADmode=ADmode, kwargs...)
     Embedded ? EmbeddedODESolution(sol, Emb) : sol
 end
+
 _GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = _GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
 function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
@@ -619,9 +622,9 @@ end
 function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
-        IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE)
+        IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, GeometricDensity(DM); N=N, WE=WE)
     else
-        IntegrateOverConfidenceRegion(DM, Domain, Confnum, z->GeometricDensity(DM,z;kwargs...); N=N, WE=WE, kwargs...)
+        IntegrateOverConfidenceRegion(DM, Domain, Confnum, GeometricDensity(DM); N=N, WE=WE, kwargs...)
     end
 end
 
@@ -899,7 +902,7 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real
 end
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      model = Predictor(DM)
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
+    PlanarLogPrior = EmbedLogPrior(DM, PL)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
     Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.], PlanarLogPrior)))) - CF < 0.
     !Test(0.) && return false

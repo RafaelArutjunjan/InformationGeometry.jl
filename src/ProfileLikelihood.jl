@@ -117,7 +117,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         MLEstash = Drop(MLE(DM), Comp)
         for (i,p) in enumerate(ps)
             NewModel = ProfilePredictor(DM, Comp, p)
-            DroppedLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘ValInserter(Comp,p)
+            DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
             MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior; tol=tol, kwargs...).param
             SaveTrajectories && (path[i] = MLEstash)
             Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)

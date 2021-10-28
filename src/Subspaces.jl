@@ -29,7 +29,7 @@ length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
+    PlanarLogPrior = EmbedLogPrior(DM, PL)
     planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
     return try
         # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
@@ -45,7 +45,7 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
-    PlanarLogPrior = isnothing(LogPrior(DM)) ? nothing : LogPrior(DM)∘PlaneCoordinates(PL)
+    PlanarLogPrior = EmbedLogPrior(DM, PL)
     mle = MLEinPlane(DM, PL)
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
 end
@@ -139,22 +139,22 @@ function ParallelPlanes(PL::Plane, v::AbstractVector, range::AbstractVector{<:Re
 end
 
 
-function GramSchmidt(v::AbstractVector,dim::Int=length(v))
-    Basis = Vector{suff(v)}(undef,0)
-    push!(Basis,v)
-    for i in 2:length(v)
-        push!(Basis,BasisVector(i,length(v)))
-    end
-    GramSchmidt([normalize(Basis[i]) for i in 1:length(Basis)])
+function GramSchmidt(v::AbstractVector, dim::Int=length(v))
+    Basis = Vector{Vector{suff(v)}}(undef,dim)
+    Basis[1] = normalize(v)
+    for i in 2:dim
+        Basis[i] = BasisVector(i,dim)
+    end;    GramSchmidt(Basis)
 end
-function GramSchmidt(Basis::AbstractVector{<:AbstractVector})
+function GramSchmidt(Basis::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     ONBasis = floatify(Basis)
-    for j in 1:length(Basis)
+    for j in 2:length(Basis)
         for i in 2:j
-            ONBasis[j] .-= ProjectOnto(Basis[j],ONBasis[i-1])
+            Basis[j] .-= ProjectOnto(Basis[j],ONBasis[i-1])
         end
     end
-    [normalize(ONBasis[i]) for i in 1:length(ONBasis)]
+    for i in 1:length(ONBasis) normalize!(ONBasis[i]) end
+    ONBasis
 end
 
 
