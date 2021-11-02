@@ -107,7 +107,7 @@ minimize(FdF::Tuple{Function,Function}, args...; kwargs...) = minimize(FdF[1], F
 function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     # Wrap dF to make it inplace
-    newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->(G .= dF(x))) : dF
+    newdF = MaximalNumberOfArguments(dF) < 2 ? ((G,x)->copyto!(G,dF(x))) : dF
     options = if isnothing(Fthresh)
         Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     else  # stopping criterion via callback kwarg

@@ -22,8 +22,9 @@ function ValInserter(Component::Int, Value::AbstractFloat)
 end
 
 # https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
-_SortTogether(A::AbstractVector{<:Int}, B::AbstractVector; rev::Bool=false, kwargs...) = issorted(A; rev=rev) ? (A,B) : getindex.((A, B), (sortperm(A; rev=rev, kwargs...),))
-
+function _SortTogether(A::AbstractVector, B::AbstractVector, args...; rev::Bool=false, kwargs...)
+    issorted(A; rev=rev) ? (A, B, args...) : getindex.((A, B, args...), (sortperm(A; rev=rev, kwargs...),))
+end
 """
     ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}) -> Function
 Returns an embedding function which inserts `Values` in the specified `Components`.

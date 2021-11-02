@@ -398,6 +398,11 @@ end
 import Base.clamp
 clamp(x::AbstractVector, C::HyperCube) = clamp(x, C.L, C.U)
 
+import Base: log, exp
+log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
+exp(C::HyperCube) = HyperCube(exp.(C.L), exp.(C.U))
+
+
 
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType
