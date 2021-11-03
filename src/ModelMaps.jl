@@ -17,8 +17,9 @@ end
 A container which stores additional information about a model map, in particular its domain of validity.
 `Map` is the actual map `(x,θ) -> model(x,θ)`. `Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
 For more complicated boundary constraints, scalar function `InDomain` can be specified, which should be strictly positive on the valid parameter domain.
-Note: A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
-Providing this information about the domain can be advantageous in the optimization process for complicated models.
+!!! note
+    A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
+    Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
 struct ModelMap
     Map::Function

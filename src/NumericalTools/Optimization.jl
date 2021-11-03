@@ -114,10 +114,10 @@ function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Do
         Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     end
     Res = if isnothing(Domain)
-        optimize(F, newdF, floatify(start), meth, options; kwargs...)
+        Optim.optimize(F, newdF, floatify(start), meth, options; inplace=true, kwargs...)
     else
         start ∉ Domain && throw("Given starting value not in specified domain.")
-        optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; kwargs...)
+        Optim.optimize(F, newdF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; inplace=true, kwargs...)
     end
     Full ? Res : Optim.minimizer(Res)
 end

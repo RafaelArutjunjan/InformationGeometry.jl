@@ -151,9 +151,9 @@ import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
 ==(DS1::DataSetExact, DS2::DataSet) = DS2 == DS1
 function ==(DS1::DataSet, DS2::DataSetExact)
-    if !(xdist(DS2) isa InformationGeometry.Dirac && ydist(DS) isa MvNormal)
+    if !(xdist(DS2) isa InformationGeometry.Dirac && ydist(DS2) isa MvNormal)
         return false
-    elseif xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
+    elseif xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && yInvCov(DS1) == yInvCov(DS2)
         return true
     else
         false
@@ -166,7 +166,7 @@ end
 """
     KillAfter(F::Function, args...; timeout::Real=5, verbose::Bool=false, kwargs...)
 Tries to evaluate a given function `F` before a set `timeout` limit is reached and interrupts the evaluation and returns `nothing` if necessary.
-NOTE: The given function is evaluated via F(args...; kwargs...).
+The given function is evaluated via F(args...; kwargs...).
 """
 function KillAfter(F::Function, args...; timeout::Real=5, verbose::Bool=false, kwargs...)
     Res = nothing

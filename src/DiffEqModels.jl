@@ -212,8 +212,10 @@ Typically, a fair bit of additional performance can be gained from ensuring that
 
 `ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
 Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
-NOTE: The vector `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting.
-This is because `ObservationFunction` might also depend on the initial conditions in general.
+
+!!! note
+    The vector `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting.
+    This is because `ObservationFunction` might also depend on the initial conditions in general.
 
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
