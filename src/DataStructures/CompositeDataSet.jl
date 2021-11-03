@@ -225,8 +225,8 @@ _FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractVector{
     end;    Res
 end
 
-
-RecipesBase.@recipe function f(CDS::CompositeDataSet)
+# Ignore xpositions
+RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector{<:Number}=xdata(CDS))
     xdim(CDS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
     xguide -->  xnames(CDS)[1]
@@ -242,6 +242,7 @@ end
 
 
 function ResidualStandardError(CDS::CompositeDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
+    any(x->DataspaceDim(x) ≤ length(MLE), Data(CDS)) && (println("Too few data points to compute RSE"); return nothing)
     ydiff = ydata(CDS) - EmbeddingMap(CDS, model, MLE);    Res = zeros(length(Data(CDS)));    startind = 1
     for i in eachindex(Res)
         ypred = view(ydiff, startind:startind+Npoints(Data(CDS)[i])*ydim(Data(CDS)[i])-1)

@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
@@ -12,7 +12,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
     linewidth -->       2
     seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (:auto))
     linestyle -->       :solid
-    RSEs = ResidualStandardError(DM, MLE)
+    RSEs = ResidualStandardError(DM, mle)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     label -->  if ydim(DM) == 1
         # "Fit with RSE≈$(RSEs[1])"
@@ -25,8 +25,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
     end
     # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
     X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=500) : xdata(DM)
-    Y = EmbeddingMap(Data(DM), Predictor(DM), MLE, X)
-    Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
+    Y = predictedY(DM, mle, X)
+    # Y = EmbeddingMap(Data(DM), Predictor(DM), mle, X)
+    # Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
     if ydim(DM) ≤ Npoints(DM)
         return X, Y
     elseif xpositions != xdata(DM)
@@ -35,11 +36,16 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, MLE::AbstractVector{<:Numb
         return Y
     end
 end
-function predictedY(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM))
-    Y = EmbeddingMap(Data(DM), Predictor(DM), θ, X)
-    ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
+function predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM))
+    predictedY(Data(DM), Predictor(DM), mle, X)
+end
+function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}, X::AbstractVector=xdata(DS))
+    # Ignore structure of missing values for CompositeDataSet for dense prediction curve
+    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, mle, X) : EmbeddingMap(DS, model, mle, X)
+    ydim(DS) == 1 ? Y : (ydim(DS) ≤ Npoints(DS) ? Unpack(Windup(Y, ydim(DS))) : transpose(Unpack(Windup(Y, ydim(DS)))))
 end
 
+# xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)

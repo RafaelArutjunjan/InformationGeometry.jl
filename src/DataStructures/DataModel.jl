@@ -89,7 +89,7 @@ function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelO
     norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherMetric(DS, dmodel, MLE, LogPriorFn)
     det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
-    !isposdef(Symmetric(g)) && throw("Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init).")
+    !isposdef(Symmetric(g)) && @warn "Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init)."
 end
 
 # For SciMLBase.remake

@@ -79,7 +79,7 @@ end
     Mats = ProfileLikelihood(ToyDME,2; plot=false)
     ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats),1)
     ExactBox = ConstructCube(ConfidenceRegion(ToyDME,1; tol=1e-6))
-    @test norm(Center(ProfBox) - Center(ExactBox)) < 1e-5
+    @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5
     @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
     @test 0 < PracticallyIdentifiable(Mats) < 2
 
