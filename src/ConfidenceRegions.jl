@@ -107,6 +107,17 @@ function FindConfBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Re
 end
 
 
+function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=pdim(DM), factor::Real=10.0)
+    b = sqrt(quantile(Chisq(dof),CF))/sqrt(FisherMetric(DM,MLE(DM))[1,1])
+    (b/factor, factor*b)
+end
+# Takes roughly 1/3 of the time of Boolean LineSearch
+function FindConfBoundary2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), maxiter::Int=-1, factor::Real=10.0, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
+    CF = ConfVol(Confnum);    Crit(x) = WilksCriterion(DM, x * BasisVector(1, pdim(DM)) + MLE(DM), CF)
+    AltLineSearch(Crit, _BracketingInterval(DM,CF;dof=dof,factor=factor), meth; tol) * BasisVector(1, pdim(DM)) + MLE(DM)
+end
+
+
 # function FtestPrepared(DM::DataModel, θ::AbstractVector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
 #     n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./ysigma(DM)).^2)
 #     S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
