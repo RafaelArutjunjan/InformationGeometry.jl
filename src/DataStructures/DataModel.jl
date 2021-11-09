@@ -54,7 +54,7 @@ struct DataModel <: AbstractDataModel
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...), SkipTests)
     DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...),mle,SkipTests)
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; kwargs...)
-        DataModel(DS, model, DetermineDmodel(DS,model; kwargs...), mle, LogPriorFn, SkipTests)
+        DataModel(DS, model, DetermineDmodel(DS, model; kwargs...), mle, LogPriorFn, SkipTests)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false)
         SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
@@ -62,7 +62,8 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false)
         DataModel(DS, model, dmodel, mle, nothing, SkipTests)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+        LogPriorFn = Prior(logPriorFn, mle)
         SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true)
         MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
         DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, SkipTests)
@@ -72,7 +73,7 @@ struct DataModel <: AbstractDataModel
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
-        new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn))
+        new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn,MLE))
     end
 end
 
@@ -133,31 +134,17 @@ BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Big
 
 InformNames(DM::AbstractDataModel, xnames::AbstractVector{String}, ynames::AbstractVector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 
-abstract type DFunction <: Function end
-"""
-Can store Logarithmic Prior and its derivatives if they are known.
-"""
-struct Prior <: DFunction
-    F::Function
-    dF::Function
-    ddF::Function
-end
+
 # Dot not create Prior object when there is no prior.
-Prior(Func::Nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = nothing
-Prior(Func::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GetGrad(ADmode, Func); ADmode=ADmode)
-Prior(Func::Function, GradFunc::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff)) = Prior(Func, GradFunc, GetHess(ADmode,Func))
-(P::Prior)(θ::AbstractVector{<:Number}) = EvalF(P, θ)
+Prior(Func::Nothing, args...; kwargs...) = nothing
+# DFunction uses :Symbolic by default which can lead to problems
+Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFunction(args...; ADmode=ADmode, kwargs...)
+Prior(D::DFunction, args...; kwargs...) = D
 
 EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
 EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
 EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
 
-EvalF(D::DFunction, x; kwargs...) = D.F(x);    EvaldF(D::DFunction, x; kwargs...) = D.dF(x);      EvalddF(D::DFunction, x; kwargs...) = D.ddF(x)
-EvalF(D::DFunction) = D.F;          EvaldF(D::DFunction) = D.dF;            EvalddF(D::DFunction) = D.ddF
-
-EvalF(F::Function, x; kwargs...) = F(x; kwargs...)
-EvaldF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, F; kwargs...)(x)
-EvalddF(F::Function, x; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, F; kwargs...)(x)
-
-# EvalF(D::Nothing; kwargs...) = x->zero(suff(x));    EvaldF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x));    EvalddF(D::Nothing; kwargs...) = x->zeros(suff(x),length(x),length(x))
-EvalF(D::Nothing, x; kwargs...) = zero(suff(x));    EvaldF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x));    EvalddF(D::Nothing, x; kwargs...) = zeros(suff(x),length(x),length(x))
+EvalLogPrior(D::Nothing, x; kwargs...) = zero(suff(x))
+EvalLogPriorGrad(D::Nothing, x; kwargs...) = zeros(suff(x),length(x))
+EvalLogPriorHess(D::Nothing, x; kwargs...) = zeros(suff(x),length(x),length(x))

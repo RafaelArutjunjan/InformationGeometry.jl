@@ -29,9 +29,19 @@ end
 
 
 
-AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoScore(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) + EvalLogPriorGrad(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
-AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = _AutoMetric(Data(DM), Predictor(DM), θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPrior(DM), θ; ADmode=ADmode, kwargs...)
+AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = AutoScore(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
+AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _AutoScore(DS, model, θ; kwargs...)
+function AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+    _AutoScore(DS, model, θ; ADmode=ADmode, kwargs...) + EvalLogPriorGrad(LogPriorFn, θ; ADmode=ADmode)
+end
 _AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, x->_loglikelihood(DS, model, x; kwargs...))(θ)
+
+
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = AutoMetric(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
+AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _AutoMetric(DS, model, θ; kwargs...)
+function AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+    _AutoMetric(DS, model, θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPriorFn, θ; ADmode=ADmode)
+end
 _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, x->-_loglikelihood(DS, model, x; kwargs...))(θ)
 
 
@@ -953,6 +963,7 @@ end
 function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); Padding::Number=1/30)
     @assert size(Σ,1) == size(Σ,2) == length(μ)
     E = eigen(Σ)
+    @assert all(x->x>0, E.values)
     offsets = [dot(E.values, E.vectors[i,:].^2) for i in 1:length(E.values)] .|> sqrt
     HyperCube(μ-offsets, μ+offsets; Padding=Padding)
 end

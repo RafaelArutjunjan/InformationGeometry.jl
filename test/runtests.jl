@@ -213,6 +213,7 @@ end
     @test norm(Score(DM, MLE(DM)) - Score(DM12, MLE(DM))) < 1e-12
     @test FisherMetric(DM, MLE(DM)) ≈ FisherMetric(DM12, MLE(DM))
 
+    # Intentionally not giving information about LogPrior input here
     dm = DataModel(DS, model, MLE(DM), x->0.0)
     @test loglikelihood(DM, MLE(DM)) ≈ loglikelihood(dm, MLE(DM))
     @test Score(DM, MLE(DM)) ≈ Score(dm, MLE(DM))
@@ -332,22 +333,4 @@ end
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
     @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
-end
-
-@safetestset "Differentiation" begin
-    using InformationGeometry, Test, Symbolics, ForwardDiff
-    X = ForwardDiff.gradient(x->x[1]^2 + exp(x[2]), [5,10.])
-    Y = ForwardDiff.jacobian(x->[x[1]^2 + exp(x[2])], [5,10.])
-    Z = ForwardDiff.hessian(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.])
-
-    function MyTest(ADmode::Symbol; kwargs...)
-        Grad, Jac, Hess = GetGrad(ADmode; kwargs...), GetJac(ADmode; kwargs...), GetHess(ADmode; kwargs...)
-        @test Grad(x->x[1]^2 + exp(x[2]), [5,10.]) ≈ X
-        @test Jac(x->[x[1]^2 + exp(x[2])], [5,10.]) ≈ Y
-        @test Hess(x->x[1]^2 + exp(x[2]) + x[1]*x[2], [5,10.]) ≈ Z
-    end
-
-    for ADmode ∈ [:ForwardDiff, :Zygote, :ReverseDiff, :FiniteDiff]
-        MyTest(ADmode)
-    end
 end

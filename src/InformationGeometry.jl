@@ -8,7 +8,7 @@ using LinearAlgebra, Random, Distributions, DataFrames
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
-using ForwardDiff, Zygote, ReverseDiff, FiniteDifferences
+using ForwardDiff, DerivableFunctions
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
@@ -20,6 +20,16 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction
 
 import SciMLBase: remake
 export remake
+
+import DerivableFunctions: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder
+import DerivableFunctions: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF
+import DerivableFunctions: GetDeriv, GetGrad, GetJac, GetHess, GetMatrixJac
+import DerivableFunctions: GetGrad!, GetJac!, GetHess!, GetMatrixJac!, diff_backends
+
+# include("NumericalTools/Differentiation.jl")
+export diff_backends
+export GetDeriv, GetGrad, GetJac, GetMatrixJac, GetHess, GetDoubleJac
+export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 
 
 ############## TODOs ##############
@@ -147,10 +157,7 @@ export DataModel, Prior
 
 
 include("NumericalTools/Miscellaneous.jl")
-include("NumericalTools/Differentiation.jl")
-export diff_backends
-export GetDeriv, GetGrad, GetJac, GetMatrixJac, GetHess, GetDoubleJac
-export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
+
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
 export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
