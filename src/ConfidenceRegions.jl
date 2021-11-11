@@ -229,7 +229,7 @@ function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxite
 end
 function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     X = rand(length(C));    i = 0
-    S = Sobol.skip(SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
+    S = Sobol.skip(Sobol.SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
     while i < maxiters
         Sobol.next!(S, X);    (_TestInDomain(InDom, X) && break);    i += 1
     end

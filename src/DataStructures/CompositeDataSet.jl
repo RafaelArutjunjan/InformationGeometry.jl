@@ -8,8 +8,8 @@ ToArray(df::AbstractVector{<:Real}) = df |> floatify
 ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
 ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, floatify(df[:,1])) : convert(Matrix{suff(df)}, floatify(df))
 function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
-    !all(x-> !ismissing(x), df) && throw("Input contains missing values.")
-    convert(Vector{suff(df[1])},floatify(df))
+    any(ismissing, df) && throw("Input contains missing values.")
+    convert(Vector{suff(df)},floatify(df))
 end
 
 
@@ -27,7 +27,7 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); x
         Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
     end
     xnames = names(df[:,Xcols]);    ynames = names(df[:,Ycols])
-    println("Order of DataSets: $xnames $ynames.")
+    println("Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames.")
     DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
     InformNames(DSs, xnames, ynames)
 end
