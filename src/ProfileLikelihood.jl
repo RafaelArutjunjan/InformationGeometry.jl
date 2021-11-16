@@ -258,7 +258,7 @@ abstract type AbstractProfile end
 
 struct ParameterProfile <: AbstractProfile
     Profiles::AbstractVector{<:AbstractMatrix}
-    Trajectories::AbstractVector{<:Union{<:Number, <:Nothing}}
+    Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{<:String}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
@@ -281,25 +281,48 @@ Interpolate(P::ParameterProfile) = [CubicSpline(view(P.Profiles[i],:,2), view(P.
 
 @recipe f(P::ParameterProfile) = P, Val(all(!isnothing, P.Trajectories))
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{true})
+    @assert length(P.Names) ≤ 3
     layout := length(P.Names) + 1
     @series P, Val(false)
-    label --> transpose(["Comp $i" for i in 1:length(P.Names)])
-    P.Trajectories
+    label --> (M=Matrix{String}(undef,1,length(P.Names)); for i in 1:length(P.Names) M[1,i]="Comp $i" end; M)
+    for i in 1:length(P.Names)
+        @series begin
+            subplot := length(P.Names) + 1
+            P.Trajectories[i]
+        end
+    end
+    @series begin
+        label := "MLE"
+        xguide --> P.Names[1]
+        yguide --> P.Names[2]
+        if length(P.Names) == 3
+            zguide --> P.Names[3]
+        end
+        subplot := length(P.Names) + 1
+        [P.mle]
+    end
 end
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{false})
     layout := length(P.Names)
     for i in 1:length(P.Names)
         @series begin
+            legend --> nothing
             xguide --> P.Names[i]
             yguide --> (P.IsCost ? "Cost Function" : "Conf. level [σ]")
-            legend --> nothing
-            ## Mark MLE in profiles
-            # @series begin
-            #     seriescolor --> :black
-            #     marker --> :hex
-            #     [P.mle[i]], [minimum(view(P.Profiles[i], :,2))]
-            # end
+            subplot := i
             view(P.Profiles[i], :,1), view(P.Profiles[i], :,2)
+        end
+        ## Mark MLE in profiles
+        @series begin
+            subplot := i
+            legend --> nothing
+            xguide --> P.Names[i]
+            yguide --> (P.IsCost ? "Cost Function" : "Conf. level [σ]")
+            seriescolor --> :red
+            marker --> :hex
+            markersize --> 3
+            markerstrokewidth --> 0
+            [P.mle[i]], [Interpolate(P,1)(P.mle[1])]
         end
     end
 end
