@@ -169,7 +169,7 @@ end
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), kwargs...)
-    @assert length(Profiles) == length(Profiles)
+    @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
         [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
@@ -211,10 +211,10 @@ end
     ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; Padding::Real=0.)
-    ProfileBox(Fs, MLE(DM), Confnum; Padding=Padding)
+function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
+    ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
 end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0.)
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e5)
     domains = map(F->(F.t[1], F.t[end]), Fs)
     crossings = [find_zeros(x->(Fs[i](x)-Confnum), domains[i][1], domains[i][2]) for i in 1:length(Fs)]
     for i in 1:length(crossings)
@@ -222,9 +222,9 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
             continue
         elseif length(crossings[i]) == 1
             if mle[i] < crossings[i][1]     # crossing is upper bound
-                crossings[i] = [-1e5, crossings[i][1]]
+                crossings[i] = [-max, crossings[i][1]]
             else
-                crossings[i] = [crossings[i][1], 1e5]
+                crossings[i] = [crossings[i][1], max]
             end
         else
             throw("Error for i = $i")
@@ -251,4 +251,55 @@ function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}
         min(maximum(V[1:split]), maximum(V[split:end]))
     end
     minimum([Minimax(M) for M in Mats])
+end
+
+
+abstract type AbstractProfile end
+
+struct ParameterProfile <: AbstractProfile
+    Profiles::AbstractVector{<:AbstractMatrix}
+    Trajectories::AbstractVector{<:Union{<:Number, <:Nothing}}
+    Names::AbstractVector{<:String}
+    mle::Union{Nothing,<:AbstractVector{<:Number}}
+    IsCost::Bool
+    function ParameterProfile(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=pnames(DM); IsCost::Bool=false)
+        ParameterProfile(Profiles, Trajectories, Names, MLE(DM), IsCost)
+    end
+    function ParameterProfile(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=false)
+        ParameterProfile(Profiles, Trajectories, Names, nothing, IsCost)
+    end
+    function ParameterProfile(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:String}, mle, IsCost::Bool)
+        @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
+        new(Profiles, Trajectories, Names, mle, IsCost)
+    end
+end
+(P::ParameterProfile)(t::Real, ind::Int) = Interpolate(P,i)(t)
+Interpolate(P::ParameterProfile, i::Int) = CubicSpline(view(P.Profiles[i],:,2), view(P.Profiles[i],:,1))
+Interpolate(P::ParameterProfile) = [CubicSpline(view(P.Profiles[i],:,2), view(P.Profiles[i],:,1)) for i in 1:length(P.Profiles)]
+
+
+
+@recipe f(P::ParameterProfile) = P, Val(all(!isnothing, P.Trajectories))
+@recipe function f(P::ParameterProfile, HasTrajectories::Val{true})
+    layout := length(P.Names) + 1
+    @series P, Val(false)
+    label --> transpose(["Comp $i" for i in 1:length(P.Names)])
+    P.Trajectories
+end
+@recipe function f(P::ParameterProfile, HasTrajectories::Val{false})
+    layout := length(P.Names)
+    for i in 1:length(P.Names)
+        @series begin
+            xguide --> P.Names[i]
+            yguide --> (P.IsCost ? "Cost Function" : "Conf. level [σ]")
+            legend --> nothing
+            ## Mark MLE in profiles
+            # @series begin
+            #     seriescolor --> :black
+            #     marker --> :hex
+            #     [P.mle[i]], [minimum(view(P.Profiles[i], :,2))]
+            # end
+            view(P.Profiles[i], :,1), view(P.Profiles[i], :,2)
+        end
+    end
 end

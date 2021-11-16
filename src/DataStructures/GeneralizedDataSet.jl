@@ -38,14 +38,14 @@ struct GeneralizedDataSet <: AbstractDataSet
     function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}; xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
         GeneralizedDataSet(dist, dims, WoundX, xnames, ynames; kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"))
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
         @assert Npoints(dims) > 0 && xdim(dims) ≥ 0 && ydim(dims) > 0
         @assert xdim(dims) == length(xnames) && ydim(dims) == length(ynames)
         @assert (WoundX isa AbstractVector ? (ConsistentElDims(WoundX) == xdim(dims)) : (xdim(dims) < 2))
 
         if isseparable(dist)
             @info "Got separable distribution in GeneralizedDataSet, returning DataSetExact instead."
-            DataSetExact(dist.v[1], dist.v[2], dims, WoundX, xnames, ynames)
+            DataSetExact(dist.v[1], dist.v[2], dims, WoundX; xnames=xnames, ynames=ynames)
         else
             new(dist, dims, WoundX, xnames, ynames)
         end

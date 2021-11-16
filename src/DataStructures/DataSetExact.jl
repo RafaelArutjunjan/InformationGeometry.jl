@@ -55,9 +55,9 @@ struct DataSetExact <: AbstractDataSet
     function DataSetExact(DS::DataSet, Σ_x::AbstractArray; kwargs...)
         Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
-            InformNames(DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS); kwargs...)
+            DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
         else
-            InformNames(DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS); kwargs...)
+            DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution; kwargs...)
