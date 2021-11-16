@@ -17,23 +17,26 @@ struct GeneralizedDataSet <: AbstractDataSet
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
     GeneralizedDataSet(DM::AbstractDataModel) = GeneralizedDataSet(Data(DM))
-    function GeneralizedDataSet(DS::DataSetExact)
+    function GeneralizedDataSet(DS::DataSetExact; kwargs...)
         xdist(DS) isa InformationGeometry.Dirac && @warn "xdist passed to GeneralizedDataSet is Dirac, continuing anyway."
-        GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), xnames(DS), ynames(DS))
+        GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), xnames(DS), ynames(DS); kwargs...)
     end
-    GeneralizedDataSet(args...) = DataSetExact(args...) |> GeneralizedDataSet
-    function GeneralizedDataSet(X::AbstractVector{<:Number}, Σ::AbstractMatrix{<:Number})
+    GeneralizedDataSet(args...; kwargs...) = DataSetExact(args...; kwargs...) |> GeneralizedDataSet
+    function GeneralizedDataSet(X::AbstractVector{<:Number}, Σ::AbstractMatrix{<:Number}; kwargs...)
         @info "GeneralizedDataSet: Assuming MvNormal as data distribution and continuing."
-        GeneralizedDataSet(MvNormal(X, HealthyCovariance(Σ)))
+        GeneralizedDataSet(MvNormal(X, HealthyCovariance(Σ)); kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution)
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution; kwargs...)
         @assert length(dist) % 2 == 0
         @warn "No dims given for distribution, assuming xdim = ydim = 1 and continuing."
-        GeneralizedDataSet(dist, (length(dist)÷2, 1, 1))
+        GeneralizedDataSet(dist, (length(dist)÷2, 1, 1); kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int})
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}; kwargs...)
         WoundX = xdim(dims) == 1 ? nothing : [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(dist)[1:Npoints(dims)*xdim(dims)],xdim(dims))]
-        GeneralizedDataSet(dist, dims, WoundX)
+        GeneralizedDataSet(dist, dims, WoundX; kwargs...)
+    end
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}; xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
+        GeneralizedDataSet(dist, dims, WoundX, xnames, ynames; kwargs...)
     end
     function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"))
         @assert Npoints(dims) > 0 && xdim(dims) ≥ 0 && ydim(dims) > 0

@@ -44,43 +44,44 @@ struct DataSet <: AbstractDataSet
     WoundX::Union{AbstractVector,Nothing}
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
-    function DataSet(DF::Union{DataFrame,AbstractMatrix})
+    function DataSet(DF::Union{DataFrame,AbstractMatrix}; kwargs...)
         size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
-        DataSet(ToCols(Matrix(DF))...)
+        DataSet(ToCols(Matrix(DF))...; kwargs...)
     end
-    function DataSet(x::AbstractArray, y::AbstractArray)
+    function DataSet(x::AbstractArray, y::AbstractArray; kwargs...)
         println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
-        DataSet(x, y, 1.0)
+        DataSet(x, y, 1.0; kwargs...)
     end
-    DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])))
+    DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real; kwargs...) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     # Also make a fancy version for DataFrames that infers the variable names?
-    function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray)
+    function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)).")
         # If Σ_y not a square matrix, assume each column is vector of standard deviations associated with y:
         Σ_y = (size(Σ_y,1) == size(Σ_y,2) && size(Y,1) != size(Y,2)) ? Σ_y : Unwind(Σ_y)
         #Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
-        DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)))
+        DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
-    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)], args...)
+    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...; kwargs...) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)], args...; kwargs...)
     ####### Only looking at sigma from here on out
-    function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int})
+    function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
         Sigma = Unwind(sigma)
-        DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims)
+        DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims; kwargs...)
     end
-    DataSet(x::AbstractVector, y::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}) = DataSet(Unwind(x), Unwind(y), Σ, inv(Σ), dims)
-    function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int})
+    DataSet(x::AbstractVector, y::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}; kwargs...) = DataSet(Unwind(x), Unwind(y), Σ, inv(Σ), dims; kwargs...)
+    function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int}; kwargs...)
         !all(x->(x > 0), dims) && throw("Not all dims > 0: $dims.")
         !(Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) == Int(size(InvCov,1)/ydim(dims))) && throw("Inconsistent input dimensions.")
         x = floatify(x);  y = floatify(y);  InvCov = HealthyCovariance(InvCov)
         if xdim(dims) == 1
-            return DataSet(x, y, InvCov, dims, logdet(InvCov), nothing)
+            DataSet(x, y, InvCov, dims, logdet(InvCov), nothing; kwargs...)
         else
             # return new(x,y,InvCov,dims,logdet(InvCov),collect(Iterators.partition(x,xdim(dims))))
-            return DataSet(x, y, InvCov, dims, logdet(InvCov), [SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))])
+            DataSet(x, y, InvCov, dims, logdet(InvCov), [SVector{xdim(dims)}(Z) for Z in Windup(x,xdim(dims))]; kwargs...)
         end
     end
-    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing})
-        DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, CreateSymbolNames(xdim(dims),"x"), CreateSymbolNames(ydim(dims),"y"))
+    function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing};
+                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
+        DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
                             logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String})

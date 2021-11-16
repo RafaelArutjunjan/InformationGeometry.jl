@@ -37,45 +37,49 @@ struct DataSetExact <: AbstractDataSet
     ynames::AbstractVector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
     DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
-    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])))
-    DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...)
-    DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr)
-    DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
-    function DataSetExact(x::AbstractVector{<:Measurement}, y::AbstractVector{<:Measurement})
-        DataSetExact([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)])
+    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
+    DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...; kwargs...)
+    DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
+    DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}; kwargs...) = DataSetExact(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)]; kwargs...)
+    function DataSetExact(x::AbstractVector{<:Measurement}, y::AbstractVector{<:Measurement}; kwargs...)
+        DataSetExact([x[i].val for i in 1:length(x)],[x[i].err for i in 1:length(x)],[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)]; kwargs...)
     end
     ###### No Unwinding above here.
     # Offload most of the checking to DataSet
-    function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray, Dims::Union{Tuple{Int,Int,Int},Nothing}=nothing)
-        DS = Dims isa Nothing ? DataSet(x, y, Σ_y) : DataSet(x, y, Σ_y, Dims)
+    function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray, Dims::Union{Tuple{Int,Int,Int},Nothing}=nothing; kwargs...)
+        DS = Dims isa Nothing ? DataSet(x, y, Σ_y; kwargs...) : DataSet(x, y, Σ_y, Dims; kwargs...)
         Dims = Dims isa Nothing ? dims(DS) : Dims
         dims(DS) != Dims && throw("DataSetExact: Given dims Tuple inconsistent: $Dims.")
-        DataSetExact(DS, Σ_x)
+        DataSetExact(DS, Σ_x; kwargs...)
     end
-    function DataSetExact(DS::DataSet, Σ_x::AbstractArray)
+    function DataSetExact(DS::DataSet, Σ_x::AbstractArray; kwargs...)
         Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
-            return InformNames(DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
+            InformNames(DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS); kwargs...)
         else
-            return InformNames(DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
+            InformNames(DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS); kwargs...)
         end
     end
-    function DataSetExact(xd::Distribution, yd::Distribution)
+    function DataSetExact(xd::Distribution, yd::Distribution; kwargs...)
         println("No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out.")
-        DataSetExact(xd, yd, (length(xd),1,1))
+        DataSetExact(xd, yd, (length(xd),1,1); kwargs...)
     end
-    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int})
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}; kwargs...)
         !(Int(length(xd)/xdim(dims)) == Int(length(yd)/ydim(dims)) == Npoints(dims)) && throw("Dimensions of given distributions are inconsistent with dimensions $dims.")
         Σinv = HealthyCovariance(InvCov(yd))
         if xdim(dims) == 1
-            return DataSetExact(xd, yd, dims, Σinv, nothing)
+            DataSetExact(xd, yd, dims, Σinv, nothing; kwargs...)
         else
             # return new(xd,yd,dims,InvCov(yd),collect(Iterators.partition(GetMean(xd),xdim(dims))))
-            return DataSetExact(xd, yd, dims, Σinv, [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))])
+            DataSetExact(xd, yd, dims, Σinv, [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))]; kwargs...)
         end
     end
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
+                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), kwargs...)
+        DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames; kwargs...)
+    end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                    xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"))
+                            xnames::AbstractVector{String}, ynames::AbstractVector{String})
         new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
     end
 end
