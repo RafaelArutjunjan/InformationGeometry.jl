@@ -306,26 +306,19 @@ function SpatialBoundaryFunction(M::ModelMap)
 end
 
 
-function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
+function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1.0)
     @assert size(M,1) == size(M,2) == length(μ) && Dirs[1] != Dirs[2]
-    if Full
-        S = SMatrix{2,2}(factor*_GetDecorrelationTransform(M[[Dirs[1],Dirs[2]],[Dirs[1],Dirs[2]]]))
-        # S = SA[C[Dirs[1],Dirs[1]] C[Dirs[1],Dirs[2]]; C[Dirs[2],Dirs[1]] C[Dirs[2],Dirs[2]]]
-        iS = inv(S)
-        if all(x->x==0, μ)
-            ix -> iS*ix,          x -> S*x
-        else
-            mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
-            ix -> mle2d + iS*ix,  x -> S*(x-mle2d)
-        end
+    iS = if Full
+        SMatrix{2,2}(cholesky(M[[Dirs[1],Dirs[2]],[Dirs[1],Dirs[2]]]).U ./ factor)
     else
-        a, b = factor*sqrt(1/M[Dirs[1],Dirs[1]]), factor*sqrt(1/M[Dirs[2],Dirs[2]])
-        if all(x->x==0, μ)
-            ix -> SA[1/a,1/b].*ix,          x -> SA[a,b].*x
-        else
-            mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
-            ix -> mle2d + SA[1/a,1/b].*ix,  x -> SA[a,b].*(x-mle2d)
-        end
+        (sqrt.(SA[M[Dirs[1],Dirs[1]], M[Dirs[2],Dirs[2]]]) ./ factor) |> Diagonal
+    end
+    S = inv(iS)
+    if 0 == μ[Dirs[1]] == μ[Dirs[2]]
+        ix -> iS*ix,          x -> S*x
+    else
+        mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
+        ix -> iS*(ix - mle2d),  x -> mle2d + S*x
     end
 end
 
@@ -354,17 +347,18 @@ end
 """
     GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
 """
-function GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
-                meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), Auto::Val=ADmode, FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
-    Emb, iEmb = Rescaling(FisherMetric(DM, MLE(DM)), MLE(DM); Full=FullRescale)
-    u0 = !mfd ? PromoteStatic(iEmb(u0), true) : iEmb(u0)
-    EmbLikelihood = loglikelihood(DM)∘Emb
+function GenerateBoundary2(DM::AbstractDataModel, U0::AbstractVector{<:Number}; tol::Real=1e-5, Boundaries::Union{Function,Nothing}=nothing,
+                meth::OrdinaryDiffEqAlgorithm=BS3(), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), Auto::Val=ADmode, FullRescale::Bool=false,
+                Embedded::Bool=true, factor::Real=1.0, kwargs...)
+    iEmb, Emb = Rescaling(FisherMetric(DM, MLE(DM))/InvChisqCDF(pdim(DM),ConfVol(GetConfnum(DM,U0))), MLE(DM); Full=FullRescale, factor=factor)
+    u0 = !mfd ? PromoteStatic(iEmb(U0), true) : iEmb(U0)
+    EmbLikelihood = loglikelihood(DM) ∘ Emb
     LogLikeOnBoundary = EmbLikelihood(u0)
     CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
     Grad = GetGrad(Auto, EmbLikelihood)
-    IntCurveODE!(du,u,p,t) = CheatingOrth!(du, Grad(u))
-    g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - Emblikelihood(u))
-    terminatecondition(u,t,integrator) = u[2] - u0[2]
+    IntCurveODE!(du, u, p, t) = CheatingOrth!(du, Grad(u))
+    g!(resid, u, p, t)  =  (resid[1] = LogLikeOnBoundary - Emblikelihood(u))
+    terminatecondition(u, t, integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, Emb),terminate!)) : CB
@@ -413,7 +407,7 @@ General function `F` with 2D domain whose Hessian should be negative-definite ev
 GenerateBoundary(args...; kwargs...) = _GenerateBoundary(args...; kwargs...)
 
 function GenerateBoundary2(F::Function, u0::AbstractVector{<:Number}; Embedded::Bool=true, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
-    Emb, iEmb = Rescaling(-GetHess(ADmode, F)(u0)) # ); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
+    iEmb, Emb = Rescaling(-GetHess(ADmode, F)(u0)) # ); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1e-2)
     sol = _GenerateBoundary(F∘Emb, iEmb(u0); ADmode=ADmode, kwargs...)
     Embedded ? EmbeddedODESolution(sol, Emb) : sol
 end

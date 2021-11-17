@@ -66,17 +66,14 @@ ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = 
 ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comps) : nothing))
 
 
-function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1))
-    function _GetApproxWidth(F::AbstractMatrix, Comp::Int; failed::Real=1e-8)
-        try
-            sqrt(inv(F)[Comp,Comp])
-        catch;
-            try     # For structurally unidentifiable models, return value given by "failed".
-                1 / sqrt(F[Comp,Comp])
-            catch;  failed  end
-        end
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
+    widths = try
+        sqrt.(Diagonal(inv(F)).diag)
+    catch;
+        # For structurally unidentifiable models, return value given by "failed".
+        1 ./ sqrt.(Diagonal(F).diag)
     end
-    widths = sqrt(InvChisqCDF(dof, ConfVol(Confnum))) .* [_GetApproxWidth(F, i) for i in 1:size(F,1)]
+    sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
 end
 
 GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...) = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; kwargs...)
@@ -84,9 +81,9 @@ GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...) = GetProfi
 Computes approximate width of Confidence Region from Fisher Metric and return this domain as a `HyperCube`.
 Ensures that this width is positive even for structurally unidentifiable models.
 """
-function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), ForcePositive::Bool=false)
+function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), ForcePositive::Bool=false, failed::Real=1e-10)
     @assert size(F,1) == size(F,2) == length(mle)
-    widths = _WidthsFromFisher(F, Confnum; dof=dof)
+    widths = _WidthsFromFisher(F, Confnum; dof=dof, failed=failed)
     @assert all(x->x>0, widths)
     L = mle - widths;   U = mle + widths
     if ForcePositive
