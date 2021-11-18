@@ -76,7 +76,10 @@ function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1),
     sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
 end
 
-GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...) = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; kwargs...)
+function GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...)
+    Cube = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; kwargs...)
+    Predictor(DM) isa ModelMap ? (Cube ∩ Predictor(DM).Domain) : Cube
+end
 """
 Computes approximate width of Confidence Region from Fisher Metric and return this domain as a `HyperCube`.
 Ensures that this width is positive even for structurally unidentifiable models.

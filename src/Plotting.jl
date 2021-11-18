@@ -935,7 +935,7 @@ function PlotAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::Abstra
     Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
-    Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, Auto=true, tol=1e-14)
+    Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, tol=1e-14)
     Ls = map(Geo, X)
     OverWrite ? display(Plots.plot(Ls, Z)) : display(Plots.plot!(Ls, Z))
     [Ls Z]

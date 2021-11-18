@@ -5,14 +5,14 @@
 #     @eval ($Func(DM::AbstractDataModel, θ::AbstractVector{<:Number}; BigCalc::Bool=false, kwargs...) = $Func(FisherMetric(DM; kwargs...), θ; BicCalc=BigCalc))
 # end
 
-MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = MetricPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-AutoMetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = AutoMetricPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = ChristoffelSymbol(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = ChristoffelPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = Riemann(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = Ricci(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = RicciScalar(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
-Weyl(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Auto::Val=Val(:ForwardDiff); ADmode::Val=Auto, BigCalc::Bool=false, kwargs...) = Weyl(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+MetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = MetricPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+AutoMetricPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = AutoMetricPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+ChristoffelSymbol(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = ChristoffelSymbol(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+ChristoffelPartials(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = ChristoffelPartials(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+Riemann(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = Riemann(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+Ricci(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = Ricci(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+RicciScalar(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = RicciScalar(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
+Weyl(DM::AbstractDataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), BigCalc::Bool=false, kwargs...) = Weyl(FisherMetric(DM; kwargs...), θ; ADmode=ADmode, BigCalc=BigCalc)
 
 """
 Computes
@@ -25,7 +25,7 @@ function MetricPartials(Metric::Function, θ::AbstractVector{<:Number}; ADmode::
     PDV = Array{suff(θ), 3}(undef, length(θ), length(θ), length(θ))
     MetricPartials!(PDV, Metric, θ, ADmode; kwargs...);   PDV
 end
-function MetricPartials!(PDV::AbstractArray{<:Number,3}, Metric::Function, θ::AbstractVector{<:Number}, Auto::Val{false}; BigCalc::Bool=false)
+function MetricPartials!(PDV::AbstractArray{<:Number,3}, Metric::Function, θ::AbstractVector{<:Number}, ADmode::Val{false}; BigCalc::Bool=false)
     BigCalc && (θ = BigFloat.(θ))
     h = GetH(θ)
     for i in Base.OneTo(length(θ))

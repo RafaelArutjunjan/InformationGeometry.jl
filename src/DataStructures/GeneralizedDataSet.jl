@@ -121,11 +121,11 @@ LogLike(GDS::GeneralizedDataSet, x::AbstractVector{<:Number}, y::AbstractVector{
 
 _loglikelihood(GDS::GeneralizedDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = LogLike(GDS, xdata(GDS), EmbeddingMap(GDS,model,θ; kwargs...))
 
-function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, Auto::Val{false}; kwargs...)
-    _Score(GDS, model, dmodel, θ, WoundX(GDS), Auto; kwargs...)
+function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
+    _Score(GDS, model, dmodel, θ, WoundX(GDS), ADmode; kwargs...)
 end
 
-function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Auto::Val{false}; kwargs...)
+function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, ADmode::Val{false}; kwargs...)
     transpose(EmbeddingMatrix(GDS,dmodel,θ, woundX; kwargs...)) * gradlogpdf(dist(GDS), [woundX;EmbeddingMap(GDS,model,θ; kwargs...)])[xdim(GDS)*Npoints(GDS)+1:end]
 end
 
