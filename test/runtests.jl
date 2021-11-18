@@ -77,11 +77,17 @@ end
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
     Mats = ProfileLikelihood(ToyDME,2; plot=false)
-    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats),1)
-    ExactBox = ConstructCube(ConfidenceRegion(ToyDME,1; tol=1e-6))
-    @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5
-    @test norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
+    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats), 1)
+    ExactBox = ConstructCube(sol)
+    @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
     @test 0 < PracticallyIdentifiable(Mats) < 2
+
+    # Test rescaling method for confidence boundary generation
+    sol2b = InformationGeometry.GenerateBoundary2(ToyDME, sol.u[1]; tol=1e-4, Embedded=false)
+    sol2e = InformationGeometry.GenerateBoundary2(ToyDME, sol.u[1]; tol=1e-4, Embedded=true)
+    Cb, Ce = ConstructCube(sol2b), ConstructCube(sol2e)
+    @test norm(Center(Ce) - Center(ExactBox)) < 1e-4 && norm(CubeWidths(Ce) - CubeWidths(ExactBox)) < 1e-4
+    @test norm(Center(Cb)) < 0.3 && norm(CubeWidths(Cb)) < 5
 
     # Method for general cost functions on 2D domains
     sol = GenerateBoundary(x->-norm(x,1.5), [1., 0])

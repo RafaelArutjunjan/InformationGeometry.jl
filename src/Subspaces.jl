@@ -395,8 +395,9 @@ function rand(C::HyperCube, ::Val)
     map(f,C.L,C.U)
 end
 
-import Base.clamp
+import Base: clamp, clamp!
 clamp(x::AbstractVector, C::HyperCube) = clamp(x, C.L, C.U)
+clamp!(x::AbstractVector, C::HyperCube) = clamp!(x, C.L, C.U)
 
 import Base: log, exp
 log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
