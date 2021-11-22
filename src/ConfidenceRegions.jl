@@ -824,7 +824,7 @@ Pullback(DM::AbstractDataModel, ω::AbstractVector{<:Number}, θ::AbstractVector
 Pull-back of a (0,2)-tensor `G` to the parameter manifold.
 """
 Pullback(DM::AbstractDataModel, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...) = Pullback(Data(DM), dPredictor(DM), G, θ; kwargs...)
-@inline function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...)
+function Pullback(DS::AbstractDataSet, dmodel::ModelOrFunction, G::AbstractMatrix, θ::AbstractVector{<:Number}; kwargs...)
     J = EmbeddingMatrix(DS, dmodel, θ; kwargs...)
     transpose(J) * G * J
 end
@@ -1153,7 +1153,10 @@ function GetConfnum(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols
     return mean
 end
 
-struct ConfidenceBoundary
+
+abstract type AbstractConfidenceBoundary end
+
+struct ConfidenceBoundary <: AbstractConfidenceBoundary
     sols::AbstractVector{<:AbstractODESolution}
     Confnum::Real
     MLE::AbstractVector{<:Number}
@@ -1167,6 +1170,20 @@ end
 function ConfidenceBoundary(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution})
     @assert length(Planes) == length(sols)
     ConfidenceBoundary(EmbeddedODESolution(sols, Planes), GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
+end
+
+## 3D slices of the parameter space
+struct ConfidenceBoundarySlice <: AbstractConfidenceBoundary
+    sols::AbstractVector{<:AbstractODESolution}
+    Dirs::Tuple{Int,Int,Int}
+    Confnum::Real
+    mle::AbstractVector{<:Number}
+    pnames::AbstractVector{<:String}
+end
+struct PlanarConfidenceBoundarySlice <: AbstractConfidenceBoundary
+    Planes::AbstractVector{<:Plane}
+    sols::AbstractVector{<:AbstractODESolution}
+    Confnum::Real
 end
 
 

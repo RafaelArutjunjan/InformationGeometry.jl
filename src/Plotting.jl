@@ -230,7 +230,7 @@ end
 function FromEllipsoidTuples(M::AbstractVector{<:Tuple{AbstractVector{<:Number}, AbstractMatrix{<:Number}}}, dims::Tuple{Int,Int,Int})
     @assert length(M) == dims[1] && ConsistentElDims(getindex.(M,1)) == dims[2] + dims[3]
     X = vcat(mapreduce(x->x[1][1:dims[2]], vcat, M), mapreduce(x->x[1][1+dims[2]:end], vcat, M))
-    Σ = Matrix{suff(M)}(undef,dims[1]*(dims[2] + dims[3]), dims[1]*(dims[2] + dims[3]))
+    Σ = zeros(dims[1]*(dims[2] + dims[3]), dims[1]*(dims[2] + dims[3]))
     for (i,tup) in enumerate(Iterators.zip(Iterators.partition(1:dims[1]*dims[2], dims[2]),Iterators.partition(dims[1]*dims[2]+1:dims[1]*(dims[2] + dims[3]), dims[3])))
         inds = vcat(tup[1],tup[2])
         view(Σ,inds,inds) .= M[i][2]
