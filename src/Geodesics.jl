@@ -23,9 +23,9 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
     @assert length(InitialPos) == length(InitialVel)
     prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), vcat(InitialPos,InitialVel), (0.0,Endtime))
     if isnothing(Boundaries)
-        return solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
-        return solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
+        solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
     end
 end
 
@@ -56,7 +56,7 @@ function GeodesicLength(Metric::Function, sol::AbstractODESolution, Endrange::Nu
         FullGamma = sol(t)
         InnerProduct(Metric(FullGamma[1:n]), FullGamma[(n+1):end]) |> sqrt
     end
-    return Integrate1D(Integrand, (sol.t[1],Endrange); FullSol=FullSol, tol=tol, kwargs...)
+    Integrate1D(Integrand, (sol.t[1],Endrange); FullSol=FullSol, tol=tol, kwargs...)
 end
 
 """
@@ -111,8 +111,7 @@ function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractV
     for i in 1:length(Ts)
         F = sols[i]
         push!(Res,F(Ts[i])[1:n])
-    end
-    Res
+    end;    Res
 end
 
 
@@ -192,19 +191,18 @@ end
 # Also add Plane method!
 function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false, kwargs...)
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
-    widths = CubeWidths(Cube);    Map = parallel ? pmap : map;    Metric(x) = FisherMetric(DM, x)
+    widths = CubeWidths(Cube);    Metric(x) = FisherMetric(DM, x)
     initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
-    CB = DiscreteCallback(GeodesicBoundaryFunction(Cube))
+    CB = DiscreteCallback(GeodesicBoundaryFunction(Cube),terminate!)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries,terminate!)) : CB
     CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(GeodesicBoundaryFunction(Predictor(DM)),terminate!)) : CB
-    solving = 0
-    function Constructor(InitialVel)
-        solving += 1
-        println("Computing Geodesic $(solving) / $N")
-        # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
-        ComputeGeodesic(Metric, MLE(DM), InitialVel, 10.0; tol=tol, Boundaries=nothing, callback=CB, kwargs...)
+    # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
+    Constructor(InitialVel) = ComputeGeodesic(Metric, MLE(DM), InitialVel, 10.0; tol=tol, Boundaries=nothing, callback=CB, kwargs...)
+    if parallel
+        @showprogress 1 "Computing Geodesics... " pmap(Constructor, initialvels)
+    else
+        @showprogress 1 "Computing Geodesics... " map(Constructor, initialvels)
     end
-    Map(Constructor, initialvels)
 end
 
 
