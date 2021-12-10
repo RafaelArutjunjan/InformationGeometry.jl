@@ -86,7 +86,7 @@ end
     sol2b = InformationGeometry.GenerateBoundary2(ToyDME, sol.u[1]; tol=1e-4, Embedded=false)
     sol2e = InformationGeometry.GenerateBoundary2(ToyDME, sol.u[1]; tol=1e-4, Embedded=true)
     Cb, Ce = ConstructCube(sol2b), ConstructCube(sol2e)
-    @test norm(Center(Ce) - Center(ExactBox)) < 1e-4 && norm(CubeWidths(Ce) - CubeWidths(ExactBox)) < 1e-4
+    @test norm(Center(Ce) - Center(ExactBox)) < 2e-4 && norm(CubeWidths(Ce) - CubeWidths(ExactBox)) < 2e-4
     @test norm(Center(Cb)) < 0.3 && norm(CubeWidths(Cb)) < 5
 
     # Method for general cost functions on 2D domains

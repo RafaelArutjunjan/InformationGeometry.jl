@@ -66,6 +66,15 @@ function GetMethod(tol::Real)
     end
 end
 
+# For ODE-based models, lower order methods in integral curve generation perform better.
+function GetBoundaryMethod(tol::Real, DM)
+    if IsDEbased(DM)
+        BS3()
+    else
+        GetMethod(tol)
+    end
+end
+
 # Check for length
 PromoteStatic(X::AbstractArray, inplace::Bool=true) = length(X) > 90 ? X : PromoteStatic(X, Val(inplace))
 

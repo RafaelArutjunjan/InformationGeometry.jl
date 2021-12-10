@@ -383,3 +383,9 @@ SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVect
 function PolynomialModel(degree::Int)
     Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
 end
+
+
+
+IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))
+IsDEbased(F::ModelMap) = IsDEbased(F.Map)
+IsDEbased(DM::AbstractDataModel) = IsDEbased(Predictor(DM))

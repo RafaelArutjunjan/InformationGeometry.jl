@@ -97,9 +97,7 @@ function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::R
 end
 
 # USE NelderMead for ODEmodels!!!!!
-IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))
-IsDEbased(F::ModelMap) = IsDEbased(F.Map)
-IsDEbased(DM::AbstractDataModel) = IsDEbased(Predictor(DM))
+
 
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
