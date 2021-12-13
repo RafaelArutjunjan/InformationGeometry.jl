@@ -50,8 +50,10 @@ Score(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> Score(
 NegScore(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> -Score(DM, θ; kwargs...)
 
 """
-    Score(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(false))
-Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. `ADmode=Val(true)` uses automatic differentiation.
+    Score(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff))
+Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``.
+`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
 
@@ -60,7 +62,7 @@ Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::
 
 
 
-_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(false), kwargs...) = _Score(DS, model, dmodel, θ, ADmode; kwargs...)
+_Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = _Score(DS, model, dmodel, θ, ADmode; kwargs...)
 # Delegate to AutoScore
 _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{true}; kwargs...) = _AutoScore(DS, model, θ; ADmode=ADmode, kwargs...)
 _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Union{Symbol,Val}; kwargs...) = _AutoScore(DS, model, θ; ADmode=ADmode, kwargs...)
@@ -160,11 +162,12 @@ GetAlpha(x::AbstractVector{<:Number}) = GetAlpha(length(x))
 end
 
 """
-    OrthVF(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(false)) -> Vector
+    OrthVF(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
-`ADmode=Val(true)` uses automatic differentiation to calculate the score.
+`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 """
-function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(false), kwargs...)
+function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
     S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S);    VF = P ./ S
     normalize(alpha .* VF)
@@ -172,12 +175,13 @@ end
 
 # Faster Method for Planar OrthVF
 """
-    OrthVF(DM::DataModel, PL::Plane, θ::AbstractVector{<:Number}; ADmode::Val=Val(false)) -> Vector
+    OrthVF(DM::DataModel, PL::Plane, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
 Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
 Since a 2D `Plane` is specified, both the input `θ` as well as well as the output have 2 components.
-`ADmode=Val(true)` uses automatic differentiation to calculate the score.
+`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 """
-function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=EmbedLogPrior(DM,PL); ADmode::Val=Val(false), kwargs...)
+function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=EmbedLogPrior(DM,PL); ADmode::Val=Val(:ForwardDiff), kwargs...)
     S = transpose([PL.Vx PL.Vy]) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; ADmode=ADmode, kwargs...))
     P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
 end
@@ -325,7 +329,7 @@ end
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
-                            meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(false), kwargs...)
+                            meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DM, u0)
     IntCurveODE!(du,u,p,t)  =  (du .= 0.1 * OrthVF(DM,u; ADmode=ADmode))
@@ -379,7 +383,7 @@ EmbedLogPrior(F::Function, PL::Plane) = EmbedLogPrior(F, PlaneCoordinates(PL))
 EmbedLogPrior(F::Function, Emb::Function) = F∘Emb
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), ADmode::Val=Val(false), Embedded::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), ADmode::Val=Val(:ForwardDiff), Embedded::Bool=false, kwargs...)
     @assert length(u0) == 2
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     PlanarLogPrior = EmbedLogPrior(DM, PL)
@@ -436,12 +440,12 @@ function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}, FuncOnB
 end
 
 """
-    ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=false, ADmode::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30)
+    ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth=Tsit5(), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30)
 Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidence region is intersected by a family of `Plane`s in the directions specified by the keyword `Dirs`.
 The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(false), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
     if pdim(DM) == 1
         ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
@@ -481,12 +485,12 @@ Keyword arguments:
 * `IsConfVol = true` can be used to specify the desired confidence level directly in terms of a probability ``p \\in [0,1]`` instead of in units of standard deviations ``\\sigma``,
 * `tol` can be used to quantify the tolerance with which the ODE which defines the confidence boundary is solved (default `tol = 1e-9`),
 * `meth` can be used to specify the solver algorithm (default `meth = Tsit5()`),
-* `ADmode = Val(true)` can be chosen to compute the derivatives of the likelihood using automatic differentiation,
+* `ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`. Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 * `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects,
 * `dof` can be used to manually specify the degrees of freedom.
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false,
-                        tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(false),
+                        tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
@@ -516,27 +520,27 @@ end
 
 """
     InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, ADmode::Val=Val(false), kwargs...) -> ODESolution
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, ADmode::Val=Val(:ForwardDiff), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
 2. the given `Boundaries(u,t,int)` method evaluates to `true`.
 It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
 """
 function InterruptedConfidenceRegion(DM::AbstractDataModel, Confnum::Real; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(false), kwargs...)
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     GenerateInterruptedBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol); Boundaries=Boundaries, tol=tol, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...)
 end
 
 """
     GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, ADmode::Val=Val(false), kwargs...) -> ODESolution
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=Tsit5(), mfd::Bool=true, ADmode::Val=Val(:ForwardDiff), kwargs...) -> ODESolution
 Integrates along the level lines of the log-likelihood in the counter-clockwise direction until the model becomes either
 1. structurally identifiable via `det(g) < tol`
 2. the given `Boundaries(u,t,int)` method evaluates to `true`.
 It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
 """
 function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(false), kwargs...)
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DM,u0)
     IntCurveODE!(du,u,p,t)  =  (du .= 0.1 .* OrthVF(DM, u; ADmode=ADmode))
@@ -998,16 +1002,16 @@ function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:N
 end
 
 
-function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(false),
+function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff),
                                 Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, kwargs...)
     GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...)
 end
 
 """
-    MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, ADmode::Val=Val(false), meth=Tsit5(), mfd::Bool=false)
+    MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, ADmode::Val=Val(:ForwardDiff), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(false),
+function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff),
                         Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, parallel::Bool=false, kwargs...)
     Map = parallel ? pmap : map
     if parallel
