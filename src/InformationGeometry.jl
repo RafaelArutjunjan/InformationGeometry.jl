@@ -13,6 +13,7 @@ using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
 using RecipesBase
+using PlotUtils: adapted_grid
 using TreeViews
 
 import DataInterpolations: AbstractInterpolation

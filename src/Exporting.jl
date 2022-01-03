@@ -6,7 +6,7 @@ function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Rea
     @assert Tspan[1] < Tspan[2]
     test = sol(Tspan[1])
     for _ in 1:maxiter
-        T = reduce(vcat, [PlotUtils.adapted_grid(x->sol(x)[i], Tspan; max_curvature=curvature)[1] for i in 1:length(test)]) |> unique! |> sort!
+        T = reduce(vcat, [adapted_grid(x->sol(x)[i], Tspan; max_curvature=curvature)[1] for i in 1:length(test)]) |> unique! |> sort!
         if length(T) > N
             curvature *= 1.2
         elseif length(T) < (1-Ntol) * N
