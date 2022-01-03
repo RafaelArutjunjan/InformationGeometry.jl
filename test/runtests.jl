@@ -76,7 +76,7 @@ end
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
-    Mats = ProfileLikelihood(ToyDME,2; plot=false)
+    Mats = ProfileLikelihood(ToyDME, 2; plot=false)
     ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats), 1)
     ExactBox = ConstructCube(sol)
     @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4

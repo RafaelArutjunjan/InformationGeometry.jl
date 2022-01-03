@@ -12,7 +12,7 @@ using ForwardDiff, DerivableFunctions
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
-using RecipesBase, Plots
+using RecipesBase
 using TreeViews
 
 import DataInterpolations: AbstractInterpolation
@@ -67,7 +67,6 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 # Make OrthVF in-place everywhere
 # Optimize GetModel() for ODEs for performance by only executing ODEFunction once
 # Use IntegrateND() instead of MonteCarloArea()
-# Remove Plots.jl dependency and instead write recipes for VisualizeSols and others
 # Change EvaluateAlongGeodesicLength using affine reparametrization to save computations
 # Use Cuba.jl for Monte Carlo integration
 # Generalize FisherMetric to other error distributions
