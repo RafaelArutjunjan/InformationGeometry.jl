@@ -132,26 +132,26 @@ TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Numb
 
 
 
-FittedPlot(DM::AbstractDataModel, args...; kwargs...) = Plots.plot(DM, args...; kwargs...)
+FittedPlot(DM::AbstractDataModel, args...; kwargs...) = RecipesBase.plot(DM, args...; kwargs...)
 
 ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
+    RecipesBase.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
                 ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
                 (x,p)->zeros(ydim(DS), length(mle)),
                 mle, _loglikelihood(DS, model, mle), true); kwargs...)
 end
 function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    Plots.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
+    RecipesBase.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
                 ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
                 (x,p)->zeros(ydim(DS), length(mle)),
                 mle, _loglikelihood(DS, model, mle), true); kwargs...)
 end
 # function ResidualPlot(DM::AbstractDataModel; kwargs...)
 #     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-#     Plots.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
-#     Plots.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
-#     Plots.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
+#     RecipesBase.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
+#     RecipesBase.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
+#     RecipesBase.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
 # end
 
 
@@ -163,12 +163,11 @@ function _PrepareEllipsePlot(pos::AbstractVector{<:Number}, cov::AbstractMatrix{
     if length(pos) == 2
         ran = range(0, 2π; length=N)
         M = Unpack([pos + C*[cos(α),sin(α)] for α in ran])
-        return view(M,:,1), view(M,:,2)
+        M[:,1], M[:,2]
     elseif length(pos) == 3
         θran = range(0, π; length=N);  ϕran = range(0, 2π; length=N)
         # M = mapreduce(x->transpose(pos + C * x), vcat, eachrow([cos.(ϕran).*sin.(θran) sin.(ϕran).*sin.(θran) cos.(θran)]))
         M = Unpack([pos + C*[cos(ϕ)*sin(θ),sin(ϕ)*sin(θ),cos(θ)] for θ in θran for ϕ in ϕran])
-        #return view(M,:,1), view(M,:,2), view(M,:,3)
         M[:,1], M[:,2], M[:,3]
     else
         throw("Cannot plot Ellipses for dim > 3.")
@@ -179,10 +178,10 @@ end
 function PlotEllipse(pos::AbstractVector{<:Number}, cov::AbstractMatrix{<:Number}; OverWrite::Bool=false, N::Int=100, c=:blue, kwargs...)
     @assert length(pos) == size(cov,1) == size(cov,2)
     @assert 2 ≤ length(pos) ≤ 3
-    F = OverWrite ? Plots.plot : Plots.plot!
-    F([pos]; marker=:hex, markersize=1.5, markeralpha=1, c=c, label="")
+    F = OverWrite ? RecipesBase.plot : RecipesBase.plot!
+    F([pos]; marker=:hex, linealpha=0, markersize=1.5, markeralpha=1, c=c, label="")
     M = _PrepareEllipsePlot(pos, cov; N=N)
-    Plots.plot!(M...; label="", fillalpha=0.2, lw=0, seriestype=[:shape,], c=c, kwargs...)
+    RecipesBase.plot!(M...; label="", fillalpha=0.2, lw=0, seriestype=:shape, c=c, kwargs...)
 end
 
 
@@ -243,7 +242,7 @@ function PlotEllipses(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int
     @assert length(X) == size(Σ,1) == size(Σ,2) == dims[1]*(dims[2] + dims[3])
     @assert 2 ≤ dims[2] + dims[3] ≤ 3
     p = []
-    OverWrite && Plots.plot()
+    OverWrite && RecipesBase.plot()
     Ellipses = ToEllipsoidTuples(X,Σ,dims)
     for (x, σ) in Ellipses
         p = PlotEllipse(x, σ; OverWrite=false, c=c, kwargs...)
@@ -260,10 +259,11 @@ RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVect
     for (x,σ) in ToEllipsoidTuples(GetMean(dist(GDS)),Sigma(dist(GDS)),dims(GDS))
         A = cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))']
         @series begin
-            seriesalpha --> 0.3
-            label := ""
+            seriestype := :shape
+            fillalpha --> 0.3
             fillcolor --> :blue
-            Plots.Shape(x[1] .+ A[1,:], x[2] .+ A[2,:])
+            label := ""
+            x[1] .+ A[1,:], x[2] .+ A[2,:]
         end
     end
 end
@@ -272,94 +272,104 @@ end
 
 meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
 
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, kwargs...)
+"""
+    PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
+Plots a scalar function `F` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
+"""
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     func(args...) = F([args...])
-    Map = parallel ? pmap : map
     if Save
-        X,Y = meshgrid(A,B)
-        Z = Map(func,X,Y)
-        p = OverWrite ? contour(X,Y,Z; fill=true, nlevels=40, kwargs...) : contour!(X,Y,Z; fill=true, nlevels=40, kwargs...)
-        display(p)
+        X,Y = meshgrid(A, B)
+        Z = (parallel ? pmap : map)(func, X, Y)
+        (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Y, Z; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
         return [X Y Z]
     else
-        p = OverWrite ? contour(A,B,func; fill=true, nlevels=40, kwargs...) : contour(A,B,func; fill=true, nlevels=40, kwargs...)
-        return p
+        (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, func; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...)
     end
 end
 
-function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, kwargs...)
+"""
+    PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
+Plots a scalar function `F` by evaluating the given `PlotPlane` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
+"""
+function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
-    Map = parallel ? pmap : map
     if Save
         X,Y = meshgrid(A,B)
-        Z = Map(Lcomp,X,Y)
-        p = contour(X,Y,Z; fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+        Z = (parallel ? pmap : map)(Lcomp,X,Y)
+        p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-        p = scatter!([0],[0]; lab="Center", marker=:hex)
+        p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
         display(p)
         return [X Y Z]
     else
-        p = contour(A,B,Lcomp; fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+        p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-        p = scatter!([0],[0]; lab="Center", marker=:hex)
+        p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
         return p
     end
 end
 
+"""
+    PlotLogLikelihood(DM::AbstractDataModel, PlanarCube::HyperCube; N::Int=100, Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
+    PlotLogLikelihood(DM::AbstractDataModel, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
+Evaluates the loglikelihood on a 2D domain via the `PlotScalar()` function.
+"""
+PlotLogLikelihood(DM::AbstractDataModel, args...; kwargs...) = PlotScalar(loglikelihood(DM), args...; kwargs...)
 
 
-############################# Plotting
-function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
-    length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lcomp(args...) = loglikelihood(DM,[args...])
-    Lims = TranslateCube(PlanarCube,MLE)
-    A = range(Lims.L[1], Lims.U[1], length=N);  B = range(Lims.L[2], Lims.U[2], length=N)
-    Map = parallel ? pmap : map
-    if Save
-        X,Y = meshgrid(A,B)
-        Z = Map(Lcomp,X,Y)
-        p = contour(X,Y,Z, fill=true, leg=false, nlevels=40)
-        p = scatter!([MLE[1]],[MLE[2]], lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
-        display(p)
-        return [X Y Z]
-    else
-        p = contour(A,B,Lcomp, fill=true, leg=false, nlevels=40)
-        p = scatter!([MLE[1]],[MLE[2]], lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
-        return p
-    end
-end
-
-PlotLoglikelihood(DM::DataModel,MLE::AbstractVector,size::Float64=0.5,N::Int=100) = PlotLoglikelihood(DM, MLE, HyperCube([[-size,size],[-size,size]]), N)
-
-function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false)
-    Lcomp(x,y) = loglikelihood(DM,PlaneCoordinates(PlotPlane,[x,y]))
-    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube
-    A = range(Lims.L[1], Lims.U[1], length=N)
-    B = range(Lims.L[2], Lims.U[2], length=N)
-    Map = parallel ? pmap : map
-    if Save
-        X,Y = meshgrid(A,B)
-        Z = Map(Lcomp,X,Y)
-        p = contour(X,Y,Z, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
-        p = scatter!([0],[0],lab="Center", marker=:hex)
-        display(p)
-        return [X Y Z]
-    else
-        p = contour(A,B,Lcomp, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction")
-        p = scatter!([0],[0],lab="Center", marker=:hex)
-        return p
-    end
-end
-
-PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, size::Float64=0.5,N::Int=100;Save::Bool=true) = PlotLoglikelihood(DM, PlotPlane, HyperCube([[-size,size],[-size,size]]), N, Save=Save)
+# ############################# Plotting
+# function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
+#     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
+#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+#     Lcomp(args...) = loglikelihood(DM,[args...])
+#     Lims = TranslateCube(PlanarCube,MLE)
+#     A = range(Lims.L[1], Lims.U[1], length=N);  B = range(Lims.L[2], Lims.U[2], length=N)
+#     Map = parallel ? pmap : map
+#     if Save
+#         X,Y = meshgrid(A,B)
+#         Z = Map(Lcomp,X,Y)
+#         p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, kwargs...)
+#         p = RecipesBase.plot!([MLE[1]],[MLE[2]]; seriestype=:scatter, lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
+#         display(p)
+#         return [X Y Z]
+#     else
+#         p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, kwargs...)
+#         p = RecipesBase.plot!([MLE[1]],[MLE[2]]; seriestype=:scatter, lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
+#         return p
+#     end
+# end
+#
+# PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, size::Float64=0.5, N::Int=100) = PlotLoglikelihood(DM, MLE, HyperCube([[-size,size],[-size,size]]), N)
+#
+# function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, kwargs...)
+#     Lcomp(x,y) = loglikelihood(DM,PlaneCoordinates(PlotPlane,[x,y]))
+#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
+#     Lims = PlanarCube
+#     A = range(Lims.L[1], Lims.U[1], length=N)
+#     B = range(Lims.L[2], Lims.U[2], length=N)
+#     Map = parallel ? pmap : map
+#     if Save
+#         X,Y = meshgrid(A,B)
+#         Z = Map(Lcomp,X,Y)
+#         p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+#             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
+#         p = RecipesBase.plot!([0], [0]; seriestype=:scatter, lab="Center", marker=:hex, linealpha=0)
+#         display(p)
+#         return [X Y Z]
+#     else
+#         p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+#             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
+#         p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
+#         return p
+#     end
+# end
+#
+# PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, size::Float64=0.5, N::Int=100; Save::Bool=true) = PlotLoglikelihood(DM, PlotPlane, HyperCube([[-size,size],[-size,size]]), N, Save=Save)
 
 
 function ConstructBox(fit::LsqFit.LsqFitResult, Confnum::Real; AxisCS::Bool=true)
@@ -367,53 +377,6 @@ function ConstructBox(fit::LsqFit.LsqFitResult, Confnum::Real; AxisCS::Bool=true
     HyperCube(fit.param - E, fit.param + E)
 end
 
-# Choose a Plane?
-VisualizeMC(Test::Function, Boundaries::AbstractVector,N::Int=2000) = VisualizeMC(Test, HyperCube(Boundaries), N)
-
-function VisualizeMC(Test::Function, PlanarCube::HyperCube, N::Int=2000)
-    length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube
-    YesPoints = Vector{Vector{Float64}}(undef,0)
-    NoPoints = Vector{Vector{Float64}}(undef,0)
-    for i in 1:N
-        num = rand.(Uniform.(Lims.L,Lims.U))
-        if Test(num)
-            push!(YesPoints,num)
-        else
-            push!(NoPoints,num)
-        end
-    end
-    Plots.plot!(rectangle(Lims),lw=2,lab="Sample Space")
-    p = scatter!(Unpack(YesPoints), marker=(0.7,:hex,:green), markersize=2,lab="Inside")
-    p = scatter!(Unpack(NoPoints), marker=(0.7,:circle,:red), markersize=2,lab="Outside")
-    p
-end
-
-function VisualizeMC(Test::Function, sol::AbstractODESolution, N::Int=2000)
-    Cube = ConstructCube(sol)
-    lowers, uppers = Cube.L, Cube.U
-    YesPoints = Vector{Vector{Float64}}(undef,0)
-    NoPoints = Vector{Vector{Float64}}(undef,0)
-    for i in 1:N
-        num = rand.(Uniform.(lowers,uppers))
-        if Test(num)
-            push!(YesPoints,num)
-        else
-            push!(NoPoints,num)
-        end
-    end
-    p = Plots.plot(sol,vars=(1,2), lw=2,xlims=(lowers[1],uppers[1]), ylims=(lowers[2],uppers[2]))
-        try
-        Box = rectangle(lowers...,uppers...)
-        Plots.plot!(Box[:,1],Box[:,2],lw=2,lab="Sample Space")
-    catch x
-        println("Could not plot sampling rectangle. Fix Error:")
-        println(x)
-    end
-    p = scatter!(Unpack(YesPoints), marker=(0.5,:hex,:green), markersize=2,lab="Inside")
-    p = scatter!(Unpack(NoPoints), marker=(0.5,:circle,:red), markersize=2,lab="Outside")
-    p
-end
 
 rectangle(ax,ay,bx,by) = [ax ay; bx ay; bx by; ax by; ax ay]
 function rectangle(LU::HyperCube)
@@ -483,16 +446,12 @@ end
 #     Plot2DVF(DM,V, PlotPlane, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
 # end
 
-function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false)
+function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false, kwargs...)
     @assert length(Lims) == length(V(Center(Lims))) == 2
     AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
     Vcomp(a,b) = V([a,b])
     u, v = VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling)
-    if OverWrite
-        quiver(AV, BV, quiver=(u,v)) |> display
-    else
-        quiver!(AV, BV, quiver=(u,v)) |> display
-    end
+    (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(AV, BV; seriestype=:quiver, quiver=(u,v), kwargs...) |> display
     [AV BV u v]
 end
 
@@ -511,24 +470,24 @@ Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::AbstractVector{<:Number}) = m
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
 function VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
-    p = [];     OverWrite && Plots.plot()
+    p = [];     OverWrite && RecipesBase.plot()
     for sol in sols
         p = VisualizeSols(sol; vars=vars, leg=leg, kwargs...)
     end;    p
 end
 function VisualizeSols(sol::AbstractODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
                                         ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
-    OverWrite && Plots.plot()
+    OverWrite && RecipesBase.plot()
     if ModelMapMeta isa ModelMap
         names = pnames(ModelMapMeta)
         if length(vars) == 2
-            return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
+            return RecipesBase.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
         elseif length(vars) == 3
-            return Plots.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], vars=vars, leg=leg, kwargs...)
+            return RecipesBase.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], vars=vars, leg=leg, kwargs...)
         end
         # What if vars > 3? Does Plots.jl throw an error?
     end
-    Plots.plot!(sol; vars=vars, leg=leg, kwargs...)
+    RecipesBase.plot!(sol; vars=vars, leg=leg, kwargs...)
 end
 
 function VisualizeSols(PL::Plane, sol::AbstractODESolution; vars::Tuple=Tuple(1:length(PL)), leg::Bool=false, N::Int=500,
@@ -536,13 +495,13 @@ function VisualizeSols(PL::Plane, sol::AbstractODESolution; vars::Tuple=Tuple(1:
     H = Deplanarize(PL, sol; N=N)
     if ModelMapMeta isa ModelMap
         names = pnames(ModelMapMeta)
-        return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], leg=leg, kwargs...)
+        return RecipesBase.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], leg=leg, kwargs...)
     else
-        return Plots.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
+        return RecipesBase.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
     end
 end
 function VisualizeSols(PL::Plane, sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
-    p = [];     OverWrite && Plots.plot()
+    p = [];     OverWrite && RecipesBase.plot()
     for sol in sols
         p = VisualizeSols(PL, sol; N=N, vars=vars, leg=leg, kwargs...)
     end;    p
@@ -552,23 +511,24 @@ VisualizeSols(X::Tuple, args...; kwargs...) = VisualizeSols(X..., args...; kwarg
 function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
                 OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
-    p = [];     OverWrite && Plots.plot()
+    p = [];     OverWrite && RecipesBase.plot()
     for i in 1:length(sols)
         p = VisualizeSols(PL[i], sols[i]; N=N, vars=vars, leg=leg, color=color, kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
-    OverWrite ? scatter([MLE(DM)]; label="MLE") : scatter!([MLE(DM)]; label="MLE")
+    (OverWrite ? RecipesBase.plot : RecipesBase.plot!)([MLE(DM)]; seriestype=:scatter, label="MLE")
     if Predictor(DM) isa ModelMap
-        return VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
+        VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
     else
-        return VisualizeSols(args...; OverWrite=false, kwargs...)
+        VisualizeSols(args...; OverWrite=false, kwargs...)
     end
 end
 
 
 function VisualizeSols(CB::ConfidenceBoundary; vars::Tuple=Tuple(1:length(CB.MLE)), OverWrite::Bool=true, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
-    p = OverWrite ? scatter([CB.MLE]; label="MLE") : []
+
+    p = OverWrite ? RecipesBase.plot([CB.MLE]; seriestype=:scatter, label="MLE") : []
     if length(vars) == 2
         VisualizeSols(CB.sols[1]; vars=vars, color=color, OverWrite=false, label="$(round(CB.Confnum, sigdigits=3))σ Conf. Boundary",
                         xlabel=CB.pnames[vars[1]], ylabel=CB.pnames[vars[2]], leg=true, kwargs...)
@@ -584,7 +544,7 @@ end
 function VisualizeSols(CBs::AbstractVector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:length(CBs[1].MLE)), OverWrite::Bool=true, kwargs...)
     @assert all(x->x.MLE==CBs[1].MLE, CBs)
     @assert allunique(map(x->x.Confnum,CBs))
-    p = OverWrite ? Plots.scatter([CBs[1].MLE]; label="MLE") : []
+    p = OverWrite ? RecipesBase.plot([CBs[1].MLE]; seriestype=:scatter, label="MLE") : []
     for CB in CBs
         VisualizeSols(CB; vars=vars, OverWrite=false, kwargs...)
     end; p
@@ -597,11 +557,11 @@ end
 
 
 function VisualizeSolPoints(sol::AbstractODESolution; kwargs...)
-    Plots.plot!(sol.u; marker=:hex, line=:dash, linealpha=1, markersize=2, kwargs...)
+    RecipesBase.plot!(sol.u; marker=:hex, line=:dash, linealpha=1, markersize=2, kwargs...)
     VisualizeSols(sol; OverWrite=false, kwargs...)
 end
 function VisualizeSolPoints(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=false, kwargs...)
-    p = [];     OverWrite && Plots.plot()
+    p = [];     OverWrite && RecipesBase.plot()
     for sol in sols
         p = VisualizeSolPoints(sol; kwargs...)
     end;    p
@@ -653,8 +613,8 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #         low[i], up[i] = GetExtrema(DM,sols,X[i]; N=Np)
 #     end
 #     col = rand([:red,:blue,:green,:orange,:grey])
-#     Plots.plot!(X,low,color=col,label="Lower Conf. Band")
-#     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+#     RecipesBase.plot!(X,low,color=col,label="Lower Conf. Band")
+#     RecipesBase.plot!(X,up,color=col,label="Upper Conf. Band") |> display
 #     return [Unpack(collect(X)) low up]
 # end
 #
@@ -668,8 +628,8 @@ Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i i
 #         low[i], up[i] = GetExtrema(DM,Planes,sols,X[i]; N=Np)
 #     end
 #     col = rand([:red,:blue,:green,:orange,:grey])
-#     Plots.plot!(X,low,color=col,label="Lower Conf. Band")
-#     Plots.plot!(X,up,color=col,label="Upper Conf. Band") |> display
+#     RecipesBase.plot!(X,low,color=col,label="Lower Conf. Band")
+#     RecipesBase.plot!(X,up,color=col,label="Upper Conf. Band") |> display
 #     return [Unpack(collect(X)) low up]
 # end
 
@@ -678,27 +638,27 @@ function PlotConfidenceBands(DM::AbstractDataModel, M::AbstractMatrix{<:Number},
                                         Confnum::Real=-1)
     lab = 0 < Confnum ? "$(Confnum)σ " : ""
     if size(M,2) == 3
-        return Plots.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey])) |> display
+        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey])) |> display
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
         @assert xdim(DM) == 1 && size(M,2) == 1 + 2ydim(DM)
         if xpositions isa Nothing
             for i in 1:(size(M,1)-1)
-                Plots.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
+                RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            Plots.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
         elseif length(xpositions) == (size(M,2)-1) / 2
             for i in 1:(size(M,1)-1)
-                Plots.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
+                RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            Plots.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
         else
             throw("Vector of xpositions wrong length.")
         end
     end
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200)
-    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum), Xdomain; N=N, plot=plot, samples=samples)
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200, kwargs...)
+    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum; kwargs...), Xdomain; N=N, plot=plot, samples=samples)
 end
 
 """
@@ -707,18 +667,21 @@ Given a confidence interval `sol`, the pointwise confidence band around the mode
 by evaluating the model on the boundary of the confidence region.
 """
 function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
-    ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
+                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100), kwargs...)
+    ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples, kwargs...)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}, woundX=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100))
-    ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples)
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}, woundX=XCube(DM);
+                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100), kwargs...)
+    ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples, kwargs...)
 end
-function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100))
-    ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples)
+function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM);
+                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100), kwargs...)
+    ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples, kwargs...)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number};
+                            plot::Bool=true, samples::Int=max(2*length(sols),100))
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
@@ -729,11 +692,11 @@ function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,
     if plot
         Confnum = round(GetConfnum(DM, sols[1]); sigdigits=2)
         PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end
-    return M
+    end;    M
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; plot::Bool=true, samples::Int=max(2*length(sols),100))
+function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
+                            plot::Bool=true, samples::Int=max(2*length(sols),100))
     @assert length(Planes) == length(sols)
     Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
     for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
@@ -745,8 +708,7 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
     if plot
         Confnum = round(GetConfnum(DM, PlaneCoordinates(Planes[1], sols[1].u[1])); sigdigits=2)
         PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end
-    return M
+    end;    M
 end
 
 
@@ -784,8 +746,7 @@ function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:Abstrac
     if plot
         Confnum = round(GetConfnum(DM, points[1]); sigdigits=2)
         PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end
-    return M
+    end;    M
 end
 
 # Does the computations
@@ -814,7 +775,7 @@ Computes width of confidence bands.
 function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
     band = ConfidenceBands(args...; plot=false, kwargs...)
     Res = hcat(view(band,:,1), view(band,:,3)-view(band,:,2))
-    F = OverWrite ? Plots.plot : Plots.plot!
+    F = OverWrite ? RecipesBase.plot : RecipesBase.plot!
     plot && display(F(view(Res,:,1), view(Res,:,2), label="Conf. band width"))
     Res
 end
@@ -848,9 +809,9 @@ end
 PredictionEnsemble(DM::AbstractDataModel; MaxConfnum::Real=3, kwargs...) = PredictionEnsemble(DM, ProfileBox(DM,MaxConfnum); MaxConfnum=MaxConfnum, kwargs...)
 
 function PlotEnsemble(Xs::AbstractVector{<:Number}, Preds::Union{AbstractVector{<:AbstractArray{<:Number}}}, Confs::AbstractVector{<:Real}; palette::Symbol=:Oranges_5, OverWrite::Bool=false, kwargs...)
-    extr = extrema(Confs);    p = OverWrite ? Plots.plot() : Plots.plot!()
+    extr = extrema(Confs);    p = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in eachindex(Confs)
-        p = Plots.plot!(Xs, Preds[i]; color=get(cgrad(palette), Confs[i], extr), label="", alpha=0.3, kwargs...)
+        p = RecipesBase.plot!(Xs, Preds[i]; color=get(cgrad(palette), Confs[i], extr), label="", alpha=0.3, kwargs...)
     end;    p
 end
 
@@ -878,8 +839,8 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
                 end
             else i = i-1 end
         end
-        Plots.plot!(X,low)
-        Plots.plot!(X,up) |> display
+        RecipesBase.plot!(X,low)
+        RecipesBase.plot!(X,up) |> display
         return [X low up]
     else
         throw("Not programmed yet.")
@@ -904,8 +865,7 @@ function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(siz
     angles = range(0, 2π; length=N)
     F(α::Number) = MLE + C * RotatedVector(α, dims[1], dims[2], length(MLE))
     Data = Unpack(F.(angles))
-    Pl = OverWrite ? Plots.plot : Plots.plot!
-    if plot   display(Pl(ToCols(Data)...; label="Matrix", kwargs...))  end
+    plot && display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(ToCols(Data)...; label="Matrix", kwargs...))
     Data
 end
 
@@ -916,8 +876,8 @@ function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100)
     for sol in Curves
         ran = range(sol.t[1],sol.t[end],length=N)
         for i in 1:length(ran)    A[i,:] = sol(ran[i])[1:2]  end
-        p = Plots.plot!(A[:,1],A[:,2])
-        # p = Plots.plot!(sol,vars=(1,2))
+        p = RecipesBase.plot!(A[:,1],A[:,2])
+        # p = RecipesBase.plot!(sol,vars=(1,2))
     end
     p
 end
@@ -927,7 +887,7 @@ function PlotAlongGeodesic(F::Function,sol::AbstractODESolution, Interval::Tuple
     Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
-    OverWrite ? display(Plots.plot(X, Z)) : display(Plots.plot!(X, Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X,Z))
     [X Z]
 end
 EvaluateAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
@@ -937,7 +897,7 @@ function PlotAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::Abstra
     X = DomainSamples(Interval; N=N)
     Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, tol=1e-14)
     Ls = map(Geo, X)
-    OverWrite ? display(Plots.plot(Ls, Z)) : display(Plots.plot!(Ls, Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(Ls, Z))
     [Ls Z]
 end
 EvaluateAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
@@ -945,18 +905,18 @@ function PlotAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<
     Z = EvaluateAlongCurve(F, sol, Interval, N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
-    OverWrite ? display(Plots.plot(X, Z)) : display(Plots.plot!(X, Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Z))
     [X Z]
 end
 
 PhaseSpacePlot(DM::AbstractDataModel; kwargs...) = PhaseSpacePlot(DM, (C=InformationGeometry.XCube(DM); range(C.L[1], C.U[1]; length=300)); kwargs...)
 function PhaseSpacePlot(DM::AbstractDataModel, ts::AbstractVector{<:Number}, mle::AbstractVector{<:Number}=MLE(DM); OverWrite::Bool=true, kwargs...)
-    OverWrite && plot()
-    p = scatter!(collect(Iterators.partition(ydata(DM),ydim(DM))); label="Observed Data")
+    OverWrite && RecipesBase.plot()
+    p = RecipesBase.plot!(collect(Iterators.partition(ydata(DM),ydim(DM))); seriestype=:scatter, label="Observed Data")
     p = if ydim(DM) == 2
-        plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", markeralpha=0, linealpha=1, kwargs...)
+        RecipesBase.plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", markeralpha=0, linealpha=1, kwargs...)
     elseif ydim(DM) == 3
-        plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", zlabel="$(ynames(DM)[3])", markeralpha=0, linealpha=1, kwargs...)
+        RecipesBase.plot!(collect(Iterators.partition(EmbeddingMap(DM, mle, ts),ydim(DM))); label="Phase Space Trajectory", xlabel="$(ynames(DM)[1])", ylabel="$(ynames(DM)[2])", zlabel="$(ynames(DM)[3])", markeralpha=0, linealpha=1, kwargs...)
     else
         throw("Cannot display phase space for ydim=$(ydim(DM)).")
     end;    display(p);    p
@@ -1055,7 +1015,7 @@ end
 function WriteObj(Vertices::AbstractMatrix, Faces::AbstractMatrix, path::String="D:/Boundary.obj")
     open(path,"w") do f
         write(f,ToObj(Vertices,Faces))
-    end;    return
+    end;    return nothing
 end
 
 

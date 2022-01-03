@@ -170,9 +170,9 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
-        [Plots.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        [RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
     else
-        P1 = [Plots.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        P1 = [RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
         if length(Profiles) ≤ 3
             P2 = PlotProfileTrajectories(DM, Profiles)
             vcat(P1,[P2])
@@ -180,7 +180,7 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
             P1
         end
     end
-    Plots.plot(PlotObjects...; layout=length(PlotObjects)) |> display
+    RecipesBase.plot(PlotObjects...; layout=length(PlotObjects)) |> display
 end
 # Plot trajectories of Profile Likelihood
 """
@@ -188,11 +188,11 @@ end
 """
 function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite=true, kwargs...)
     @assert Profiles[1][1] isa AbstractMatrix{<:Number} && Profiles[1][2] isa AbstractVector{<:AbstractVector{<:Number}}
-    P = OverWrite ? Plots.plot() : Plots.plot!()
+    P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in 1:length(Profiles)
-        Plots.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
+        RecipesBase.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
     end
-    Plots.scatter!(P, [MLE(DM)]; marker=:hex, markersize=3, label="MLE", kwargs...)
+    RecipesBase.plot!(P, [MLE(DM)]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
     P
 end
 
