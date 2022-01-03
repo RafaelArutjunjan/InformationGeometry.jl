@@ -86,6 +86,12 @@ function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp
     InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; tol=tol, kwargs...)
 end
 
+"""
+Concatenated total least squares vector [xdata; pdim].
+"""
+TotalLeastSquaresV(args...; kwargs...) = reduce(vcat, TotalLeastSquares(args...; kwargs...))
+
+
 
 """
     minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
