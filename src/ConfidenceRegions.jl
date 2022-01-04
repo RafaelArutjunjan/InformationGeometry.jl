@@ -105,7 +105,7 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15,
 end
 function FindConfBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, maxiter::Int=10000)
     res = mle + LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1, length(mle))
-    tol < 2e-15 ? res : convert(Vector{Float64}, res)
+    tol < 2e-15 ? res : convert(Vector, res)
 end
 
 
@@ -141,7 +141,7 @@ function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, ma
     CF = ConfVol(Confnum)
     Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
     res = MLE(DM) .+ LineSearch(Test, zero(suff(CF)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
-    tol < 2e-15 ? res : convert(Vector{Float64}, res)
+    tol < 2e-15 ? res : convert(Vector, res)
 end
 
 

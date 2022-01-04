@@ -342,5 +342,13 @@ end
 
 
     # Test optimizers:
-    
+    F(x) = x[1]^2 + 0.5x[2]^4;    initial = 10ones(2) + rand(2);    Cube = HyperCube(-2ones(2), 18ones(2))
+
+    @test norm(InformationGeometry.minimize(F, initial, Cube; tol=1e-5, meth=NelderMead())) < 5e-1
+    @test norm(InformationGeometry.minimize(F, initial, Cube; tol=1e-5, meth=LBFGS())) < 5e-2
+    @test norm(InformationGeometry.minimize(F, initial, Cube; tol=1e-5, meth=Newton())) < 5e-2
+
+    @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=NelderMead())) < 5e-1
+    @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=LBFGS())) < 5e-2
+    @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=Newton())) < 5e-2
 end
