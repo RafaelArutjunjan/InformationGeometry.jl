@@ -197,7 +197,7 @@ Infers the (minimal) number of components that the given function `F` accepts as
 function pdim(DS::AbstractDataSet, model::ModelOrFunction)
     if MaximalNumberOfArguments(model) == 2
         GetArgLength(p->model(WoundX(DS)[1],p))
-    else
+    else #inplace model
         GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))
     end
 end

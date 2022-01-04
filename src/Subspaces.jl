@@ -336,15 +336,6 @@ function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tupl
     length(C) == 0 && return Res
     Tup = popfirst!(C)
     Corners(vcat([append!(copy(r), Tup[1]) for r in Res], [append!(copy(r), Tup[2]) for r in Res]), C)
-    # n = length(Res)
-    # for r in Res
-    #     append!(r, Tup[1])
-    # end
-    # NewRes = vcat(Res,Res)
-    # for i in n+1:2n
-    #     NewRes[i][end] = Tup[2]
-    # end
-    # Corners(NewRes,C)
 end
 
 

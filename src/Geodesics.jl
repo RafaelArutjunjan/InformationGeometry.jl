@@ -115,29 +115,6 @@ function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractV
 end
 
 
-# """
-#     Truncated(sol::AbstractODESolution) -> Function
-# Given a geodesic `sol`, the second half of the components which represent the velocity are truncated off.
-# The result gives the position of the geodesic as a function of the parameter.
-# However, since it is no longer of type `ODESolution`, one no longer has access to the fields `sol.t`, `sol.u` and so on.
-# """
-# Truncated(sol::AbstractODESolution) = (t->sol(t)[1:Int(length(sol.u[1])/2)])
-
-
-################################################################ MERGE THESE FUNCTION VARIATIONS
-# function ConstLengthGeodesics(DM::DataModel,Metric::Function,MLE::AbstractVector,Conf::Float64=ConfVol(1),N::Int=100)
-#     angles = [2*pi*n/N      for n in 1:N]
-#     sols = Vector{ODESolution}(undef,0)
-#     for α in angles
-#         InitialVelocity = [cos(α),sin(α)]
-#         push!(sols,ConfidenceBoundaryViaGeodesic(DM,Metric,[MLE...,InitialVelocity...],Conf))
-#         num = α*N/(2*pi) |> round |> Int
-#         println("Calculated Geodesic $num of $N.")
-#     end
-#     Region = Endpoints(sols);   RecipesBase.plot(Unpack(Region))
-#     sols
-# end
-
 # ADAPT FOR PLANES
 function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::AbstractVector, Conf::Real=ConfVol(1), N::Int=100; tol::Real=6e-11)
     angles = [2π*n/N      for n in 1:N]
@@ -301,18 +278,6 @@ function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<
 end
 
 
-# function MBAMBoundaries(u, t, int, DM; componentlim::Real=1e4, singularlim::Real=1e-8)::Bool
-#     if !all(x->abs(x) < componentlim, u)
-#         @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
-#         return true
-#     elseif svdvals(FisherMetric(DM,u[1:end÷2]))[end] < singularlim
-#         @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
-#         return true
-#     else
-#         return false
-#     end
-# end
-
 """
 Return `true` when integration of ODE should be terminated.
 """
@@ -337,11 +302,4 @@ function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing
     CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(GeodesicBoundaryFunction(Predictor(DM)),terminate!)) : CB
     # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
     ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=nothing, callback=CB, tol=tol, meth=meth, kwargs...)
-    # if isnothing(Boundaries)
-    #     MBAMboundary(u,t,int) = MBAMBoundaries(u,t,int,DM)
-    #     return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=MBAMboundary, tol=tol, meth=meth, kwargs...)
-    # else
-    #     CombinedBoundaries(u,t,int)::Bool = Boundaries(u,t,int) || MBAMBoundaries(u,t,int,DM)
-    #     return ComputeGeodesic(DM, MLE(DM), InitialVel, 1e4; Boundaries=CombinedBoundaries, tol=tol, meth=meth, kwargs...)
-    # end
 end

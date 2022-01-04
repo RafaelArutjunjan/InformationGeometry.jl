@@ -322,55 +322,6 @@ Evaluates the loglikelihood on a 2D domain via the `PlotScalar()` function.
 PlotLogLikelihood(DM::AbstractDataModel, args...; kwargs...) = PlotScalar(loglikelihood(DM), args...; kwargs...)
 
 
-# ############################# Plotting
-# function PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
-#     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-#     Lcomp(args...) = loglikelihood(DM,[args...])
-#     Lims = TranslateCube(PlanarCube,MLE)
-#     A = range(Lims.L[1], Lims.U[1], length=N);  B = range(Lims.L[2], Lims.U[2], length=N)
-#     Map = parallel ? pmap : map
-#     if Save
-#         X,Y = meshgrid(A,B)
-#         Z = Map(Lcomp,X,Y)
-#         p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, kwargs...)
-#         p = RecipesBase.plot!([MLE[1]],[MLE[2]]; seriestype=:scatter, lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
-#         display(p)
-#         return [X Y Z]
-#     else
-#         p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, kwargs...)
-#         p = RecipesBase.plot!([MLE[1]],[MLE[2]]; seriestype=:scatter, lab="MLE: [$(round(MLE[1],sigdigits=4)),$(round(MLE[2],sigdigits=4))]", marker=:hex)
-#         return p
-#     end
-# end
-#
-# PlotLoglikelihood(DM::DataModel, MLE::AbstractVector, size::Float64=0.5, N::Int=100) = PlotLoglikelihood(DM, MLE, HyperCube([[-size,size],[-size,size]]), N)
-#
-# function PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=100; Save::Bool=true, parallel::Bool=false, kwargs...)
-#     Lcomp(x,y) = loglikelihood(DM,PlaneCoordinates(PlotPlane,[x,y]))
-#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-#     Lims = PlanarCube
-#     A = range(Lims.L[1], Lims.U[1], length=N)
-#     B = range(Lims.L[2], Lims.U[2], length=N)
-#     Map = parallel ? pmap : map
-#     if Save
-#         X,Y = meshgrid(A,B)
-#         Z = Map(Lcomp,X,Y)
-#         p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-#             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-#         p = RecipesBase.plot!([0], [0]; seriestype=:scatter, lab="Center", marker=:hex, linealpha=0)
-#         display(p)
-#         return [X Y Z]
-#     else
-#         p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=40, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-#             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-#         p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
-#         return p
-#     end
-# end
-#
-# PlotLoglikelihood(DM::DataModel, PlotPlane::Plane, size::Float64=0.5, N::Int=100; Save::Bool=true) = PlotLoglikelihood(DM, PlotPlane, HyperCube([[-size,size],[-size,size]]), N, Save=Save)
-
 
 function ConstructBox(fit::LsqFit.LsqFitResult, Confnum::Real; AxisCS::Bool=true)
     E = Confnum * stderror(fit)
