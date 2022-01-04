@@ -49,11 +49,12 @@ end
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DSE, model); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), tol::Real=1e-13, rescale::Bool=true, kwargs...)
+function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DSE, model); tol::Real=1e-13,
+                                ADmode::Union{Symbol,Val}=Val(:ForwardDiff), rescale::Bool=true, verbose::Bool=true, Full::Bool=false, kwargs...)
     # Improve starting values by fitting with ordinary least squares first
     initialp = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initialp; tol=tol, kwargs...).param
     if xdist(DSE) isa InformationGeometry.Dirac
-        println("xdist of given data is Dirac, can only use ordinary least squares.")
+        verbose && @warn "TLS: xdist of given data is Dirac, can only perform ordinary least squares."
         return xdata(DSE), initialp
     end
 
@@ -71,19 +72,20 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     p0 = vcat(xdata(DSE), initialp)
     R = rescale ? LsqFit.OnceDifferentiable(f, dfnormalized, p0, copy(f(p0)); inplace = false) : LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
-    Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end]
+    verbose && !fit.converged && @warn "TLS appears to not have converged."
+    Full ? fit : (Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end])
 end
 
 
 ## Remove above custom method and implement LiftedCost∘LiftedEmbedding for both
-function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DS, model); tol::Real=1e-13, kwargs...)
+function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DS, model); kwargs...)
     sum(abs, xsigma(DS)) == 0.0 && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
     xlen = Npoints(DS)*xdim(DS);    Cost(x::AbstractVector) = -logpdf(dist(DS), x)
     function predictY(ξ::AbstractVector)
         x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
         vcat(x, EmbeddingMap(DS, model, p, Windup(x,xdim(DS))))
     end
-    InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; tol=tol, kwargs...)
+    InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; kwargs...)
 end
 
 """
@@ -92,6 +94,31 @@ Concatenated total least squares vector [xdata; pdim].
 TotalLeastSquaresV(args...; kwargs...) = reduce(vcat, TotalLeastSquares(args...; kwargs...))
 
 
+# Currently, Fminbox errors for: SimulatedAnnealing, ParticleSwarm, AbstractNGMRES
+# Apparently by design cannot handle: AcceleratedGradientDescent, MomentumGradientDescent, Newton, NewtonTrustRegion, KrylovTrustRegion
+
+ConstrainMeth(meth::Optim.AbstractOptimizer, Domain::Nothing; verbose::Bool=true) = meth
+function ConstrainMeth(meth::Optim.AbstractOptimizer, Domain::HyperCube; verbose::Bool=true)
+    if meth isa Optim.AbstractConstrainedOptimizer
+        meth
+    elseif meth isa Union{NelderMead, BFGS, LBFGS, GradientDescent, ConjugateGradient}
+        Fminbox(meth)
+    elseif meth isa Optim.SecondOrderOptimizer # meth isa Optim.Newton || meth isa Optim.NewtonTrustRegion
+        verbose && @warn "$(nameof(typeof(meth)))() does not support constrained optimization, switching to IPNewton()."
+        IPNewton()
+    else
+        verbose && @warn "$(nameof(typeof(meth)))() currently does not support constrained optimization, ignoring given domain boundaries and continuing."
+        meth
+    end
+end
+
+function AutoDiffble(F::Function, x::AbstractVector)
+    try
+        DerivableFunctions._GetGrad(Val(true))(F, x) isa AbstractVector
+        true
+    catch;  false   end
+end
+
 
 """
     minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
@@ -99,38 +126,44 @@ Minimizes the scalar input function using the given `start` using algorithms fro
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument.
 """
-function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
+                            meth::Optim.AbstractOptimizer=NelderMead(), timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     options = if isnothing(Fthresh)
         Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     else  # stopping criterion via callback kwarg
         Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     end
-    Res = if isnothing(Domain)
-        Optim.optimize(F, floatify(start), meth, options; kwargs...)
+    Cmeth = ConstrainMeth(meth,Domain)
+    Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
+        start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
+        Optim.optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), Cmeth, options; kwargs...)
     else
-        start ∉ Domain && throw("Given starting value not in specified domain.")
-        Optim.optimize(F, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; kwargs...)
+        Optim.optimize(F, floatify(start), Cmeth, options; kwargs...)
     end
+    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization appears to not have converged."
     Full ? Res : Optim.minimizer(Res)
 end
-minimize(FdF::Tuple, args...; kwargs...) = InformationGeometry.minimize(FdF..., args...; kwargs...)
-function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, dF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
+                            meth::Optim.AbstractOptimizer=BFGS(), timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     options = if isnothing(Fthresh)
         Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     else  # stopping criterion via callback kwarg
         Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     end
-    Res = if isnothing(Domain)
-        Optim.optimize(F, dF, floatify(start), meth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+    Cmeth = ConstrainMeth(meth,Domain)
+    Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
+        start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
+        Optim.optimize(F, dF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
     else
-        start ∉ Domain && throw("Given starting value not in specified domain.")
-        Optim.optimize(F, dF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+        Optim.optimize(F, dF, floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
     end
+    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization appears to not have converged."
     Full ? Res : Optim.minimizer(Res)
 end
-function minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), timeout::Real=200, Full::Bool=false, kwargs...)
+function minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
+                            meth::Optim.AbstractOptimizer=NewtonTrustRegion(), timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...)
     !(F(start) isa Number) && throw("Given function must return scalar values, got $(typeof(F(start))) instead.")
     @assert MaximalNumberOfArguments(dF) == MaximalNumberOfArguments(ddF) "Derivatives dF and ddF need to be either both in-place or both not in-place"
     options = if isnothing(Fthresh)
@@ -138,14 +171,17 @@ function minimize(F::Function, dF::Function, ddF::Function, start::AbstractVecto
     else  # stopping criterion via callback kwarg
         Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
     end
-    Res = if isnothing(Domain)
-        Optim.optimize(F, dF, ddF, floatify(start), meth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+    Cmeth = ConstrainMeth(meth,Domain)
+    Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
+        start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
+        Optim.optimize(F, dF, ddF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
     else
-        start ∉ Domain && throw("Given starting value not in specified domain.")
-        Optim.optimize(F, dF, ddF, convert(Vector{Float64},Domain.L), convert(Vector{Float64},Domain.U), floatify(start), meth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+        Optim.optimize(F, dF, ddF, floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
     end
+    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization appears to not have converged."
     Full ? Res : Optim.minimizer(Res)
 end
+minimize(FdF::Tuple, args...; kwargs...) = InformationGeometry.minimize(FdF..., args...; kwargs...)
 
 """
     RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)

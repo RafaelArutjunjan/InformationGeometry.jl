@@ -103,7 +103,7 @@ end
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-14, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
 

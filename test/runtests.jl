@@ -7,9 +7,7 @@ using SafeTestsets
     using InformationGeometry, Test, LinearAlgebra, Distributions
 
     DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
-    model(x,θ) = θ[1] * x + θ[2]
-    DM = DataModel(DS,model)
-    p = rand(2)
+    DM = DataModel(DS,LinearModel);    p = rand(2)
 
     @test IsLinear(DM)
     Dist = DataDist(ydata(DM),ysigma(DM))
@@ -32,9 +30,8 @@ end
 @safetestset "Confidence Regions" begin
     using InformationGeometry, Test, Plots
 
-    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
-    model(x,θ) = θ[1] * x + θ[2];    DM = DataModel(DS,model)
-    DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), model)
+    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.]);    DM = DataModel(DS,LinearModel)
+    DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), LinearModel)
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-6)
     @test IsStructurallyIdentifiable(DM,sols[1]) == true
@@ -45,11 +42,12 @@ end
 
     @test size(ConfidenceBands(DM,sols[1]; N=50, plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
-    @test typeof(FittedPlot(DM)) <: Plots.Plot
-    @test typeof(FittedPlot(DME)) <: Plots.Plot
-    @test typeof(ResidualPlot(DM)) <: Plots.Plot
 
-    @test typeof(VisualizeGeos([MBAM(DM)])) <: Plots.Plot
+    @test FittedPlot(DM) isa Plots.Plot
+    @test FittedPlot(DME) isa Plots.Plot
+    @test ResidualPlot(DM) isa Plots.Plot
+    @test VisualizeGeos([MBAM(DM)]) isa Plots.Plot
+
     simplermodel(x,p) = p[1]*x;    DMSimp = DataModel(DS,simplermodel)
     @test length(ConfidenceRegion(DMSimp,1.)) == 2
     @test ModelComparison(DM,DMSimp)[2] > 0.
@@ -115,7 +113,7 @@ end
     # Use SplitterFunction SIRinitial to infer initial condition I₀ as first parameter
     SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.6,0.0023,0.46]; tol=1e-6)
     @test SIRDM isa DataModel
-    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.0022,0.45], true; meth=Tsit5(), tol=1e-6) isa DataModel
+    @test DataModel(SIRDS, SIRsys, [762, 1, 0.], [2], [0.0022,0.45], true; tol=1e-6) isa DataModel
     @test norm(2*EmbeddingMap(Data(SIRDM), Predictor(SIRDM), MLE(SIRDM)) - EmbeddingMap(Data(SIRDM), ModifyODEmodel(SIRDM, x->2*x[2]), MLE(SIRDM))) < 2e-4
 end
 
@@ -160,6 +158,8 @@ end
     @test EmbeddingMatrix(DM,MLE(DM)) ≈ EmbeddingMatrix(dm,MLE(dm))
     @test Score(DM, MLE(DM)) ≈ Score(dm, MLE(dm))
     @test FisherMetric(DM, MLE(DM)) ≈ FisherMetric(dm, MLE(dm))
+
+    @test OrthVF(DM, MLE(DM)) ≈ OrthVF(dm, MLE(dm))
 end
 
 @safetestset "Inputting Datasets of various shapes" begin
@@ -339,4 +339,8 @@ end
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
     @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
+
+
+    # Test optimizers:
+    
 end

@@ -10,7 +10,7 @@ ConsistentElDims(T::Tuple) = ConsistentElDims(collect(T))
 
 
 
-function HealthyCovariance(M::AbstractMatrix{<:Number})
+function HealthyCovariance(M::AbstractMatrix{<:Number}; verbose::Bool=true, kwargs...)
     M = size(M,1) > size(M,2) ? Unwind(M) : M
     M = if isdiag(M)
         Diagonal(floatify(M))
@@ -20,17 +20,17 @@ function HealthyCovariance(M::AbstractMatrix{<:Number})
         floatify(M)
     end
     if !isposdef(M)
-        println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
+        verbose && println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
         M = Symmetric(M)
         !isposdef(M) && throw("Matrix still not positive-definite after symmetrization.")
         M = convert(Matrix, M)
     end
     return M
 end
-HealthyCovariance(D::Diagonal) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
+HealthyCovariance(D::Diagonal; kwargs...) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
 # Interpret vector as uncertainties, therefore square before converting to Matrix
-HealthyCovariance(X::AbstractVector{<:Number}) = all(x->x>0, X) ? Diagonal(floatify(X).^2) : throw("Not all given uncertainties positive: $(X)")
-HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}) = Unwind(X)
+HealthyCovariance(X::AbstractVector{<:Number}; kwargs...) = all(x->x>0, X) ? Diagonal(floatify(X).^2) : throw("Not all given uncertainties positive: $(X)")
+HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}; kwargs...) = Unwind(X)
 
 
 
@@ -168,15 +168,15 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
     Res
 end
 
-function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction)
+function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction; verbose::Bool=true)
     P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
     try  model(X,P)   catch Err
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
     out = model(X,P)
     !(size(out,1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
-    !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
-    return
+    verbose && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
+    return nothing
 end
 
 

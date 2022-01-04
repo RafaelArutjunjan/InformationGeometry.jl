@@ -1024,6 +1024,5 @@ function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:Abst
             X[i,j], Y[i,j], Z[i,j] = P(Planes[i], sols[i], ϕs[j])
         end
     end
-    pointy && return AddCaps(X, Y, Z, fact)
-    (X, Y, Z)
+    pointy ? AddCaps(X, Y, Z, fact) : (X, Y, Z)
 end

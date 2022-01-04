@@ -13,7 +13,7 @@ function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
 end
 
 
-function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
+function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true)
     if xerrs
         (size(df,2) != 2xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
         Xcols = stripedXs ? (1:2:2xdims) : (1:xdims)
@@ -27,7 +27,7 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); x
         Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
     end
     xnames = names(df[:,Xcols]);    ynames = names(df[:,Ycols])
-    println("Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames.")
+    verbose && println("Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames.")
     DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
     InformNames(DSs, xnames, ynames)
 end

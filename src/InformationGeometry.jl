@@ -12,8 +12,7 @@ using ForwardDiff, DerivableFunctions
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
-using RecipesBase
-using PlotUtils: adapted_grid
+using RecipesBase, PlotUtils
 using TreeViews
 
 import DataInterpolations: AbstractInterpolation
@@ -160,7 +159,8 @@ include("NumericalTools/Miscellaneous.jl")
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
-export GetH, suff, Unpack, Unwind, Windup, ToCols, PromoteStatic, SplitAfter
+export Unpack, Unwind, Windup, PromoteStatic, SplitAfter
+export GetH, suff, ToCols
 export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
