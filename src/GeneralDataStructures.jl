@@ -148,8 +148,7 @@ end
 
 
 MeasureAutoDiffPerformance(DM::AbstractDataModel; kwargs...) = MeasureAutoDiffPerformance(Data(DM), Predictor(DM), MLE(DM); kwargs...)
-function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector; kwargs...)
-    modes = [:ForwardDiff, :Zygote, :ReverseDiff, :Symbolic, :FiniteDiff]
+function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector; modes::AbstractVector{<:Union{Val,Symbol}}=diff_backends(), kwargs...)
     perfs = Vector{Float64}(undef, length(modes))
     for (i,mode) in enumerate(modes)
         perfs[i] = try

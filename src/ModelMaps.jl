@@ -196,7 +196,7 @@ _ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
 MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
 MonotoneDecreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :decreasing
 function Monotonicity(F::Function, Interval::Tuple{Number,Number})
-    derivs = map(x->ForwardDiff.derivative(F, x), range(Interval[1], Interval[2]; length=200))
+    derivs = map(GetDeriv(Val(:ForwardDiff),F), range(Interval[1], Interval[2]; length=200))
     all(x-> x≥0., derivs) && return :increasing
     all(x-> x≤0., derivs) && return :decreasing
     :neither

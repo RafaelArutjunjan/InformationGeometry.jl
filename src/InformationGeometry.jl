@@ -8,7 +8,7 @@ using LinearAlgebra, Random, Distributions, DataFrames
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
-using ForwardDiff, DerivableFunctions
+using DerivableFunctions
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor

@@ -287,14 +287,14 @@ end
     ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Number,Number}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
-function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-13)
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-13, ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
     Func(p::Number) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
-    D(f) = x->ForwardDiff.derivative(f,x);  NegFunc(x) = Func(-x)
-    B = find_zero((Func,D(Func)),0.1,Roots.Order1(); xatol=tol)
-    A = find_zero((Func,D(Func)),-B,Roots.Order1(); xatol=tol)
+    Df = GetDeriv(ADmode, Func)
+    B = find_zero((Func,Df),0.1,Roots.Order1(); xatol=tol)
+    A = find_zero((Func,Df),-B,Roots.Order1(); xatol=tol)
     rts = (MLE(DM)[1]+A, MLE(DM)[1]+B)
     rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored...") : return rts
 end
