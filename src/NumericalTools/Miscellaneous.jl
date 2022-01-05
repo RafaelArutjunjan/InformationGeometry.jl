@@ -78,6 +78,7 @@ GetBoundaryMethod(tol::Real) = GetMethod(tol)
 
 
 # Check for length
+PromoteStatic(X::AbstractArray{<:BigFloat}, inplace::Bool=true) = X
 PromoteStatic(X::AbstractArray, inplace::Bool=true) = length(X) > 90 ? X : PromoteStatic(X, Val(inplace))
 
 # No checking for length

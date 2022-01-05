@@ -322,7 +322,7 @@ end
 
 
 @safetestset "Numerical Helper Functions" begin
-    using InformationGeometry, Test, BenchmarkTools, ForwardDiff
+    using InformationGeometry, Test, BenchmarkTools, LinearAlgebra, Optim
 
     # Compare Integrate1D and IntegrateND
 
