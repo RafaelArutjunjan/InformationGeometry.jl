@@ -148,13 +148,13 @@ function minimize(Fs::Tuple{Vararg{Function}}, start::AbstractVector{<:Number}, 
         if length(Fs) == 1
             Optim.optimize(Fs[1], convert(Vector,Domain.L), convert(Vector,Domain.U), floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., convert(Vector,Domain.L), convert(Vector,Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+            Optim.optimize(Fs..., convert(Vector,Domain.L), convert(Vector,Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
         end
     else
         if length(Fs) == 1
             Optim.optimize(Fs[1], floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(dF)>1, kwargs...)
+            Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
         end
     end
     verbose && !Optim.converged(Res) && @warn "minimize(): Optimization appears to not have converged."
