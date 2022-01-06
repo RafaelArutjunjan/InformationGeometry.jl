@@ -3,23 +3,8 @@
 
 GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(BigFloat)/10)) : 1e-6
 
-# """
-#     suff(x) -> Type
-# If `x` stores BigFloats, `suff` returns BigFloat, else `suff` returns `Float64`.
-# """
-# suff(x::BigFloat) = BigFloat
-# suff(x::Float32) = Float32
-# suff(x::Float16) = Float16
-# suff(x::Real) = Float64
-# suff(x::Num) = Num
-# suff(x::Complex) = suff(real(x))
-# suff(x::AbstractArray) = suff(x[1])
-# suff(x::DataFrame) = suff(x[1,1])
-# suff(x::Tuple) = suff(x...)
-# suff(args...) = try suff(promote(args...)[1]) catch;  suff(args[1]) end
-# # Allow for differentiation through suff arrays.
-# suff(x::ForwardDiff.Dual) = typeof(x)
-# suff(x::ReverseDiff.TrackedReal) = typeof(x)
+# import DerivableFunctions: suff
+suff(x::DataFrame) = suff(x[1,1])
 
 
 floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = float.(x)
