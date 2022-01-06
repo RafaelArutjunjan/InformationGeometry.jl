@@ -8,7 +8,7 @@ using LinearAlgebra, Random, Distributions, DataFrames
 using Distributed, StaticArrays, SparseArrays
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
-using DerivableFunctions
+using DerivableFunctionsBase
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
 using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
@@ -21,10 +21,10 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction
 import SciMLBase: remake
 export remake
 
-import DerivableFunctions: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder
-import DerivableFunctions: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF
-import DerivableFunctions: GetDeriv, GetGrad, GetJac, GetHess, GetMatrixJac
-import DerivableFunctions: GetGrad!, GetJac!, GetHess!, GetMatrixJac!, diff_backends
+import DerivableFunctionsBase: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder
+import DerivableFunctionsBase: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF
+import DerivableFunctionsBase: GetDeriv, GetGrad, GetJac, GetHess, GetMatrixJac
+import DerivableFunctionsBase: GetGrad!, GetJac!, GetHess!, GetMatrixJac!, diff_backends
 
 # include("NumericalTools/Differentiation.jl")
 export diff_backends

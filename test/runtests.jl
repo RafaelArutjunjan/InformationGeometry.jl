@@ -188,8 +188,8 @@ end
 
     CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
     @test abs(loglikelihood(ODM, P) - loglikelihood(CDM, P)) < 5e-6
-    @test norm(Score(ODM, P) - Score(CDM, P)) < 2e-6
-    @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 2e-6
+    @test norm(Score(ODM, P) - Score(CDM, P)) < 2e-5
+    @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 2e-5
     @test norm(InformationGeometry.ResidualStandardError(ODM) - InformationGeometry.ResidualStandardError(CDM)) < 1e-10
 
     lastDS = Data(Data(CDM))[3]

@@ -114,7 +114,7 @@ end
 
 function AutoDiffble(F::Function, x::AbstractVector)
     try
-        DerivableFunctions._GetGrad(Val(true))(F, x) isa AbstractVector
+        DerivableFunctionsBase._GetGrad(Val(true))(F, x) isa AbstractVector
         true
     catch;  false   end
 end

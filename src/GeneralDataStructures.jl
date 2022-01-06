@@ -102,8 +102,8 @@ Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM
 
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    Grad, Jac = DerivableFunctions._GetGrad(ADmode; Kwargs...), DerivableFunctions._GetJac(ADmode; Kwargs...)
-    GradPass, JacPass = DerivableFunctions._GetGradPass, DerivableFunctions._GetJacPass
+    Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
+    GradPass, JacPass = DerivableFunctionsBase._GetGradPass, DerivableFunctionsBase._GetJacPass
     ## Allow for symbolic passthrough here
     Autodmodel(x::Number,θ::AbstractVector{<:Number}; kwargs...) = transpose(Grad(z->model(x,z; kwargs...),θ))
     Autodmodel(x::Number,θ::AbstractVector{<:Num}; kwargs...) = transpose(GradPass(z->model(x,z; kwargs...),θ))
