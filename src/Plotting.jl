@@ -45,6 +45,11 @@ function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVe
     ydim(DS) == 1 ? Y : (ydim(DS) ≤ Npoints(DS) ? Unpack(Windup(Y, ydim(DS))) : transpose(Unpack(Windup(Y, ydim(DS)))))
 end
 
+function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{AbstractVector,Nothing}=nothing; N::Int=500, kwargs...)
+    X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM)
+    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", kwargs...)
+end
+
 # xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
@@ -131,8 +136,7 @@ end
 TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}) = norm(ResidualStandardError(DS, model, MLE))
 
 
-
-FittedPlot(DM::AbstractDataModel, args...; kwargs...) = RecipesBase.plot(DM, args...; kwargs...)
+@deprecate FittedPlot(args...) RecipesBase.plot(args...)
 
 ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
@@ -147,12 +151,6 @@ function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVec
                 (x,p)->zeros(ydim(DS), length(mle)),
                 mle, _loglikelihood(DS, model, mle), true); kwargs...)
 end
-# function ResidualPlot(DM::AbstractDataModel; kwargs...)
-#     !(xdim(DS) == ydim(DS) == 1) && throw("Not programmed for plotting xdim != 1 or ydim != 1 yet.")
-#     RecipesBase.plot(DataSetExact(xdata(DM),resid,ysigma(DM));kwargs...)
-#     RecipesBase.plot!(x->0,[xdata(DM)[1],xdata(DM)[end]],label="Fit")
-#     RecipesBase.plot!(legendtitle="R² ≈ $(round(Rsquared(DM),sigdigits=3))")
-# end
 
 
 
@@ -356,46 +354,6 @@ function VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
     ZeilenVecs[:,1],ZeilenVecs[:,2]
 end
 
-# function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,PlanarCube::HyperCube,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
-#     length(MLE) !=2 && throw(ArgumentError("Only 2D supported."))
-#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-#     Lims = TranslateCube(PlanarCube,MLE)
-#     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
-#     Vcomp(a,b) = V([a,b])
-#     u,v = VFRescale(Unpack(Vcomp.(AV,BV)), PlanarCube; scaling=scaling)
-#     # u,v = Vcomp.(AV,BV) |> Unpack
-#     # u,v = VFRescale([u v],PlanarCube,scaling=scaling)
-#     if OverWrite
-#         quiver(AV,BV,quiver=(u,v)) |> display
-#     else
-#         quiver!(AV,BV,quiver=(u,v)) |> display
-#     end
-#     [AV BV u v]
-# end
-#
-# function Plot2DVF(DM::DataModel,V::Function,MLE::AbstractVector,size::Float64=0.5,N::Int=25;scaling::Float64=0.85, OverWrite::Bool=false)
-#     Plot2DVF(DM,V, MLE, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
-# end
-
-
-# function Plot2DVF(DM::DataModel, V::Function, PlotPlane::Plane, PlanarCube::HyperCube, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
-#     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-#     Lims = PlanarCube
-#     AV, BV  = meshgrid(range(Lims.L[1], Lims.U[1], length=N), range(Lims.L[2], Lims.U[2], length=N))
-#     Vcomp(a,b) = V(PlaneCoordinates(PlotPlane,[a,b]))
-#     u,v = Vcomp.(AV,BV) |> Unpack
-#     u,v = VFRescale([u v],PlanarCube,scaling=scaling)
-#     if OverWrite
-#         quiver(AV,BV,quiver=(u,v)) |> display
-#     else
-#         quiver!(AV,BV,quiver=(u,v)) |> display
-#     end
-#     [AV BV u v]
-# end
-
-# function Plot2DVF(DM::DataModel,V::Function, PlotPlane::Plane,size::Float64=0.5, N::Int=25; scaling::Float64=0.85, OverWrite::Bool=false)
-#     Plot2DVF(DM,V, PlotPlane, HyperCube([[-size,size],[-size,size]]), N; scaling=scaling, OverWrite=OverWrite)
-# end
 
 function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false, kwargs...)
     @assert length(Lims) == length(V(Center(Lims))) == 2

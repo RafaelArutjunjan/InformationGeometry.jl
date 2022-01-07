@@ -172,6 +172,7 @@ function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::Abst
     S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S);    VF = P ./ S
     normalize(alpha .* VF)
 end
+OrthVF(DM::AbstractDataModel; Kwargs...) = (args...; kwargs...)->OrthVF(DM, args...; Kwargs..., kwargs...)
 
 # Faster Method for Planar OrthVF
 """

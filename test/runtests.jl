@@ -43,8 +43,8 @@ end
     @test size(ConfidenceBands(DM,sols[1]; N=50, plot=false)) == (50,3)
     @test size(PlotMatrix(inv(FisherMetric(DM,MLE(DM))),MLE(DM); N=50,plot=false)) == (50,2)
 
-    @test FittedPlot(DM) isa Plots.Plot
-    @test FittedPlot(DME) isa Plots.Plot
+    @test Plots.plot(DM) isa Plots.Plot
+    @test Plots.plot(DME) isa Plots.Plot
     @test ResidualPlot(DM) isa Plots.Plot
     @test VisualizeGeos([MBAM(DM)]) isa Plots.Plot
 

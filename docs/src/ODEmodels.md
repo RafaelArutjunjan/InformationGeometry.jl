@@ -21,7 +21,7 @@ While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEq
 # @named SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
 ```
 ```julia
-using InformationGeometry, ModelingToolkit
+using InformationGeometry, ModelingToolkit, Plots
 @parameters t β γ
 @variables S(t) I(t) R(t)
 Dt = Differential(t)
@@ -88,13 +88,13 @@ VisualizeSols(SIRDM, sols)
 
 ```@setup 2
 # B = ConfidenceBands(SIRDM, sols[2]) # hide
-# FittedPlot(SIRDM) # hide
+# plot(SIRDM) # hide
 # plot!(B[:,1], B[:,3], label="2σ Conf. Band", color=:orange) # hide
 # plot!(B[:,1], B[:,2], label="", color=:orange) # hide
 # savefig("../assets/SIRBands.svg"); nothing # hide
 ```
 ```julia
-FittedPlot(SIRDM)
+plot(SIRDM)
 ConfidenceBands(SIRDM, sols[2])
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/SIRBands.svg)

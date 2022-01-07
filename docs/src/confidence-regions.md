@@ -9,14 +9,15 @@ using InformationGeometry, Plots; gr() # hide
 DS = DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]) # hide
 model(x::Real, θ::AbstractVector{<:Real}) = θ[1] * x + θ[2] # hide
 DM = DataModel(DS, model) # hide
-# p = FittedPlot(DM) # hide
+# p = plot(DM) # hide
 # savefig(p, "../assets/CR-FittedPlot.svg"); nothing # hide
 ```
 ```julia
+using InformationGeometry, Plots
 DS = DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1])
 model(x::Real, θ::AbstractVector{<:Real}) = θ[1] * x + θ[2]
 DM = DataModel(DS, model)
-FittedPlot(DM)
+plot(DM)
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/CR-FittedPlot.svg)
 
@@ -79,12 +80,12 @@ Here, only the ``1\sigma`` confidence region is shown. Given the non-linearity o
 
 Once the boundary of a confidence region associated with some particular level has been computed, it can be used to establish the most extreme deviations from the maximum likelihood prediction, which are possible at said confidence level. These can then be illustrated as so-called "pointwise confidence bands" around the best fit. For example, given the confidence boundaries of the model `DM2` from above, the ``2\sigma`` confidence band can be obtained via:
 ```@setup 1
-# FittedPlot(DM2)
+# plot(DM2)
 # ConfidenceBands(DM2, sols2[2])
 # savefig("../assets/Bands.svg"); nothing # hide
 ```
 ```julia
-FittedPlot(DM2)
+plot(DM2)
 ConfidenceBands(DM2, sols2[2])
 ```
 ![](https://raw.githubusercontent.com/RafaelArutjunjan/InformationGeometry.jl/master/docs/assets/Bands.svg)
