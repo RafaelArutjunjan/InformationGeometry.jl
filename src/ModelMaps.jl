@@ -64,7 +64,7 @@ struct ModelMap
     end
 end
 (M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
-ModelOrFunction = Union{Function,ModelMap}
+const ModelOrFunction = Union{Function,ModelMap}
 
 
 # For SciMLBase.remake

@@ -99,8 +99,8 @@ import Base: length, rand, BigFloat, in, union, intersect, join, ==
 import DataFrames.DataFrame
 import Distributions.loglikelihood
 
-BoolArray = Union{BitArray,AbstractArray{<:Bool}}
-BoolVector = Union{BitVector,AbstractVector{<:Bool}}
+const BoolArray = Union{BitArray,AbstractArray{<:Bool}}
+const BoolVector = Union{BitVector,AbstractVector{<:Bool}}
 
 
 include("Subspaces.jl")
