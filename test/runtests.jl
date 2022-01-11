@@ -53,6 +53,8 @@ end
     @test ModelComparison(DM,DMSimp)[2] > 0.
 
     @test FindFBoundary(DM,1)[1] - FindConfBoundary(DM,1)[1] > 0
+    z = 8rand()
+    @test FindConfBoundary(DM, z; BoolTest=true)[1] - FindConfBoundary(DM, z; BoolTest=false)[1] < 1e-9
 end
 
 

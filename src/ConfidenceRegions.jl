@@ -91,58 +91,105 @@ The keyword `dof` can be used to manually specify the degrees of freedom.
 """
 WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)::Bool = WilksCriterion(DM, θ, Confvol; kwargs...) < 0.
 
+# Convert BigFloat vector back to float if necessary
+SmallFloat(X::AbstractVector{<:Number}, tol::Real) = X
+SmallFloat(X::AbstractVector{<:BigFloat}, tol::Real) = tol < 2e-15 ? X : convert(Vector{Float64}, X)
 
-function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000, dof::Int=pdim(DM))
-    CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum)) : ConfVol(Confnum)
+function _GetBoolTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
+    Wilks_Test(x::Real) = WilksTest(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; dof=dof, kwargs...)
+end
+function _GetFloatTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
+    Wilks_Criterion(x::Real) = WilksCriterion(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; dof=dof, kwargs...)
+end
+function _GetBoolFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
+    F_Test(x::Real) = Ftest(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; kwargs...)
+end
+function _GetFloatFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
+    F_Criterion(x::Real) = FCriterion(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; kwargs...)
+end
+
+"""
+    FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(Confnum > 8), Ftest::Bool=false, tol::Real=4e-15)
+Finds parameter configuration which lies on the boundary of the confidence region of level `Confnum`σ.
+
+* `BoolTest` can be used to specify whether the threshold is found using a `Bool`-valued test or a `Float`-valued test. Since it uses less memory, the `Bool`-valued test performs better when using `BigFloat` (i.e. when Confnum > 8).
+* `Ftest=true` uses the F-test rather than the Wilks test to define the threshold. Typically, the F-test will yield more conservative estimates (i.e. larger confidence regions) since it accounts for small sample sizes.
+"""
+function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(Confnum > 8), Ftest::Bool=false, tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, verbose::Bool=true, factor::Real=10.0, kwargs...)
+    CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
     mle = if CF isa BigFloat
-        suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        verbose && suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        BigFloat.(MLE(DM))
+    else    MLE(DM)     end
+
+    Res = if BoolTest || mle isa AbstractVector{<:BigFloat}
+        verbose && !BoolTest && println("FindConfBoundary: Promoting to BoolTest=true since MLE is a BigFloat.")
+        Test = (Ftest ? _GetBoolFTesterFunc : _GetBoolTesterFunc)(DM, mle, CF; dof=dof, Comp=Comp)
+        _FindBoolBoundary(Test, mle; tol=tol, dof=dof, Comp=Comp, verbose=verbose, kwargs...)
+    else
+        Test = (Ftest ? _GetFloatFTesterFunc : _GetFloatTesterFunc)(DM, mle, CF; dof=dof, Comp=Comp)
+        Interval = _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor)
+        _FindFloatBoundary(Test, Interval, mle; tol=tol, dof=dof, Comp=Comp, verbose=verbose, kwargs...)
+    end
+    SmallFloat(Res, tol)
+end
+
+function _FindBoolBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, dof::Int=length(mle), Comp::Int=1, verbose::Bool=true, kwargs...)
+    LineSearch(Test, zero(suff(mle)); tol=tol, verbose=verbose, kwargs...) * BasisVector(Comp, length(mle)) + mle
+end
+function _FindFloatBoundary(DM::AbstractDataModel, Test::Function, mle::AbstractVector{<:Number}, CF::Real; dof::Int=length(mle), Comp::Int=1, factor::Real=10.0, kwargs...)
+    Interval = _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor)
+    _FindFloatBoundary(Test, Interval, mle; dof=dof, Comp=Comp, kwargs...)
+end
+function _FindFloatBoundary(Test::Function, Interval::Tuple{<:Real,<:Real}, mle::AbstractVector{<:Number}; tol::Real=4e-15, Comp::Int=1, verbose::Bool=true,
+                            meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(), kwargs...)
+    AltLineSearch(Test, Interval, meth; tol=tol) * BasisVector(Comp, length(mle)) + mle
+end
+
+function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=pdim(DM), Comp::Int=1, factor::Real=10.0)
+    b = sqrt(quantile(Chisq(dof),CF) / FisherMetric(DM,MLE(DM))[Comp,Comp])
+    (b/factor, factor*b)
+end
+
+
+## old
+function FindConfBoundaryOld(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), verbose::Bool=true, kwargs...)
+    CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
+    mle = if CF isa BigFloat
+        verbose && suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
         BigFloat.(MLE(DM))
     else
         MLE(DM)
     end
-    Test(x) = WilksTest(DM, x .* BasisVector(1, length(mle)) + mle, CF; dof=dof)
-    FindConfBoundary(Test, mle; tol=tol, maxiter=maxiter)
+    FindConfBoundaryOld(_GetBoolTesterFunc(DM, mle, CF; dof=dof), mle; tol=tol, verbose=verbose, kwargs...)
 end
-function FindConfBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, maxiter::Int=10000)
-    res = mle + LineSearch(Test, zero(suff(mle)); tol=tol, maxiter=maxiter) .* BasisVector(1, length(mle))
-    tol < 2e-15 ? res : convert(Vector, res)
-end
-
-
-function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=pdim(DM), factor::Real=10.0)
-    b = sqrt(quantile(Chisq(dof),CF))/sqrt(FisherMetric(DM,MLE(DM))[1,1])
-    (b/factor, factor*b)
+function FindConfBoundaryOld(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, Comp::Int=1, kwargs...)
+    Res = LineSearch(Test, zero(suff(mle)); tol=tol, kwargs...) .* BasisVector(Comp, length(mle)) + mle
+    SmallFloat(Res, tol)
 end
 # Takes roughly 1/3 of the time of Boolean LineSearch
-function FindConfBoundary2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), maxiter::Int=-1, factor::Real=10.0, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
-    CF = ConfVol(Confnum);    Crit(x) = WilksCriterion(DM, x * BasisVector(1, pdim(DM)) + MLE(DM), CF)
-    AltLineSearch(Crit, _BracketingInterval(DM,CF;dof=dof,factor=factor), meth; tol) * BasisVector(1, pdim(DM)) + MLE(DM)
+function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, maxiter::Int=-1, factor::Real=10.0, verbose::Bool=true,
+                        meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
+    CF = ConfVol(Confnum; verbose=verbose)
+    AltLineSearch(_GetFloatTesterFunc(DM, MLE(DM), CF; dof=dof, Comp=Comp), _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor), meth; tol) * BasisVector(Comp, pdim(DM)) + MLE(DM)
 end
 
-
-# function FtestPrepared(DM::DataModel, θ::AbstractVector, S_MLE::Real, ConfVol=ConfVol(1))::Bool
-#     n = length(ydata(DM));  p = length(θ);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./ysigma(DM)).^2)
-#     S(θ) ≤ S_MLE * (1. + p/(n-p)) * quantile(FDist(p, n-p),ConfVol)
-# end
-# Ftest(DM::DataModel, θ::AbstractVector, MLE::AbstractVector, Conf=ConfVol(1))::Bool = FtestPrepared(DM,θ,sum((ydata(DM) .- map(x->DM.model(x,MLE),xdata(DM))).^2),Conf)
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = InnerProduct(yInvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
-function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))
+function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)
     n = length(ydata(DM));  p = length(θ)
-    ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p),Confvol)
+    ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p), Confvol)
 end
-function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))))::Bool
-    FCriterion(DM,θ,Confvol) < 0
+function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)::Bool
+    FCriterion(DM, θ, Confvol; kwargs...) < 0.0
 end
-function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, maxiter::Int=10000)
-    ((suff(MLE(DM)) != BigFloat) && tol < 2e-15) && throw("For tol < 2e-15, MLE(DM) must first be promoted to BigFloat via DM = DataModel(Data(DM),DM.model,DM.dmodel,BigFloat.(MLE(DM))).")
-    CF = ConfVol(Confnum)
-    Test(x) = FTest(DM,x .* BasisVector(1,pdim(DM)) + MLE(DM), CF)
-    res = MLE(DM) .+ LineSearch(Test, zero(suff(CF)); tol=tol, maxiter=maxiter) .* BasisVector(1,pdim(DM))
-    tol < 2e-15 ? res : convert(Vector, res)
-end
+"""
+    FindFBoundary(DM::DataModel, Confnum::Real)
+Finds parameter configuration for which the threshold of the F-test associated with a confidence level of `Confnum`σ is reached, i.e. which lies on the boundary of the F-test based confidence region of level `Confnum`σ.
+"""
+FindFBoundary(args...; kwargs...) = FindConfBoundary(args...; Ftest=true, kwargs...)
 
 
 FDistCDF(x, d1, d2) = beta_inc(d1/2., d2/2., d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
