@@ -118,12 +118,12 @@ Finds parameter configuration which lies on the boundary of the confidence regio
 function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(Confnum > 8), Ftest::Bool=false, tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, verbose::Bool=true, factor::Real=10.0, kwargs...)
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
     mle = if CF isa BigFloat
-        verbose && suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        verbose && suff(MLE(DM)) != BigFloat && @info "FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead."
         BigFloat.(MLE(DM))
     else    MLE(DM)     end
 
     Res = if BoolTest || mle isa AbstractVector{<:BigFloat}
-        verbose && !BoolTest && println("FindConfBoundary: Promoting to BoolTest=true since MLE is a BigFloat.")
+        verbose && !BoolTest && @info "FindConfBoundary: Promoting to BoolTest=true since MLE is a BigFloat."
         Test = (Ftest ? _GetBoolFTesterFunc : _GetBoolTesterFunc)(DM, mle, CF; dof=dof, Comp=Comp)
         _FindBoolBoundary(Test, mle; tol=tol, dof=dof, Comp=Comp, verbose=verbose, kwargs...)
     else
@@ -156,7 +156,7 @@ end
 function FindConfBoundaryOld(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), verbose::Bool=true, kwargs...)
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
     mle = if CF isa BigFloat
-        verbose && suff(MLE(DM)) != BigFloat && println("FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead.")
+        verbose && suff(MLE(DM)) != BigFloat && @info "FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead."
         BigFloat.(MLE(DM))
     else
         MLE(DM)
@@ -489,14 +489,14 @@ end
 Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidence region is intersected by a family of `Plane`s in the directions specified by the keyword `Dirs`.
 The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
-function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false,
+function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, verbose::Bool=true,
                             Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
     if pdim(DM) == 1
         ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
         GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol, dof=dof); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...)
     else
-        # println("ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually.")
+        verbose && Dirs == (1,2,3) && @info "ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually."
         Cube = LinearCuboid(DM, Confnum)
         Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N, tol=tol)
         Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, ADmode=ADmode, meth=meth, mfd=mfd, parallel=parallel, kwargs...)
@@ -534,7 +534,7 @@ Keyword arguments:
 * `parallel = true` parallelizes the computations of the separate confidence regions provided each process has access to the necessary objects,
 * `dof` can be used to manually specify the degrees of freedom.
 """
-function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false,
+function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false, verbose::Bool=true,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
@@ -549,11 +549,11 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
         end
         if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
-            sum(NotTerminated) != 0 && println("Solutions $((1:length(sols))[NotTerminated]) did not exit properly.")
+            verbose && sum(NotTerminated) != 0 && @warn "Solutions $((1:length(sols))[NotTerminated]) did not exit properly."
             roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)
             for i in 1:length(roots)
-                length(roots[i]) != 0 && println("Solution $i hits chart boundary at t = $(roots[i]) and should therefore be considered invalid.")
+                length(roots[i]) != 0 && verbose && @warn "Solution $i hits chart boundary at t = $(roots[i]) and should therefore be considered invalid."
             end
         end
         return sols
@@ -920,7 +920,7 @@ function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel; kwargs.
     !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2) && yInvCov(DM1) == yInvCov(DM2)) && throw("Not comparing against same data!")
     Mod1 = AICc(DM1,MLE(DM1); kwargs...);      Mod2 = AICc(DM2,MLE(DM2); kwargs...)
     res = (Int((Mod1 > Mod2) + 1), round(exp(0.5*abs(Mod2-Mod1)),sigdigits=5))
-    println("Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values.")
+    @info "Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values."
     res
 end
 

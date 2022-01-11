@@ -97,7 +97,7 @@ DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=Proje
 ProjectOntoPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = ProjectionOp * (x - PL.stütz) + PL.stütz
 
 function ProjectionOperator(A::AbstractMatrix)
-    size(A,2) != 2 && println("ProjectionOperator: Matrix size $(size(A)) not as expected.")
+    # size(A,2) != 2 && @warn "ProjectionOperator: Matrix size $(size(A)) not as expected."
     A * inv(transpose(A) * A) * transpose(A)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])

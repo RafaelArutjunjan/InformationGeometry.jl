@@ -49,7 +49,7 @@ struct DataSet <: AbstractDataSet
         DataSet(ToCols(Matrix(DF))...; kwargs...)
     end
     function DataSet(x::AbstractArray, y::AbstractArray; kwargs...)
-        println("No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's.")
+        @info "No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's."
         DataSet(x, y, 1.0; kwargs...)
     end
     DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real; kwargs...) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)

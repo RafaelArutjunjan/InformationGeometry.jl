@@ -61,7 +61,7 @@ struct DataSetExact <: AbstractDataSet
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution; kwargs...)
-        println("No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out.")
+        @info "No information about dimensionality of x-values or y-values given. Assuming that each x and y value has a single component from here on out."
         DataSetExact(xd, yd, (length(xd),1,1); kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}; kwargs...)
@@ -150,7 +150,7 @@ function DataMetric(P::Distributions.GenericMvTDist)
     if P.df == 1
         return 0.5 .* InvCov(P)
     else
-        println("DataMetric: Don't know what to do for t-distribution with dof=$(P.df), just returning usual inverse covariance matrix.")
+        @warn "DataMetric: Don't know what to do for t-distribution with dof=$(P.df), just returning usual inverse covariance matrix."
         return InvCov(P)
     end
 end

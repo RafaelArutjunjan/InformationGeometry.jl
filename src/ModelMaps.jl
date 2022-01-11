@@ -107,7 +107,7 @@ _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 MakeCustom(F::Function, Domain::Union{Cuboid,Bool,Nothing}=nothing) = Domain isa Cuboid ? MakeCustom(ModelMap(F, Domain)) : MakeCustom(ModelMap(F))
 function MakeCustom(M::ModelMap)
     if iscustom(M)
-        println("Map already uses custom embedding.")
+        @warn "MakeCustom: Given Map already uses custom embedding."
         return M
     else
         return ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, Val(true))
@@ -115,7 +115,7 @@ function MakeCustom(M::ModelMap)
 end
 function MakeNonCustom(M::ModelMap)
     if !iscustom(M)
-        println("Map already not using custom embedding.")
+        @warn "MakeNonCustom: Given Map already using non-custom embedding."
         return M
     else
         return ModelMap(M.Map, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, M.inplace, Val(false))
@@ -124,7 +124,7 @@ end
 
 
 function ModelMap(F::Nothing, M::ModelMap)
-    println("ModelMap: Got nothing instead of function to build new ModelMap")
+    @warn "ModelMap: Got Nothing instead of Function to build new ModelMap."
     nothing
 end
 function CreateSymbolNames(n::Int, base::String="θ")
@@ -211,7 +211,7 @@ function Transform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTr
     NewCube = if mono == :increasing
         HyperCube(_Apply(M.Domain.L, InverseTransform, idxs), _Apply(M.Domain.U, InverseTransform, idxs))
     elseif mono == :decreasing
-        println("Detected monotone decreasing transformation.")
+        @warn "Detected monotone decreasing transformation."
         HyperCube(_Apply(M.Domain.U, InverseTransform, idxs), _Apply(M.Domain.L, InverseTransform, idxs))
     else
         @warn "Transformation does not appear to be monotone. Unable to infer new Domain."

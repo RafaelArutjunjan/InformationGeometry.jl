@@ -27,7 +27,7 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); x
         Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
     end
     xnames = names(df[:,Xcols]);    ynames = names(df[:,Ycols])
-    verbose && println("Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames.")
+    verbose && @info "Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames."
     DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
     InformNames(DSs, xnames, ynames)
 end
@@ -241,8 +241,8 @@ RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector
 end
 
 
-function ResidualStandardError(CDS::CompositeDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
-    any(x->DataspaceDim(x) ≤ length(MLE), Data(CDS)) && (println("Too few data points to compute RSE"); return nothing)
+function ResidualStandardError(CDS::CompositeDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; verbose::Bool=true)
+    any(x->DataspaceDim(x) ≤ length(MLE), Data(CDS)) && ((verbose && @warn "Too few data points to compute RSE"); return nothing)
     ydiff = ydata(CDS) - EmbeddingMap(CDS, model, MLE);    Res = zeros(length(Data(CDS)));    startind = 1
     for i in eachindex(Res)
         ypred = view(ydiff, startind:startind+Npoints(Data(CDS)[i])*ydim(Data(CDS)[i])-1)

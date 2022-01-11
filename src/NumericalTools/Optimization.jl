@@ -194,12 +194,12 @@ Finds real number `x` where the boolean-valued `Test(x::Number)` goes from `true
 """
 function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000, verbose::Bool=true)
     if ((suff(start) != BigFloat) && tol < 1e-15)
-        verbose && println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
+        verbose && @info "LineSearch: start not BigFloat but tol=$tol. Promoting and continuing."
         start = BigFloat(start)
     end
     if !Test(start)
         start += 1e-10
-        verbose && println("LineSearch: Test(start) did not work, trying Test(start + 1e-10).")
+        verbose && @warn "LineSearch: Test(start) did not work, trying Test(start + 1e-10)."
         !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     end
     # For some weird reason, if the division by 4 is removed, the loop never terminates for BigFloat-valued "start"s - maybe the compiler erroneously tries to optimize the variable "stepsize" away or something?! (Julia version ≤ 1.6.0)

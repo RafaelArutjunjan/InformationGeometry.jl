@@ -117,7 +117,7 @@ function ConfVol(n::Real; verbose::Bool=true, kwargs...)
     if abs(n) ≤ 8
         erf(n / sqrt(2))
     else
-        verbose && println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
+        verbose && @info "ConfVol: Float64 precision insufficient for n=$n. Returning BigFloat instead."
         ConfVol(BigFloat(n))
     end
 end

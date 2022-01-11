@@ -20,7 +20,7 @@ function HealthyCovariance(M::AbstractMatrix{<:Number}; verbose::Bool=true, kwar
         floatify(M)
     end
     if !isposdef(M)
-        verbose && println("Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing.")
+        verbose && @warn "Given Matrix not perfectly positive-definite. Using only upper half and symmetrizing."
         M = Symmetric(M)
         !isposdef(M) && throw("Matrix still not positive-definite after symmetrization.")
         M = convert(Matrix, M)
@@ -177,7 +177,7 @@ function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction; verbose::
         throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
     end
     out = model(X,P)
-    !(size(out,1) == ydim(DS)) && println("Got ydim=$(ydim(DS)) but output of model does not have this size.")
+    size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
     verbose && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return nothing
 end

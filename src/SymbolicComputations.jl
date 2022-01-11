@@ -32,7 +32,7 @@ end
 
 function SymbolicdModel(DM::AbstractDataModel)
     if !GeneratedFromSymbolic(dPredictor(DM))
-        println("Given Model jacobian not symbolic. Trying to apply OptimizedDM() first.")
+        @warn "Given Model jacobian not symbolic. Trying to apply OptimizedDM() first."
         odm = OptimizedDM(DM)
         if isnothing(ToExpr(odm))
             return "Unable to represent given jacobian symbolically."

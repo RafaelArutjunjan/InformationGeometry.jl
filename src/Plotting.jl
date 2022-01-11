@@ -126,8 +126,8 @@ Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
 
 ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
-function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number})
-    Npoints(DS) ≤ length(MLE) && (println("Too few data points to compute RSE"); return nothing)
+function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; verbose::Bool=true)
+    Npoints(DS) ≤ length(MLE) && ((verbose && @warn "Too few data points to compute RSE"); return nothing)
     ydiff = ydata(DS) - EmbeddingMap(DS, model, MLE)
     Res = map(i->sqrt(sum(abs2, view(ydiff, i:ydim(DS):length(ydiff))) / (Npoints(DS) - length(MLE))), 1:ydim(DS))
     ydim(DS) == 1 ? Res[1] : Res
