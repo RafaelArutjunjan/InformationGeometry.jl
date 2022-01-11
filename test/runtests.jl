@@ -63,6 +63,7 @@ end
     X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
     ToyDME = DataModel(DataSetExact(X,0.1ones(length(X)),Y,err), (x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
 
+    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8; tol=1e-5) isa ODESolution
     @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8.5; tol=1e-5) isa ODESolution
 
     NewX, NewP = TotalLeastSquares(ToyDME)
@@ -70,7 +71,7 @@ end
 
     @test ModelMap(Predictor(ToyDME), PositiveDomain(2)) isa ModelMap
 
-    sol = ConfidenceRegion(ToyDME,1; tol=1e-6)
+    sol = ConfidenceRegion(ToyDME, 1; tol=1e-6)
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.

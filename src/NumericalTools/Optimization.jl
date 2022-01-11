@@ -192,14 +192,14 @@ end
     LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000) -> Number
 Finds real number `x` where the boolean-valued `Test(x::Number)` goes from `true` to `false`.
 """
-function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000)
+function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000, verbose::Bool=true)
     if ((suff(start) != BigFloat) && tol < 1e-15)
-        println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
+        verbose && println("LineSearch: start not BigFloat but tol=$tol. Promoting and continuing.")
         start = BigFloat(start)
     end
     if !Test(start)
         start += 1e-10
-        println("LineSearch: Test(start) did not work, trying Test(start + 1e-10).")
+        verbose && println("LineSearch: Test(start) did not work, trying Test(start + 1e-10).")
         !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     end
     # For some weird reason, if the division by 4 is removed, the loop never terminates for BigFloat-valued "start"s - maybe the compiler erroneously tries to optimize the variable "stepsize" away or something?! (Julia version ≤ 1.6.0)
@@ -211,8 +211,9 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
         else            #outside
             if stepsize < tol
                 return value + stepsize
+            else
+                stepsize /= 5.
             end
-            stepsize /= 5.
         end
     end
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
@@ -223,5 +224,5 @@ function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots
 end
 function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,10^(-precision(BigFloat)/10))) where T<:BigFloat
     Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-14, xrtol=1e-14)
-    find_zero(Test, (BigFloat(Res-2e-14),BigFloat(Res+2e-14)), Bisection(); xatol=tol, xrtol=tol)
+    find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Bisection(); xatol=tol, xrtol=tol)
 end

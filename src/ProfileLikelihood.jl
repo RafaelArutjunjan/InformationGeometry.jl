@@ -123,7 +123,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
-    Logmax != LogLikeMLE(DM) && @warn "Profile Likelihood analysis apparently found a likelihood value which is higher than the previously stored LogLikeMLE. Continuing anyway."
+    Logmax != LogLikeMLE(DM) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Res = map(x->InvConfVol.(ChisqCDF.(dof, 2(Logmax - x))), Res)
 

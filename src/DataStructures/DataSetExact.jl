@@ -96,6 +96,10 @@ xnames::AbstractVector{String}=["x"],
 ynames::AbstractVector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames)
 
 
+# Conversion to DataSet
+DataSet(DSE::DataSetExact) = DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE))
+
+
 dims(DSE::DataSetExact) = DSE.dims
 yInvCov(DSE::DataSetExact) = DSE.InvCov
 xInvCov(DSE::DataSetExact) = InvCov(xdist(DSE))

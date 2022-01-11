@@ -145,11 +145,8 @@ function FindFBoundary(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, ma
 end
 
 
-FDistCDF(x,d1,d2) = beta_inc(d1/2.,d2/2.,d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
-# function Ftest2(DM::DataModel, point::AbstractVector{T}, MLE::AbstractVector{T}, ConfVol::T=ConfVol(1))::Bool where {T<:BigFloat}
-#     n = length(ydata(DM));  p = length(point);    S(P) = sum(((ydata(DM) .- map(x->DM.model(x,P),xdata(DM)))./ysigma(DM)).^2)
-#     FDistCDF(S(point) / (S(MLE) * (1 + p/(n-p))),p,n-p) ≤ ConfVol
-# end
+FDistCDF(x, d1, d2) = beta_inc(d1/2., d2/2., d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
+
 
 
 inversefactor(m) = 1. / sqrt((m - 1.) + (m - 1.)^2)
@@ -460,13 +457,13 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
 end
 
 
-IsStructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiable(DM,sol; kwargs...)) == 0
+IsStructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiable(DM, sol; kwargs...)) == 0
 
 function StructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
-    find_zeros(t->GeometricDensity(DM,sol(t); kwargs...), sol.t[1], sol.t[end])
+    find_zeros(t->GeometricDensity(DM, sol(t); kwargs...), sol.t[1], sol.t[end])
 end
 function StructurallyIdentifiable(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
-    (parallel ? pmap : map)(x->StructurallyIdentifiable(DM,x; kwargs...), sols)
+    (parallel ? pmap : map)(x->StructurallyIdentifiable(DM, x; kwargs...), sols)
 end
 
 
@@ -496,7 +493,7 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     if pdim(DM) == 1
-        return (parallel ? pmap : map)(x->ConfidenceRegion(DM,x; tol=tol, dof=dof), Range)
+        return (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
         sols = if parallel
             @showprogress 1 "Computing boundaries... " pmap(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range)
@@ -914,7 +911,7 @@ Computes point inside the plane `PL` which lies on the boundary of a confidence 
 If such a point cannot be found (i.e. does not seem to exist), the method returns `false`.
 """
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, kwargs...)
-    FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; kwargs...)
+    FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; tol=tol, kwargs...)
 end
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      model = Predictor(DM)

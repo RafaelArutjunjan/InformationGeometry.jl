@@ -58,7 +58,7 @@ begin
     dist::Distribution=Normal(0,1),
     dims::Tuple{Int,Int,Int}=(1,0,1),
     WoundX::Union{AbstractVector,Nothing}=nothing,
-    xnames::AbstractVector{String}=[],
+    xnames::AbstractVector{String}=String[],
     ynames::AbstractVector{String}=["y"]) = GeneralizedDataSet(dist, dims, WoundX, xnames, ynames)
 end
 

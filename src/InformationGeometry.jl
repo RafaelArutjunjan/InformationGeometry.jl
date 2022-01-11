@@ -10,7 +10,7 @@ using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
 using DerivableFunctionsBase
 using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
-using SpecialFunctions, Tullio, DataFrames, Roots, Combinatorics
+using SpecialFunctions, Tullio, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
 using RecipesBase, PlotUtils
 using TreeViews

@@ -146,7 +146,11 @@ function DetermineDmodel(DS::AbstractDataSet, M::ModelMap; custom::Bool=iscustom
     ModelMap(DetermineDmodel(DS, M.Map; custom=custom, kwargs...), M)
 end
 
-
+"""
+    MeasureAutoDiffPerformance(DM::DataModel; modes=diff_backends())
+Tests the performance of various AD backends for performance one on the given DataModel.
+See `diff_backends()` for the available backends currently loaded.
+"""
 MeasureAutoDiffPerformance(DM::AbstractDataModel; kwargs...) = MeasureAutoDiffPerformance(Data(DM), Predictor(DM), MLE(DM); kwargs...)
 function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector; modes::AbstractVector{<:Union{Val,Symbol}}=diff_backends(), kwargs...)
     perfs = Vector{Float64}(undef, length(modes))

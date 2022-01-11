@@ -54,7 +54,7 @@ end
 # For ODE-based models, lower order methods in integral curve generation perform better.
 function GetBoundaryMethod(tol::Real, DM::AbstractDataModel)
     if IsDEbased(DM)
-        BS3()
+        tol > 1e-10 ? BS3() : Tsit5()
     else
         GetMethod(tol)
     end
@@ -107,21 +107,21 @@ end
     ConfAlpha(n::Real)
 Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-ConfAlpha(n::Real) = 1 - ConfVol(n)
+ConfAlpha(n::Real; kwargs...) = 1 - ConfVol(n; kwargs...)
 
 """
     ConfVol(n::Real)
 Probability volume contained in a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-function ConfVol(n::Real)
+function ConfVol(n::Real; verbose::Bool=true, kwargs...)
     if abs(n) ≤ 8
-        return erf(n / sqrt(2))
+        erf(n / sqrt(2))
     else
-        println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
-        return ConfVol(BigFloat(n))
+        verbose && println("ConfVol: Float64 precision not enough for n = $n. Returning BigFloat instead.")
+        ConfVol(BigFloat(n))
     end
 end
-ConfVol(n::BigFloat) = erf(n / sqrt(BigFloat(2)))
+ConfVol(n::BigFloat; kwargs...) = erf(n / sqrt(BigFloat(2)))
 
 InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
