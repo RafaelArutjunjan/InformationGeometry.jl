@@ -61,6 +61,42 @@ function BasisVector(Slot::Int, dims::Int)
     Res = zeros(dims);    Res[Slot] = 1.;    Res
 end
 
+struct OneHot{T<:Number} <: AbstractVector{T}
+    i::Int
+    n::Int
+    val::T
+    OneHot(i::Int, n::Int, val::T=1.0) where T<:Number = new{T}(i, n, val)
+end
+function Base.getindex(X::OneHot{T}, i::Int) where T
+    @boundscheck @assert i ≤ X.n
+    ifelse(i == X.i, X.val, zero(T))
+end
+Base.size(X::OneHot) = (X.n,)
+Base.length(X::OneHot) = X.n
+
+
+Base.:*(a::Number, X::OneHot) = OneHot(X.i, X.n, a*X.val)
+Base.:*(A::AbstractMatrix, X::OneHot) = X.val * A[:, X.i]
+
+# Hopefully this does not degrade performance
+Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y); setindex(Y, Y[X.i] + X.val, X.i))
+Base.:+(X::OneHot, Y::AbstractVector) = (@boundscheck @assert length(X) == length(Y);  Z=copy(Y);  Z[X.i] += X.val;    Z)
+Base.:+(Y::AbstractVector, X::OneHot) = X + Y
+
+Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
+Base.:*(A::Transpose{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
+Base.:*(A::Adjoint{T,AbstractVector{T}}, X::OneHot) where T = X.val * A[X.i]
+Base.:*(A::Transpose{T,AbstractVector{T}}, X::OneHot) where T = X.val * A[X.i]
+
+Base.:*(A::Adjoint{T,OneHot}, X::AbstractMatrix{T}) where T = X.val * A[X.i, :]
+Base.:*(A::Transpose{T,OneHot}, X::AbstractMatrix{T}) where T = X.val * A[X.i, :]
+Base.:*(A::Adjoint{T,OneHot}, X::AbstractVector{T}) where T = X.val * A[X.i]
+Base.:*(A::Transpose{T,OneHot}, X::AbstractVector{T}) where T = X.val * A[X.i]
+
+LinearAlgebra.dot(X::OneHot, Y::AbstractVector) = X.val * Y[X.i]
+LinearAlgebra.dot(Y::AbstractVector, X::OneHot) = LinearAlgebra.dot(X, Y)
+LinearAlgebra.dot(X::OneHot{T}, Y::OneHot{T}) where T<:Number = (@boundscheck @assert X.n == Y.n;  ifelse(X.i == Y.i, X.val*Y.val, zero(T)))
+
 
 """
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
