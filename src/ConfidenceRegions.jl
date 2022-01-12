@@ -1191,7 +1191,15 @@ end
 
 
 
-GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=length(θ), kwargs...) = InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
+function GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=length(θ), kwargs...)
+    if length(θ) == pdim(DM)
+        InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
+    elseif length(θ) == xpdim(DM)
+        throw("Implement LiftedLogLikelihood∘LiftedEmbedding here.")
+    else
+        throw("Length of θ $(length(θ)) neither corresponds to pdim=$(pdim(DM)) nor xpdim=$(xpdim(DM)).")
+    end
+end
 GetConfnum(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, sol.u[end]; kwargs...)
 GetConfnum(DM::AbstractDataModel, PL::Plane, sol::AbstractODESolution; kwargs...) = GetConfnum(DM, PlaneCoordinates(PL, sol.u[end]); kwargs...)
 
