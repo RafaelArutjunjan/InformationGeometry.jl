@@ -148,7 +148,7 @@ InvCov(P::Distribution) = invcov(P)
 DataMetric(P::Distribution) = InvCov(P)
 function DataMetric(P::Distributions.GenericMvTDist)
     if P.df == 1
-        return 0.5 .* InvCov(P)
+        return 0.5InvCov(P)
     else
         @warn "DataMetric: Don't know what to do for t-distribution with dof=$(P.df), just returning usual inverse covariance matrix."
         return InvCov(P)

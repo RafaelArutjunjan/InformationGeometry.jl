@@ -193,18 +193,3 @@ end
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = tr(transpose(Ricci(Metric, θ; kwargs...)) * inv(Metric(θ)))
-
-
-"""
-(0,4) Weyl curvature tensor. NEEDS TESTING.
-"""
-function Weyl(Metric::Function, θ::AbstractVector{<:Number}; kwargs...)
-    length(θ) < 4 && return zeros(length(θ),length(θ),length(θ),length(θ))
-    Riem = Riemann(Metric, θ; kwargs...)
-    g = BigCalc ? Metric(BigFloat.(θ)) : Metric(θ)
-    @tullio Ric[a,b] := Riem[m,a,m,b]
-    @tullio PartA[i,k,l,m] := Ric[i,m]*g[k,l] - Ric[i,l] * g[k,m] + Ric[k,l] * g[i,m] - Ric[k,m] * g[i,l]
-    @tullio PartB[i,k,l,m] := g[i,l] * g[k,m] - g[i,m] * g[k,l]
-    @tullio Rlow[a,b,c,d] := g[a,e] * Riem[e,b,c,d]
-    Rlow .+ (length(θ) - 2)^(-1) .* PartA .+ ((length(θ) - 1)^(-1) * (length(θ) - 2)^(-1) * tr(inv(g) * Ric)) .* PartB
-end

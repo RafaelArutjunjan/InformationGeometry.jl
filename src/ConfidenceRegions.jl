@@ -96,16 +96,16 @@ SmallFloat(X::AbstractVector{<:Number}, tol::Real) = X
 SmallFloat(X::AbstractVector{<:BigFloat}, tol::Real) = tol < 2e-15 ? X : convert(Vector{Float64}, X)
 
 function _GetBoolTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
-    Wilks_Test(x::Real) = WilksTest(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; dof=dof, kwargs...)
+    Wilks_Test(x::Real) = WilksTest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
 end
 function _GetFloatTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
-    Wilks_Criterion(x::Real) = WilksCriterion(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; dof=dof, kwargs...)
+    Wilks_Criterion(x::Real) = WilksCriterion(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
 end
 function _GetBoolFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
-    F_Test(x::Real) = Ftest(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; kwargs...)
+    F_Test(x::Real) = Ftest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; kwargs...)
 end
 function _GetFloatFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
-    F_Criterion(x::Real) = FCriterion(DM, x .* BasisVector(Comp, length(mle)) + mle, CF; kwargs...)
+    F_Criterion(x::Real) = FCriterion(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; kwargs...)
 end
 
 """
@@ -135,7 +135,7 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(
 end
 
 function _FindBoolBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, dof::Int=length(mle), Comp::Int=1, verbose::Bool=true, kwargs...)
-    LineSearch(Test, zero(suff(mle)); tol=tol, verbose=verbose, kwargs...) * BasisVector(Comp, length(mle)) + mle
+    muladd(LineSearch(Test, zero(suff(mle)); tol=tol, verbose=verbose, kwargs...), BasisVector(Comp, length(mle)), mle)
 end
 function _FindFloatBoundary(DM::AbstractDataModel, Test::Function, mle::AbstractVector{<:Number}, CF::Real; dof::Int=length(mle), Comp::Int=1, factor::Real=10.0, kwargs...)
     Interval = _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor)
@@ -143,7 +143,7 @@ function _FindFloatBoundary(DM::AbstractDataModel, Test::Function, mle::Abstract
 end
 function _FindFloatBoundary(Test::Function, Interval::Tuple{<:Real,<:Real}, mle::AbstractVector{<:Number}; tol::Real=4e-15, Comp::Int=1, verbose::Bool=true,
                             meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(), kwargs...)
-    AltLineSearch(Test, Interval, meth; tol=tol) * BasisVector(Comp, length(mle)) + mle
+    muladd(AltLineSearch(Test, Interval, meth; tol=tol), BasisVector(Comp, length(mle)), mle)
 end
 
 function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=pdim(DM), Comp::Int=1, factor::Real=10.0)
@@ -164,14 +164,14 @@ function FindConfBoundaryOld(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-
     FindConfBoundaryOld(_GetBoolTesterFunc(DM, mle, CF; dof=dof), mle; tol=tol, verbose=verbose, kwargs...)
 end
 function FindConfBoundaryOld(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, Comp::Int=1, kwargs...)
-    Res = LineSearch(Test, zero(suff(mle)); tol=tol, kwargs...) .* BasisVector(Comp, length(mle)) + mle
+    Res = muladd(LineSearch(Test, zero(suff(mle)); tol=tol, kwargs...), BasisVector(Comp, length(mle)), mle)
     SmallFloat(Res, tol)
 end
 # Takes roughly 1/3 of the time of Boolean LineSearch
 function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, maxiter::Int=-1, factor::Real=10.0, verbose::Bool=true,
                         meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
     CF = ConfVol(Confnum; verbose=verbose)
-    AltLineSearch(_GetFloatTesterFunc(DM, MLE(DM), CF; dof=dof, Comp=Comp), _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor), meth; tol) * BasisVector(Comp, pdim(DM)) + MLE(DM)
+    muladd(AltLineSearch(_GetFloatTesterFunc(DM, MLE(DM), CF; dof=dof, Comp=Comp), _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor), meth; tol), BasisVector(Comp, pdim(DM)), MLE(DM))
 end
 
 
@@ -336,7 +336,7 @@ function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
-    Func(p::Number) = loglikelihood(DM,MLE(DM) + p*BasisVector(1,pdim(DM))) - A
+    Func(p::Number) = loglikelihood(DM, muladd(p, BasisVector(1,pdim(DM)), MLE(DM))) - A
     Df = GetDeriv(ADmode, Func)
     B = find_zero((Func,Df),0.1,Roots.Order1(); xatol=tol)
     A = find_zero((Func,Df),-B,Roots.Order1(); xatol=tol)
@@ -365,7 +365,7 @@ function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Full:
         ix -> iS*ix,          x -> S*x
     else
         mle2d = SVector{2}(μ[[Dirs[1],Dirs[2]]])
-        ix -> iS*(ix - mle2d),  x -> mle2d + S*x
+        ix -> iS*(ix - mle2d),  x -> muladd(S, x, mle2d)
     end
 end
 

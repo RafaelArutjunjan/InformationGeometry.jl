@@ -340,7 +340,7 @@ Rescale vector to look good in 2D plot.
 """
 function VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
     VecsPerLine = sqrt(size(ZeilenVecs)[1])
-    SpacePerVec = scaling/VecsPerLine .* CubeWidths(C)
+    SpacePerVec = (scaling/VecsPerLine) * CubeWidths(C)
     for i in 1:size(ZeilenVecs)[1]
         if SpacePerVec[1] < abs(ZeilenVecs[i,1])
             rescale = SpacePerVec[1] / abs(ZeilenVecs[i,1])
@@ -371,8 +371,8 @@ end
     Deplanarize(PL::Plane,sol::AbstractODESolution, Ts::AbstractVector{<:Number}) -> Matrix
 Converts the 2D outputs of `sol` from planar coordinates associated with `PL` to the coordinates of the ambient space of `PL`.
 """
-Deplanarize(PL::Plane,sol::AbstractODESolution; N::Int=500) = Deplanarize(PL,sol,range(sol.t[1],sol.t[end]; length=N))
-Deplanarize(PL::Plane,sol::AbstractODESolution,Ts::AbstractVector{<:Number}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
+Deplanarize(PL::Plane, sol::AbstractODESolution; N::Int=500) = Deplanarize(PL, sol, range(sol.t[1],sol.t[end];length=N))
+Deplanarize(PL::Plane, sol::AbstractODESolution, Ts::AbstractVector{<:Number}) = map(t->PlaneCoordinates(PL,sol(t)),Ts) |> Unpack
 
 """
     VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=true)

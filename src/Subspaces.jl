@@ -25,7 +25,7 @@ struct Plane
     end
 end
 
-length(PL::Plane) = length(PL.stütz)
+Base.length(PL::Plane) = length(PL.stütz)
 
 function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
     length(start) != 2 && throw("Dimensional Mismatch.")
@@ -66,8 +66,8 @@ end
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
-PlaneCoordinates(PL::Plane, v::AbstractVector) = PL.stütz + [PL.Vx PL.Vy] * v
-PlaneCoordinates(PL::Plane) = x->PlaneCoordinates(PL,x)
+PlaneCoordinates(PL::Plane, v::AbstractVector) = muladd([PL.Vx PL.Vy], v, PL.stütz)
+PlaneCoordinates(PL::Plane) = x -> PlaneCoordinates(PL, x)
 
 Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
@@ -129,18 +129,18 @@ ProjectOnto(v::AbstractVector, u::AbstractVector) = (dot(v,u) / dot(u,u)) * u
 
 """
     ParallelPlanes(PL::Plane, v::AbstractVector, range) -> Vector{Plane}
-Returns Vector of Planes which have been translated by `a .* v` for all `a` in `range`.
+Returns Vector of Planes which have been translated by `a * v` for all `a` in `range`.
 """
 function ParallelPlanes(PL::Plane, v::AbstractVector, range::AbstractVector{<:Real})
     norm(v) == 0. && throw("Direction cannot be null vector.")
     # PL.Projector * v == v && throw("Plane and vector linearly dependent.")
     ProjectOntoPlane(PL,v) == v && throw("Plane and vector linearly dependent.")
-    [TranslatePlane(PL, ran .* v) for ran in range]
+    [TranslatePlane(PL, ran * v) for ran in range]
 end
 
 
 function GramSchmidt(v::AbstractVector, dim::Int=length(v))
-    Basis = Vector{Vector{suff(v)}}(undef,dim)
+    Basis = Vector{Vector{suff(v)}}(undef, dim)
     Basis[1] = normalize(v)
     for i in 2:dim
         Basis[i] = BasisVector(i,dim)
@@ -150,10 +150,10 @@ function GramSchmidt(Basis::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     ONBasis = floatify(Basis)
     for j in 2:length(Basis)
         for i in 2:j
-            Basis[j] .-= ProjectOnto(Basis[j],ONBasis[i-1])
+            Basis[j] .-= ProjectOnto(Basis[j], ONBasis[i-1])
         end
     end
-    for i in 1:length(ONBasis) normalize!(ONBasis[i]) end
+    for X in ONBasis    normalize!(X)   end
     ONBasis
 end
 
@@ -190,21 +190,23 @@ TranslateCube(X,v::AbstractVector)
 CubeWidths(X)
 ```
 """
-struct HyperCube{Q<:Number} <: Cuboid
-    L::AbstractVector{Q}
-    U::AbstractVector{Q}
+struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
+    L::Q
+    U::Q
     HyperCube(C::HyperCube; Padding::Number=0.) = HyperCube(C.L, C.U; Padding=Padding)
     function HyperCube(lowers::AbstractVector{<:Number}, uppers::AbstractVector{<:Number}; Padding::Number=0.)
         @assert length(lowers) == length(uppers)
         if Padding != 0.
-            diff = (uppers - lowers) .* (Padding / 2.)
+            diff = (0.5*Padding) * (uppers - lowers)
             lowers -= diff;     uppers += diff
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")
         if length(lowers) < 20
-            return new{suff(lowers)}(SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers)))
+            A, B = SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers))
+            return new{typeof(A)}(A, B)
         else
-            return new{suff(lowers)}(floatify(lowers),floatify(uppers))
+            A, B = floatify(lowers), floatify(uppers)
+            return new{typeof(A)}(A, B)
         end
     end
     function HyperCube(H::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.)
@@ -222,21 +224,16 @@ struct HyperCube{Q<:Number} <: Cuboid
     HyperCube(center::AbstractVector{<:Number}, width::Real) = HyperCube(center .- (width/2), center .+ (width/2))
 end
 
-length(Cube::HyperCube) = length(Cube.L)
+Base.length(Cube::HyperCube) = Base.length(Cube.L)
+
+
 
 """
-    Inside(Cube::HyperCube, p::AbstractVector{<:Number}) -> Bool
+    in(p::AbstractVector{<:Number}, Cube::HyperCube) -> Bool
 Checks whether a point `p` lies inside `Cube`.
 """
-Inside(Cube::HyperCube, p::AbstractVector{<:Number}) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
-
-
-import Base.in
-"""
-    in(Cube::HyperCube, p::AbstractVector{<:Number}) -> Bool
-Checks whether a point `p` lies inside `Cube`.
-"""
-in(p::AbstractVector{<:Number}, Cube::HyperCube) = Inside(Cube, p)
+Base.in(p::AbstractVector{<:Number}, Cube::HyperCube) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
+@deprecate Inside(Cube::HyperCube, p::AbstractVector{<:Number}) Base.in(Cube, p)
 
 """
     ConstructCube(M::Matrix{<:Number}; Padding::Number=1/50) -> HyperCube
@@ -244,7 +241,7 @@ Returns a `HyperCube` which encloses the extrema of the columns of the input mat
 """
 ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
-ConstructCube(PL::Plane, sol::AbstractODESolution; Padding::Number=0.) = ConstructCube(Deplanarize(PL,sol; N=300); Padding=Padding)
+ConstructCube(PL::Plane, sol::AbstractODESolution; N::Int=300, Padding::Number=0.) = ConstructCube(Deplanarize(PL, sol; N=N); Padding=Padding)
 ConstructCube(Ps::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.) = ConstructCube(Unpack(Ps); Padding=Padding)
 
 # Could speed this up by just using the points in sol.u without interpolation.
@@ -304,9 +301,8 @@ function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
     range(Domain[1], Domain[2]; length=N) |> collect
 end
 
-import Base.range
-function range(C::HyperCube; length::Int=100, kwargs...)
-    @assert size(C.L,1) == 1 && length > 1
+function Base.range(C::HyperCube; length::Int=100, kwargs...)
+    @assert size(C.L, 1) == 1 && length > 1
     range(C.L[1], C.U[1]; length=length, kwargs...)
 end
 
@@ -314,8 +310,6 @@ DropCubeDims(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
     HyperCube(Drop(Cube.L, dims), Drop(Cube.U, dims))
-    # keep = trues(length(Cube));     keep[dims] .= false
-    # HyperCube(Cube.L[keep], Cube.U[keep])
 end
 
 """
@@ -324,7 +318,8 @@ Returns a `Vector` of the `2n`-many face centers of a `n`-dimensional `Cube`.
 """
 function FaceCenters(Cube::HyperCube)
     C = Center(Cube);   W = 0.5CubeWidths(Cube)
-    vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
+    # vcat(map(i->C-W[i]*BasisVector(i,length(C)), 1:length(C)), map(i->C+W[i]*BasisVector(i,length(C)), 1:length(C)))
+    vcat(map(i->muladd(-W[i], BasisVector(i,length(C)), C), 1:length(C)), map(i->muladd(W[i], BasisVector(i,length(C)), C), 1:length(C)))
 end
 
 """
@@ -338,18 +333,16 @@ function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tupl
     Corners(vcat([append!(copy(r), Tup[1]) for r in Res], [append!(copy(r), Tup[2]) for r in Res]), C)
 end
 
+Base.vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0)
 
-import Base: vcat
-vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0)
 
-import Base: union, intersect
 """
     intersect(A::HyperCube, B::HyperCube) -> HyperCube
     intersect(Cubes::AbstractVector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which is the intersection of the given `HyperCube`s.
 """
-intersect(A::HyperCube, B::HyperCube) = intersect([A, B])
-function intersect(Cubes::AbstractVector{<:HyperCube})
+Base.intersect(A::HyperCube, B::HyperCube) = intersect([A, B])
+function Base.intersect(Cubes::AbstractVector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([maximum(col) for col in eachcol(LowerMatrix)], [minimum(col) for col in eachcol(UpperMatrix)])
@@ -361,8 +354,8 @@ end
 Returns new `HyperCube` which contains both given `HyperCube`s.
 That is, the returned cube is strictly speaking not the union, but a cover (which contains the union).
 """
-union(A::HyperCube, B::HyperCube) = union([A, B])
-function union(Cubes::AbstractVector{<:HyperCube})
+Base.union(A::HyperCube, B::HyperCube) = Base.union([A, B])
+function Base.union(Cubes::AbstractVector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
     HyperCube([minimum(col) for col in eachcol(LowerMatrix)], [maximum(col) for col in eachcol(UpperMatrix)])
@@ -378,24 +371,26 @@ NegativeDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCub
 NegativeDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,length(indxs)), [(indxs[i] ? -1e-16 : maxval) for i in eachindex(indxs)]))
 FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,n), fill(maxval,n)))
 
-import Base.rand
-rand(C::HyperCube) = rand(C, Val(length(C)))
-rand(C::HyperCube, ::Val{1}) = C.L[1] + (C.U[1] - C.L[1])*rand()
-function rand(C::HyperCube, ::Val)
-    f(l,u) = l + (u-l)*rand()
-    map(f,C.L,C.U)
+
+"""
+    rand(C::HyperCube) -> AbstractVector
+Uniformly draws a vector which lies in `C`.
+"""
+Base.rand(C::HyperCube) = _rand(C, Val(length(C)))
+_rand(C::HyperCube, ::Val{1}) = C.L[1] + (C.U[1] - C.L[1])*rand()
+function _rand(C::HyperCube, ::Val)
+    f(l,u) = l + (u-l) * rand()
+    map(f, C.L, C.U)
 end
 
-import Base: clamp, clamp!
-clamp(x::AbstractVector, C::HyperCube) = clamp(x, C.L, C.U)
-clamp!(x::AbstractVector, C::HyperCube) = clamp!(x, C.L, C.U)
+Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp(x, C.L, C.U)
+Base.clamp!(x::AbstractVector, C::HyperCube) = Base.clamp!(x, C.L, C.U)
 
-import Base: log, exp
-log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
-exp(C::HyperCube) = HyperCube(exp.(C.L), exp.(C.U))
+Base.log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
+Base.exp(C::HyperCube) = HyperCube(exp.(C.L), exp.(C.U))
 
-import Base.getindex
-getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
+
+Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
 
 
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
