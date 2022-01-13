@@ -76,12 +76,14 @@ Base.length(X::OneHot) = X.n
 
 
 Base.:*(a::Number, X::OneHot) = OneHot(X.i, X.n, a*X.val)
+Base.:*(X::OneHot, a::Number) = Base.:*(a, X)
 Base.:*(A::AbstractMatrix, X::OneHot) = X.val * A[:, X.i]
 
 # Hopefully this does not degrade performance
-Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y); setindex(Y, Y[X.i] + X.val, X.i))
-Base.:+(X::OneHot, Y::AbstractVector) = (@boundscheck @assert length(X) == length(Y);  Z=copy(Y);  Z[X.i] += X.val;    Z)
-Base.:+(Y::AbstractVector, X::OneHot) = X + Y
+Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y);  setindex(Y, Y[X.i] + X.val, X.i))
+Base.:+(X::OneHot, Y::AbstractVector) = (@boundscheck @assert length(X) == length(Y);   Z=copy(Y);  Z[X.i] += X.val;    Z)
+Base.:+(Y::Union{AbstractVector,SVector}, X::OneHot) = Base.:+(X, Y)
+Base.:+(X::OneHot, Y::OneHot) = (@boundscheck @assert length(X) == length(Y);   Z = zeros(X.n); Z[X.i] = X.val; Z[Y.i]=Y.val;   Z)
 
 Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
 Base.:*(A::Transpose{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
@@ -97,6 +99,23 @@ LinearAlgebra.dot(X::OneHot, Y::AbstractVector) = X.val * Y[X.i]
 LinearAlgebra.dot(Y::AbstractVector, X::OneHot) = LinearAlgebra.dot(X, Y)
 LinearAlgebra.dot(X::OneHot{T}, Y::OneHot{T}) where T<:Number = (@boundscheck @assert X.n == Y.n;  ifelse(X.i == Y.i, X.val*Y.val, zero(T)))
 
+LinearAlgebra.mul!(Y::AbstractVector, M::AbstractMatrix, X::OneHot) = @. Y = X.val * M[:, X.i]
+# vectorized mul!
+# function LinearAlgebra.mul!(Y::AbstractVector, M::AbstractMatrix, X::OneHot)
+#     @boundscheck @assert size(M,2) == length(Y) == X.n
+#     @inbounds @avx for j in Base.OneTo(X.n)
+#         Y[j] = X.val * M[j, X.i]
+#     end; Y
+# end
+
+Base.muladd(a::Number, X::OneHot, G::AbstractVector) = (@boundscheck @assert length(X) == length(G);  Z=copy(G); Z[X.i] += a*X.val;  Z)
+@inline Base.muladd(a::Number, X::OneHot, G::SVector) = (@boundscheck @assert length(X) == length(G);  setindex(G, G[X.i] + a*X.val, X.i))
+Base.muladd(a::Number, G::AbstractVector, X::OneHot) = (@boundscheck @assert length(X) == length(G);  Z = a*G;   Z[X.i] += X.val;  Z)
+@inline Base.muladd(a::Number, G::SVector, X::OneHot) = (@boundscheck @assert length(X) == length(G);  Z = a*G; setindex(Z, Z[X.i] + X.val, X.i))
+function Base.muladd(a::S, X::OneHot{T}, Y::OneHot{U}) where {S<:Number, T<:Number, U<:Number}
+    @boundscheck @assert length(X) == length(Y)
+    Z = zeros(promote_type(S,T,U), X.n); Z[X.i] = a*X.val;   Z[Y.i]=Y.val; Z
+end
 
 """
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
