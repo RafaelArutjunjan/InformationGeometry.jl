@@ -145,7 +145,7 @@ end
 function DecomposeWRTPlane(PL::Plane, x::AbstractVector)
     @assert IsOnPlane(PL,x)
     V = x - PL.stütz
-    [dot(V, PL.Vx), dot(V, PL.Vy)]
+    SA[dot(V, PL.Vx), dot(V, PL.Vy)]
 end
 
 DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm

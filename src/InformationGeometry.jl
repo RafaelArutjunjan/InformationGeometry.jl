@@ -122,7 +122,7 @@ export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, Poly
 
 
 include("DataStructures/DistributionTypes.jl")
-export Dirac, GeneralProduct
+export GeneralProduct
 
 
 include("GeneralDataStructures.jl")
@@ -205,8 +205,7 @@ export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, 
 
 include("Curvature.jl")
 export ChristoffelSymbol, Riemann, Ricci, RicciScalar
-# export Weyl
-# Also add Kretschmann, Schouten?
+# Also add Kretschmann, Schouten, Weyl?
 
 
 include("DiffEqModels.jl")

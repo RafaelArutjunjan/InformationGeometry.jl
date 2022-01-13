@@ -964,9 +964,9 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::Abstract
     CF = ConfVol(Confnum);      model = Predictor(DM)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
-    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + [x,0.], PlanarLogPrior)))) - CF < 0.
+    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + SA[x,0.], PlanarLogPrior)))) - CF < 0.
     !Test(0.) && return false
-    [LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
+    SA[LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
 end
 
 
