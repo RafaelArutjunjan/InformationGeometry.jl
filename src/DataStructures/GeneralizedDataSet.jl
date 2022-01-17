@@ -88,16 +88,16 @@ yInvCov(GDS::GeneralizedDataSet) = InvCov(dist(GDS))[(Npoints(GDS)*xdim(GDS) +1)
 
 function xsigma(GDS::GeneralizedDataSet)
     if isseparable(GDS)
-        Sigma(dist(GDS).v[1])
+        Sigma(dist(GDS).v[1]) |> _TryVectorize
     else
-        Sigma(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))]
+        Sigma(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))] |> _TryVectorize
     end
 end
 function ysigma(GDS::GeneralizedDataSet)
     if isseparable(GDS)
-        Sigma(dist(GDS).v[2])
+        Sigma(dist(GDS).v[2]) |> _TryVectorize
     else
-        Sigma(dist(GDS))[(Npoints(GDS)*xdim(GDS) +1):end,(Npoints(GDS)*xdim(GDS) +1):end]
+        Sigma(dist(GDS))[(Npoints(GDS)*xdim(GDS) +1):end,(Npoints(GDS)*xdim(GDS) +1):end] |> _TryVectorize
     end
 end
 
@@ -110,8 +110,8 @@ xdist(GDS::GeneralizedDataSet) = isseparable(GDS) ? dist(GDS).v[1] : typeof(dist
 ydist(GDS::GeneralizedDataSet) = isseparable(GDS) ? dist(GDS).v[2] : typeof(dist(GDS))(ydata(GDS), ysigma(GDS))
 
 # not used yet
-fullsigma(DS::AbstractDataSet) = Sigma(GeneralProduct([xdist(DS), ydist(DS)]))
-fullsigma(GDS::GeneralizedDataSet) = Sigma(dist(GDS))
+fullsigma(DS::AbstractDataSet) = Sigma(GeneralProduct([xdist(DS), ydist(DS)])) |> _TryVectorize
+fullsigma(GDS::GeneralizedDataSet) = Sigma(dist(GDS)) |> _TryVectorize
 
 
 

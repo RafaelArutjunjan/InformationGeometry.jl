@@ -96,13 +96,18 @@ Returns a `DataFrame` whose columns respectively constitute the x-values, y-valu
 For `sigdigits > 0` the values are rounded to the specified number of significant digits.
 """
 function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
-    !(xdim(DS) == ydim(DS) == Int(size(ysigma(DS),1)/Npoints(DS))) && throw("Not programmed yet.")
-    sig = ysigma(DS)
-    !(typeof(sig) <: AbstractVector) && throw("Sigma not a vector, but instead $(typeof(sig)).")
-    if sigdigits < 1
-        return DataFrame([xdata(DS) ydata(DS) ysigma(DS)], :auto)
-    else
-        return DataFrame(round.([xdata(DS) ydata(DS) ysigma(DS)]; sigdigits=sigdigits), :auto)
-    end
+    df = DataFrame(DS);    sigdigits > 0 ? round.(df; sigdigits=sigdigits) : df
 end
 SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(Data(DM); sigdigits=sigdigits)
+
+function DataFrames.DataFrame(DS::DataSet; kwargs...)
+    @assert ysigma(DS) isa AbstractVector
+    M = [Unpack(WoundX(DS)) UnpackWindup(ydata(DS), ydim(DS)) UnpackWindup(ysigma(DS), ydim(DS))]
+    DataFrame(M, vcat(xnames(DS), ynames(DS), ynames(DS) .* "_σ"); kwargs...)
+end
+function DataFrames.DataFrame(DS::DataSetExact; kwargs...)
+    @assert ysigma(DS) isa AbstractVector && xsigma(DS) isa AbstractVector
+    sum(abs, xsigma(DS)) == 0 && return DataFrame(DataSet(DS))
+    M = [Unpack(WoundX(DS)) UnpackWindup(xsigma(DS), xdim(DS)) UnpackWindup(ydata(DS), ydim(DS)) UnpackWindup(ysigma(DS), ydim(DS))]
+    DataFrame(M, vcat(xnames(DS), xnames(DS) .* "_σ", ynames(DS), ynames(DS) .* "_σ"); kwargs...)
+end

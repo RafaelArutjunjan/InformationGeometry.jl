@@ -43,9 +43,14 @@ HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}; kwargs...) = Un
 
 
 # Generic Methods for AbstractDataSets      -----       May be superceded by more specialized functions!
-import Base.length
-length(DS::AbstractDataSet) = Npoints(DS)
+Base.length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
+WoundY(DS::AbstractDataSet) = Windup(ydata(DS),ydim(DS))
+
+WoundInvCov(DS::AbstractDataSet) = _WoundInvCov(DS, InvCov(DS))
+_WoundInvCov(DS::AbstractDataSet, D::Diagonal) = Windup(D.diag, ydim(DS))
+_WoundInvCov(DS::AbstractDataSet, M::AbstractMatrix) = throw("WoundInvCov can only be used with diagonal covariance matrices.")
+
 # Becomes dangerous now that there is a distinction between yInvCov and xInvCov
 # logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
@@ -210,8 +215,7 @@ end
 DataFrame(DS::AbstractDataSet; kwargs...) = SaveDataSet(DS; kwargs...)
 
 
-import Base.join
-function join(DS1::T, DS2::T) where T <: AbstractDataSet
+function Base.join(DS1::T, DS2::T) where T <: AbstractDataSet
     !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
     NewΣ = if typeof(ysigma(DS1)) <: AbstractVector && typeof(ysigma(DS2)) <: AbstractVector
         vcat(ysigma(DS1), ysigma(DS2))
@@ -220,9 +224,9 @@ function join(DS1::T, DS2::T) where T <: AbstractDataSet
     end
     DataSet(vcat(xdata(DS1), xdata(DS2)), vcat(ydata(DS1), ydata(DS2)), NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1)))
 end
-join(DM1::AbstractDataModel, DM2::AbstractDataModel) = DataModel(join(Data(DM1),Data(DM2)), Predictor(DM1), dPredictor(DM1))
-join(DS1::T, DS2::T, args...) where T <: Union{AbstractDataSet,AbstractDataModel} = join(join(DS1,DS2), args...)
-join(DSVec::AbstractVector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = join(DSVec...)
+Base.join(DM1::AbstractDataModel, DM2::AbstractDataModel) = DataModel(join(Data(DM1),Data(DM2)), Predictor(DM1), dPredictor(DM1))
+Base.join(DS1::T, DS2::T, args...) where T <: Union{AbstractDataSet,AbstractDataModel} = join(join(DS1,DS2), args...)
+Base.join(DSVec::AbstractVector{T}) where T <: Union{AbstractDataSet,AbstractDataModel} = join(DSVec...)
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
@@ -243,9 +247,9 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
 end
 SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM))
 
-import Base: getindex, lastindex
-getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)
-lastindex(DS::AbstractDataSet) = Npoints(DS)
+Base.getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)
+Base.firstindex(DS::AbstractDataSet) = 1
+Base.lastindex(DS::AbstractDataSet) = Npoints(DS)
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))

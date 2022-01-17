@@ -104,10 +104,13 @@ ynames::AbstractVector{String}=["y"]) = DataSet(x, y, InvCov, dims, logdetInvCov
 dims(DS::DataSet) = DS.dims
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
-function ysigma(DS::DataSet)
-    sig = !issparse(yInvCov(DS)) ? inv(yInvCov(DS)) : inv(convert(Matrix,yInvCov(DS)))
-    return isdiag(sig) ? sqrt.(Diagonal(sig).diag) : sig
-end
+
+ysigma(DS::DataSet) = _ysigma_fromInvCov(DS, yInvCov(DS))
+_ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractSparseMatrix) = inv(convert(Matrix, M)) |> _TryVectorize
+_ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix) = inv(M) |> _TryVectorize
+_TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
+_TryVectorize(D::Diagonal) = sqrt.(D.diag)
+
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 
 yInvCov(DS::DataSet) = DS.InvCov

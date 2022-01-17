@@ -97,7 +97,10 @@ ynames::AbstractVector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov,
 
 
 # Conversion to DataSet
-DataSet(DSE::DataSetExact) = DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE))
+function DataSet(DSE::DataSetExact)
+    sum(abs,xsigma(DSE)) > 0 && @warn "Dropping x-uncertainties in conversion to DataSet."
+    DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE))
+end
 
 
 dims(DSE::DataSetExact) = DSE.dims
@@ -122,8 +125,8 @@ Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
 # Sigma(P::Distribution) = P.Σ
 Sigma(P::Distribution) = cov(P)
 # Sigma(P::Distribution) = try P.Σ catch; cov(P) end
-xsigma(DSE::DataSetExact) = Sigma(xdist(DSE))
-ysigma(DSE::DataSetExact) = Sigma(ydist(DSE))
+xsigma(DSE::DataSetExact) = Sigma(xdist(DSE)) |> _TryVectorize
+ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
 
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames

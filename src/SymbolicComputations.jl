@@ -53,7 +53,7 @@ end
 function Optimize(DS::AbstractDataSet, model::ModelOrFunction; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     Optimize(model, Getxyp(DS, model); inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
 end
-function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
+function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     xyp != M.xyp && throw("xyp inconsistent.")
     model, dmodel = Optimize(M.Map, xyp; inplace=inplace, timeout=timeout, parallel=parallel, kwargs...)
     ModelMap(model, M; inplace=inplace), ModelMap(dmodel, M; inplace=inplace)

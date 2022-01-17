@@ -72,7 +72,7 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
-        MLE = length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
+        length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
         new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn,MLE))
     end

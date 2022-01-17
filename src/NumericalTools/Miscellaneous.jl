@@ -32,7 +32,13 @@ Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 Unwind(X::AbstractVector{<:Number}) = X
 
 
-Windup(X::AbstractVector{<:Number}, n::Int) = n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:Int(length(X)/n)]
+function Windup(X::AbstractVector{<:Number}, n::Int)
+    @assert length(X) % n == 0
+    n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:length(X)÷n]
+end
+
+UnpackWindup(X::AbstractVector{<:Number}, dim::Int) = (@assert length(X)%dim==0;  permutedims(reshape(X, (dim,:))))
+
 
 ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
 

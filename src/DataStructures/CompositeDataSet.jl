@@ -6,10 +6,10 @@ ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
 
 ToArray(df::AbstractVector{<:Real}) = df |> floatify
 ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
-ToArray(df::DataFrame) = size(df,2) == 1 ? convert(Vector{suff(df)}, floatify(df[:,1])) : convert(Matrix{suff(df)}, floatify(df))
+ToArray(df::DataFrame) = size(df,2) == 1 ? Vector(floatify(df[:,1])) : Matrix(floatify(df))
 function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
     any(ismissing, df) && throw("Input contains missing values.")
-    convert(Vector{suff(df)},floatify(df))
+    Vector{suff(df)}(floatify(df))
 end
 
 
@@ -53,29 +53,21 @@ end
 
 DitchMissingRows(df1, df2) = hcat(df1, df2) |> DitchMissingRows
 DitchMissingRows(df) = DitchMissingRows(DataFrame(df, :auto))
-function DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})
-    inds = falses(size(df,1))
-    for i in eachindex(inds)
-        if !any(ismissing, df[i,:])
-            inds[i] = true
-        end
-    end;    inds
-end
+DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})::BitVector = map(row->!any(ismissing, row), eachrow(df))
 
 
 function SplitDS(DS::DataSet)
-    if typeof(ysigma(DS)) <: AbstractVector
-        return [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+    if ysigma(DS) isa AbstractVector
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        return [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 function SplitDS(DS::DataSetExact)
-    if typeof(ysigma(DS)) <: AbstractVector
-        return [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+    if ysigma(DS) isa AbstractVector
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-
-        return [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 
@@ -123,7 +115,9 @@ CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
 end
-
+function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame)
+    CompositeDataSet(hcat(xdf, ydf, sigdf), size(xdf,2), size(ydf,2); xerrs=false, stripedXs=false, stripedYs=false)
+end
 
 # For SciMLBase.remake
 CompositeDataSet(;
@@ -142,8 +136,8 @@ ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
 # BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
 BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, [(typeof(x) <: AbstractVector ? Diagonal(x.^2) : x) for x in X])
 
-ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce
-xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce
+ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce |> _TryVectorize
+xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce |> _TryVectorize
 yInvCov(CDS::CompositeDataSet) = mapreduce(yInvCov, BlockMatrix, Data(CDS))
 
 Npoints(CDS::CompositeDataSet) = mapreduce(Npoints, +, Data(CDS))
@@ -234,7 +228,7 @@ RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector
     for (i,DS) in enumerate(Data(CDS))
         @series begin
             label --> "Data: " * ynames(DS)[1]
-            markercolor --> [:red,:blue,:green,:orange,:grey][i]
+            markercolor --> [:red,:blue,:green,:orange,:grey,:brown,:yellow,:black][i]
             DS
         end
     end
