@@ -169,7 +169,7 @@ function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVec
 end
 
 
-function _CustomOrNot(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
+function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
@@ -177,7 +177,7 @@ function _CustomOrNot(CDS::CompositeDataSet, model::Function, θ::AbstractVector
 end
 
 # Apparently reduce(vcat, map(z->transpose(G(z)), X))  just as fast as   transpose(reshape(reduce(vcat, map(z->transpose(G(z)), X)), ydim, :))
-function _CustomOrNot(CDS::CompositeDataSet, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
+function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
@@ -196,13 +196,13 @@ function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::Abstra
 end
 
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX)
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
     [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in 1:length(X)]

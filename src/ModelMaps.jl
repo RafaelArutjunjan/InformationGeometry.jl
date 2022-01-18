@@ -21,7 +21,7 @@ For more complicated boundary constraints, scalar function `InDomain` can be spe
     A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
     Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
-struct ModelMap
+struct ModelMap{InPlace}
     Map::Function
     InDomain::Union{Nothing,Function}
     Domain::Cuboid
@@ -60,10 +60,12 @@ struct ModelMap
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
         isnothing(Domain) && (Domain = FullDomain(xyp[3], 1e5))
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
-        new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+        new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     end
 end
-(M::ModelMap)(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
+(M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
+(M::ModelMap{true})(y, x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(y, x, θ; kwargs...)
+(M::ModelMap{true})(x, θ::AbstractVector{<:Number}; kwargs...) = (Res=Vector{suff(θ)}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res)
 const ModelOrFunction = Union{Function,ModelMap}
 
 

@@ -315,7 +315,6 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
 end
 
 
-# Slower than using curve_fit(; autodiff = :forward) but less prone to errors.
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing;
                 ADmode::Union{Val,Symbol}=Val(:ForwardDiff), Big::Bool=false, tol::Real=1e-14, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
@@ -777,33 +776,38 @@ _CustomOrNot(DS::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector
 _CustomOrNot(DS::Union{Val,AbstractDataSet}, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding, M.inplace; kwargs...)
 
 # Specialize this for different Dataset types
-_CustomOrNot(::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
-_CustomOrNot(::Union{Val,AbstractDataSet}, model::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...) = model(woundX, θ; kwargs...)
+_CustomOrNot(::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+_CustomOrNot(::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...) = model(woundX, θ; kwargs...)
 
 
-function _CustomOrNot(DS::AbstractDataSet, model!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
+function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
     Y = Vector{suff(θ)}(undef, DataspaceDim(DS))
     model!(Y, woundX, θ; kwargs...);    Y
 end
-function _CustomOrNot(DS::AbstractDataSet, model!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
+function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
     Y = Vector{suff(θ)}(undef, DataspaceDim(DS))
     EmbeddingMap!(Y, DS, model!, θ, woundX; kwargs...);     Y
 end
 
 
-function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
     @inbounds for i in Base.OneTo(length(Y))
         model!(Y[i], woundX[i], θ; kwargs...)
     end
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
-    @inbounds for (i, y) in enumerate(Iterators.partition(Y, T))
-        model!(y, woundX[i], θ; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
+    @inbounds for (i, row) in enumerate(Iterators.partition(1:length(Y), T))
+        model!(view(Y,row), woundX[i], θ; kwargs...)
     end
 end
+# Fallback for out-of-place models
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+    copyto!(Y, EmbeddingMap(DS, model!, θ, woundX; kwargs...))
+end
+
 
 
 """
@@ -818,43 +822,37 @@ _CustomOrNotdM(DS::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVec
 _CustomOrNotdM(DS::Union{Val,AbstractDataSet}, dM::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dM.Map, floatify(θ), woundX, dM.CustomEmbedding, dM.inplace; kwargs...)
 
 # Specialize this for different Dataset types
-_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
-_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...) = dmodel(woundX, θ; kwargs...)
+_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
+_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...) = dmodel(woundX, θ; kwargs...)
 
 
-function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
+function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
     J = Matrix{suff(θ)}(undef, DataspaceDim(DS), length(θ))
     dmodel!(J, woundX, θ; kwargs...);   J
 end
-function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
+function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
     J = Matrix{suff(θ)}(undef, DataspaceDim(DS), length(θ))
     EmbeddingMatrix!(J, DS, dmodel!, θ, woundX; kwargs...);     J
 end
 
 
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     EmbeddingMatrix!(J, dmodel!, θ, woundX, Val(ydim(DS)); kwargs...)
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
     @inbounds for row in Base.OneTo(size(J,1))
         dmodel!(view(J,row,:), woundX[row], θ; kwargs...)
     end
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::Function, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
     @inbounds for (i, row) in enumerate(Iterators.partition(1:size(J,1), T))
         dmodel!(view(J,row,:), woundX[i], θ; kwargs...)
     end
 end
-
-
-
-### very slightly faster apparently
-# function performDMap2(DS::AbstractDataSet,dmodel::ModelOrFunction,θ::AbstractVector{<:Number},woundX::AbstractVector)
-#     Res = Array{suff(θ)}(undef,Npoints(DS)*ydim(DS),length(θ))
-#     for i in 1:Npoints(DS)
-#         Res[1+(i-1)*ydim(DS):(i*ydim(DS)),:] = dmodel(woundX[i],θ)
-#     end;    Res
-# end
+# Fallback for out-of-place models
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelMap{false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+    copyto!(J, EmbeddingMatrix(DS, dmodel!, θ, woundX; kwargs...))
+end
 
 
 
