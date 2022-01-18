@@ -1,37 +1,40 @@
 
+"""
+    muladd!(C, M, X, Y)
+C = M*X + Y
+"""
+muladd!(C, M, X, Y) = (mul!(C, M, X);   C .+= Y;    C)
 
-
-import LsqFit.curve_fit
-function curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM); tol::Real=1e-14, kwargs...)
-    curve_fit(Data(DM), Predictor(DM), dPredictor(DM), initial, LogPriorFn; tol=tol, kwargs...)
+function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...)
+    curve_fit(Data(DM), Predictor(DM), dPredictor(DM), initial, LogPriorFn; kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
-    curve_fit(DS, M.Map, initial, LogPriorFn; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
-end
+LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
+LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, args...; kwargs...) = _curve_fit(DS, M, args...; lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
 
-function curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
-    curve_fit(DS, M.Map, dM, initial, LogPriorFn; tol=tol, lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
-end
+# pass full modelmap curve_fit instead of function for EmbeddingMap
 
-function curve_fit(DS::AbstractDataSet, model::Function, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
+function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
-    X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
-    u = cholesky(yInvCov(DS)).U
-    f(θ::AbstractVector) = u * (EmbeddingMap(DS, model, θ) - Y)
+    LsqFit.check_data_health(xdata(DS), ydata(DS))
+    u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
+    F(θ::AbstractVector) = muladd(u, EmbeddingMap(DS, model, θ), Ydat)
+    iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
     p0 = convert(Vector, initial)
-    R = LsqFit.OnceDifferentiable(f, p0, copy(f(p0)); inplace = false, autodiff = :forward)
+    R = LsqFit.OnceDifferentiable(iF, p0, copy(F(p0)); inplace = true, autodiff = :forward)
     LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
-function curve_fit(DS::AbstractDataSet, model::Function, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
+function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
-    X = xdata(DS);  Y = ydata(DS);    LsqFit.check_data_health(X, Y)
-    u = cholesky(yInvCov(DS)).U
-    f(θ::AbstractVector) = u * (EmbeddingMap(DS, model, θ) - Y)
-    df(θ::AbstractVector) = u * EmbeddingMatrix(DS, dmodel, θ)
+    LsqFit.check_data_health(xdata(DS), ydata(DS))
+    u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
+    F(θ::AbstractVector) = u * (EmbeddingMap(DS, model, θ) - ydata(DS))
+    dF(θ::AbstractVector) = u * EmbeddingMatrix(DS, dmodel, θ)
+    iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
+    idF(Jac::AbstractMatrix, θ::AbstractVector) = mul!(Jac, u, EmbeddingMatrix(DS, dmodel, θ))
     p0 = convert(Vector, initial)
-    R = LsqFit.OnceDifferentiable(f, df, p0, copy(f(p0)); inplace = false)
+    R = LsqFit.OnceDifferentiable(iF, idF, p0, copy(F(p0)); inplace = true)
     LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 

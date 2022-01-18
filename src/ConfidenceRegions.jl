@@ -756,7 +756,7 @@ end
 
 ### for-loop typically slower than reduce(vcat, ...)
 ### Apparently curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
-# Reduction(X::AbstractVector{<:SVector}) = reinterpret(suff(X), X)
+# Reduction(X::AbstractVector{<:SVector{Len,T}}) where Len where T = reinterpret(T, X)
 Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
 Reduction(X::AbstractVector{<:Number}) = X
 
@@ -931,7 +931,7 @@ Checks with respect to which parameters the model function `model(x,θ)` is line
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
 function IsLinearParameter(DM::AbstractDataModel; kwargs...)
-    P = pdim(DM);    J1 = EmbeddingMatrix(DM,rand(P); kwargs...);    J2 = EmbeddingMatrix(DM,rand(P); kwargs...)
+    J1 = EmbeddingMatrix(DM, MLE(DM)+rand(pdim(DM)); kwargs...);    J2 = EmbeddingMatrix(DM,MLE(DM)+rand(pdim(DM)); kwargs...)
     BitArray(J1[:,i] == J2[:,i]  for i in 1:size(J1,2))
 end
 

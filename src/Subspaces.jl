@@ -99,7 +99,9 @@ LinearAlgebra.dot(X::OneHot, Y::AbstractVector) = X.val * Y[X.i]
 LinearAlgebra.dot(Y::AbstractVector, X::OneHot) = LinearAlgebra.dot(X, Y)
 LinearAlgebra.dot(X::OneHot{T}, Y::OneHot{T}) where T<:Number = (@boundscheck @assert X.n == Y.n;  ifelse(X.i == Y.i, X.val*Y.val, zero(T)))
 
-LinearAlgebra.mul!(Y::AbstractVector, M::AbstractMatrix, X::OneHot) = @. Y = X.val * M[:, X.i]
+LinearAlgebra.mul!(Y::AbstractVector, A::AbstractMatrix, X::OneHot) = @. Y = X.val * A[:, X.i]
+LinearAlgebra.mul!(C::AbstractVector, A::AbstractMatrix, X::OneHot, α::Number, β::Number) = (C .*= β;   γ=α*X.val;  C .+= γ .* A[:, X.i])
+
 # vectorized mul!
 # function LinearAlgebra.mul!(Y::AbstractVector, M::AbstractMatrix, X::OneHot)
 #     @boundscheck @assert size(M,2) == length(Y) == X.n

@@ -163,6 +163,8 @@ end
     @test FisherMetric(DM, MLE(DM)) ≈ FisherMetric(dm, MLE(dm))
 
     @test OrthVF(DM, MLE(DM)) ≈ OrthVF(dm, MLE(dm))
+
+    @test curve_fit(Data(DM), Predictor(DM), rand(pdim(DM))).param ≈ curve_fit(Data(DM), Predictor(DM), dPredictor(DM), rand(pdim(DM))).param
 end
 
 @safetestset "Inputting Datasets of various shapes" begin

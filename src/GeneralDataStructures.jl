@@ -177,11 +177,10 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
 end
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction; verbose::Bool=true)
-    P = ones(pdim(DS,model));   X = xdim(DS) < 2 ? xdata(DS)[1] : xdata(DS)[1:xdim(DS)]
-    try  model(X,P)   catch Err
-        throw("Got xdim=$(xdim(DS)) but model appears to not accept x-values of this size.")
+    P = GetStartP(DS, model)
+    out = try  model(WoundX(DS)[1],P)   catch Err
+        throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
     end
-    out = model(X,P)
     size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
     verbose && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
     return nothing
