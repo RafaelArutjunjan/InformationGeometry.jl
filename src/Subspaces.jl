@@ -24,6 +24,7 @@ struct Plane
         end
     end
 end
+Projector(PL::Plane) = [PL.Vx PL.Vy]
 
 Base.length(PL::Plane) = length(PL.stütz)
 
@@ -35,7 +36,7 @@ function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Nu
         # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
         curve_fit(Data(DM), planarmod, start, PlanarLogPrior; tol=tol).param
     catch;
-        planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
+        planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
         curve_fit(Data(DM), planarmod, planardmod, start, PlanarLogPrior; tol=tol).param
     end
 end
@@ -44,7 +45,7 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane)
     @assert DM isa DataModel
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
-    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * [PL.Vx PL.Vy]
+    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     mle = MLEinPlane(DM, PL)
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
@@ -123,8 +124,11 @@ end
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 """
-PlaneCoordinates(PL::Plane, v::AbstractVector) = muladd([PL.Vx PL.Vy], v, PL.stütz)
-PlaneCoordinates(PL::Plane) = x -> PlaneCoordinates(PL, x)
+PlaneCoordinates(PL::Plane, v::AbstractVector) = muladd(Projector(PL), v, PL.stütz)
+function PlaneCoordinates(PL::Plane)
+    PlanarCoordinates(v::AbstractVector) = muladd(Projector(PL), v, PL.stütz)
+    PlanarCoordinates(Res::AbstractVector, v::AbstractVector) = muladd!(Res, Projector(PL), v, PL.stütz)
+end
 
 Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
@@ -157,7 +161,7 @@ function ProjectionOperator(A::AbstractMatrix)
     # size(A,2) != 2 && @warn "ProjectionOperator: Matrix size $(size(A)) not as expected."
     A * inv(transpose(A) * A) * transpose(A)
 end
-ProjectionOperator(PL::Plane) = ProjectionOperator([PL.Vx PL.Vy])
+ProjectionOperator(PL::Plane) = ProjectionOperator(Projector(PL))
 
 IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = abs(dot(PL.Vx, v)) < 4e-15 && abs(dot(PL.Vy, v)) < 4e-15
 

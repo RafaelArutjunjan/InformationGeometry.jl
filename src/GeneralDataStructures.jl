@@ -93,7 +93,8 @@ xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
-            :logdetInvCov, :WoundX, :xnames, :ynames, :xdist, :ydist, :dist]
+            :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
+            :xnames, :ynames, :xdist, :ydist, :dist]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
 
