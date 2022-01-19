@@ -21,7 +21,7 @@ For more complicated boundary constraints, scalar function `InDomain` can be spe
     A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
     Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
-struct ModelMap{InPlace}
+struct ModelMap{Inplace}
     Map::Function
     InDomain::Union{Nothing,Function}
     Domain::Cuboid
@@ -333,22 +333,36 @@ end
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
 A `Domain` for the new model can optionally be specified for `ModelMap`s.
 """
-function EmbedModelVia(model::Function, F::Function; Kwargs...)
-    EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
-end
+EmbedModelVia(model::Function, F::Function; Kwargs...) = EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
+EmbedModelVia_inplace(model!::Function, F::Function; Kwargs...) = EmbeddedModel!(y, x, θ; kwargs...) = model!(y, x, F(θ); kwargs...)
+
 function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube}=nothing)
     if isnothing(Domain)
         Domain = FullDomain(GetArgLength(F))
         @warn "Cannot infer new Domain HyperCube for general embeddings, using $Domain."
     end
-    ModelMap(EmbedModelVia(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing), Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), M.StaticOutput, M.inplace, M.CustomEmbedding)
+    ModelMap((isinplace(M) ? EmbedModelVia_inplace : EmbedModelVia)(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing),
+            Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"),
+            M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
-function EmbedDModelVia(dmodel::Function, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    Jac = GetJac(ADmode,F)
+
+function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple=Tuple([]); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    Jac = GetJac(ADmode, F)
     EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * Jac(θ)
 end
+function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,Int}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    Jac = GetJac(ADmode, F)
+    function EmbeddedJacobian!(y, x, θ::AbstractVector{T}; kwargs...) where T<:Number
+        Ycache = Matrix{T}(undef, Size)
+        dmodel!(Ycache, x, F(θ); kwargs...)
+        mul!(y, Ycache, Jac(θ))
+    end
+end
 function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
-    ModelMap(EmbedDModelVia(dM.Map, F), (dM.InDomain isa Function ? (dM.InDomain∘F) : nothing), Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"), dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
+    # Pass the OLD pdim to EmbedDModelVia_inplace for cache
+    ModelMap((isinplace(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]), (dM.InDomain isa Function ? (dM.InDomain∘F) : nothing),
+            Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"),
+            dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
 end
 
 """
