@@ -218,6 +218,17 @@ function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::Abst
 end
 OrthVF(DM::AbstractDataModel; Kwargs...) = (args...; kwargs...)->OrthVF(DM, args...; Kwargs..., kwargs...)
 
+"""
+    OrthVF!(du::AbstractVector, DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
+Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
+`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
+"""
+function OrthVF!(du::AbstractVector, DM::AbstractDataModel, θ::AbstractVector; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
+    S = -Score(DM, θ; ADmode=ADmode, kwargs...)
+    _turn!(du, S, alpha)
+end
+
 # Faster Method for Planar OrthVF
 """
     OrthVF(DM::DataModel, PL::Plane, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
@@ -228,16 +239,17 @@ Other choices of `ADmode` directly compute the Score by differentiating the form
 """
 function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=EmbedLogPrior(DM,PL); ADmode::Val=Val(:ForwardDiff), kwargs...)
     S = transpose(Projector(PL)) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; ADmode=ADmode, kwargs...))
-    P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
+    normalize(SA[-1/S[1],1/S[2]])
 end
 
 # Method for general functions F
-function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
-    S = GetGrad(ADmode,F)(θ);    P = prod(S);    VF = P ./ S;    normalize(alpha .* VF)
+function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
+    # S = GetGrad(ADmode,F)(θ);    P = prod(S);    VF = P ./ S;    normalize(alpha .* VF)
+    _turn(Grad(θ), alpha)
 end
 
-function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(true), alpha::AbstractVector=GetAlpha(length(θ)))
-    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(GetGrad(ADmode, F), θ; alpha=alpha)
+function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
+    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(Grad, θ; alpha=alpha)
 end
 
 """
@@ -251,16 +263,12 @@ _turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector) = (map!(/, Re
 
 # Out-of-place versions
 function _turn(S::AbstractVector, α::AbstractVector)
-    # normalize!(map(/, α, S))
-    normalize!(map!(/, S, α, S))
+    normalize!(map(/, α, S))
+    # normalize!(map!(/, S, α, S))
     # normalize!(α ./ S)
 end
 _turn(S::AbstractVector, α::AbstractVector, normalize::Val{true}) = _turn(S::AbstractVector, α::AbstractVector)
-
-function _turn(S::AbstractVector, α::AbstractVector, normalize::Val{false})
-    P = prod(S);    VF = P ./ S
-    alpha .* P ./ S
-end
+_turn(S::AbstractVector, α::AbstractVector, normalize::Val{false}) = (P = prod(S);  P .* α ./ S)
 
 
 

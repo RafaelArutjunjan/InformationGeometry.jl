@@ -169,7 +169,7 @@ export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("ConfidenceRegions.jl")
-export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, FindMLE
+export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, OrthVF!, FindMLE
 export AutoScore, AutoMetric
 export FindConfBoundary, FCriterion, FTest, FindFBoundary
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
