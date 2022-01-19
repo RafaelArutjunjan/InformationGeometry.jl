@@ -29,6 +29,13 @@ function Base.summary(DM::AbstractDataModel)
     NO_COLOR)
 end
 
+function Base.summary(M::ModelMap)
+    string(TYPE_COLOR, "ModelMap ",
+        ORANGE_COLOR, (isinplace(M) ? "in-place" : "out-of-place"),
+        NO_COLOR, " with xdim=$(M.xyp[1]), ydim=$(M.xyp[2]), pdim=$(M.xyp[3])")
+end
+
+
 # http://docs.junolab.org/stable/man/info_developer/#
 # hastreeview, numberofnodes, treelabel, treenode
 TreeViews.hastreeview(x::Union{AbstractDataSet,AbstractDataModel,ModelMap}) = true
@@ -38,7 +45,7 @@ TreeViews.numberofnodes(x::ModelMap) = 4
 TreeViews.numberofnodes(x::CompositeDataSet) = 1
 TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
 
-function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel}, mime::MIME"text/plain" = MIME"text/plain"())
+function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain" = MIME"text/plain"())
     show(io, mime, Text(Base.summary(DS)))
 end
 # To hide the treenode display, simply return missing:
