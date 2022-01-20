@@ -199,7 +199,7 @@ FDistCDF(x, d1, d2) = beta_inc(d1/2., d2/2., d1*x/(d1*x + d2)) #, 1 .-d1*BigFloa
 inversefactor(m) = 1. / sqrt((m - 1.) + (m - 1.)^2)
 GetAlpha(x::AbstractVector{<:Number}) = GetAlpha(length(x))
 @inline function GetAlpha(n::Int)
-    V = Vector{Float64}(undef,n)
+    V = Vector{Float64}(undef, n)
     fill!(V,-inversefactor(n))
     V[end] = (n-1) * inversefactor(n)
     V
@@ -213,21 +213,11 @@ Other choices of `ADmode` directly compute the Score by differentiating the form
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-    S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S);    VF = P ./ S
-    normalize(alpha .* VF)
+    # Mutate alpha and return it to avoid further allocations
+    S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S)
+    alpha .*= P;    alpha ./= S;    normalize!(alpha);    alpha
 end
 OrthVF(DM::AbstractDataModel; Kwargs...) = (args...; kwargs...)->OrthVF(DM, args...; Kwargs..., kwargs...)
-
-"""
-    OrthVF!(du::AbstractVector, DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
-Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
-`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
-Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
-"""
-function OrthVF!(du::AbstractVector, DM::AbstractDataModel, θ::AbstractVector; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
-    S = -Score(DM, θ; ADmode=ADmode, kwargs...)
-    _turn!(du, S, alpha)
-end
 
 # Faster Method for Planar OrthVF
 """
@@ -239,14 +229,27 @@ Other choices of `ADmode` directly compute the Score by differentiating the form
 """
 function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=EmbedLogPrior(DM,PL); ADmode::Val=Val(:ForwardDiff), kwargs...)
     S = transpose(Projector(PL)) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; ADmode=ADmode, kwargs...))
-    normalize(SA[-1/S[1],1/S[2]])
+    P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
+end
+
+"""
+    OrthVF!(du::AbstractVector, DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
+Calculates a direction (in parameter space) in which the value of the log-likelihood does not change, given a parameter configuration ``\\theta``.
+`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
+"""
+function OrthVF!(du::AbstractVector, DM::AbstractDataModel, θ::AbstractVector; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
+    _turn!(du, -Score(DM, θ; ADmode=ADmode, kwargs...), alpha)
 end
 
 # Method for general functions F
 function OrthVF(F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
-    # S = GetGrad(ADmode,F)(θ);    P = prod(S);    VF = P ./ S;    normalize(alpha .* VF)
     _turn(Grad(θ), alpha)
 end
+function OrthVF!(du::AbstractVector, F::Function, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
+    _turn!(du, Grad(θ), alpha)
+end
+# Could try inplace Grad method into du, then divide inplace in alpha, then copy result back to du?
 
 function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
     OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(Grad, θ; alpha=alpha)
@@ -259,15 +262,13 @@ Computes OrthVF by evaluating the GRADIENT dF.
 _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn(dF(θ), alpha)
 _OrthVF!(Res::AbstractVector{<:Number}, dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn!(Res, dF(θ), alpha)
 
-_turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector) = (map!(/, Res, α, S);    normalize!(Res))
+function _turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector)
+    P = prod(S);    α .*= P;    map!(/, Res, α, S);    normalize!(Res)
+end
 
 # Out-of-place versions
-function _turn(S::AbstractVector, α::AbstractVector)
-    normalize!(map(/, α, S))
-    # normalize!(map!(/, S, α, S))
-    # normalize!(α ./ S)
-end
-_turn(S::AbstractVector, α::AbstractVector, normalize::Val{true}) = _turn(S::AbstractVector, α::AbstractVector)
+_turn(S::AbstractVector, α::AbstractVector) = (Res=similar(S);  _turn!(Res, S, α);  Res)
+_turn(S::AbstractVector, α::AbstractVector, normalize::Val{true}) = _turn(S, α)
 _turn(S::AbstractVector, α::AbstractVector, normalize::Val{false}) = (P = prod(S);  P .* α ./ S)
 
 
@@ -384,7 +385,7 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
                             meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DM, u0)
-    IntCurveODE!(du,u,p,t)  =  (du .= 0.1 * OrthVF(DM,u; ADmode=ADmode))
+    IntCurveODE!(du,u,p,t)  =  (copyto!(du, OrthVF(DM, u; ADmode=ADmode));  du .*= 0.1)
     g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - loglikelihood(DM,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
@@ -440,7 +441,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
-    IntCurveODE!(du,u,p,t)  =  du .= 0.1 * OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode)
+    IntCurveODE!(du,u,p,t)  =  (copyto!(du, OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode));  du .*= 0.1)
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)

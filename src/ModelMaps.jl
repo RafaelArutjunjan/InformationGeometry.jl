@@ -93,6 +93,7 @@ Domain(M::ModelMap) = M.Domain
 isinplace(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
+isinplace(F::Function) = MaximalNumberOfArguments(F) == 3
 
 IsInDomain(M::ModelMap) = θ::AbstractVector -> IsInDomain(M, θ)
 IsInDomain(M::ModelMap, θ::AbstractVector) = IsInDomain(M.InDomain, M.Domain, θ)

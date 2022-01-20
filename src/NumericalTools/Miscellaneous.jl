@@ -18,7 +18,7 @@ Converts vector of vectors to a matrix whose n-th column corresponds to the n-th
 """
 @inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple}
     N = length(Z);      M = length(Z[1])
-    A = Array{suff(Z)}(undef,N,M)
+    A = Array{suff(Z)}(undef, N, M)
     @inbounds for i in Base.OneTo(N)
         for j in Base.OneTo(M)
             A[i,j] = Z[i][j]
@@ -40,7 +40,7 @@ end
 UnpackWindup(X::AbstractVector{<:Number}, dim::Int) = (@assert length(X)%dim==0;  permutedims(reshape(X, (dim,:))))
 
 
-ToCols(M::Matrix) = Tuple(M[:,i] for i in 1:size(M,2))
+ToCols(M::AbstractMatrix) = Tuple(view(M,:,i) for i in 1:size(M,2))
 
 
 ValToBool(x::Val{true}) = true

@@ -183,7 +183,9 @@ function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction; verbose::
         throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
     end
     size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
-    verbose && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90) && @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
+    if verbose && !isinplace(model) && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90)
+        @info "It may be beneficial for the overall performance to define the model function such that it outputs static vectors, i.e. SVectors."
+    end
     return nothing
 end
 

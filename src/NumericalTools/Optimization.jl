@@ -10,9 +10,9 @@ function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Numbe
 end
 
 LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
-LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, args...; kwargs...) = _curve_fit(DS, M, args...; lower=convert(Vector,M.Domain.L), upper=convert(Vector,M.Domain.U), kwargs...)
+LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, initial, args...; lower=convert(Vector{T},M.Domain.L), upper=convert(Vector{T},M.Domain.U), kwargs...)
+LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, dM, initial, args...; lower=convert(Vector{T},M.Domain.L), upper=convert(Vector{T},M.Domain.U), kwargs...)
 
-# pass full modelmap curve_fit instead of function for EmbeddingMap
 
 function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
     !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
