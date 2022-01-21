@@ -31,7 +31,7 @@ end
 
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap ",
-        ORANGE_COLOR, (isinplace(M) ? "in-place" : "out-of-place"),
+        ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
         NO_COLOR, " with xdim=$(M.xyp[1]), ydim=$(M.xyp[2]), pdim=$(M.xyp[3])")
 end
 

@@ -54,7 +54,7 @@ struct ModelMap{Inplace}
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(Inplace), Val(false))
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplace(M)) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, Val(inplace), M.CustomEmbedding)
+    ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, Val(inplace), M.CustomEmbedding)
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
@@ -90,10 +90,10 @@ end
 
 pnames(M::ModelMap) = M.pnames
 Domain(M::ModelMap) = M.Domain
-isinplace(M::ModelMap) = ValToBool(M.inplace)
+isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 
-isinplace(F::Function) = MaximalNumberOfArguments(F) == 3
+isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
 
 IsInDomain(M::ModelMap) = θ::AbstractVector -> IsInDomain(M, θ)
 IsInDomain(M::ModelMap, θ::AbstractVector) = IsInDomain(M.InDomain, M.Domain, θ)
@@ -342,7 +342,7 @@ function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube
         Domain = FullDomain(GetArgLength(F))
         @warn "Cannot infer new Domain HyperCube for general embeddings, using $Domain."
     end
-    ModelMap((isinplace(M) ? EmbedModelVia_inplace : EmbedModelVia)(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing),
+    ModelMap((isinplacemodel(M) ? EmbedModelVia_inplace : EmbedModelVia)(M.Map, F), (M.InDomain isa Function ? (M.InDomain∘F) : nothing),
             Domain, (M.xyp[1], M.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"),
             M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
@@ -361,7 +361,7 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
 end
 function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)))
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
-    ModelMap((isinplace(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]), (dM.InDomain isa Function ? (dM.InDomain∘F) : nothing),
+    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]), (dM.InDomain isa Function ? (dM.InDomain∘F) : nothing),
             Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), CreateSymbolNames(length(Domain), "θ"),
             dM.StaticOutput, dM.inplace, dM.CustomEmbedding)
 end
@@ -385,7 +385,7 @@ EmbedModelXout(model::Function, Emb::Function) = XEmbeddedModel(x, θ::AbstractV
     EmbedModelX(model::Function, Emb::Function)
 Embeds the independent variables of a model function via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 """
-EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplace(M) ? EmbedModelXin : EmbedModelXout)(M.Map, Emb), M)
+EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedModelXin : EmbedModelXout)(M.Map, Emb), M)
 EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """

@@ -409,9 +409,9 @@ function GenerateBoundary2(DM::AbstractDataModel, U0::AbstractVector{<:Number}; 
     u0 = !mfd ? PromoteStatic(iEmb(U0), true) : iEmb(U0)
     EmbLikelihood = loglikelihood(DM) ∘ Emb
     LogLikeOnBoundary = EmbLikelihood(u0)
-    CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du); nothing)
-    Grad = GetGrad(ADmode, EmbLikelihood)
-    IntCurveODE!(du, u, p, t) = CheatingOrth!(du, Grad(u))
+    CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du))
+    Grad! = GetGrad!(ADmode, EmbLikelihood);    GradCache = copy(u0)
+    IntCurveODE!(du, u, p, t) = (Grad!(GradCache, u);  CheatingOrth!(du, GradCache))
     g!(resid, u, p, t)  =  (resid[1] = LogLikeOnBoundary - Emblikelihood(u))
     terminatecondition(u, t, integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
@@ -467,14 +467,29 @@ function GenerateBoundary2(F::Function, u0::AbstractVector{<:Number}; Embedded::
     Embedded ? EmbeddedODESolution(sol, Emb) : sol
 end
 
-_GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = _GenerateBoundary(F, GetGrad(ADmode,F), u0; kwargs...)
-function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
+_GenerateBoundary(F::Function, u0::AbstractVector{<:Number}; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...) = _GenerateBoundary(F, GetGrad!(ADmode,F), u0; kwargs...)
+function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}; kwargs...)
+    inplaceDF = try    Res = copy(u0);    dF(Res, u0);    Val(true)    catch;    Val(false)    end
+    _GenerateBoundary(F, dF, u0, inplaceDF; kwargs...)
+end
+function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}, inplaceDF::Val{true}; tol::Real=1e-9, mfd::Bool=false,
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
     !mfd && (u0 = PromoteStatic(u0, true))
-    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du); nothing)
+    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du);   nothing)
+    GradCache = copy(u0)
+    IntCurveODE!inplace(du,u,p,t) = (dF(GradCache, u);  CheatingOrth!(du, GradCache))
+    solve(ODEProblem(IntCurveODE!inplace,u0,(0.,1e5)), meth; reltol=tol, abstol=tol,
+                callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
+end
+function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}, inplaceDF::Val{false}; tol::Real=1e-9, mfd::Bool=false,
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+    @assert length(u0) == 2
+    !mfd && (u0 = PromoteStatic(u0, true))
+    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du);   nothing)
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
-    solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol, callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
+    solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol,
+                    callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
 end
 
 """
