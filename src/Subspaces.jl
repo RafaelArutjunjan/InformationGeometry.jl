@@ -9,6 +9,7 @@ struct Plane
     stütz::AbstractVector
     Vx::AbstractVector
     Vy::AbstractVector
+    Projector::AbstractMatrix
     function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; Make2ndOrthogonal::Bool=true)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         !(length(stütz) == length(Vx) == length(Vy)) && throw("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))")
@@ -18,13 +19,18 @@ struct Plane
         if length(stütz) < 20
             stütz = SVector{length(Vx)}(floatify(stütz));     Vx = SVector{length(Vx)}(floatify(Vx))
             Vy = SVector{length(Vx)}(floatify(Vy))
-            return new(stütz, Vx, Vy)
+            Plane(stütz, Vx, Vy, [Vx Vy])
         else
-            return new(floatify(stütz), floatify(Vx), floatify(Vy))
+            stütz = floatify(stütz);    Vx = floatify(Vx);    Vy = floatify(Vy)
+            Plane(stütz, Vx, Vy, [Vx Vy])
         end
     end
+    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}, Projector::AbstractMatrix{<:Number})
+        @assert length(stütz) == length(Vx) == length(Vy) == size(Projector,1) && size(Projector,2) == 2
+        new(stütz, Vx, Vy, (length(stütz) < 10 ? SMatrix{size(Projector)...}(Projector) : Projector))
+    end
 end
-Projector(PL::Plane) = [PL.Vx PL.Vy]
+Projector(PL::Plane) = PL.Projector
 
 Base.length(PL::Plane) = length(PL.stütz)
 
@@ -133,7 +139,7 @@ end
 Shift(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
 IsOnPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL))::Bool = DistanceToPlane(PL, x, ProjectionOp) < 4e-15
-TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy)
+TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, Projector(PL))
 RotatePlane(PL::Plane, rads::Real=π/2) = ((S,C) = sincos(rads);   Plane(PL.stütz, C*PL.Vx + S*PL.Vy, C*PL.Vy - S*PL.Vx))
 function RotationMatrix(PL::Plane, rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
