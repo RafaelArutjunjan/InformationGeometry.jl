@@ -376,6 +376,36 @@ function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:N
 end
 
 
+
+
+EmbedModelXin(model::Function, Emb::Function) = XEmbeddedModel(y, x, θ::AbstractVector; kwargs...) = model(y, Emb(x), θ; kwargs...)
+EmbedModelXout(model::Function, Emb::Function) = XEmbeddedModel(x, θ::AbstractVector; kwargs...) = model(Emb(x), θ; kwargs...)
+
+"""
+    EmbedModelX(model::Function, Emb::Function)
+Embeds the independent variables of a model function via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
+"""
+EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplace(M) ? EmbedModelXin : EmbedModelXout)(M.Map, Emb), M)
+EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
+
+"""
+    LogXdata(DM::DataModel)
+Returns a modified `DataModel` where the x-variables have been logarithmized.
+"""
+function LogXdata(DM::AbstractDataModel)
+    if sum(abs,xsigma(DM)) == 0
+        DataModel(typeof(Data(DM))(log.(xdata(DM)), ydata(DM), ysigma(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM),exp), EmbedModelX(dPredictor(DM),exp))
+    else
+        @warn "Fudging x-errors by just taking the log."
+        DataModel(typeof(Data(DM))(log.(xdata(DM)), abs.(log.(xsigma(DM))), ydata(DM), ysigma(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM),exp), EmbedModelX(dPredictor(DM),exp))
+    end
+end
+
+
+
+
 ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
 LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
 Power10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, x->(10.0)^x, idxs; kwargs...)
