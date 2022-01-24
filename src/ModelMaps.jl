@@ -262,8 +262,10 @@ ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...)
 Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, exp10)
 Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, log10, exp10, idxs; kwargs...)
 
-Power10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp10, log10)
-Power10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, exp10, log10, idxs; kwargs...)
+Exp10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp10, log10)
+Exp10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, exp10, log10, idxs; kwargs...)
+
+@deprecate Power10Transform(args...; kwargs...) Exp10Transform(args...; kwargs...)
 
 ReflectionTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
 ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x-> -x, x-> -x, idxs; kwargs...)
@@ -408,7 +410,7 @@ end
 
 ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
 LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
-Power10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
+Exp10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
 Log10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log10, idxs; kwargs...)
 
 """

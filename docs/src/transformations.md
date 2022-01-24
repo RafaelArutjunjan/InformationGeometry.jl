@@ -4,7 +4,7 @@
 
 Occasionally, one might wish to perform coordinate transformations on the parameter space of a model without having to redefine the entire model as this can be a cumbersome process for complex models. For example, this might be useful in the fitting process when the allowable parameter range spans several orders of magnitude or when trying to enforce the positivity of parameters.
 
-A few methods are provided to make this process more convenient. These include: `LogTransform`, `ExpTransform`, `Log10Transform`, `Power10Transform`, `ReflectionTransform` and `ScaleTransform`.
+A few methods are provided to make this process more convenient. These include: `LogTransform`, `ExpTransform`, `Log10Transform`, `Exp10Transform`, `ReflectionTransform` and `ScaleTransform`.
 These methods accept a vector of booleans as an optional second argument to restrict the application of the transformation to specific parameter components if desired.
 For first argument, one can either provide just a model function to obtain its transformed counterpart or alternatively supply an entire `DataModel` to be transformed.
 
@@ -12,7 +12,7 @@ For first argument, one can either provide just a model function to obtain its t
 using InformationGeometry # hide
 DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), LinearModel)
 logDM = LogTransform(DM)
-ExpDM = ExpTransform(Power10Transform(DM, [false, true]), [true, false])
+ExpDM = ExpTransform(Exp10Transform(DM, [false, true]), [true, false])
 SymbolicModel(logDM), SymbolicModel(ExpDM)
 ```
 

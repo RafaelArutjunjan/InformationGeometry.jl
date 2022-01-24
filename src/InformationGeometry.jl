@@ -115,7 +115,7 @@ export PositiveDomain, NegativeDomain, FullDomain, rand, EmbeddedODESolution
 
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction, InformNames, IsInDomain
-export Transform, LogTransform, Log10Transform, ExpTransform, Power10Transform, ScaleTransform
+export Transform, LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export EmbedModelVia, Embedding
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
