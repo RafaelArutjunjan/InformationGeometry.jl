@@ -86,7 +86,7 @@ using DataFrames
 t = [1,2,3,4]
 y₁ = [2.5, 6, missing, 9];      y₂ = [missing, 5, 3.1, 1.4]
 σ₁ = 0.3*ones(4);               σ₂ = [missing, 0.2, 0.1, 0.5]
-df = DataFrame([t y₁ σ₁ y₂ σ])
+df = DataFrame([t y₁ σ₁ y₂ σ₂])
 
 xdim = 1;   ydim = 2
 CompositeDataSet(df, xdim, ydim; xerrs=false, stripedYs=true)

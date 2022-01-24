@@ -385,7 +385,7 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
                             meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     u0 = !mfd ? PromoteStatic(u0, true) : u0
     LogLikeOnBoundary = loglikelihood(DM, u0)
-    IntCurveODE!(du,u,p,t)  =  (copyto!(du, OrthVF(DM, u; ADmode=ADmode));  du .*= 0.1)
+    IntCurveODE!(du,u,p,t)  =  (OrthVF!(du, DM, u; ADmode=ADmode);  du .*= 0.1)
     g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - loglikelihood(DM,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I

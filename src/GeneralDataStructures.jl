@@ -213,10 +213,6 @@ function pdim(DS::AbstractDataSet, model::ModelOrFunction)
 end
 
 
-# DataFrame(DM::DataModel) = DataFrame(Data(DM))
-DataFrame(DS::AbstractDataSet; kwargs...) = SaveDataSet(DS; kwargs...)
-
-
 function Base.join(DS1::T, DS2::T) where T <: AbstractDataSet
     !(xdim(DS1) == xdim(DS2) && ydim(DS1) == ydim(DS2)) && throw("DataSets incompatible.")
     NewΣ = if typeof(ysigma(DS1)) <: AbstractVector && typeof(ysigma(DS2)) <: AbstractVector
@@ -232,7 +228,7 @@ Base.join(DSVec::AbstractVector{T}) where T <: Union{AbstractDataSet,AbstractDat
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
-function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector})
+function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
     @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
     X = WoundX(DS)[range] |> Unwind

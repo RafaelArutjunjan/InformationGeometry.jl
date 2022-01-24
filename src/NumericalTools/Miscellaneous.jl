@@ -5,7 +5,7 @@ GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,exp10(-precision(BigFloat)/10
 
 # import DerivableFunctions: suff
 suff(x::DataFrame) = suff(x[1,1])
-
+suff(x::T) where T<:Measurement = T
 
 floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = float.(x)
 floatify(x::AbstractFloat) = x;                     floatify(x::Number) = float(x)
@@ -32,12 +32,12 @@ Unwind(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 Unwind(X::AbstractVector{<:Number}) = X
 
 
-function Windup(X::AbstractVector{<:Number}, n::Int)
-    @assert length(X) % n == 0
-    n < 2 ? X : [X[(1+(i-1)*n):(i*n)] for i in 1:length(X)÷n]
+function Windup(X::AbstractVector{<:Union{Number,Missing}}, n::Int)
+    @boundscheck @assert length(X) % n == 0 "Got length(X)=$(length(X)) and n=$n"
+    n < 2 ? X : collect(Iterators.partition(X, n))
 end
 
-UnpackWindup(X::AbstractVector{<:Number}, dim::Int) = (@assert length(X)%dim==0;  permutedims(reshape(X, (dim,:))))
+UnpackWindup(X::AbstractVector{<:Union{Number,Missing}}, dim::Int) = (@assert length(X)%dim==0;  permutedims(reshape(X, (dim,:))))
 
 
 ToCols(M::AbstractMatrix) = Tuple(view(M,:,i) for i in 1:size(M,2))
@@ -69,6 +69,7 @@ GetBoundaryMethod(tol::Real) = GetMethod(tol)
 
 
 # Check for length
+# PromoteStatic(X::SArray, inplace::Bool=true) = inplace ? _PromoteMutable(X) : X
 PromoteStatic(X::AbstractArray{<:BigFloat}, inplace::Bool=true) = X
 PromoteStatic(X::AbstractArray, inplace::Bool=true) = length(X) > 90 ? X : PromoteStatic(X, Val(inplace))
 

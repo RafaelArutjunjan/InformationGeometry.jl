@@ -95,10 +95,12 @@ end
 Returns a `DataFrame` whose columns respectively constitute the x-values, y-values and standard distributions associated with the data points.
 For `sigdigits > 0` the values are rounded to the specified number of significant digits.
 """
-function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0)
-    df = DataFrame(DS);    sigdigits > 0 ? round.(df; sigdigits=sigdigits) : df
+function SaveDataSet(DS::AbstractDataSet; sigdigits::Int=0, kwargs...)
+    df = DataFrame(DS; kwargs...);    sigdigits > 0 ? round.(df; sigdigits=sigdigits) : df
 end
-SaveDataSet(DM::AbstractDataModel; sigdigits::Int=0) = SaveDataSet(Data(DM); sigdigits=sigdigits)
+SaveDataSet(DM::AbstractDataModel; kwargs...) = SaveDataSet(Data(DM); kwargs...)
+
+DataFrames.DataFrame(DM::AbstractDataModel; kwargs...) = DataFrame(Data(DM); kwargs...)
 
 function DataFrames.DataFrame(DS::DataSet; kwargs...)
     @assert ysigma(DS) isa AbstractVector
@@ -110,4 +112,42 @@ function DataFrames.DataFrame(DS::DataSetExact; kwargs...)
     sum(abs, xsigma(DS)) == 0 && return DataFrame(DataSet(DS))
     M = [Unpack(WoundX(DS)) UnpackWindup(xsigma(DS), xdim(DS)) UnpackWindup(ydata(DS), ydim(DS)) UnpackWindup(ysigma(DS), ydim(DS))]
     DataFrame(M, vcat(xnames(DS), xnames(DS) .* "_σ", ynames(DS), ynames(DS) .* "_σ"); kwargs...)
+end
+
+
+function DataFrames.DataFrame(CDS::CompositeDataSet; kwargs...)
+    @assert ysigma(CDS) isa AbstractVector && xsigma(CDS) isa AbstractVector
+    @assert sum(abs, xsigma(CDS)) == 0 "Not programmed for x-uncertainties yet."
+    Vectorize(x::AbstractVector) = x;   Vectorize(x::Union{Number,Missing}) = [x]
+    # How many observations per WoundX(CDS) in subdatasets?
+    _Counts(CDS::CompositeDataSet) = [[count(isequal(x), Windup(xdata(DS),xdim(DS))) for x in WoundX(CDS)] for DS in Data(CDS)]
+    Xmat = Vector{eltype(xdata(CDS))}[]
+    for i in 1:length(WoundX(CDS))
+        for c in 1:maxcounts[i]
+            push!(Xmat, WoundX(CDS)[i])
+        end
+    end;    Xmat = Unpack(Xmat) # rows sorted such that repeating are adjacent for loop later
+    # Check if there are any missings or if can convert to DS
+    counts = _Counts(CDS);    maxcounts = map((args...)->maximum([args...]), counts...)
+    ResY = Vector{Vector{Union{Missing,eltype(ydata(CDS))}}}(undef, 0)
+    ResYσ = Vector{Vector{Union{Missing,eltype(ysigma(CDS))}}}(undef, 0)
+    for (j,DS) in enumerate(Data(CDS))
+        ydat = Windup(ydata(DS),ydim(DS));        ysig = Windup(ysigma(DS),ydim(DS))
+        for (i,X) in enumerate(WoundX(CDS))
+            if counts[j][i] > 0
+                ind = 0
+                for c in 1:counts[j][i]
+                    ind = findnext(isequal(X), WoundX(DS), ind+1)
+                    push!(ResY, Vectorize(ydat[ind]))
+                    push!(ResYσ, Vectorize(ysig[ind]))
+                end
+            end
+            for _ in 1:(maxcounts[i]-counts[j][i])
+                push!(ResY, fill(missing, ydim(DS)))
+                push!(ResYσ, fill(missing, ydim(DS)))
+            end
+        end
+    end
+    M = [Xmat UnpackWindup(reduce(vcat, ResY), ydim(CDS)) UnpackWindup(reduce(vcat, ResYσ), ydim(CDS))]
+    DataFrame(M, vcat(xnames(CDS), ynames(CDS), ynames(CDS) .* "_σ"); kwargs...)
 end

@@ -27,7 +27,7 @@ struct Plane
     end
     function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}, Projector::AbstractMatrix{<:Number})
         @assert length(stütz) == length(Vx) == length(Vy) == size(Projector,1) && size(Projector,2) == 2
-        new(stütz, Vx, Vy, (length(stütz) < 10 ? SMatrix{size(Projector)...}(Projector) : Projector))
+        new(stütz, Vx, Vy, (length(stütz) < 20 ? SMatrix{size(Projector)...}(Projector) : Projector))
     end
 end
 Projector(PL::Plane) = PL.Projector
@@ -393,7 +393,7 @@ end
     Corners(C::HyperCube) -> Vector{Vector}
 Returns the `2^n` corner points of a `n`-dimensional `HyperCube`.
 """
-Corners(C::HyperCube{T}) where T<:Number = Corners([T[]], [(C.L[i], C.U[i]) for i in 1:length(C)])
+Corners(C::HyperCube) = Corners([typeof(C.L[1])[]], [(C.L[i], C.U[i]) for i in 1:length(C)])
 function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tuple})
     length(C) == 0 && return Res
     Tup = popfirst!(C)
