@@ -1,7 +1,7 @@
 
 
 
-GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,10^(-precision(BigFloat)/10)) : 1e-6
+GetH(x) = (suff(x) == BigFloat) ? convert(BigFloat,exp10(-precision(BigFloat)/10)) : 1e-6
 
 # import DerivableFunctions: suff
 suff(x::DataFrame) = suff(x[1,1])

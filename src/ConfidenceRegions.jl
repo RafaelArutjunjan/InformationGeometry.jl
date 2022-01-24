@@ -295,13 +295,13 @@ end
 
 FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), dPredictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
-                                    tol::Real=convert(BigFloat,10^(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+                                    tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
     InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
-                                    tol::Real=convert(BigFloat,10^(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+                                    tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
     InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)

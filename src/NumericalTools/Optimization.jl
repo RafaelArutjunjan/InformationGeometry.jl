@@ -226,7 +226,7 @@ end
 function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12) where T<:Real
     find_zero(Test, Domain, meth; xatol=tol, xrtol=tol)
 end
-function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,10^(-precision(BigFloat)/10))) where T<:BigFloat
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10))) where T<:BigFloat
     Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-14, xrtol=1e-14)
     find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Bisection(); xatol=tol, xrtol=tol)
 end
