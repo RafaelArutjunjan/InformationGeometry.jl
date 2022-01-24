@@ -64,9 +64,10 @@ BasisVectorSV(Slot::Int, dims::Int) = SVector{dims}(Float64(i == Slot) for i in 
     BasisVector(Slot::Int, dims::Int) -> Vector{Float64}
 Computes a standard basis vector of length `dims`, i.e. whose components are all zero except for the component `Slot`, which has a value of one.
 """
-function BasisVector(Slot::Int, dims::Int)
-    Res = zeros(dims);    Res[Slot] = 1.;    Res
-end
+BasisVector(Slot::Int, dims::Int, val::Number=1.0) = OneHot(Slot, dims, val)
+# function BasisVector(Slot::Int, dims::Int)
+#     Res = zeros(dims);    Res[Slot] = 1.;    Res
+# end
 
 struct OneHot{T<:Number} <: AbstractVector{T}
     i::Int
@@ -88,8 +89,8 @@ Base.:*(A::AbstractMatrix, X::OneHot) = X.val * A[:, X.i]
 
 # Hopefully this does not degrade performance
 Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y);  setindex(Y, Y[X.i] + X.val, X.i))
-Base.:+(X::OneHot, Y::AbstractVector) = (@boundscheck @assert length(X) == length(Y);   Z=copy(Y);  Z[X.i] += X.val;    Z)
-Base.:+(Y::Union{AbstractVector,SVector}, X::OneHot) = Base.:+(X, Y)
+Base.:+(X::OneHot, Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}) where {S,T} = (@boundscheck @assert length(X) == length(Y);   Z=copy(Y);  Z[X.i] += X.val;    Z)
+Base.:+(Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}, X::OneHot) where {S,T} = Base.:+(X, Y)
 Base.:+(X::OneHot, Y::OneHot) = (@boundscheck @assert length(X) == length(Y);   Z = zeros(X.n); Z[X.i] = X.val; Z[Y.i]=Y.val;   Z)
 
 Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
