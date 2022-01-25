@@ -805,11 +805,11 @@ _CustomOrNot(::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractV
 
 
 function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
-    Y = Vector{suff(θ)}(undef, DataspaceDim(DS))
+    Y = Vector{suff(θ)}(undef, length(woundX)*ydim(DS))
     model!(Y, woundX, θ; kwargs...);    Y
 end
 function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
-    Y = Vector{suff(θ)}(undef, DataspaceDim(DS))
+    Y = Vector{suff(θ)}(undef, length(woundX)*ydim(DS))
     EmbeddingMap!(Y, DS, model!, θ, woundX; kwargs...);     Y
 end
 
@@ -851,11 +851,11 @@ _CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::ModelOrFunction, θ::Abstra
 
 
 function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
-    J = Matrix{suff(θ)}(undef, DataspaceDim(DS), length(θ))
+    J = Matrix{suff(θ)}(undef, length(woundX)*ydim(DS), length(θ))
     dmodel!(J, woundX, θ; kwargs...);   J
 end
 function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
-    J = Matrix{suff(θ)}(undef, DataspaceDim(DS), length(θ))
+    J = Matrix{suff(θ)}(undef, length(woundX)*ydim(DS), length(θ))
     EmbeddingMatrix!(J, DS, dmodel!, θ, woundX; kwargs...);     J
 end
 
