@@ -176,7 +176,7 @@ end
 
 
 # equivalent to ResidualSquares(DM,MLE(DM))
-RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - Npoints(DM)*ydim(DM)*log(2π) - 2LogLikeMLE(DM)
+RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - DataspaceDim(DM)*log(2π) - 2LogLikeMLE(DM)
 ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}) = InnerProduct(yInvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)
     n = length(ydata(DM));  p = length(θ)
@@ -922,15 +922,19 @@ Computes Akaike Information Criterion with an added correction term that prevent
 Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
 """
 function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
-    (Npoints(DM) - length(θ) - 1) == 0 && throw("DataSet too small to appy AIC correction. Use AIC instead.")
-    AIC(DM, θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (Npoints(DM) - length(θ) - 1)
+    if (DataspaceDim(DM) - length(θ) - 1) != 0
+        AIC(DM, θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (DataspaceDim(DM) - length(θ) - 1)
+    else
+        @warn "DataSet too small to apply AIC correction. Using AIC without correction instead."
+        AIC(DM, θ; kwargs...)
+    end
 end
 
 """
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(Npoints(DM)) - 2loglikelihood(DM, θ; kwargs...)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(DataspaceDim(DM)) - 2loglikelihood(DM, θ; kwargs...)
 
 
 """
