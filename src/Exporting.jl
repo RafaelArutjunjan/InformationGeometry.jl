@@ -121,14 +121,14 @@ function DataFrames.DataFrame(CDS::CompositeDataSet; kwargs...)
     Vectorize(x::AbstractVector) = x;   Vectorize(x::Union{Number,Missing}) = [x]
     # How many observations per WoundX(CDS) in subdatasets?
     _Counts(CDS::CompositeDataSet) = [[count(isequal(x), Windup(xdata(DS),xdim(DS))) for x in WoundX(CDS)] for DS in Data(CDS)]
+    # Check if there are any missings or if can convert to DS
+    counts = _Counts(CDS);    maxcounts = map((args...)->maximum([args...]), counts...)
     Xmat = Vector{eltype(xdata(CDS))}[]
     for i in 1:length(WoundX(CDS))
         for c in 1:maxcounts[i]
             push!(Xmat, WoundX(CDS)[i])
         end
     end;    Xmat = Unpack(Xmat) # rows sorted such that repeating are adjacent for loop later
-    # Check if there are any missings or if can convert to DS
-    counts = _Counts(CDS);    maxcounts = map((args...)->maximum([args...]), counts...)
     ResY = Vector{Vector{Union{Missing,eltype(ydata(CDS))}}}(undef, 0)
     ResYσ = Vector{Vector{Union{Missing,eltype(ysigma(CDS))}}}(undef, 0)
     for (j,DS) in enumerate(Data(CDS))
