@@ -360,6 +360,10 @@ function ResizeCube(Cube::HyperCube, factor::Real=1.)
     HyperCube(center-halfwidths, center+halfwidths)
 end
 
+Base.:*(a::Number, C::HyperCube) = HyperCube(a*C.L, a*C.U)
+Base.:*(C::HyperCube, a::Number) = Base.:*(a, C)
+Base.:*(Mat::AbstractMatrix, C::HyperCube) = HyperCube(Mat*C.L, Mat*C.U)
+
 
 
 DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)

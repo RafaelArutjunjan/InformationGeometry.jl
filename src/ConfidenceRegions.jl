@@ -940,14 +940,15 @@ BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = le
 """
     ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel) -> Tuple{Int,Real}
 Compares the AICc values of both models at best fit and estimates probability that one model is more likely than the other.
-First entry of tuple returns which model is more likely to be correct (1 or 2) whereas the second entry returns the ratio of probabilities.
+First entry of tuple returns which model is more likely to be correct (1 or 2) whereas the second entry returns the ratio of probabilities `p_better/p_worse`.
 """
-function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel; kwargs...)
-    !(ydata(DM1) == ydata(DM2) && xdata(DM1) == xdata(DM2) && yInvCov(DM1) == yInvCov(DM2)) && throw("Not comparing against same data!")
-    Mod1 = AICc(DM1,MLE(DM1); kwargs...);      Mod2 = AICc(DM2,MLE(DM2); kwargs...)
-    res = (Int((Mod1 > Mod2) + 1), round(exp(0.5*abs(Mod2-Mod1)),sigdigits=5))
-    @info "Model $(res[1]) is estimated to be $(res[2]) times as likely to be correct from difference in AICc values."
-    res
+function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel, Crit::Function=AICc; verbose::Bool=true, sigdigits::Int=5, kwargs...)
+    Data(DM1) != Data(DM2) && throw("Not comparing model against same data!")
+    Mod1 = Crit(DM1, MLE(DM1); kwargs...);      Mod2 = Crit(DM2, MLE(DM2); kwargs...)
+    better = (Mod1 < Mod2 ? 1 : 2) # lower is better!
+    res = round(exp(0.5*abs(Mod2-Mod1)); sigdigits=sigdigits)
+    verbose && @info "Model $(better) is estimated to be $(res) times as likely to be correct from difference in AICc values."
+    (better, res)
 end
 
 

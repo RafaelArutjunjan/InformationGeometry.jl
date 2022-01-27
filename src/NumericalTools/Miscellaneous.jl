@@ -146,12 +146,12 @@ InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
 
 
 import Base.==
-==(DS1::DataSet, DS2::DataSet) = xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && ysigma(DS1) == ysigma(DS2)
-==(DS1::DataSetExact, DS2::DataSet) = DS2 == DS1
+==(DS1::DataSet, DS2::DataSet) = xdata(DS1) ≈ xdata(DS2) && ydata(DS1) ≈ ydata(DS2) && yInvCov(DS1) ≈ yInvCov(DS2)
+==(DS1::DataSetExact, DS2::DataSet) = DS2 ≈ DS1
 function ==(DS1::DataSet, DS2::DataSetExact)
     if !(xdist(DS2) isa InformationGeometry.Dirac && ydist(DS2) isa MvNormal)
         return false
-    elseif xdata(DS1) == xdata(DS2) && ydata(DS1) == ydata(DS2) && yInvCov(DS1) == yInvCov(DS2)
+    elseif xdata(DS1) ≈ xdata(DS2) && ydata(DS1) ≈ ydata(DS2) && yInvCov(DS1) ≈ yInvCov(DS2)
         return true
     else
         false

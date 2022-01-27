@@ -90,11 +90,15 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 
 
+xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
+ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
+
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :xdist, :ydist, :dist]
+            :xnames, :ynames, :xdist, :ydist, :dist,
+            :xdataMat, :ydataMat]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
 
