@@ -44,9 +44,10 @@ struct DataSet <: AbstractDataSet
     WoundX::Union{AbstractVector,Nothing}
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
-    function DataSet(DF::Union{DataFrame,AbstractMatrix}; kwargs...)
-        size(DF,2) > 3 && throw("Unclear dimensions of input $DF.")
-        DataSet(ToCols(Matrix(DF))...; kwargs...)
+    DataSet(df::DataFrame; kwargs...) = DataSet(Matrix(df); xnames=[names(df)[1]], ynames=[names(df)[1]], kwargs...)
+    DataSet(df::AbstractMatrix; kwargs...) = size(df, 2) ≤ 3 ? DataSet(ToCols(df)...; kwargs...) : throw("Unclear dimensions of input $df.")
+    function DataSet(Xdf::DataFrame, Ydf::DataFrame, sigma::Union{Real,DataFrame}=1.0, args...; kwargs...)
+        DataSet(Matrix(Xdf), Matrix(Ydf), (sigma isa Real ? sigma : Matrix(sigma)); xnames=names(Xdf), ynames=names(Ydf), kwargs...)
     end
     function DataSet(x::AbstractArray, y::AbstractArray; kwargs...)
         @info "No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's."

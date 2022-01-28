@@ -114,14 +114,13 @@ end
     Rsquared(DM::DataModel) -> Real
 Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
 """
-function Rsquared(DM::DataModel, MLE::AbstractVector{<:Number})
+function Rsquared(DM::DataModel, mle::AbstractVector{<:Number}=MLE(DM))
     !(xdim(DM) == ydim(DM) == 1) && return -1
     mean = sum(ydata(DM)) / length(ydata(DM))
     Stot = sum(abs2, ydata(DM) .- mean)
-    Sres = sum(abs2, ydata(DM) - EmbeddingMap(DM,MLE))
+    Sres = sum(abs2, ydata(DM) - EmbeddingMap(DM,mle))
     1 - Sres / Stot
 end
-Rsquared(DM::DataModel) = Rsquared(DM, MLE(DM))
 
 
 

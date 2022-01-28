@@ -61,7 +61,7 @@ Optimize(DM::AbstractDataModel; kwargs...) = Optimize(Data(DM), Predictor(DM); k
 Optimize(DS::AbstractDataSet, model::ModelOrFunction; kwargs...) = Optimize(model, Getxyp(DS, model); kwargs...)
 
 Optimize(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = _Optimize(model, xyp; kwargs...)
-function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=false, kwargs...)
+function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=(xyp[2] > 1), kwargs...)
     model, dmodel = _Optimize(M, xyp; inplace=inplace, kwargs...)
     (!isnothing(model) && !isnothing(dmodel)) ? (ModelMap(model, M; inplace=inplace), ModelMap(dmodel, M; inplace=inplace)) : (nothing, nothing)
 end

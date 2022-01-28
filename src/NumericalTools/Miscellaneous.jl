@@ -160,6 +160,15 @@ end
 ==(DS1::AbstractDataSet, DS2::AbstractDataSet) = xdist(DS1) == xdist(DS2) && ydist(DS1) == ydist(DS2)
 
 
+function ==(DM1::AbstractDataModel, DM2::AbstractDataModel)
+    Data(DM1) != Data(DM2) && return false
+    pdim(DM1) != pdim(DM2) && return false
+    z1, z2 = MLE(DM1) + rand(length(MLE(DM1))), MLE(DM1) + rand(length(MLE(DM1)))
+    !(EmbeddingMap(DM1, z1) ≈ EmbeddingMap(DM2, z1) && EmbeddingMap(DM1, z2) ≈ EmbeddingMap(DM2, z2)) && return false
+    !(EmbeddingMatrix(DM1, z1) ≈ EmbeddingMatrix(DM2, z1) && EmbeddingMatrix(DM1, z2) ≈ EmbeddingMatrix(DM2, z2)) && return false
+    return true
+end
+
 
 """
     GetArgSize(model::ModelOrFunction; max::Int=100)

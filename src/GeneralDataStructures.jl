@@ -89,6 +89,7 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 
+MLEuncert(DM::AbstractDataModel) = MLE(DM) .± sqrt.(Diagonal(inv(FisherMetric(DM, MLE(DM)))).diag)
 
 xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
 ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
@@ -144,7 +145,7 @@ Returns appropriate function which constitutes the automatic derivative of the `
 function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
     # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
     if ADmode === :Symbolic || ADmode isa Val{:Symbolic}
-        Symbolic_dmodel = Optimize(DS, model; inplace=false)[2]
+        Symbolic_dmodel = Optimize(DS, model)[2]
         !isnothing(Symbolic_dmodel) && return Symbolic_dmodel
         # Fall back to ForwarDiff if Symbolic differentiation did not work
         @info "Falling back to ForwardDiff for model jacobian."

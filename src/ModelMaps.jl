@@ -435,7 +435,16 @@ ExponentialModel = exp∘LinearModel
 SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
 PolynomialModel(degree::Int) = Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
 
-
+function GeneralLinearModel(DS::AbstractDataSet)
+    @assert ydim(DS) != 1 "Use LinearModel() instead of GeneralLinearModel() for ydim=1."
+    Xdim, Ydim = xdim(DS), ydim(DS)
+    NaiveGeneralLinearModel(x::AbstractVector{<:Number}, θ::AbstractVector{T}) where T <: Number = SVector{Ydim, T}(LinearModel(x, p) for p in Iterators.partition(θ, Xdim+1))
+    Names = ["p_(" .* ynames(DS)[i] .* " × " .* xnames(DS) .*")" for i in 1:ydim(DS)]
+    for (i,series) in enumerate(Names)
+        push!(series, "p_(" * ynames(DS)[i] * " × Offset)")
+    end
+    Optimize(ModelMap(NaiveGeneralLinearModel, nothing, nothing, (xdim(DS), ydim(DS), ydim(DS)*(xdim(DS)+1)), reduce(vcat, Names), Val(true), Val(false), Val(false)); inplace=false)[1]
+end
 
 
 IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))

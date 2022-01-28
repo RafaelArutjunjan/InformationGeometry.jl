@@ -13,7 +13,7 @@ function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
 end
 
 
-function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true)
+function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true)
     if xerrs
         (size(df,2) != 2xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
         Xcols = stripedXs ? (1:2:2xdims) : (1:xdims)
@@ -51,6 +51,9 @@ function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::Val{false},
 end
 
 
+DitchMissingRows(B::AbstractArray, df::DataFrame) = DitchMissingRows(df, B)
+DitchMissingRows(df::DataFrame, B::AbstractMatrix) = DitchMissingRows(df, DataFrame(B, :auto))
+DitchMissingRows(df::DataFrame, B::AbstractVector) = DitchMissingRows(df, DataFrame(reshape(B, :, 1), :auto))
 DitchMissingRows(df1, df2) = hcat(df1, df2) |> DitchMissingRows
 DitchMissingRows(df) = DitchMissingRows(DataFrame(df, :auto))
 DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})::BitVector = map(row->!any(ismissing, row), eachrow(df))
@@ -86,7 +89,7 @@ using DataFrames
 t = [1,2,3,4]
 y₁ = [2.5, 6, missing, 9];      y₂ = [missing, 5, 3.1, 1.4]
 σ₁ = 0.3*ones(4);               σ₂ = [missing, 0.2, 0.1, 0.5]
-df = DataFrame([t y₁ σ₁ y₂ σ₂])
+df = DataFrame([t y₁ σ₁ y₂ σ₂], :auto)
 
 xdim = 1;   ydim = 2
 CompositeDataSet(df, xdim, ydim; xerrs=false, stripedYs=true)
@@ -115,8 +118,12 @@ CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
 end
-function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame)
-    CompositeDataSet(hcat(xdf, ydf, sigdf), size(xdf,2), size(ydf,2); xerrs=false, stripedXs=false, stripedYs=false)
+function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs...)
+    CompositeDataSet(xdf, ydf, DataFrame(sig*ones(size(ydf)...), names(ydf).*"_σ"); kwargs...)
+end
+function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame; xerrs::Bool=false, stripedYs::Bool=false, kwargs...)
+    # Enforce stripedYs=false
+    CompositeDataSet(hcat(xdf, ydf, sigdf), (xerrs ? Int(size(xdf,2)/2) : size(xdf,2)), size(ydf,2); stripedYs=false, xerrs=xerrs, kwargs...)
 end
 
 # For SciMLBase.remake

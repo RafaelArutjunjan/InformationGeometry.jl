@@ -118,7 +118,7 @@ export ModelMap, ModelOrFunction, InformNames, IsInDomain
 export Transform, LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export EmbedModelVia, Embedding
-export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel
+export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel, GeneralLinearModel
 
 
 include("DataStructures/DistributionTypes.jl")
