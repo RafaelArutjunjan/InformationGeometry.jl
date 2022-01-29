@@ -21,7 +21,7 @@ end
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.;
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
-    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), vcat(InitialPos,InitialVel), (0.0,Endtime))
+    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), PromoteStatic(vcat(InitialPos,InitialVel), true), (0.0,Endtime))
     if isnothing(Boundaries)
         solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
@@ -194,12 +194,12 @@ function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::Abstr
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
-        resid[1:dim] = u[1][1:dim] .- P
-        resid[(dim+1):2dim] = u[end][1:dim] .- Q
+        resid[1:dim] .= u[1][1:dim] .- P
+        resid[(dim+1):2dim] .= u[end][1:dim] .- Q
     end
     # Slightly perturb initial direction:
     initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
-    BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, initial, (0.0, Endtime))
+    BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, PromoteStatic(initial, true), (0.0, Endtime))
     solve(BVP, Shooting(meth); reltol=tol, abstol=tol, kwargs...)
 end
 
