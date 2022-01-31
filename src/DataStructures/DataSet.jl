@@ -56,7 +56,7 @@ struct DataSet <: AbstractDataSet
     DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real; kwargs...) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     # Also make a fancy version for DataFrames that infers the variable names?
     function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray; kwargs...)
-        size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)).")
+        size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the DataSet constructor.")
         # If Σ_y not a square matrix, assume each column is vector of standard deviations associated with y:
         Σ_y = (size(Σ_y,1) == size(Σ_y,2) && size(Y,1) != size(Y,2)) ? Σ_y : Unwind(Σ_y)
         #Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y

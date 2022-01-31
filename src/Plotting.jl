@@ -53,7 +53,7 @@ end
 # xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    Σ_y = typeof(ysigma(DS)) <: AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
+    Σ_y = ysigma(DS) isa AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
     Σ_x = DS isa DataSetExact ? (xsigma(DS) isa AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)) : nothing
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
@@ -103,10 +103,7 @@ RecipesBase.@recipe function f(LU::HyperCube)
 end
 
 RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
-    marker --> :hex
-    linealpha --> 0
-    markersize --> 1.8
-    markerstrokewidth --> 0.5
+    seriestype --> :scatter
     ToCols(Unpack(X))
 end
 

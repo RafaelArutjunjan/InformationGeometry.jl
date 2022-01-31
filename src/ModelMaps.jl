@@ -38,6 +38,10 @@ struct ModelMap{Inplace}
     function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{AbstractVector{<:String},Bool}=false)
         xyp isa Bool ? ModelMap(model, nothing, Domain; pnames=pnames) : ModelMap(model, nothing, Domain, xyp; pnames=pnames)
     end
+    # Given: xyp
+    function ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
+        ModelMap(model, nothing, FullDomain(xyp[3]), xyp; pnames=pnames)
+    end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
         startp = isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain)
@@ -138,9 +142,9 @@ end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 
-function ModelMappize(DM::AbstractDataModel)
-    NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM))
-    NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM))
+function ModelMappize(DM::AbstractDataModel; pnames::Union{AbstractVector{<:String},Bool}=false)
+    NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
+    NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM))
 end
 
