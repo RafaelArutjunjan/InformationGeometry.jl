@@ -47,9 +47,9 @@ Base.length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 WoundY(DS::AbstractDataSet) = Windup(ydata(DS),ydim(DS))
 
-WoundInvCov(DS::AbstractDataSet) = _WoundInvCov(DS, InvCov(DS))
-_WoundInvCov(DS::AbstractDataSet, D::Diagonal) = Windup(D.diag, ydim(DS))
-_WoundInvCov(DS::AbstractDataSet, M::AbstractMatrix) = throw("WoundInvCov can only be used with diagonal covariance matrices.")
+WoundInvCov(DS::AbstractDataSet) = _WoundMatrix(yInvCov(DS), ydim(DS))
+_WoundMatrix(D::Diagonal, Yd::Int) = Windup(D.diag, Yd)
+_WoundMatrix(M::AbstractMatrix, Yd::Int) = throw("WoundInvCov can only be used with diagonal covariance matrices.")
 
 # Becomes dangerous now that there is a distinction between yInvCov and xInvCov
 # logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
@@ -239,12 +239,12 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
     Σ = ysigma(DS)
-    if typeof(Σ) <: AbstractVector
+    if Σ isa AbstractVector
         Σ = Windup(Σ,ydim(DS))[range] |> Unwind
     elseif ydim(DS) == 1
         Σ = Σ[range,range]
     else
-        throw("Under construction.")
+        Σ = _WoundMatrix(Σ, ydim(DS))[range, range] |> BlockMatrix
     end
     InformNames(DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
 end

@@ -237,5 +237,5 @@ function BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
 end
 BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
 
-
+BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = BlockMatrix(As...)
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)

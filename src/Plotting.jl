@@ -89,12 +89,9 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
 end
 
 
-RecipesBase.@recipe function f(DSs::AbstractVector{<:AbstractDataSet})
-    layout := length(DSs)
-    for x in DSs
-        @series begin x end
-    end
-end
+# Bad form but works
+RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; kwargs...) for DS in DSs]...; layout=length(DSs))
+RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; kwargs...) for DM in DMs]...; layout=length(DMs))
 
 
 RecipesBase.@recipe function f(LU::HyperCube)

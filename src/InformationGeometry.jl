@@ -184,7 +184,7 @@ export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInform
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
 
-export ApproxInRegion, ShadowTheatre, CastShadow
+export ApproxInRegion, ShadowTheatre, CastShadow, CrossValidation
 
 
 
@@ -217,7 +217,7 @@ export Optimize, OptimizedDM, InplaceDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
-export PlotFit, ResidualPlot, PlotScalar, PlotLogLikelihood, Plot2DVF, ResidualSquaredError, PlotEllipses
+export PlotFit, ResidualPlot, PlotScalar, PlotLogLikelihood, Plot2DVF, ResidualStandardError, PlotEllipses
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve, PhaseSpacePlot

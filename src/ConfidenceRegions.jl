@@ -1238,6 +1238,26 @@ function GetConfnum(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols
 end
 
 
+"""
+    CrossValidation(DM::AbstractDataModel)
+    CrossValidation(DM::AbstractDataModel, keeps::AbstractVector{<:AbstractVector})
+Leave-one-out cross validation by default. Alternatively, combinations can be specified via `keeps`.
+"""
+CrossValidation(DM::AbstractDataModel) = CrossValidation(DM, [(x->x!=i).(1:Npoints(DM)) for i in 1:Npoints(DM)])
+function CrossValidation(DM::AbstractDataModel, keeps::AbstractVector{<:AbstractVector})
+    DMs = [DataModel(Data(DM)[keeper], Predictor(DM), dPredictor(DM), MLE(DM)) for keeper in keeps]
+    Res = Float64[]
+    for (i, keeper) in enumerate(keeps)
+        newpoints = map(!, keeper)
+        res = InnerProduct(Diagonal(WoundInvCov(DM)[newpoints]), WoundY(DM)[newpoints] - EmbeddingMap(DMs[i], MLE(DMs[i]), WoundX(DM)[newpoints])) |> sqrt
+        push!(Res, res)
+    end
+    Res, Measurements.measurement(mean(Res), std(Res))
+end
+
+
+
+
 abstract type AbstractConfidenceBoundary end
 
 struct ConfidenceBoundary <: AbstractConfidenceBoundary
