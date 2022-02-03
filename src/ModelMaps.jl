@@ -439,8 +439,16 @@ ExponentialModel = exp∘LinearModel
 SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
 PolynomialModel(degree::Int) = Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
 
-function GeneralLinearModel(DS::AbstractDataSet)
-    @assert ydim(DS) != 1 "Use LinearModel() instead of GeneralLinearModel() for ydim=1."
+
+function GetLinearModel(DS::AbstractDataSet)
+    ydim(DS) != 1 && return GetGeneralLinearModel(DS)
+    Names = "p_(" .* ynames(DS) .* " × " .* xnames(DS) .*")"
+    push!(Names, "p_(" * ynames(DS)[1] * " × Offset)")
+    ModelMap(LinearModel, (xdim(DS), ydim(DS), xdim(DS)+1); pnames=Names)
+end
+
+function GetGeneralLinearModel(DS::AbstractDataSet)
+    ydim(DS) == 1 && return GetLinearModel(DS)
     Xdim, Ydim = xdim(DS), ydim(DS)
     NaiveGeneralLinearModel(x::AbstractVector{<:Number}, θ::AbstractVector{T}) where T <: Number = SVector{Ydim, T}(LinearModel(x, p) for p in Iterators.partition(θ, Xdim+1))
     Names = ["p_(" .* ynames(DS)[i] .* " × " .* xnames(DS) .*")" for i in 1:ydim(DS)]
