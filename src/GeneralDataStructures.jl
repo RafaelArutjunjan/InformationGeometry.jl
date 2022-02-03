@@ -204,6 +204,11 @@ yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 
 
+function Residuals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+    sum(abs, xsigma(DM)) != 0 && @warn "Ignoring x-uncertainties in computatation of Residuals."
+    cholesky(yInvCov(DM)).U * (ydata(DM) - EmbeddingMap(DM, mle))
+end
+
 
 """
     pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int
