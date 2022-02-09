@@ -80,7 +80,7 @@ end
 Calculates at which parameter value of the geodesic `sol` the length `L` is reached.
 """
 function DistanceAlongGeodesic(Metric::Function, sol::AbstractODESolution, L::Number; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
-    L < 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
+    L ≤ 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
     # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], FullSol=true, tol=tol)
     Func(x) = L - GeoLength(x)

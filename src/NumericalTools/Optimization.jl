@@ -134,9 +134,9 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 minimize(F::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,), start, args...; kwargs...)
 minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF), start, args...; kwargs...)
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
-function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
+function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
                             meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
-                            timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...)
+                            timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = Start isa SVector ? convert(Vector, Start) : Start
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both not in-place"
@@ -150,9 +150,9 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, 
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
         start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
         if length(Fs) == 1
-            Optim.optimize(Fs[1], convert(Vector,Domain.L), convert(Vector,Domain.U), floatify(start), Cmeth, options; kwargs...)
+            Optim.optimize(Fs[1], convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., convert(Vector,Domain.L), convert(Vector,Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
+            Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
         end
     else
         if length(Fs) == 1

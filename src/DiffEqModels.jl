@@ -29,7 +29,7 @@ end
 # Extend for other DEFunctions in the future
 function DataModel(DS::AbstractDataSet, sys::Union{ModelingToolkit.AbstractSystem,SciMLBase.AbstractDiffEqFunction}, u0::Union{AbstractArray{<:Number},Function},
                         observables::Union{AbstractVector{<:Int},BoolArray,Function}=collect(1:length(u0)), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
-    newDS = (typeof(observables) <: AbstractVector{<:Int} && sys isa ModelingToolkit.AbstractSystem) ? InformNames(DS, sys, observables) : DS
+    newDS = (observables isa AbstractVector{<:Int} && sys isa ModelingToolkit.AbstractSystem) ? InformNames(DS, sys, observables) : DS
     DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, kwargs...), args...)
 end
 

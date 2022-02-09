@@ -111,7 +111,8 @@ _TestDomain(::Nothing, θ::AbstractVector) = true       # Excluded
 _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 
 
-MakeCustom(F::Function, Domain::Union{Cuboid,Bool,Nothing}=nothing) = Domain isa Cuboid ? MakeCustom(ModelMap(F, Domain)) : MakeCustom(ModelMap(F))
+MakeCustom(F::Function, Domain::Union{Bool,Nothing}=nothing) = MakeCustom(ModelMap(F))
+MakeCustom(F::Function, Domain::Cuboid) = MakeCustom(ModelMap(F, Domain))
 function MakeCustom(M::ModelMap)
     if iscustom(M)
         @warn "MakeCustom: Given Map already uses custom embedding."

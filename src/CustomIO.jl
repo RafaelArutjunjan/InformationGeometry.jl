@@ -59,7 +59,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
     println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
-        if typeof(xsigma(DS)) <: AbstractVector
+        if xsigma(DS) isa AbstractVector
             println(io, "Standard deviation associated with x-data:")
             show(io, mime, xsigma(DS))
         else
@@ -69,7 +69,7 @@ function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
         print(io, "\n")
     end
     print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
-    if typeof(ysigma(DS)) <: AbstractVector
+    if ysigma(DS) isa AbstractVector
         println(io, "Standard deviation associated with y-data:")
         show(io, mime, ysigma(DS))
     else
@@ -82,7 +82,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
     println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
-        if typeof(xsigma(DS)) <: AbstractVector
+        if xsigma(DS) isa AbstractVector
             println(io, "Standard deviation associated with x-data:")
             show(io, xsigma(DS))
         else
@@ -92,7 +92,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
         print(io, "\n")
     end
     print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
-    if typeof(ysigma(DS)) <: AbstractVector
+    if ysigma(DS) isa AbstractVector
         println(io, "Standard deviation associated with y-data:")
         show(io, ysigma(DS))
     else

@@ -13,7 +13,7 @@ Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, Fu
 function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
     Interval = floatify(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
-    Interval[1] > Interval[2] && throw(ArgumentError("Interval orientation wrong."))
+    @assert Interval[1] < Interval[2]
     f(u,p,t) = F(t);    u0 = 0.
     if tol < 1e-15
         u0 = BigFloat(u0);        Interval = BigFloat.(Interval)

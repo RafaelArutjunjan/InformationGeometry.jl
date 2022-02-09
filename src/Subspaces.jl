@@ -369,7 +369,7 @@ Base.:*(Mat::AbstractMatrix, C::HyperCube) = HyperCube(Mat*C.L, Mat*C.U)
 DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
 DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
 function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
-    @assert N > 2 && Domain[1] < Domain[2]
+    @assert N > 2 && Domain[1] ≤ Domain[2]
     range(Domain[1], Domain[2]; length=N) |> collect
 end
 
@@ -409,6 +409,7 @@ Base.vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C
 Base.vcat(C::HyperCube, Tup::Tuple{Number,Number}) = HyperCube(vcat(C.L, Tup[1]), vcat(C.U, Tup[2]))
 Base.vcat(Tup::Tuple{Number,Number}, C::HyperCube) = HyperCube(vcat(Tup[1], C.L), vcat(Tup[2], C.U))
 
+Base.BigFloat(C::HyperCube) = HyperCube(BigFloat.(C.L), BigFloat.(C.U))
 
 """
     intersect(A::HyperCube, B::HyperCube) -> HyperCube

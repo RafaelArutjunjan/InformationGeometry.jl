@@ -1107,7 +1107,7 @@ CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{
 function CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, dir1::Int, dir2::Int; threshold::Real=0.2)
     @assert length(Planes) == length(sols)
     @assert pdim(DM) == length(Planes[1])
-    @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
+    @assert 1 ≤ dir1 ≤ pdim(DM) && 1 ≤ dir2 ≤ pdim(DM) && dir1 != dir2
 
     Project(p::AbstractVector{<:Number}, dir1::Int, dir2::Int) = SA[p[dir1], p[dir2]]
 
@@ -1132,7 +1132,7 @@ UnionPolygons(p1::LibGEOS.AbstractPolygon, p2::LibGEOS.AbstractPolygon) = LibGEO
 ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dirs::Tuple{<:Int, <:Int}) = ToAmbient(DM, pointlist, dirs[1], dirs[2])
 function ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dir1::Int, dir2::Int)
     @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
-    @assert 0 < dir1 ≤ pdim(DM) && 0 < dir2 ≤ pdim(DM) && dir1 != dir2
+    @assert 1 ≤ dir1 ≤ pdim(DM) && 1 ≤ dir2 ≤ pdim(DM) && dir1 != dir2
     mle = copy(MLE(DM));      mle[[dir1,dir2]] .= 0.0
     PL = Plane(mle, BasisVector(dir1, pdim(DM)), BasisVector(dir2, pdim(DM)))
     map(x->PlaneCoordinates(PL,x), pointlist)
