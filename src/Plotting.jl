@@ -458,6 +458,7 @@ function VisualizeGeos(sols::AbstractVector{<:AbstractODESolution}; OverWrite::B
 end
 
 
+VisualizeSolPoints(DM::AbstractDataModel, sols; kwargs...) = VisualizeSolPoints(sols; kwargs...)
 function VisualizeSolPoints(sol::AbstractODESolution; kwargs...)
     RecipesBase.plot!(sol.u; marker=:hex, line=:dash, linealpha=1, markersize=2, kwargs...)
     VisualizeSols(sol; OverWrite=false, kwargs...)
