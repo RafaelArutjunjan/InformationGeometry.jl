@@ -309,15 +309,15 @@ Returns a `HyperCube` which encloses the extrema of the columns of the input mat
 """
 ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
-ConstructCube(PL::Plane, sol::AbstractODESolution; N::Int=300, Padding::Number=0.) = ConstructCube(Deplanarize(PL, sol; N=N); Padding=Padding)
+ConstructCube(PL::Plane, sol::AbstractODESolution, Npoints::Int=300; N::Int=Npoints, Padding::Number=0.) = ConstructCube(Deplanarize(PL, sol; N=N); Padding=Padding)
 ConstructCube(Ps::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.) = ConstructCube(Unpack(Ps); Padding=Padding)
 
 # Could speed this up by just using the points in sol.u without interpolation.
-function ConstructCube(sol::AbstractODESolution, Npoints::Int=200; Padding::Number=0.)
-    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end];length=Npoints))); Padding=Padding)
+function ConstructCube(sol::AbstractODESolution, Npoints::Int=300; N::Int=Npoints, Padding::Number=0.)
+    ConstructCube(Unpack(map(sol,range(sol.t[1],sol.t[end];length=N))); Padding=Padding)
 end
-function ConstructCube(sols::AbstractVector{<:AbstractODESolution}, Npoints::Int=200; Padding::Number=0.)
-    mapreduce(sol->ConstructCube(sol, Npoints; Padding=Padding), union, sols)
+function ConstructCube(sols::AbstractVector{<:AbstractODESolution}, Npoints::Int=300; N::Int=Npoints, Padding::Number=0.)
+    mapreduce(sol->ConstructCube(sol; N=N, Padding=Padding), union, sols)
 end
 
 ConstructCube(Tup::Tuple{AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}; Padding=0.) = ConstructCube(Tup[1], Tup[2]; Padding=Padding)
