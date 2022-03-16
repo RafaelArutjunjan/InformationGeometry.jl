@@ -82,6 +82,7 @@ struct DataSet <: AbstractDataSet
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing};
                         xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
+        @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},

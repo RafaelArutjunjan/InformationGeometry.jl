@@ -385,7 +385,9 @@ end
 
 
 
+# in-place
 EmbedModelXin(model::Function, Emb::Function) = XEmbeddedModel(y, x, θ::AbstractVector; kwargs...) = model(y, Emb(x), θ; kwargs...)
+# out-of-place
 EmbedModelXout(model::Function, Emb::Function) = XEmbeddedModel(x, θ::AbstractVector; kwargs...) = model(Emb(x), θ; kwargs...)
 
 """
@@ -397,16 +399,44 @@ EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
 
 """
     LogXdata(DM::DataModel)
-Returns a modified `DataModel` where the x-variables have been logarithmized.
+Returns a modified `DataModel` where the x-variables have been logarithmized both in the data as well as for the model.
 """
 function LogXdata(DM::AbstractDataModel)
-    if sum(abs,xsigma(DM)) == 0
-        DataModel(typeof(Data(DM))(log.(xdata(DM)), ydata(DM), ysigma(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM),exp), EmbedModelX(dPredictor(DM),exp))
+    if sum(abs, xsigma(DM)) == 0
+        DataModel(typeof(Data(DM))(log.(xdata(DM)), ydata(DM), ysigma(DM), dims(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), EmbedModelX(dPredictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), MLE(DM))
     else
-        @warn "Fudging x-errors by just taking the log."
-        DataModel(typeof(Data(DM))(log.(xdata(DM)), abs.(log.(xsigma(DM))), ydata(DM), ysigma(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM),exp), EmbedModelX(dPredictor(DM),exp))
+        DataModel(typeof(Data(DM))(log.(xdata(DM)), inv.(xdata(DM)).*xsigma(DM), ydata(DM), ysigma(DM), dims(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), EmbedModelX(dPredictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), MLE(DM))
+    end
+end
+
+
+# in-place
+EmbedModelYin(model::Function, Emb::Function) = YEmbeddedModel(y, x, θ::AbstractVector; kwargs...) = (model(y, x, θ; kwargs...);   y=Emb(y))
+# out-of-place
+EmbedModelYout(model::Function, Emb::Function) = YEmbeddedModel(x, θ::AbstractVector; kwargs...) = Emb(model(x, θ; kwargs...))
+
+"""
+    EmbedModelY(model::Function, Emb::Function)
+Embeds the independent variables of a model function via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
+"""
+EmbedModelY(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedModelYin : EmbedModelYout)(M.Map, Emb), M)
+EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelYin : EmbedModelYout)(model, Emb)
+
+
+# Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
+"""
+    LogYdata(DM::DataModel)
+Returns a modified `DataModel` where the y-variables have been logarithmized both in the data as well as for the model.
+"""
+function LogYdata(DM::AbstractDataModel)
+    if sum(abs, xsigma(DM)) == 0
+        DataModel(typeof(Data(DM))(xdata(DM), log.(ydata(DM)), inv.(ydata(DM)).*ysigma(DM), dims(DM); xnames=xnames(DM), ynames="log(".*ynames(DM).*")"),
+                        EmbedModelY(Predictor(DM),(ydim(DM) > 1 ? y->log.(y) : log)), MLE(DM))
+    else
+        DataModel(typeof(Data(DM))(xdata(DM), xsigma(DM), log.(ydata(DM)), inv.(ydata(DM)).*ysigma(DM), dims(DM); xnames=xnames(DM), ynames="log(".*ynames(DM).*")"),
+                        EmbedModelY(Predictor(DM),(ydim(DM) > 1 ? y->log.(y) : log)), MLE(DM))
     end
 end
 

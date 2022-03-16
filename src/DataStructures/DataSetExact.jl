@@ -76,6 +76,7 @@ struct DataSetExact <: AbstractDataSet
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
                             xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), kwargs...)
+        @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames; kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
