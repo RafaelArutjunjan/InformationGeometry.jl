@@ -36,7 +36,7 @@ struct DataSetExact <: AbstractDataSet
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
     DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
-    DataSetExact(DS::DataSet) = InformNames(DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS)), xnames(DS), ynames(DS))
+    DataSetExact(DS::DataSet) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS))
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...; kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
@@ -167,7 +167,7 @@ function DataMetric(P::Product)
 end
 
 LogLike(DM::AbstractDataSet, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = LogLike(Data(DM), x, y)
-LogLike(DSE::DataSetExact, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = logpdf(xdist(DSE),x) + logpdf(ydist(DSE),y)
+LogLike(DSE::DataSetExact, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = logpdf(xdist(DSE), x) + logpdf(ydist(DSE), y)
 
 import Distributions: loglikelihood
 _loglikelihood(DSE::DataSetExact, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = LogLike(DSE, xdata(DSE), EmbeddingMap(DSE,model,θ; kwargs...))

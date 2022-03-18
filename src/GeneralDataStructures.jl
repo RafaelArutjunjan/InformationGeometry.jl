@@ -74,9 +74,9 @@ _WoundX(DS::AbstractDataSet, WoundX::Nothing) = xdata(DS)
 _WoundX(DS::AbstractDataSet, WoundX::AbstractVector) = WoundX
 
 # Can eliminate specialized methods
-function InformNames(DS::T, xnames::AbstractVector{String}, ynames::AbstractVector{String}) where T <: AbstractDataSet
-    @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
-    remake(DS; xnames=xnames, ynames=ynames)
+function InformNames(DS::T, Xnames::AbstractVector{String}, Ynames::AbstractVector{String}) where T <: AbstractDataSet
+    @assert length(Xnames) == xdim(DS) && length(Ynames) == ydim(DS)
+    remake(DS; xnames=Xnames, ynames=Ynames)
 end
 
 

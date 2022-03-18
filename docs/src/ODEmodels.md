@@ -46,13 +46,12 @@ for the respective susceptible, infected and recovered subpopulations on day zer
 ```@setup 2
 # days = collect(1:14)
 # infected = [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5]
-# SIRDS = DataSet(days, infected, 5ones(14))
-# SIRDS = InformNames(DataSet(days, infected, 5ones(14)), ["Days"], ["Infected"]) # hide
+# SIRDS = DataSet(days, infected, 5ones(14); xnames=["Days"], ynames=["Infected"]) # hide
 ```
 ```julia
 days = collect(1:14)
 infected = [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5]
-SIRDS = InformNames(DataSet(days, infected, 5ones(14)), ["Days"], ["Infected"])
+SIRDS = DataSet(days, infected, 5ones(14); xnames=["Days"], ynames=["Infected"])
 ```
 
 Finally, the `DataModel` associated with the SIR model and the given data is constructed by
