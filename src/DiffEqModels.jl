@@ -94,7 +94,7 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observable
         u0 = PromoteStatic(Initial, T)
         θ -> (u0, θ)
     end
-    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : u -> u[Observables]); kwargs...)
+    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : (u -> u[Observables])); kwargs...)
 end
 
 function GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, ObservationFunction::Function; kwargs...)

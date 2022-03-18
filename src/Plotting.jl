@@ -477,69 +477,10 @@ XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Paddi
 Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
-# function GetExtrema(DM::AbstractDataModel,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
-#     low = Inf;   up = -Inf
-#     for sol in sols
-#         Y = map(Z->DM.model(X,sol(Z)), range(sol.t[1],sol.t[end]; length=N))
-#         templow = minimum(Y);   tempup = maximum(Y)
-#         if templow < low    low = templow       end
-#         if up < tempup      up = tempup         end
-#     end;    (low, up)
-# end
-# function GetExtrema(DM::AbstractDataModel,PL::Plane,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
-#     low = Inf;   up = -Inf
-#     for sol in sols
-#         templow, tempup = map(t->DM.model(X,PlaneCoordinates(PL,sol(t))), range(sol.t[1],sol.t[end]; length=N)) |> extrema
-#         if templow < low    low = templow       end
-#         if up < tempup      up = tempup         end
-#     end;    (low, up)
-# end
-# function GetExtrema(DM::AbstractDataModel,PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution},X::Union{<:Number,AbstractVector{<:Number}}; N::Int=200)
-#     length(PL) != length(sols) && throw("Dimensional Mismatch.")
-#     low = Inf;   up = -Inf
-#     for i in 1:length(sols)
-#         templow, tempup = GetExtrema(DM,PL[i],sols[i],X; N=N)
-#         if templow < low    low = templow       end
-#         if up < tempup      up = tempup         end
-#     end;    (low, up)
-# end
-#
-# """
-#     ConfidenceBands(DM::DataModel,sol::AbstractODESolution,domain::HyperCube; N::Int=200)
-# Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `domain` by evaluating the model on the boundary of the confidence region.
-# """
-# function ConfidenceBands(DM::AbstractDataModel,sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},domain::HyperCube=XCube(DM); N::Int=200, Np::Int=200)
-#     !(length(domain) == xdim(DM)) && throw("Dimensionality of domain inconsistent with xdim.")
-#     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
-#     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
-#     for i in 1:length(X)
-#         low[i], up[i] = GetExtrema(DM,sols,X[i]; N=Np)
-#     end
-#     col = rand([:red,:blue,:green,:orange,:grey])
-#     RecipesBase.plot!(X,low,color=col,label="Lower Conf. Band")
-#     RecipesBase.plot!(X,up,color=col,label="Upper Conf. Band") |> display
-#     return [Unpack(collect(X)) low up]
-# end
-#
-# function ConfidenceBands(DM::AbstractDataModel,Planes::Union{Plane,AbstractVector{<:Plane}},sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}},
-#                                             domain::HyperCube=XCube(DM); N::Int=200, Np::Int=300)
-#     length(domain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
-#     !(length(Planes) == 1 || length(Planes) == length(sols)) && throw("Number of Planes inconsisten with number of ODESolutions.")
-#     low = Vector{Float64}(undef,N^xdim(DM));     up = Vector{Float64}(undef,N^xdim(DM))
-#     X = xdim(DM) == 1 ? range(domain.L[1],domain.U[1]; length=N) : Iterators.product(Grid(domain,N)...)
-#     for i in 1:length(X)
-#         low[i], up[i] = GetExtrema(DM,Planes,sols,X[i]; N=Np)
-#     end
-#     col = rand([:red,:blue,:green,:orange,:grey])
-#     RecipesBase.plot!(X,low,color=col,label="Lower Conf. Band")
-#     RecipesBase.plot!(X,up,color=col,label="Upper Conf. Band") |> display
-#     return [Unpack(collect(X)) low up]
-# end
-
 
 function PlotConfidenceBands(DM::AbstractDataModel, M::AbstractMatrix{<:Number}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing;
                                         Confnum::Real=-1)
-    lab = 0 < Confnum ? "$(Confnum)σ " : ""
+    lab = 0 < Confnum ? "$(round(Confnum; sigdigits=2))σ " : ""
     if size(M,2) == 3
         RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey])) |> display
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
@@ -561,7 +502,7 @@ function PlotConfidenceBands(DM::AbstractDataModel, M::AbstractMatrix{<:Number},
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200, kwargs...)
-    ConfidenceBands(DM, ConfidenceRegion(DM,Confnum; kwargs...), Xdomain; N=N, plot=plot, samples=samples)
+    ConfidenceBands(DM, ConfidenceRegion(DM, Confnum; kwargs...), Xdomain; N=N, plot=plot, samples=samples)
 end
 
 """
@@ -569,51 +510,110 @@ end
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain`
 by evaluating the model on the boundary of the confidence region.
 """
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100), kwargs...)
-    ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM); N::Int=300, kwargs...)
+    ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); kwargs...)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}, woundX=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(Tup[1]),100), kwargs...)
-    ConfidenceBands(DM, Tup[1], Tup[2], woundX; plot=plot, samples=samples, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}, woundX=XCube(DM); kwargs...)
+    ConfidenceBands(DM, Tup[1], Tup[2], woundX; kwargs...)
 end
-function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM);
-                            N::Int=300, plot::Bool=true, samples::Int=max(2*length(sols),100), kwargs...)
-    ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); plot=plot, samples=samples, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Xdomain::HyperCube=XCube(DM); N::Int=300, kwargs...)
+    ConfidenceBands(DM, Planes, sols, DomainSamples(Xdomain; N=N); kwargs...)
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=max(2*length(sols),100))
-    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
-    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+
+function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
+    M = Matrix{eltype(woundX)}(undef, length(woundX), 1 + 2*ydim(DM))
+    Res = view(M, :, 2:size(M,2));    copyto!(view(M, :, 1), woundX)
+    for col in 1:2:size(Res,2)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+    Yt = Matrix{eltype(woundX)}(undef, ydim(DM), length(woundX))
+    # Yt = ydim(DM) > 1 ? transpose(Matrix{eltype(woundX)}(undef, length(woundX), ydim(DM))) : transpose(Vector{eltype(woundX)}(undef, length(woundX)))
+    M, Res, Yt
+end
+
+function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number};
+                            plot::Bool=true, samples::Int=100)
+    @assert xdim(DM) == 1
+    @assert !(Data(DM) isa CompositeDataSet)
+    M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
-    for sol in sols
-        _ConfidenceBands!(Res, DM, map(sol, range(sol.t[1], sol.t[end]; length=samples)), woundX)
+    @showprogress 1 "Sampling confidence boundary... " for t in range(sol.t[1], sol.t[end]; length=samples)
+        _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
     end
-    M = hcat(woundX, Res)
-    if plot
-        Confnum = round(GetConfnum(DM, sols[1]); sigdigits=2)
-        PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end;    M
+    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol))
+    M
+end
+
+function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
+                            plot::Bool=true, samples::Int=max(2*length(sols),100))
+    @assert xdim(DM) == 1
+    @assert !(Data(DM) isa CompositeDataSet)
+    M, Res, Yt = _CreateMats(DM, woundX)
+    # gradually refine Res for each solution to avoid having to allocate a huge list of points
+    @showprogress 1 "Sampling confidence boundary... " for sol in sols
+        for t in range(sol.t[1], sol.t[end]; length=samples)
+            _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
+        end
+    end
+    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1]))
+    M
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
                             plot::Bool=true, samples::Int=max(2*length(sols),100))
+    @assert xdim(DM) == 1
     @assert length(Planes) == length(sols)
-    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
-    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
+    @assert !(Data(DM) isa CompositeDataSet)
+    M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
-    for i in 1:length(sols)
-        _ConfidenceBands!(Res, DM, map(x->PlaneCoordinates(Planes[i], sols[i](x)), range(sols[i].t[1], sols[i].t[end]; length=samples)), woundX)
+    @showprogress 1 "Sampling confidence boundary... " for i in 1:length(sols)
+        for t in range(sols[i].t[1], sols[i].t[end]; length=samples)
+            _ConfidenceBands!(Res, Yt, DM, PlaneCoordinates(Planes[i], sols[i](t)), woundX)
+        end
     end
-    M = hcat(woundX, Res)
-    if plot
-        Confnum = round(GetConfnum(DM, PlaneCoordinates(Planes[1], sols[1].u[1])); sigdigits=2)
-        PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end;    M
+    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1]))
+    M
 end
 
+# Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
+function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true)
+    @assert xdim(DM) == 1
+    @assert !(Data(DM) isa CompositeDataSet)
+    M, Res, Yt = _CreateMats(DM, woundX)
+    @showprogress 1 "Sampling confidence boundary... " for point in points
+        _ConfidenceBands!(Res, Yt, DM, point, woundX)
+    end
+    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, points[1]))
+    M
+end
+
+# Does the computations
+function _ConfidenceBands!(Res::AbstractMatrix, Yt::AbstractMatrix, DM::AbstractDataModel, point::AbstractVector{<:Number}, woundX::AbstractVector{<:Number})
+    @assert pdim(DM) == length(point)
+    @assert size(Yt) == (ydim(DM), length(woundX))
+    @assert size(Res) == (length(woundX), 2ydim(DM))
+
+    copyto!(Yt, EmbeddingMap(DM, point, woundX))
+    @inbounds for col in 1:2:2ydim(DM)
+        Ycol = Int(ceil(col/2))
+        for row in 1:size(Res,1)
+            Yt[Ycol, row] < Res[row, col]   && (Res[row, col]   = Yt[Ycol, row])
+            Yt[Ycol, row] > Res[row, col+1] && (Res[row, col+1] = Yt[Ycol, row])
+        end
+    end
+end
+
+
+"""
+Computes width of confidence bands.
+"""
+function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
+    band = ConfidenceBands(args...; plot=false, kwargs...)
+    Res = hcat(view(band,:,1), view(band,:,3)-view(band,:,2))
+    F = OverWrite ? RecipesBase.plot : RecipesBase.plot!
+    plot && display(F(view(Res,:,1), view(Res,:,2), label="Conf. band width"))
+    Res
+end
 
 """
 ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=1.5)
@@ -639,49 +639,6 @@ function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, 
     ConfidenceBands(DM, FaceCenters(ParameterCube), woundX; plot=plot)
 end
 
-# Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
-function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true)
-    xdim(DM) != 1 && throw("Not programmed for xdim != 1 yet.")
-    Res = Array{Float64,2}(undef, length(woundX), 2*ydim(DM))
-    for col in 1:2:2ydim(DM)    fill!(view(Res,:,col), Inf);     fill!(view(Res,:,col+1), -Inf)    end
-    _ConfidenceBands!(Res, DM, points, woundX)
-    M = hcat(woundX, Res)
-    if plot
-        Confnum = round(GetConfnum(DM, points[1]); sigdigits=2)
-        PlotConfidenceBands(DM, M; Confnum=Confnum)
-    end;    M
-end
-
-# Does the computations
-function _ConfidenceBands!(Res::AbstractMatrix, DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number})
-    @assert pdim(DM) == ConsistentElDims(points)
-    xdim(DM) != 1 && throw("Not programmed for xdim != 1 yet.")
-    @assert size(Res) == (length(woundX), 2ydim(DM))
-    # BELOW LOOP WILL NOT WORK FOR CompositeDataSet!!!!!!
-    @assert Data(DM) isa DataSet || Data(DM) isa DataSetExact
-    for point in points
-        # Do it like this to exploit CustomEmbeddings
-        Y = Windup(EmbeddingMap(Data(DM), Predictor(DM), point, woundX), ydim(DM)) |> Unpack
-        for col in 1:2:2ydim(DM)
-            Ycol = Int(ceil(col/2))
-            for row in 1:size(Res,1)
-                Res[row, col] = min(Res[row, col], Y[row,Ycol])
-                Res[row, col+1] = max(Res[row, col+1], Y[row,Ycol])
-            end
-        end
-    end
-end
-
-"""
-Computes width of confidence bands.
-"""
-function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
-    band = ConfidenceBands(args...; plot=false, kwargs...)
-    Res = hcat(view(band,:,1), view(band,:,3)-view(band,:,2))
-    F = OverWrite ? RecipesBase.plot : RecipesBase.plot!
-    plot && display(F(view(Res,:,1), view(Res,:,2), label="Conf. band width"))
-    Res
-end
 
 """
     PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=true, kwargs...)
@@ -766,7 +723,7 @@ function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(siz
     corr = Confnum != 0. ? sqrt(quantile(Chisq(length(MLE)),ConfVol(Confnum))) : 1.0
     C = corr .* cholesky(Symmetric(Mat)).L
     angles = range(0, 2π; length=N)
-    F(α::Number) = MLE + C * RotatedVector(α, dims[1], dims[2], length(MLE))
+    F(α::Number) = muladd(C, RotatedVector(α, dims[1], dims[2], length(MLE)), MLE)
     Data = Unpack(F.(angles))
     plot && display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(ToCols(Data)...; label="Matrix", kwargs...))
     Data

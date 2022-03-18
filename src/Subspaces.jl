@@ -512,5 +512,6 @@ function EmbeddedODESolution(sols::AbstractVector{<:AbstractODESolution}, Planes
     @assert length(sols) == length(Planes)
     map(EmbeddedODESolution, sols, Planes)
 end
+# Reverse order
 EmbeddedODESolution(PL::Union{Plane, AbstractVector{<:Plane}}, sol::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}) = EmbeddedODESolution(sol, PL)
 EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)
