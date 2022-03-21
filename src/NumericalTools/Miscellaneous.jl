@@ -149,6 +149,29 @@ InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Ma
 InnerProductV(Mat::Diagonal, Y::AbstractVector) = @tullio Res := Mat.diag[j] * Y[j]^2
 
 
+"""
+    InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T}) -> T
+Computes ``|| Mat * Y ||^2``, i.e. ``Y^t \\, * (Mat^t * Mat) * Y``.
+"""
+function InnerProductChol(Mat::UpperTriangular, Y::AbstractVector{T})::T where T <: Number
+    @assert size(Mat,2) == length(Y)
+    Res = zero(T);    temp = zero(T);    n = size(Mat,2)
+    @inbounds for i in 1:n
+        temp = dot(view(Mat,i,i:n), view(Y,i:n))
+        Res += temp^2
+    end;    Res
+end
+function InnerProductChol(Mat::Diagonal, Y::AbstractVector{T})::T where T <: Number
+    @assert length(Mat.diag) == length(Y)
+    # sum(abs2, Mat.diag .* Y)
+    sum((Mat.diag .* Y).^2) # faster for differentiation
+end
+function InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T})::T where T <: Number
+    @assert size(Mat,1) == size(Mat,2) == length(Y)
+    sum(abs2, Mat*Y)
+end
+
+
 import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) ≈ xdata(DS2) && ydata(DS1) ≈ ydata(DS2) && yInvCov(DS1) ≈ yInvCov(DS2)
 ==(DS1::DataSetExact, DS2::DataSet) = DS2 ≈ DS1

@@ -474,27 +474,26 @@ end
 
 XCube(DS::AbstractDataSet; Padding::Number=0.) = ConstructCube(Unpack(WoundX(DS)); Padding=Padding)
 XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Padding)
-Grid(Cube::HyperCube, N::Int=5) = [range(Cube.L[i], Cube.U[i]; length=N) for i in 1:length(Cube)]
 
 
-
-function PlotConfidenceBands(DM::AbstractDataModel, M::AbstractMatrix{<:Number}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing;
-                                        Confnum::Real=-1)
+PlotConfidenceBands(DM, M, args...; kwargs...) = PlotConfidenceBands(M, (xdim(DM), ydim(DM)), args...; kwargs...)
+function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing; Confnum::Real=-1, kwargs...)
+    @assert size(M,2) == InOut[1] + 2InOut[2]
     lab = 0 < Confnum ? "$(round(Confnum; sigdigits=2))σ " : ""
     if size(M,2) == 3
-        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey])) |> display
+        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey]), kwargs...) |> display
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
-        @assert xdim(DM) == 1 && size(M,2) == 1 + 2ydim(DM)
+        @assert InOut[1] == 1
         if xpositions isa Nothing
             for i in 1:(size(M,1)-1)
                 RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...) |> display
         elseif length(xpositions) == (size(M,2)-1) / 2
             for i in 1:(size(M,1)-1)
                 RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"]) |> display
+            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...) |> display
         else
             throw("Vector of xpositions wrong length.")
         end
@@ -605,6 +604,63 @@ end
 
 
 """
+    PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
+Propagate uncertainty through function `F`.
+"""
+function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
+    InOut = (length(woundX[1]), length(F(woundX[1], sol.u[1])))
+    M = Matrix{Float64}(undef, length(woundX), InOut[1]+2InOut[2])
+    Xmat = view(M, :, 1:InOut[1])
+    @inbounds for line in 1:length(woundX)
+        Xmat[line, :] .= woundX[line]
+    end
+    Res = view(M, :, 1+InOut[1]:size(M,2))
+    for i in 1:size(Res, 2)
+        fill!(view(Res,:,i), (isodd(i) ? Inf : -Inf))
+    end
+    InOut[2] > 1 && @warn "Propagating uncertainty component-wise, instead of via proper union."
+    SingleOut = Val(InOut[2])
+    @inbounds for t in range(sol.t[1], sol.t[end]; length=samples)
+        _PropagateUncertainty(Res, F, woundX, sol(t), SingleOut)
+    end
+    plot && PlotConfidenceBands(M, InOut; Confnum=Confnum, kwargs...)
+    M
+end
+function _PropagateUncertainty(Res::AbstractMatrix, F::Function, woundX::AbstractVector, point::AbstractVector{<:Number}, SingleOut::Val{1}; kwargs...)
+    @assert size(Res,2) == 2
+    @inbounds for row in 1:size(Res,1)
+        output = F(woundX[row], point)
+        output < Res[row, 1] && (Res[row, 1] = output)
+        output > Res[row, 2] && (Res[row, 2] = output)
+    end
+end
+
+# Componentwise bands
+function _PropagateUncertainty(Res::AbstractMatrix, F::Function, woundX::AbstractVector, point::AbstractVector{<:Number}, SingleOut::Val{N}; kwargs...) where N
+    for row in 1:size(Res,1)
+        output = F(woundX[row], point)
+        for i in 1:N
+            output[i] < Res[row, 1 + (i-1)*2] && (Res[row, 1 + (i-1)*2] = output[i])
+            output[i] > Res[row, 2i] && (Res[row, 2i] = output[i])
+        end
+    end
+end
+
+
+# For vector-valued F
+_PropagateUncertainty(Res::AbstractMatrix, F::Function, point::AbstractVector{<:Number}, SingleOut::Val{1}) = UnionInto!(Res, F(point))
+
+# 1D output to [min max] Matrix
+function UnionInto!(Res::AbstractMatrix, output::AbstractVector{<:Number})
+    @assert size(Res,1) == length(output) && size(Res,2) == 2
+    @inbounds for row in 1:size(Res, 1)
+        output[row] < Res[row, 1] && (Res[row, 1] = output[row])
+        output[row] > Res[row, 2] && (Res[row, 2] = output[row])
+    end
+end
+
+"""
+    ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
 Computes width of confidence bands.
 """
 function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)

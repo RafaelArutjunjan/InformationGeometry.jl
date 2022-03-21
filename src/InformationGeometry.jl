@@ -220,6 +220,7 @@ include("Plotting.jl")
 export PlotFit, ResidualPlot, PlotScalar, PlotLogLikelihood, Plot2DVF, ResidualStandardError, PlotEllipses
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix
+export XCube, PropagateUncertainty
 export EvaluateAlongGeodesic, PlotAlongGeodesic, EvaluateAlongCurve, PlotAlongCurve, PhaseSpacePlot
 # export RectangularFacetIndices, RectToTriangFacets, CreateMesh, ToObj, WriteObj
 
