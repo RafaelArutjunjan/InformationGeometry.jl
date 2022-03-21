@@ -383,7 +383,7 @@ function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:N
 end
 
 
-
+## Transform dependent and independent variables of model
 
 # in-place
 EmbedModelXin(model::Function, Emb::Function) = XEmbeddedModel(y, x, θ::AbstractVector; kwargs...) = model(y, Emb(x), θ; kwargs...)
@@ -398,18 +398,35 @@ EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedMod
 EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """
+    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform")
+Returns a modified `DataModel` where the x-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
+`iEmb` denotes the inverse of `Emb`.
+"""
+function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform"; xnames=Name*"(".*xnames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+    @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
+    NewX = Reduction(map(Emb, WoundX(DM)))
+    if sum(abs, xsigma(DM)) == 0
+        DataModel(typeof(Data(DM))(NewX, ydata(DM), ysigma(DM), dims(DM); xnames=xnames, ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+    else
+        @assert xsigma(DM) isa AbstractVector
+        EmbJac = xdim(DM) > 1 ? GetJac(ADmode, Emb, xdim(DM)) : GetDeriv(ADmode, Emb)
+        NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DM), Windup(xsigma(DM), xdim(DM))) # |> Reduction
+        DataModel(typeof(Data(DM))(NewX, NewXsigma, ydata(DM), ysigma(DM), dims(DM); xnames=xnames, ynames=ynames(DM)),
+                        EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+    end
+end
+
+
+"""
     LogXdata(DM::DataModel)
 Returns a modified `DataModel` where the x-variables have been logarithmized both in the data as well as for the model.
 """
-function LogXdata(DM::AbstractDataModel)
-    if sum(abs, xsigma(DM)) == 0
-        DataModel(typeof(Data(DM))(log.(xdata(DM)), ydata(DM), ysigma(DM), dims(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), EmbedModelX(dPredictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), MLE(DM))
-    else
-        DataModel(typeof(Data(DM))(log.(xdata(DM)), inv.(xdata(DM)).*xsigma(DM), ydata(DM), ysigma(DM), dims(DM); xnames="log(".*xnames(DM).*")", ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), EmbedModelX(dPredictor(DM),(xdim(DM) > 1 ? x->exp.(x) : exp)), MLE(DM))
-    end
-end
+LogXdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(log,x), x->broadcast(exp,x), "log"; kwargs...)
+Log10Xdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(log10,x), x->broadcast(exp10,x), "log10"; kwargs...)
+ExpXdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(exp,x), x->broadcast(log,x), "exp"; kwargs...)
+Exp10Xdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(exp10,x), x->broadcast(log10,x), "exp10"; kwargs...)
+
 
 
 # in-place
@@ -427,22 +444,38 @@ EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
 
 # Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
 """
+    TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform")
+Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
+"""
+function TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform"; ynames=Name*"(".*ynames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+    @assert ysigma(DM) isa AbstractVector
+    NewY = Reduction(map(Emb, WoundY(DM)));    EmbJac = ydim(DM) > 1 ? GetJac(ADmode, Emb, ydim(DM)) : GetDeriv(ADmode, Emb)
+    NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DM), Windup(ysigma(DM), ydim(DM))) # |> Reduction
+    if sum(abs, xsigma(DM)) == 0
+        DataModel(typeof(Data(DM))(xdata(DM), NewY, NewYsigma, dims(DM); xnames=xnames(DM), ynames=ynames),
+                        EmbedModelY(Predictor(DM), Emb), MLE(DM))
+    else
+        DataModel(typeof(Data(DM))(xdata(DM), xsigma(DM), NewY, NewYsigma, dims(DM); xnames=xnames(DM), ynames=ynames),
+                        EmbedModelY(Predictor(DM), Emb), MLE(DM))
+    end
+end
+# Drop iEmb
+TransformYdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, args...; kwargs...) = TransformYdata(DM, Emb, args...; kwargs...)
+
+
+"""
     LogYdata(DM::DataModel)
 Returns a modified `DataModel` where the y-variables have been logarithmized both in the data as well as for the model.
 """
-function LogYdata(DM::AbstractDataModel)
-    if sum(abs, xsigma(DM)) == 0
-        DataModel(typeof(Data(DM))(xdata(DM), log.(ydata(DM)), inv.(ydata(DM)).*ysigma(DM), dims(DM); xnames=xnames(DM), ynames="log(".*ynames(DM).*")"),
-                        EmbedModelY(Predictor(DM),(ydim(DM) > 1 ? y->log.(y) : log)), MLE(DM))
-    else
-        DataModel(typeof(Data(DM))(xdata(DM), xsigma(DM), log.(ydata(DM)), inv.(ydata(DM)).*ysigma(DM), dims(DM); xnames=xnames(DM), ynames="log(".*ynames(DM).*")"),
-                        EmbedModelY(Predictor(DM),(ydim(DM) > 1 ? y->log.(y) : log)), MLE(DM))
-    end
-end
+LogYdata(DM; kwargs...) = TransformYdata(DM, x->broadcast(log,x), "log")
+Log10Ydata(DM; kwargs...) = TransformYdata(DM, x->broadcast(log10,x), "log10")
+ExpYdata(DM; kwargs...) = TransformYdata(DM, x->broadcast(exp,x), "exp")
+Exp10Ydata(DM; kwargs...) = TransformYdata(DM, x->broadcast(exp10,x), "exp10")
 
 
 
 
+# Parameter transforms
 ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
 LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
 Exp10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
