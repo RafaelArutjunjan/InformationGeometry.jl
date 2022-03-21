@@ -18,7 +18,7 @@ In effect, this allows one to pin an input component at a specific value.
 """
 function ValInserter(Component::Int, Value::AbstractFloat)
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
-    ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(copy(P), Component, Value)
+    ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
 end
 
 # https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
@@ -45,8 +45,8 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
             end;    Res
         end
         function ValInsertionEmbedding(P::Union{SVector,MVector})
-            Res = copy(P)
-            for i in eachindex(components)
+            Res = insert(P, components[1], values[1])
+            for i in 2:length(components)
                 Res = insert(Res, components[i], values[i])
             end;    Res
         end
@@ -108,7 +108,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     ps = DomainSamples(dom; N=N)
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
-    Res = Vector{Float64}(undef, N)
+    Res = fill(-Inf, N)
     path = SaveTrajectories ? Vector{Vector{Float64}}(undef, N) : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Res = map(x->loglikelihood(DM, [x]), ps)
@@ -123,7 +123,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
-    Logmax != LogLikeMLE(DM) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
+    !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Res = map(x->InvConfVol.(ChisqCDF.(dof, 2(Logmax - x))), Res)
 
@@ -212,7 +212,7 @@ Constructs `HyperCube` which bounds the confidence region associated with the co
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
     ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
 end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e5)
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10)
     domains = map(F->(F.t[1], F.t[end]), Fs)
     crossings = [find_zeros(x->(Fs[i](x)-Confnum), domains[i][1], domains[i][2]) for i in 1:length(Fs)]
     for i in 1:length(crossings)
@@ -243,10 +243,10 @@ PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true,
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
-        finitevals = isfinite.(M[:,2])
+        finitevals = isfinite.(view(M,:,2))
         V = M[finitevals, 2]
         split = findmin(V)[2]
-        min(maximum(V[1:split]), maximum(V[split:end]))
+        min(maximum(view(V,1:split)), maximum(view(V,split:length(V))))
     end
     minimum([Minimax(M) for M in Mats])
 end
@@ -260,6 +260,10 @@ struct ParameterProfile <: AbstractProfile
     Names::AbstractVector{<:String}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
+    function ParameterProfile(DM::AbstractDataModel, Confnum::Real=2; SaveTrajectories::Bool=false, kwargs...)
+        Profs = ProfileLikelihood(DM, Confnum; SaveTrajectories=SaveTrajectories, kwargs...)
+        SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2)) : ParameterProfile(DM, Profs)
+    end
     function ParameterProfile(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=pnames(DM); IsCost::Bool=false)
         ParameterProfile(Profiles, Trajectories, Names, MLE(DM), IsCost)
     end
@@ -271,13 +275,14 @@ struct ParameterProfile <: AbstractProfile
         new(Profiles, Trajectories, Names, mle, IsCost)
     end
 end
-(P::ParameterProfile)(t::Real, ind::Int) = Interpolate(P,i)(t)
-Interpolate(P::ParameterProfile, i::Int) = CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
-Interpolate(P::ParameterProfile) = [CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1)) for i in 1:length(Profiles(P))]
+(P::ParameterProfile)(t::Real, i::Int) = InterpolatedProfiles(P,i)(t)
+(P::ParameterProfile)(i::Int) = InterpolatedProfiles(P,i)
+InterpolatedProfiles(P::ParameterProfile, i::Int) = CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
+InterpolatedProfiles(P::ParameterProfile) = [CubicSpline(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
 
 Profiles(P::ParameterProfile) = P.Profiles
 Trajectories(P::ParameterProfile) = P.Trajectories
-names(P::ParameterProfile) = P.Names
+pnames(P::ParameterProfile) = P.Names
 MLE(P::ParameterProfile) = P.mle
 IsCost(P::ParameterProfile) = P.IsCost
 
@@ -287,50 +292,54 @@ Base.lastindex(P::ParameterProfile) = Profiles(P) |> lastindex
 Base.getindex(P::ParameterProfile, ind) = getindex(Profiles(P), ind)
 
 
+ProfileBox(P::ParameterProfile, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; kwargs...)
+ProfileBox(DM::AbstractDataModel, P::ParameterProfile, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
+
+
 @recipe f(P::ParameterProfile) = P, Val(all(!isnothing, Trajectories(P)))
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{true})
-    @assert length(names(P)) ≤ 3
-    layout := length(names(P)) + 1
+    @assert length(pnames(P)) ≤ 3
+    layout := length(pnames(P)) + 1
     @series P, Val(false)
-    label --> (M=Matrix{String}(undef,1,length(names(P))); for i in 1:length(names(P)) M[1,i]="Comp $i" end; M)
-    for i in 1:length(names(P))
+    label --> reshape(["Comp $i" for i in 1:length(pnames(P))], 1, :)
+    for i in 1:length(pnames(P))
         @series begin
-            subplot := length(names(P)) + 1
-            Trajectries(P)[i]
+            subplot := length(pnames(P)) + 1
+            Trajectories(P)[i]
         end
     end
     @series begin
         label := "MLE"
-        xguide --> names(P)[1]
-        yguide --> names(P)[2]
-        if length(names(P)) == 3
-            zguide --> names(P)[3]
+        xguide --> pnames(P)[1]
+        yguide --> pnames(P)[2]
+        if length(pnames(P)) == 3
+            zguide --> pnames(P)[3]
         end
-        subplot := length(names(P)) + 1
+        subplot := length(pnames(P)) + 1
         [MLE(P)]
     end
 end
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{false})
-    layout := length(names(P))
-    for i in 1:length(names(P))
+    layout := length(pnames(P))
+    for i in 1:length(pnames(P))
         @series begin
             legend --> nothing
-            xguide --> names(P)[i]
+            xguide --> pnames(P)[i]
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             subplot := i
-            view(Profiles(P)[i], :,1), view(Profiles(P)[i], :,2)
+            view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,2)
         end
         ## Mark MLE in profiles
         @series begin
             subplot := i
             legend --> nothing
-            xguide --> names(P)[i]
+            xguide --> pnames(P)[i]
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             seriescolor --> :red
             marker --> :hex
             markersize --> 3
             markerstrokewidth --> 0
-            [MLE(P)[i]], [Interpolate(P,1)(MLE(P)[1])]
+            [MLE(P)[i]], [P(MLE(P)[1],1)]
         end
     end
 end
