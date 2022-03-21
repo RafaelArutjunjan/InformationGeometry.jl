@@ -878,7 +878,7 @@ function RectToTriangFaces(M::AbstractMatrix{<:Int})
     end;    G
 end
 """
-    CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true) -> (Matrix{Float64}, Matrix{Int64})
+    CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=true) -> (Matrix{Float64}, Matrix{Int64})
 Returns a N×3 matrix whose rows correspond to the coordinates of various points in 3D space as the first argument.
 The second Matrix is either N×4 or N×3 depending on the value of `rectangular` and enumerates the points which are to be connected up to a rectangular or triangular face in counter-clockwise fashion. The indices of the points correspond to the lines in the first Matrix.
 """

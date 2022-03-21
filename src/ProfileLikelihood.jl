@@ -272,55 +272,65 @@ struct ParameterProfile <: AbstractProfile
     end
 end
 (P::ParameterProfile)(t::Real, ind::Int) = Interpolate(P,i)(t)
-Interpolate(P::ParameterProfile, i::Int) = CubicSpline(view(P.Profiles[i],:,2), view(P.Profiles[i],:,1))
-Interpolate(P::ParameterProfile) = [CubicSpline(view(P.Profiles[i],:,2), view(P.Profiles[i],:,1)) for i in 1:length(P.Profiles)]
+Interpolate(P::ParameterProfile, i::Int) = CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
+Interpolate(P::ParameterProfile) = [CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1)) for i in 1:length(Profiles(P))]
+
+Profiles(P::ParameterProfile) = P.Profiles
+Trajectories(P::ParameterProfile) = P.Trajectories
+names(P::ParameterProfile) = P.Names
+MLE(P::ParameterProfile) = P.mle
+IsCost(P::ParameterProfile) = P.IsCost
+
+Base.length(P::ParameterProfile) = Profiles(P) |> length
+Base.firstindex(P::ParameterProfile) = Profiles(P) |> firstindex
+Base.lastindex(P::ParameterProfile) = Profiles(P) |> lastindex
+Base.getindex(P::ParameterProfile, ind) = getindex(Profiles(P), ind)
 
 
-
-@recipe f(P::ParameterProfile) = P, Val(all(!isnothing, P.Trajectories))
+@recipe f(P::ParameterProfile) = P, Val(all(!isnothing, Trajectories(P)))
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{true})
-    @assert length(P.Names) ≤ 3
-    layout := length(P.Names) + 1
+    @assert length(names(P)) ≤ 3
+    layout := length(names(P)) + 1
     @series P, Val(false)
-    label --> (M=Matrix{String}(undef,1,length(P.Names)); for i in 1:length(P.Names) M[1,i]="Comp $i" end; M)
-    for i in 1:length(P.Names)
+    label --> (M=Matrix{String}(undef,1,length(names(P))); for i in 1:length(names(P)) M[1,i]="Comp $i" end; M)
+    for i in 1:length(names(P))
         @series begin
-            subplot := length(P.Names) + 1
-            P.Trajectories[i]
+            subplot := length(names(P)) + 1
+            Trajectries(P)[i]
         end
     end
     @series begin
         label := "MLE"
-        xguide --> P.Names[1]
-        yguide --> P.Names[2]
-        if length(P.Names) == 3
-            zguide --> P.Names[3]
+        xguide --> names(P)[1]
+        yguide --> names(P)[2]
+        if length(names(P)) == 3
+            zguide --> names(P)[3]
         end
-        subplot := length(P.Names) + 1
-        [P.mle]
+        subplot := length(names(P)) + 1
+        [MLE(P)]
     end
 end
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{false})
-    layout := length(P.Names)
-    for i in 1:length(P.Names)
+    layout := length(names(P))
+    for i in 1:length(names(P))
         @series begin
             legend --> nothing
-            xguide --> P.Names[i]
-            yguide --> (P.IsCost ? "Cost Function" : "Conf. level [σ]")
+            xguide --> names(P)[i]
+            yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             subplot := i
-            view(P.Profiles[i], :,1), view(P.Profiles[i], :,2)
+            view(Profiles(P)[i], :,1), view(Profiles(P)[i], :,2)
         end
         ## Mark MLE in profiles
         @series begin
             subplot := i
             legend --> nothing
-            xguide --> P.Names[i]
-            yguide --> (P.IsCost ? "Cost Function" : "Conf. level [σ]")
+            xguide --> names(P)[i]
+            yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             seriescolor --> :red
             marker --> :hex
             markersize --> 3
             markerstrokewidth --> 0
-            [P.mle[i]], [Interpolate(P,1)(P.mle[1])]
+            [MLE(P)[i]], [Interpolate(P,1)(MLE(P)[1])]
         end
     end
 end
