@@ -34,25 +34,24 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
     isinplacemodel(M) ? (Res=Vector{Num}(undef,length(Y));  KillAfter(M.Map, Res, X, θ; timeout=timeout); Res) : KillAfter(M.Map, X, θ; timeout=timeout)
 end
 
+SymbolicModelExpr(DM::AbstractDataModel) = @suppress_err ToExpr(DM)
 function SymbolicModel(DM::AbstractDataModel)
-    expr = @suppress_err ToExpr(DM)
+    expr = SymbolicModelExpr(DM)
     isnothing(expr) ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
 end
 
-function SymbolicdModel(DM::AbstractDataModel)
+function SymbolicdModelExpr(DM::AbstractDataModel)
+    X, Y, θ = SymbolicArguments(DM)
     if !GeneratedFromSymbolic(dPredictor(DM))
         @warn "Given Model jacobian not symbolic. Trying to apply OptimizedDM() first."
         odm = OptimizedDM(DM)
-        if isnothing(ToExpr(odm))
-            return "Unable to represent given jacobian symbolically."
-        else
-            X, Y, θ = SymbolicArguments(odm)
-            return "(∂y/∂θ)(x,θ) = $(dPredictor(odm)(X, θ))"
-        end
-    else
-        X, Y, θ = SymbolicArguments(DM)
-        return "(∂y/∂θ)(x,θ) = $(dPredictor(DM)(X, θ))"
+        return isnothing(ToExpr(odm)) ? nothing : dPredictor(odm)(X, θ)
     end
+    dPredictor(DM)(X, θ)
+end
+function SymbolicdModel(DM::AbstractDataModel)
+    expr = SymbolicdModelExpr(DM)
+    isnothing(expr) ? "Unable to represent given model symbolically." : "(∂y/∂θ)(x,θ) = $expr"
 end
 
 # mixing inplace (outcome) with isinplace (input) here. Disambiguate!
