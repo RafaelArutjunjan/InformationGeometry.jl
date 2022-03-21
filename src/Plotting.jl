@@ -604,10 +604,10 @@ end
 
 
 """
-    PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
+    PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=true, kwargs...)
 Propagate uncertainty through function `F`.
 """
-function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
+function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
     InOut = (length(woundX[1]), length(F(woundX[1], sol.u[1])))
     M = Matrix{Float64}(undef, length(woundX), InOut[1]+2InOut[2])
     Xmat = view(M, :, 1:InOut[1])
@@ -626,6 +626,11 @@ function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::Abstract
     plot && PlotConfidenceBands(M, InOut; Confnum=Confnum, kwargs...)
     M
 end
+function PropagateUncertainty(DM::AbstractDataModel, F::Function, woundX::AbstractVector, sol::AbstractODESolution; kwargs...)
+    PropagateUncertainty(F, woundX, sol, MLE(DM); Confum=GetConfnum(DM, sol), kwargs...)
+end
+
+
 function _PropagateUncertainty(Res::AbstractMatrix, F::Function, woundX::AbstractVector, point::AbstractVector{<:Number}, SingleOut::Val{1}; kwargs...)
     @assert size(Res,2) == 2
     @inbounds for row in 1:size(Res,1)

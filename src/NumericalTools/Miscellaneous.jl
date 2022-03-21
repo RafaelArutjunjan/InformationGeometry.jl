@@ -174,7 +174,7 @@ end
 
 import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) ≈ xdata(DS2) && ydata(DS1) ≈ ydata(DS2) && yInvCov(DS1) ≈ yInvCov(DS2)
-==(DS1::DataSetExact, DS2::DataSet) = DS2 ≈ DS1
+==(DS1::DataSetExact, DS2::DataSet) = DS2 == DS1
 function ==(DS1::DataSet, DS2::DataSetExact)
     if !(xdist(DS2) isa InformationGeometry.Dirac && ydist(DS2) isa MvNormal)
         return false
@@ -184,7 +184,7 @@ function ==(DS1::DataSet, DS2::DataSetExact)
         false
     end
 end
-==(DS1::AbstractDataSet, DS2::AbstractDataSet) = xdist(DS1) == xdist(DS2) && ydist(DS1) == ydist(DS2)
+==(DS1::AbstractDataSet, DS2::AbstractDataSet) = xdist(DS1) ≈ xdist(DS2) && ydist(DS1) ≈ ydist(DS2)
 
 
 function ==(DM1::AbstractDataModel, DM2::AbstractDataModel)

@@ -398,34 +398,39 @@ EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedMod
 EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """
-    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform")
+    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform") -> AbstractDataModel
+    TransformXdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform") -> AbstractDataSet
 Returns a modified `DataModel` where the x-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 `iEmb` denotes the inverse of `Emb`.
 """
-function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform"; xnames=Name*"(".*xnames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform"; kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
-    NewX = Reduction(map(Emb, WoundX(DM)))
-    if sum(abs, xsigma(DM)) == 0
-        DataModel(typeof(Data(DM))(NewX, ydata(DM), ysigma(DM), dims(DM); xnames=xnames, ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+    DataModel(TransformXdata(Data(DM), Emb, Name; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+end
+function TransformXdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform"; xnames=Name*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+    NewX = Reduction(map(Emb, WoundX(DS)))
+    if sum(abs, xsigma(DS)) == 0
+        typeof(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS))
     else
-        @assert xsigma(DM) isa AbstractVector
-        EmbJac = xdim(DM) > 1 ? GetJac(ADmode, Emb, xdim(DM)) : GetDeriv(ADmode, Emb)
-        NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DM), Windup(xsigma(DM), xdim(DM))) # |> Reduction
-        DataModel(typeof(Data(DM))(NewX, NewXsigma, ydata(DM), ysigma(DM), dims(DM); xnames=xnames, ynames=ynames(DM)),
-                        EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+        @assert xsigma(DS) isa AbstractVector
+        EmbJac = xdim(DS) > 1 ? GetJac(ADmode, Emb, xdim(DS)) : GetDeriv(ADmode, Emb)
+        NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DS), Windup(xsigma(DS), xdim(DS))) # |> Reduction
+        typeof(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS))
     end
 end
+# Drop iEmb
+TransformXdata(DS::AbstractDataSet, Emb::Function, iEmb::Function, args...; kwargs...) = TransformXdata(DS, Emb, args...; kwargs...)
 
 
 """
-    LogXdata(DM::DataModel)
+    LogXdata(DM::AbstractDataModel)
+    LogXdata(DS::AbstractDataSet)
 Returns a modified `DataModel` where the x-variables have been logarithmized both in the data as well as for the model.
 """
-LogXdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(log,x), x->broadcast(exp,x), "log"; kwargs...)
-Log10Xdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(log10,x), x->broadcast(exp10,x), "log10"; kwargs...)
-ExpXdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(exp,x), x->broadcast(log,x), "exp"; kwargs...)
-Exp10Xdata(DM::AbstractDataModel; kwargs...) = TransformXdata(DM, x->broadcast(exp10,x), x->broadcast(log10,x), "exp10"; kwargs...)
+LogXdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(log,x), x->broadcast(exp,x), "log"; kwargs...)
+Log10Xdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(log10,x), x->broadcast(exp10,x), "log10"; kwargs...)
+ExpXdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(exp,x), x->broadcast(log,x), "exp"; kwargs...)
+Exp10Xdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(exp10,x), x->broadcast(log10,x), "exp10"; kwargs...)
 
 
 
@@ -444,33 +449,34 @@ EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
 
 # Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
 """
-    TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform")
+    TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform") -> AbstractDataModel
+    TransformYdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform") -> AbstractDataSet
 Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
 """
-function TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform"; ynames=Name*"(".*ynames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
-    @assert ysigma(DM) isa AbstractVector
-    NewY = Reduction(map(Emb, WoundY(DM)));    EmbJac = ydim(DM) > 1 ? GetJac(ADmode, Emb, ydim(DM)) : GetDeriv(ADmode, Emb)
-    NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DM), Windup(ysigma(DM), ydim(DM))) # |> Reduction
-    if sum(abs, xsigma(DM)) == 0
-        DataModel(typeof(Data(DM))(xdata(DM), NewY, NewYsigma, dims(DM); xnames=xnames(DM), ynames=ynames),
-                        EmbedModelY(Predictor(DM), Emb), MLE(DM))
+function TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform"; kwargs...)
+    DataModel(TransformYdata(Data(DM), Emb, Name; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
+end
+function TransformYdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform"; ynames=Name*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+    @assert ysigma(DS) isa AbstractVector
+    NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
+    NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction
+    if sum(abs, xsigma(DS)) == 0
+        typeof(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames)
     else
-        DataModel(typeof(Data(DM))(xdata(DM), xsigma(DM), NewY, NewYsigma, dims(DM); xnames=xnames(DM), ynames=ynames),
-                        EmbedModelY(Predictor(DM), Emb), MLE(DM))
+        typeof(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames)
     end
 end
-# Drop iEmb
-TransformYdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, args...; kwargs...) = TransformYdata(DM, Emb, args...; kwargs...)
 
 
 """
-    LogYdata(DM::DataModel)
+    LogYdata(DM::AbstractDataModel)
+    LogYdata(DS::AbstractDataSet)
 Returns a modified `DataModel` where the y-variables have been logarithmized both in the data as well as for the model.
 """
-LogYdata(DM; kwargs...) = TransformYdata(DM, x->broadcast(log,x), "log")
-Log10Ydata(DM; kwargs...) = TransformYdata(DM, x->broadcast(log10,x), "log10")
-ExpYdata(DM; kwargs...) = TransformYdata(DM, x->broadcast(exp,x), "exp")
-Exp10Ydata(DM; kwargs...) = TransformYdata(DM, x->broadcast(exp10,x), "exp10")
+LogYdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(log,x), "log")
+Log10Ydata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(log10,x), "log10")
+ExpYdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(exp,x), "exp")
+Exp10Ydata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(exp10,x), "exp10")
 
 
 

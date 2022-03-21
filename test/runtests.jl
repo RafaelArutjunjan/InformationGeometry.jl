@@ -124,6 +124,7 @@ end
 @safetestset "Model Transformations" begin
     using InformationGeometry, Test
 
+    ## Parameter Transforms
     PiDM = DataModel(DataSet([0,1], [0.5π,1.5π], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]-1, HyperCube([[0,5]])))
     @test !IsInDomain(Predictor(PiDM), [0.9]) && IsInDomain(Predictor(PiDM), [1.1])
 
@@ -135,8 +136,20 @@ end
     PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
     @test !IsInDomain(Predictor(PiDM3), exp.([1])-[0.1]) && IsInDomain(Predictor(PiDM3), exp.([1])+[0.1])
 
-    DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
-    @test FisherMetric(LinearDecorrelation(DataModel(DS, (x,θ)->θ[1] * x + θ[2])), zeros(2)) ≈ [1 0; 0 1]
+    DS = DataSet([0.1,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
+    DM = DataModel(DS, LinearModel)
+    @test FisherMetric(LinearDecorrelation(DM), zeros(2)) ≈ [1 0; 0 1]
+
+    ## Input-Output Transforms
+    DME = DataModel(DataSetExact(DS, 0.3ones(length(xdata(DS)))), LinearModel)
+
+    @test ysigma(LogYdata(DM)) ≈ inv.(ydata(DM)) .* ysigma(DM)
+    @test xsigma(LogXdata(DME)) ≈ inv.(xdata(DME)) .* xsigma(DME)
+
+    @test MLE(LogXdata(DM)) ≈ MLE(DM)
+
+    @test (Log10Xdata∘Exp10Xdata)(DME) == DME
+    @test (LogYdata∘ExpYdata)(DME) == DME
 
     # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))
     # TranstrumDM = DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]), TranstrumModel)
