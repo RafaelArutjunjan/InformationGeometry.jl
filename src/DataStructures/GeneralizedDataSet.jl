@@ -37,10 +37,10 @@ struct GeneralizedDataSet <: AbstractDataSet
         GeneralizedDataSet(dist, dims, WoundX; kwargs...)
     end
     function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing};
-                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
+                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}=Symbol(), kwargs...)
         GeneralizedDataSet(dist, dims, WoundX, xnames, ynames, name; kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
         @assert Npoints(dims) > 0 && xdim(dims) ≥ 0 && ydim(dims) > 0
         @assert xdim(dims) == length(xnames) && ydim(dims) == length(ynames)
         @assert (WoundX isa AbstractVector ? (ConsistentElDims(WoundX) == xdim(dims)) : (xdim(dims) < 2))
@@ -62,7 +62,7 @@ begin
     WoundX::Union{AbstractVector,Nothing}=nothing,
     xnames::AbstractVector{String}=String[],
     ynames::AbstractVector{String}=["y"],
-    name::Union{String,Symbol}="") = GeneralizedDataSet(dist, dims, WoundX, xnames, ynames, name)
+    name::Union{String,Symbol}=Symbol()) = GeneralizedDataSet(dist, dims, WoundX, xnames, ynames, name)
 end
 
 

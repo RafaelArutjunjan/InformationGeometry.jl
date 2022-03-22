@@ -149,6 +149,8 @@ InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Ma
 InnerProductV(Mat::Diagonal, Y::AbstractVector) = @tullio Res := Mat.diag[j] * Y[j]^2
 
 
+
+# Does not hit BLAS, sadly
 """
     InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T}) -> T
 Computes ``|| Mat * Y ||^2``, i.e. ``Y^t \\, * (Mat^t * Mat) * Y``.

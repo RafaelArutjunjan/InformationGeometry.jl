@@ -111,7 +111,7 @@ struct CompositeDataSet <: AbstractDataSet
         InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
         CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)); kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{String,Symbol}="", kwargs...)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{String,Symbol}=Symbol(), kwargs...)
         CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
     end
     function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{String,Symbol})
@@ -137,7 +137,7 @@ InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
 SharedYdim::Val=Val(true),
-name::Union{String,Symbol}="") = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
+name::Union{String,Symbol}=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs

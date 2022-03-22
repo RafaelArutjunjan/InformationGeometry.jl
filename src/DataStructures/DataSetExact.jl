@@ -76,12 +76,12 @@ struct DataSetExact <: AbstractDataSet
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
-                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
+                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), name::Union{String,Symbol}=Symbol(), kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                            xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
+                            xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
         new(xd, yd, dims, InvCov, WoundX, xnames, ynames, Name)
     end
 end
@@ -96,7 +96,7 @@ InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
 WoundX::Union{AbstractVector,Nothing}=nothing,
 xnames::AbstractVector{String}=["x"],
 ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}="") = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
+name::Union{String,Symbol}=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
 
 
 # Conversion to DataSet

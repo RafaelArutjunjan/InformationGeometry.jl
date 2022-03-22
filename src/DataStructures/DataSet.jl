@@ -82,12 +82,12 @@ struct DataSet <: AbstractDataSet
         end
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing};
-                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
+                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}=Symbol(), kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
         new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, Name)
     end
 end
@@ -102,7 +102,7 @@ logdetInvCov::Real=-Inf,
 WoundX::Union{AbstractVector,Nothing}=nothing,
 xnames::AbstractVector{String}=["x"],
 ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}="") = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
+name::Union{String,Symbol}=Symbol()) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
 
 # Specialized methods for DataSet
 dims(DS::DataSet) = DS.dims
