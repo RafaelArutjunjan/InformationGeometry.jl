@@ -65,6 +65,15 @@ ProfileDPredictor(DM::AbstractDataModel, args...) = ProfileDPredictor(dPredictor
 ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comp) : nothing))
 ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comps) : nothing))
 
+"""
+    PinParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat)
+    PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
+Returns `DataModel` where one or more parameters have been pinned to specified values.
+"""
+function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}})
+    @assert length(Components) == length(Values) && length(Components) < pdim(DM)
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values), ProfileDPredictor(DM, Components, Values), Drop(MLE(DM), Components))
+end
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
     widths = try
