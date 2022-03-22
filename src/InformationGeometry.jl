@@ -53,9 +53,10 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 #### Needs Tests
 
 # CompositeDataSet
-# F-Boundaries
-# ExponentialMap and LogarithmicMap
 # Parameter Space and X-Y data transformations
+# F-Boundaries
+# GenerateInterruptedBoundary
+# ExponentialMap and LogarithmicMap
 
 
 #### Cosmetic / Convenience
@@ -78,15 +79,10 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 # Generalize FisherMetric to other error distributions
 
 
-#### Tests to add
-
-# GenerateInterruptedBoundary
-# F-Boundary
-# ......
-
-
 #### Miscellaneous
 
+# Add data transforms to docs
+# Add parameter transform docstrings
 # Add exporting methods and detailed examples to docs
 # Fix FindConfBoundary() and GenerateBoundary() for BigFloat
 # Make user-facing keywords (even) more uniform: tol, meth, Big, OptimMeth...

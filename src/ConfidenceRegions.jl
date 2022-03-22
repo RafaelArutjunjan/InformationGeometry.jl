@@ -9,7 +9,8 @@ likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
 
 ## Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
-loglikelihood(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> loglikelihood(DM, θ; kwargs...)
+loglikelihood(DM::AbstractDataModel; kwargs...) = LogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = loglikelihood(DM, θ; kwargs..., Kwargs...)
+Negloglikelihood(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = -loglikelihood(DM, θ; kwargs..., Kwargs...)
 
 # import Distributions.loglikelihood
 """
@@ -46,8 +47,8 @@ _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Nu
 
 
 
-Score(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> Score(DM, θ; kwargs...)
-NegScore(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> -Score(DM, θ; kwargs...)
+Score(DM::AbstractDataModel; kwargs...) = LogLikelihoodGradient(θ::AbstractVector{<:Number}; Kwargs...) = Score(DM, θ; kwargs..., Kwargs...)
+NegScore(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihoodGradient(θ::AbstractVector{<:Number}; Kwargs...) = -Score(DM, θ; kwargs..., Kwargs...)
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff))
