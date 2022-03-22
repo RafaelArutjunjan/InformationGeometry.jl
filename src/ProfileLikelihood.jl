@@ -134,7 +134,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    Res = map(x->InvConfVol.(ChisqCDF.(dof, 2(Logmax - x))), Res)
+    @inbounds for i in eachindex(Res)
+        Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
+    end
 
     if SaveTrajectories
         for (i,p) in enumerate(ps)
@@ -211,7 +213,7 @@ end
 Interpolates the `Vector{Matrix}` output of ProfileLikelihood() with cubic splines.
 """
 function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix})
-    [CubicSpline(view(profile,:,2), view(profile,:,1)) for profile in Mats]
+    [QuadraticInterpolation(view(profile,:,2), view(profile,:,1)) for profile in Mats]
 end
 
 """
@@ -221,9 +223,17 @@ Constructs `HyperCube` which bounds the confidence region associated with the co
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
     ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
 end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10)
-    domains = map(F->(F.t[1], F.t[end]), Fs)
-    crossings = [find_zeros(x->(Fs[i](x)-Confnum), domains[i][1], domains[i][2]) for i in 1:length(Fs)]
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10, meth::Roots.AbstractUnivariateZeroMethod=Roots.Bisection())
+    crossings = [find_zeros(x->(Fs[i](x)-Confnum), Fs[i].t[1], Fs[i].t[end]) for i in 1:length(Fs)]
+    # crossings = map(F->[F.t[1], F.t[end]], Fs)
+    # for i in 1:length(crossings)
+    #     if any(isfinite, Fs[i].u)
+    #         crossings[i][1] = find_zero(x->abs(Fs[i](x)-Confnum), (Fs[i].t[1], mle[i]), meth)
+    #         crossings[i][2] = find_zero(x->abs(Fs[i](x)-Confnum), (mle[i], Fs[i].t[end]), meth)
+    #     else
+    #         crossings[i] .= SA[-max, max]
+    #     end
+    # end
     for i in 1:length(crossings)
         if length(crossings[i]) == 2
             continue
@@ -234,7 +244,7 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
                 crossings[i] = [crossings[i][1], max]
             end
         else
-            throw("Error for i = $i")
+            throw("Error for i = $i, got $(length(crossings[i])) crossings.")
         end
     end
     HyperCube(minimum.(crossings), maximum.(crossings); Padding=Padding)
@@ -253,6 +263,7 @@ PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true,
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
         finitevals = isfinite.(view(M,:,2))
+        sum(finitevals) == 0 && return Inf
         V = M[finitevals, 2]
         split = findmin(V)[2]
         min(maximum(view(V,1:split)), maximum(view(V,split:length(V))))
@@ -286,8 +297,8 @@ struct ParameterProfile <: AbstractProfile
 end
 (P::ParameterProfile)(t::Real, i::Int) = InterpolatedProfiles(P,i)(t)
 (P::ParameterProfile)(i::Int) = InterpolatedProfiles(P,i)
-InterpolatedProfiles(P::ParameterProfile, i::Int) = CubicSpline(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
-InterpolatedProfiles(P::ParameterProfile) = [CubicSpline(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
+InterpolatedProfiles(P::ParameterProfile, i::Int) = QuadraticInterpolation(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
+InterpolatedProfiles(P::ParameterProfile) = [QuadraticInterpolation(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
 
 Profiles(P::ParameterProfile) = P.Profiles
 Trajectories(P::ParameterProfile) = P.Trajectories
@@ -303,6 +314,8 @@ Base.getindex(P::ParameterProfile, ind) = getindex(Profiles(P), ind)
 
 ProfileBox(P::ParameterProfile, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; kwargs...)
 ProfileBox(DM::AbstractDataModel, P::ParameterProfile, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
+
+PracticallyIdentifiable(P::ParameterProfile) = PracticallyIdentifiable(Profiles(P))
 
 
 @recipe f(P::ParameterProfile) = P, Val(all(!isnothing, Trajectories(P)))
@@ -337,6 +350,7 @@ end
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             subplot := i
             view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,2)
+            # P(i)
         end
         ## Mark MLE in profiles
         @series begin
@@ -351,4 +365,22 @@ end
             [MLE(P)[i]], [P(MLE(P)[1],1)]
         end
     end
+    ## Mark Integer Confidence Levels in Profile
+    ## Rootfinding errors sometimes
+    # if !IsCost(P) && length(1:Int(floor(PracticallyIdentifiable(P)))) > 0
+    #     maxlevel = Int(floor(PracticallyIdentifiable(P)))
+    #     Boxes = map(level->ProfileBox(P, level), 1:maxlevel)
+    #     for i in 1:length(pnames(P))
+    #         for level in 1:maxlevel
+    #             @series begin
+    #                 subplot := i
+    #                 legend --> nothing
+    #                 markeralpha --> 0
+    #                 line --> :dash
+    #                 seriescolor --> :red
+    #                 range(Boxes[level][i]...; length=5), level*ones(5)
+    #             end
+    #         end
+    #     end
+    # end
 end
