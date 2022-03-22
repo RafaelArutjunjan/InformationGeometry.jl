@@ -35,8 +35,9 @@ struct DataSetExact <: AbstractDataSet
     WoundX::Union{AbstractVector,Nothing}
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
-    DataSetExact(DM::AbstractDataModel) = DataSetExact(Data(DM))
-    DataSetExact(DS::DataSet) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS))
+    name::Union{String,Symbol}
+    DataSetExact(DM::AbstractDataModel; kwargs...) = DataSetExact(Data(DM); kwargs...)
+    DataSetExact(DS::DataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...; kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
@@ -55,9 +56,9 @@ struct DataSetExact <: AbstractDataSet
     function DataSetExact(DS::DataSet, Σ_x::AbstractArray; kwargs...)
         Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
-            DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
+            DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
         else
-            DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
+            DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution; kwargs...)
@@ -75,13 +76,13 @@ struct DataSetExact <: AbstractDataSet
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
-                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), kwargs...)
+                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
-        DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames; kwargs...)
+        DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                            xnames::AbstractVector{String}, ynames::AbstractVector{String})
-        new(xd, yd, dims, InvCov, WoundX, xnames, ynames)
+                            xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
+        new(xd, yd, dims, InvCov, WoundX, xnames, ynames, Name)
     end
 end
 
@@ -94,13 +95,14 @@ dims::Tuple{Int,Int,Int}=(1,1,1),
 InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
 WoundX::Union{AbstractVector,Nothing}=nothing,
 xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"]) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames)
+ynames::AbstractVector{String}=["y"],
+name::Union{String,Symbol}="") = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
 
 
 # Conversion to DataSet
 function DataSet(DSE::DataSetExact)
     sum(abs,xsigma(DSE)) > 0 && @warn "Dropping x-uncertainties in conversion to DataSet."
-    DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE))
+    DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE), name=name(DSE))
 end
 
 
@@ -131,6 +133,8 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
 
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
+
+name(DSE::DataSetExact) = DSE.name |> name
 
 # function InformNames(DS::DataSetExact, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)

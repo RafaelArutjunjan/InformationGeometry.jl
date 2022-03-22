@@ -398,24 +398,24 @@ EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedMod
 EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """
-    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform") -> AbstractDataModel
-    TransformXdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform") -> AbstractDataSet
+    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::String="Transform") -> AbstractDataModel
+    TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform") -> AbstractDataSet
 Returns a modified `DataModel` where the x-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 `iEmb` denotes the inverse of `Emb`.
 """
-function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, Name::String="Transform"; kwargs...)
+function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::String="Transform"; kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
-    DataModel(TransformXdata(Data(DM), Emb, Name; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+    DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
 end
-function TransformXdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform"; xnames=Name*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform"; xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
     if sum(abs, xsigma(DS)) == 0
-        typeof(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS))
+        typeof(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     else
         @assert xsigma(DS) isa AbstractVector
         EmbJac = xdim(DS) > 1 ? GetJac(ADmode, Emb, xdim(DS)) : GetDeriv(ADmode, Emb)
         NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DS), Windup(xsigma(DS), xdim(DS))) # |> Reduction
-        typeof(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS))
+        typeof(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     end
 end
 # Drop iEmb
@@ -449,21 +449,21 @@ EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
 
 # Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
 """
-    TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform") -> AbstractDataModel
-    TransformYdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform") -> AbstractDataSet
+    TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::String="Transform") -> AbstractDataModel
+    TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform") -> AbstractDataSet
 Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
 """
-function TransformYdata(DM::AbstractDataModel, Emb::Function, Name::String="Transform"; kwargs...)
-    DataModel(TransformYdata(Data(DM), Emb, Name; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
+function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::String="Transform"; kwargs...)
+    DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
 end
-function TransformYdata(DS::AbstractDataSet, Emb::Function, Name::String="Transform"; ynames=Name*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform"; ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     @assert ysigma(DS) isa AbstractVector
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
     NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction
     if sum(abs, xsigma(DS)) == 0
-        typeof(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames)
+        typeof(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
     else
-        typeof(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames)
+        typeof(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
     end
 end
 

@@ -44,6 +44,7 @@ struct DataSet <: AbstractDataSet
     WoundX::Union{AbstractVector,Nothing}
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
+    name::Union{String,Symbol}
     DataSet(df::DataFrame; kwargs...) = DataSet(Matrix(df); xnames=[names(df)[1]], ynames=[names(df)[1]], kwargs...)
     DataSet(df::AbstractMatrix; kwargs...) = size(df, 2) ≤ 3 ? DataSet(ToCols(df)...; kwargs...) : throw("Unclear dimensions of input $df.")
     function DataSet(Xdf::DataFrame, Ydf::DataFrame, sigma::Union{Real,DataFrame}=1.0, args...; kwargs...)
@@ -81,13 +82,13 @@ struct DataSet <: AbstractDataSet
         end
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing};
-                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
+                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
-        DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames; kwargs...)
+        DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
-        new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
+        new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, Name)
     end
 end
 
@@ -100,7 +101,8 @@ dims::Tuple{Int,Int,Int}=(1,1,1),
 logdetInvCov::Real=-Inf,
 WoundX::Union{AbstractVector,Nothing}=nothing,
 xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"]) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames)
+ynames::AbstractVector{String}=["y"],
+name::Union{String,Symbol}="") = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
 
 # Specialized methods for DataSet
 dims(DS::DataSet) = DS.dims
@@ -124,6 +126,8 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
 xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
+
+name(DS::DataSet) = DS.name |> name
 
 # function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)

@@ -104,19 +104,23 @@ struct CompositeDataSet <: AbstractDataSet
     logdetInvCov::Real
     WoundX::AbstractVector
     SharedYdim::Val
-    function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet})
+    name::Union{String,Symbol}
+    function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet}; kwargs...)
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
         InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
-        CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)))
+        CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)); kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val)
-        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{String,Symbol}="", kwargs...)
+        CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
+    end
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{String,Symbol})
+        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
     end
 end
-CompositeDataSet(DS::AbstractDataSet) = CompositeDataSet([DS])
-function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true)
-    CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs))
+CompositeDataSet(DS::AbstractDataSet; kwargs...) = CompositeDataSet([DS]; kwargs...)
+function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, kwargs...)
+    CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs), kwargs...)
 end
 function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs...)
     CompositeDataSet(xdf, ydf, DataFrame(sig*ones(size(ydf)...), names(ydf).*"_σ"); kwargs...)
@@ -132,7 +136,8 @@ DSs::AbstractVector{<:AbstractDataSet}=[DataSet([0.],[0.],[1.])],
 InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
-SharedYdim::Val=Val(true)) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim)
+SharedYdim::Val=Val(true),
+name::Union{String,Symbol}="") = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs
@@ -159,6 +164,7 @@ DataspaceDim(CDS::CompositeDataSet) = mapreduce(DS->Npoints(DS)*ydim(DS), +, Dat
 xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
 ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 
+name(CDS::CompositeDataSet) = CDS.name |> name
 
 
 function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})

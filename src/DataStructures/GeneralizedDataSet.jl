@@ -16,6 +16,7 @@ struct GeneralizedDataSet <: AbstractDataSet
     WoundX::Union{AbstractVector,Nothing}
     xnames::AbstractVector{String}
     ynames::AbstractVector{String}
+    name::Union{String,Symbol}
     GeneralizedDataSet(DM::AbstractDataModel) = GeneralizedDataSet(Data(DM))
     function GeneralizedDataSet(DS::DataSetExact; kwargs...)
         xdist(DS) isa InformationGeometry.Dirac && @warn "xdist passed to GeneralizedDataSet is Dirac, continuing anyway."
@@ -35,19 +36,20 @@ struct GeneralizedDataSet <: AbstractDataSet
         WoundX = xdim(dims) == 1 ? nothing : [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(dist)[1:Npoints(dims)*xdim(dims)],xdim(dims))]
         GeneralizedDataSet(dist, dims, WoundX; kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}; xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), kwargs...)
-        GeneralizedDataSet(dist, dims, WoundX, xnames, ynames; kwargs...)
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing};
+                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}="", kwargs...)
+        GeneralizedDataSet(dist, dims, WoundX, xnames, ynames, name; kwargs...)
     end
-    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
+    function GeneralizedDataSet(dist::ContinuousMultivariateDistribution, dims::Tuple{Int,Int,Int}, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}="")
         @assert Npoints(dims) > 0 && xdim(dims) ≥ 0 && ydim(dims) > 0
         @assert xdim(dims) == length(xnames) && ydim(dims) == length(ynames)
         @assert (WoundX isa AbstractVector ? (ConsistentElDims(WoundX) == xdim(dims)) : (xdim(dims) < 2))
 
         if isseparable(dist)
             @info "Got separable distribution in GeneralizedDataSet, returning DataSetExact instead."
-            DataSetExact(dist.v[1], dist.v[2], dims, WoundX; xnames=xnames, ynames=ynames)
+            DataSetExact(dist.v[1], dist.v[2], dims, WoundX; xnames=xnames, ynames=ynames, name=Name)
         else
-            new(dist, dims, WoundX, xnames, ynames)
+            new(dist, dims, WoundX, xnames, ynames, Name)
         end
     end
 end
@@ -59,7 +61,8 @@ begin
     dims::Tuple{Int,Int,Int}=(1,0,1),
     WoundX::Union{AbstractVector,Nothing}=nothing,
     xnames::AbstractVector{String}=String[],
-    ynames::AbstractVector{String}=["y"]) = GeneralizedDataSet(dist, dims, WoundX, xnames, ynames)
+    ynames::AbstractVector{String}=["y"],
+    name::Union{String,Symbol}="") = GeneralizedDataSet(dist, dims, WoundX, xnames, ynames, name)
 end
 
 
@@ -70,6 +73,7 @@ WoundX(GDS::GeneralizedDataSet) = _WoundX(GDS, GDS.WoundX)
 xnames(GDS::GeneralizedDataSet) = GDS.xnames
 ynames(GDS::GeneralizedDataSet) = GDS.ynames
 
+name(GDS::GeneralizedDataSet) = GDS.name |> name
 
 dist(GDS::GeneralizedDataSet) = GDS.dist
 

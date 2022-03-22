@@ -98,7 +98,7 @@ ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :xdist, :ydist, :dist,
+            :xnames, :ynames, :name, :xdist, :ydist, :dist,
             :xdataMat, :ydataMat]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
@@ -111,6 +111,10 @@ pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
+
+name(S::String) = S
+name(S::Symbol) = string(S)
+name(DS::AbstractDataSet) = ""
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
@@ -251,7 +255,7 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     else
         Σ = _WoundMatrix(Σ, ydim(DS))[range, range] |> BlockMatrix
     end
-    InformNames(DataSet(X,Y,Σ,(Int(length(X)/xdim(DS)),xdim(DS),ydim(DS))), xnames(DS), ynames(DS))
+    DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
 end
 SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM))
 
