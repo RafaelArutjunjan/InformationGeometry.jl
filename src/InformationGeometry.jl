@@ -34,32 +34,38 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 
 ############## TODOs ##############
 
-# How can kwargs be consistently added to FindConfBoundary(), FindMLE(), ... such that tols are not messed up?
 
 #### Functionality
 
+# More in-place overloads
+# Use InDomain function specified for ModelMaps for constrained optimization.
 # Employ ShadowTheatre to project simultaneous x-θ-confidence regions to M.
 # Geodesic coordinates - use geodesic radius and angles to specify parameter configurations.
-# ADD TESTS: General Parameter Space / Model Transformations: return new model where `log` has been applied to some / all θ compoents
 # Allow for inplace models and dmodels -- potentially very large performance benefits
-# ADD TESTS: Add CompositeDataSet to master
-# Test F-Boundaries in more detail
 # Integrate along structural unidentifiability -- Switching ODE functions mid-integration: https://diffeq.sciml.ai/stable/basics/faq/
-# Use InDomain function specified for ModelMaps for constrained optimization.
 # Symbolic Fisher? Christoffel (from 2nd derivatives)?
 # Use vector-callback with domain hypercube for continuous boundary detection
 
-# Compute EigenFlow of Fisher Metric -> Should be transformed to straight lines (in coordinates) by Decorrelation Transformation
 # Employ MultistartOptimization for obtaining the MLE.
-# Try to recognize which components of θ are inside an exponential such that `log` leads to linear parametrization -> i.e. compare EmbeddingMatrices
+# Propose transformations which make parametrization "less non-linear", i.e. try to recognize if components of θ are inside exp or log via EmbeddingMatrices
+
+
+#### Needs Tests
+
+# CompositeDataSet
+# F-Boundaries
+# ExponentialMap and LogarithmicMap
+# Parameter Space and X-Y data transformations
+
 
 #### Cosmetic / Convenience
 
 # Custom type for confidence boundaries?
+# Custom type for confidence Profiles?
 # Show distribution types for DataSetExact
-# Infer variable names from DataFrames
+# Show dataset names
 # IO methods for ModelMaps in general
-# Add measures of practical unidentifiability (eigenvalues of Fisher?)
+# Rewrite Plot methods, particularly for datasets
 
 
 #### Performance / Optimization
@@ -76,16 +82,14 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 
 # GenerateInterruptedBoundary
 # F-Boundary
-# Constructors of ModelMap, DataSet, DataModel, etc
-# ..... make full list
+# ......
 
 
 #### Miscellaneous
 
 # Add exporting methods and detailed examples to docs
-# Improve ConfidenceBands
-# Fix FindConfBoundary() and GenerateBoundary() for BigFloat    -- does it work now? Add a test
-# Make user-facing keywords (even) more uniform: tol, meth, Big, ...
+# Fix FindConfBoundary() and GenerateBoundary() for BigFloat
+# Make user-facing keywords (even) more uniform: tol, meth, Big, OptimMeth...
 
 
 abstract type AbstractDataSet end
@@ -120,8 +124,7 @@ export Transform, LogTransform, Log10Transform, ExpTransform, Exp10Transform, Sc
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export EmbedModelVia, Embedding
 # Input and Output Transforms
-export TransformXdata, LogXdata, Log10Xdata, ExpXdata, Exp10Xdata
-export TransformYdata, LogYdata, Log10Ydata, ExpYdata, Exp10Ydata
+export TransformXdata, TransformYdata
 # Predefined Models
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel, GetLinearModel, GetGeneralLinearModel
 

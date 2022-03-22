@@ -197,9 +197,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
 end
 
 
-
-_Apply(x::AbstractVector{<:Number}, Componentwise::Function, idxs::BoolVector) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
-_ApplyFull(x::AbstractVector{<:Number}, Vectorial::Function) = Vectorial(x)
+_Apply(x::AbstractVector, Componentwise::Function, idxs::BoolVector) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
 
 MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
 MonotoneDecreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :decreasing
@@ -422,16 +420,32 @@ end
 TransformXdata(DS::AbstractDataSet, Emb::Function, iEmb::Function, args...; kwargs...) = TransformXdata(DS, Emb, args...; kwargs...)
 
 
-"""
-    LogXdata(DM::AbstractDataModel)
-    LogXdata(DS::AbstractDataSet)
-Returns a modified `DataModel` where the x-variables have been logarithmized both in the data as well as for the model.
-"""
-LogXdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(log,x), x->broadcast(exp,x), "log"; kwargs...)
-Log10Xdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(log10,x), x->broadcast(exp10,x), "log10"; kwargs...)
-ExpXdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(exp,x), x->broadcast(log,x), "exp"; kwargs...)
-Exp10Xdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast(exp10,x), x->broadcast(log10,x), "exp10"; kwargs...)
-
+for (Name, F, Finv, TrafoName) in [(:LogXdata, :log, :exp, :log),
+                                (:Log10Xdata, :log10, :exp10, :log10),
+                                (:ExpXdata, :exp, :log, :exp),
+                                (:Exp10Xdata, :exp10, :log10, :exp10),
+                                (:SqrtXdata, :sqrt, :(x->x^2), :sqrt)]
+    @eval begin
+        """
+            $($Name)(DM::AbstractDataModel) -> AbstractDataModel
+            $($Name)(DS::AbstractDataSet) -> AbstractDataSet
+        Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the x-variables both in the data as well as for the model.
+        """
+        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
+            TransformXdata(DM, x->broadcast($F,x), x->broadcast($Finv,x), "$($TrafoName)"; kwargs...)
+        end
+        """
+            $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
+            $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
+        Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied to the components `i` of the x-variables for which `idxs[i]==true` both in the data as well as for the model.
+        """
+        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}, idxs::BoolVector; kwargs...)
+            @assert length(idxs) == xdim(DM) && xdim(DM) > 1
+            TransformXdata(DM, x->_Apply(x, $F, idxs), x->_Apply(x, $Finv, idxs); xnames=_Apply(xnames(DM), (x->"$($TrafoName)("*x*")"), idxs), kwargs...)
+        end
+        export $Name
+    end
+end
 
 
 # in-place
@@ -468,16 +482,32 @@ function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::Strin
 end
 
 
-"""
-    LogYdata(DM::AbstractDataModel)
-    LogYdata(DS::AbstractDataSet)
-Returns a modified `DataModel` where the y-variables have been logarithmized both in the data as well as for the model.
-"""
-LogYdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(log,x), "log")
-Log10Ydata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(log10,x), "log10")
-ExpYdata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(exp,x), "exp")
-Exp10Ydata(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, x->broadcast(exp10,x), "exp10")
-
+for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
+                                (:Log10Ydata, :log10, :log10),
+                                (:ExpYdata, :exp, :exp),
+                                (:Exp10Ydata, :exp10, :exp10),
+                                (:SqrtYdata, :sqrt, :sqrt)]
+    @eval begin
+        """
+            $($Name)(DM::AbstractDataModel) -> AbstractDataModel
+            $($Name)(DS::AbstractDataSet) -> AbstractDataSet
+        Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the y-variables both in the data as well as for the model.
+        """
+        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
+            TransformYdata(DM, y->broadcast($F,y), "$($TrafoName)"; kwargs...)
+        end
+        """
+            $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
+            $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
+        Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied to the components `i` of the y-variables for which `idxs[i]==true` both in the data as well as for the model.
+        """
+        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}, idxs::BoolVector; kwargs...)
+            @assert length(idxs) == ydim(DM) && ydim(DM) > 1
+            TransformYdata(DM, y->_Apply(y, $F, idxs); ynames=_Apply(ynames(DM), (y->"$($TrafoName)("*y*")"), idxs), kwargs...)
+        end
+        export $Name
+    end
+end
 
 
 
