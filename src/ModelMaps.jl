@@ -30,41 +30,42 @@ struct ModelMap{Inplace}
     StaticOutput::Val
     inplace::Val
     CustomEmbedding::Val
+    name::Symbol
     # Given: Bool-valued domain function
-    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
-        ModelMap(model, InDomain, nothing, xyp; pnames=pnames)
+    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; kwargs...)
+        ModelMap(model, InDomain, nothing, xyp; kwargs...)
     end
     # Given: HyperCube
-    function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; pnames::Union{AbstractVector{<:String},Bool}=false)
-        xyp isa Bool ? ModelMap(model, nothing, Domain; pnames=pnames) : ModelMap(model, nothing, Domain, xyp; pnames=pnames)
+    function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; kwargs...)
+        xyp isa Bool ? ModelMap(model, nothing, Domain; kwargs...) : ModelMap(model, nothing, Domain, xyp; kwargs...)
     end
     # Given: xyp
-    function ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
-        ModelMap(model, nothing, FullDomain(xyp[3]), xyp; pnames=pnames)
+    function ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...)
+        ModelMap(model, nothing, FullDomain(xyp[3]), xyp; kwargs...)
     end
     # Given: Function only (potentially) -> Find xyp
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; pnames::Union{AbstractVector{<:String},Bool}=false)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
         startp = isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain)
         xlen = MaximalNumberOfArguments(model) > 2 ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
         testout = _TestOut(model, startp, xlen)
-        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); pnames=pnames)
+        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); kwargs...)
     end
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::Union{AbstractVector{<:String},Bool}=false)
-        pnames = typeof(pnames) == Bool ? CreateSymbolNames(xyp[3],"θ") : pnames
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], kwargs...)
+        pnames = length(pnames) == 0 ? CreateSymbolNames(xyp[3],"θ") : pnames
         startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         testout = _TestOut(model, startp, xyp[1])
         StaticOutput = testout isa SVector
         Inplace = MaximalNumberOfArguments(model) > 2
-        ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(Inplace), Val(false))
+        ModelMap(model, InDomain, Domain, xyp, pnames, Val(StaticOutput), Val(Inplace), Val(false); kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
     ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, M.InDomain, M.Domain, M.xyp, M.pnames, M.StaticOutput, Val(inplace), M.CustomEmbedding)
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                        pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false))
+                        pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false), name::Symbol=Symbol())
         isnothing(Domain) && (Domain = FullDomain(xyp[3], 1e5))
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
-        new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+        new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding, name)
     end
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
@@ -82,7 +83,8 @@ xyp::Tuple{Int,Int,Int}=(1,1,1),
 pnames::AbstractVector{String}=["θ"],
 StaticOutput::Val=Val(true),
 inplace::Val=Val(true),
-CustomEmbedding::Val=Val(true)) = ModelMap(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
+CustomEmbedding::Val=Val(true),
+name::Symbol=Symbol()) = ModelMap(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding, name)
 
 
 
@@ -93,6 +95,7 @@ end
 
 
 pnames(M::ModelMap) = M.pnames
+name(M::ModelMap) = M.name |> name
 Domain(M::ModelMap) = M.Domain
 isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
@@ -143,7 +146,7 @@ end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 
-function ModelMappize(DM::AbstractDataModel; pnames::Union{AbstractVector{<:String},Bool}=false)
+function ModelMappize(DM::AbstractDataModel; pnames::AbstractVector{<:String}=String[])
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM))

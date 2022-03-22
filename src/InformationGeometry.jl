@@ -63,7 +63,7 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 # Custom type for confidence boundaries?
 # Custom type for confidence Profiles?
 # Show distribution types for DataSetExact
-# Show dataset names
+# Show dataset and model names
 # IO methods for ModelMaps in general
 # Rewrite Plot methods, particularly for datasets
 
