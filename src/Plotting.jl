@@ -5,6 +5,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
+    title -->               (length(name(DS)) > 0 ? name(DS) : nothing)
     @series begin
         Data(DM), xpositions
     end
@@ -58,6 +59,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
+    title -->               (length(name(DS)) > 0 ? name(DS) : nothing)
     seriescolor := :auto
     if ydim(DS) == 1
         label --> "Data"
