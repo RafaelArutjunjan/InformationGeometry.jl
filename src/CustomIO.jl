@@ -32,7 +32,7 @@ end
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap ",
         ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
-        NO_COLOR, " with xdim=$(M.xyp[1]), ydim=$(M.xyp[2]), pdim=$(M.xyp[3])")
+        NO_COLOR, " with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
 end
 
 
@@ -45,7 +45,7 @@ TreeViews.numberofnodes(x::ModelMap) = 4
 TreeViews.numberofnodes(x::CompositeDataSet) = 1
 TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
 
-function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain" = MIME"text/plain"())
+function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
     show(io, mime, Text(Base.summary(DS)))
 end
 # To hide the treenode display, simply return missing:
@@ -55,31 +55,12 @@ end
 import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
 #### Show Distribution types for DataSetExact
-function Base.show(io::IO, mime::MIME"text/plain", DS::AbstractDataSet)
-    println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
-    print(io, "x-data: ");    show(io, mime, xdata(DS));    print(io, "\n")
-    if DS isa DataSetExact
-        if xsigma(DS) isa AbstractVector
-            println(io, "Standard deviation associated with x-data:")
-            show(io, mime, xsigma(DS))
-        else
-            println(io, "Covariance matrix associated with x-data:")
-            show(io, mime, xsigma(DS))
-        end
-        print(io, "\n")
-    end
-    print(io, "y-data: ");    show(io, mime, ydata(DS));    print(io, "\n")
-    if ysigma(DS) isa AbstractVector
-        println(io, "Standard deviation associated with y-data:")
-        show(io, mime, ysigma(DS))
-    else
-        println(io, "Covariance matrix associated with y-data:")
-        show(io, mime, ysigma(DS))
-    end
-end
-
 function Base.show(io::IO, DS::AbstractDataSet)
-    println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    if length(name(DS)) > 0
+        println(io, "$(nameof(typeof(DS))) '$(name(DS))' with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    else
+        println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
+    end
     print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
         if xsigma(DS) isa AbstractVector
@@ -101,23 +82,20 @@ function Base.show(io::IO, DS::AbstractDataSet)
     end
 end
 
-
-function Base.show(io::IO, mime::MIME"text/plain", GDS::GeneralizedDataSet)
-    println(io, "$(nameof(typeof(GDS))) with N=$(Npoints(GDS)), xdim=$(xdim(GDS)) and ydim=$(ydim(GDS)):")
-    print(io, "Combined x-y data: ");    show(io, mime, GetMean(dist(GDS)));    print(io, "\n")
-    print(io, "Combined x-y covariance: ");    show(io, mime, Sigma(dist(GDS)));    print(io, "\n")
-end
 function Base.show(io::IO, GDS::GeneralizedDataSet)
     println(io, "$(nameof(typeof(GDS))) with N=$(Npoints(GDS)), xdim=$(xdim(GDS)) and ydim=$(ydim(GDS)):")
     print(io, "Combined x-y data: ");    show(io, GetMean(dist(GDS)));    print(io, "\n")
     print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
 end
 
-
 function Base.show(io::IO, DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
     IsLin = try IsLinearParameter(DM) catch; nothing end
-    println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
+    if length(name(Data(DM))) > 0
+        println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM)))) '$(name(Data(DM)))'")
+    else
+        println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
+    end
     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
         "generated via automatic differentiation"
     elseif GeneratedFromSymbolic(dPredictor(DM))
@@ -132,4 +110,14 @@ function Base.show(io::IO, DM::AbstractDataModel)
     end
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
+end
+
+function Base.show(io::IO, M::ModelMap)
+    Expr = SymbolicModel(M)
+    if length(name(M)) > 0
+        println(io, (isinplacemodel(M) ? "In-place" : "Out-of-place") * " model '$(name(M))' with with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
+    else
+        println(io, (isinplacemodel(M) ? "In-place" : "Out-of-place") * " Model with with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
+    end
+    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end

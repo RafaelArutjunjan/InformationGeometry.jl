@@ -146,6 +146,10 @@ end
 
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 
+xdim(M::ModelMap)::Int = M.xyp[1]
+ydim(M::ModelMap)::Int = M.xyp[2]
+pdim(M::ModelMap)::Int = M.xyp[3]
+
 function ModelMappize(DM::AbstractDataModel; pnames::AbstractVector{<:String}=String[])
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
