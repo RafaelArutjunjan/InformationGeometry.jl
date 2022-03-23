@@ -121,7 +121,7 @@ end
 end
 
 
-@safetestset "Model Transformations" begin
+@safetestset "Model and Data Transformations" begin
     using InformationGeometry, Test
 
     ## Parameter Transforms
@@ -150,6 +150,8 @@ end
 
     @test (Log10Xdata∘Exp10Xdata)(DME) == DME
     @test (LogYdata∘ExpYdata)(DME) == DME
+
+    @test Log10Xdata(DS) == DataSet(log10.([0.1,0.5,1,1.5]),[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
 
     # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))
     # TranstrumDM = DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]), TranstrumModel)
