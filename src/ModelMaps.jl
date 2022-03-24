@@ -144,6 +144,18 @@ function CreateSymbolNames(n::Int, base::String="θ")
     base .* [prod(get(D,"$x","Q") for x in string(digit)) for digit in 1:n]
 end
 
+function _FullNames(DM::AbstractDataModel)
+    if xdim(DM) == 1
+        [CreateSymbolNames(Npoints(DM), "x"); pnames(DM)]
+    else
+        xMat = Matrix{String}(undef, Npoints(DM), xdim(DM))
+        for i in 1:xdim(DM)
+            xMat[:,i] = CreateSymbolNames(Npoints(DM), "("* xnames(DM)[i] *")")
+        end
+        [reduce(vcat,collect(eachrow(xMat))); pnames(DM)]
+    end
+end
+
 pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 
 xdim(M::ModelMap)::Int = M.xyp[1]

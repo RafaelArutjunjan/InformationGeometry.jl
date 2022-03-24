@@ -122,7 +122,7 @@ end
 
 
 @safetestset "Model and Data Transformations" begin
-    using InformationGeometry, Test
+    using InformationGeometry, Test, LinearAlgebra, StaticArrays
 
     ## Parameter Transforms
     PiDM = DataModel(DataSet([0,1], [0.5π,1.5π], [0.5,0.5]), ModelMap((x,p)->p[1], θ->θ[1]-1, HyperCube([[0,5]])))
@@ -152,6 +152,8 @@ end
     @test (LogYdata∘ExpYdata)(DME) == DME
 
     @test Log10Xdata(DS) == DataSet(log10.([0.1,0.5,1,1.5]),[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
+
+    @test PinParameters(DataModel(DS, Predictor(DM), dPredictor(DM), MLE(DM), θ->-norm(θ)), 2, 0.5) == DataModel(DS, (x,p)->p[1]*x + 0.5, (x,p)->@SMatrix[x], [1.5], x->-norm(SA[x,0.5]))
 
     # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))
     # TranstrumDM = DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]), TranstrumModel)
