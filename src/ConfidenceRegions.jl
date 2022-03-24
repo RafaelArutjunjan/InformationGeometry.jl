@@ -1229,7 +1229,9 @@ function GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::In
     if length(θ) == pdim(DM)
         InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
     elseif length(θ) == xpdim(DM)
-        throw("Implement LiftedLogLikelihood∘LiftedEmbedding here.")
+        @warn "Using LiftedEmbedding for determining the Confnum here."
+        LiftedLogLike = LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)
+        InvConfVol(ChisqCDF(dof, 2(LiftedLogLike(TotalLeastSquaresV(DM)) - LiftedLogLike(θ; kwargs...))))
     else
         throw("Length of θ $(length(θ)) neither corresponds to pdim=$(pdim(DM)) nor xpdim=$(xpdim(DM)).")
     end
@@ -1265,8 +1267,32 @@ end
 
 
 
-abstract type AbstractBoundarySlice end
+"""
+    LiftedLogLikelihood(DM::AbstractDataModel) -> Function
+Computes log-likelihood on the extended data space ``\\hat{\\ell} : \\mathcal{X}^N \\times\\mathcal{Y}^N \\longrightarrow \\mathbb{R}``.
+Should be maximized.
+"""
+LiftedLogLikelihood(DM::AbstractDataModel) = (G = dist(DM);  ℓ(Z::AbstractVector{<:Number}) = logpdf(G, Z))
+"""
+    LiftedCost(DM::AbstractDataModel) -> Function
+Computes negative log-likelihood as cost function on the extended data space ``C : \\mathcal{X}^N \\times\\mathcal{Y}^N \\longrightarrow \\mathbb{R}``.
+Should be minimized.
+"""
+LiftedCost(DM::AbstractDataModel) = (G = dist(DM);  Negativeℓ(Z::AbstractVector{<:Number}) = -logpdf(G, Z))
 
+"""
+    LiftedEmbedding(DM::AbstractDataModel) -> Function
+Constructs lifted embedding map from initial space into extended dataspace ``\\hat{h} : \\mathcal{X}^N \\times \\mathcal{M} \\longrightarrow \\mathcal{X}^N \\times\\mathcal{Y}^N`` effecting
+``\\xi = (x_\\text{opt}, \\theta) \\longmapsto \\hat{h}(\\xi) = (x_\\text{opt}, h(x_\\text{opt}, \\theta))``.
+"""
+LiftedEmbedding(DM::AbstractDataModel) = LiftedEmbedding(Data(DM), Predictor(DM), pdim(DM))
+function LiftedEmbedding(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
+    ĥ(ξ::AbstractVector; kwargs...) = ĥ(view(ξ,1:length(ξ)-pd), view(ξ,length(ξ)-pd+1:length(ξ)); kwargs...)
+    ĥ(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, xdat; kwargs...)]
+end
+
+
+abstract type AbstractBoundarySlice end
 
 struct ConfidenceBoundarySlice <: AbstractBoundarySlice
     sols::AbstractVector{<:AbstractODESolution}
