@@ -1265,37 +1265,122 @@ end
 
 
 
-abstract type AbstractConfidenceBoundary end
+abstract type AbstractBoundarySlice end
 
-struct ConfidenceBoundary <: AbstractConfidenceBoundary
-    sols::AbstractVector{<:AbstractODESolution}
-    Confnum::Real
-    MLE::AbstractVector{<:Number}
-    pnames::AbstractVector{String}
-end
 
-function ConfidenceBoundary(DM::AbstractDataModel, sol::AbstractODESolution)
-    @assert pdim(DM) == length(sol.u[1]) == 2
-    ConfidenceBoundary([sol], GetConfnum(DM, sol), MLE(DM), pnames(DM))
-end
-function ConfidenceBoundary(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution})
-    @assert length(Planes) == length(sols)
-    ConfidenceBoundary(EmbeddedODESolution(sols, Planes), GetConfnum(DM, Planes, sols), MLE(DM), pnames(DM))
-end
-
-## 3D slices of the parameter space
-struct ConfidenceBoundarySlice <: AbstractConfidenceBoundary
+struct ConfidenceBoundarySlice <: AbstractBoundarySlice
     sols::AbstractVector{<:AbstractODESolution}
     Dirs::Tuple{Int,Int,Int}
     Confnum::Real
     mle::AbstractVector{<:Number}
     pnames::AbstractVector{<:String}
+    Full::Bool
 end
-struct PlanarConfidenceBoundarySlice <: AbstractConfidenceBoundary
-    Planes::AbstractVector{<:Plane}
-    sols::AbstractVector{<:AbstractODESolution}
-    Confnum::Real
+Sols(CB::AbstractBoundarySlice) = CB.sols
+Dirs(CB::AbstractBoundarySlice) = CB.Dirs
+Confnum(CB::AbstractBoundarySlice) = CB.Confnum
+MLE(CB::AbstractBoundarySlice) = CB.mle
+pnames(CB::AbstractBoundarySlice) = CB.pnames
+
+function ConfidenceBoundarySlice(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, Dirs::Tuple{Int,Int,Int})
+    Full = length(sols[1].u[1]) == xpdim(DM)
+    @assert Full || length(sols[1].u[1]) == pdim(DM)
+    Confnum = GetConfnum(DM, sols[1].u[1]; dof=(Full ? xpdim(DM) : pdim(DM)))
+    mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))[Dirs...]
+    Names = (Full ? _FullNames(DM) : pnames(DM))[Dirs...]
+    ConfidenceBoundarySlice(DM, sols, Dirs, Confnum, mle, Names, Full)
 end
+function ConfidenceBoundarySlice(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Dirs::Tuple{Int,Int,Int})
+    ConfidenceBoundarySlice([EmbeddedODESolution(Planes[i], sols[i]) for i in 1:length(sols)], Dirs)
+end
+function ConfidenceBoundarySlice(DM::AbstractDataModel, sol::AbstractODESolution, Dirs::Tuple{Int,Int,Int}=(1,2,0))
+    @assert length(sol.u[1]) == 2
+    Dirs[3] != 0 && (Dirs = (Dirs[1], Dirs[2],0))
+    Full = xpdim(DM) == 2
+    Confnum = GetConfnum(DM, sol.u[1]; dof=(Full ? xpdim(DM) : pdim(DM)))
+    mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))[[Dirs[1],Dirs[2]]]
+    Names = (Full ? _FullNames(DM) : pnames(DM))[[Dirs[1],Dirs[2]]]
+    ConfidenceBoundarySlice([sol], Dirs, Confnum, mle, Names, Full)
+end
+
+function ConfidenceBoundarySlice(DM::AbstractDataModel, Confnum::Real; Dirs::Tuple{Int,Int,Int}=(1,2,3), kwargs...)
+    Res = ConfidenceRegion(DM, Confnum; Dirs=Dirs, kwargs...)
+    if Res isa Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}
+        ConfidenceBoundarySlice(DM, Res[1], Res[2], Dirs)
+    else
+        ConfidenceBoundarySlice(DM, Res, Dirs)
+    end
+end
+
+function ConfidenceBands(DM::AbstractDataModel, S::AbstractBoundarySlice; kwargs...)
+    ConfidenceBands(DM, Sols(S); kwargs...)
+end
+
+@recipe function f(CB::AbstractBoundarySlice)
+    Cube = ConstructCube(Sols(CB))
+    xguide := pnames(CB)[1];    yguide := pnames(CB)[2]
+    xlims --> Cube[Dirs(CB)[1]];    ylims --> Cube[Dirs(CB)[2]]
+    if length(pnames(CB)) ≥ 3
+        zguide := pnames(CB)[3]
+        zlims --> Cube[Dirs(CB)[3]]
+    end
+    title --> "CB slice $(Dirs(CB)), level=$(round(Confnum(CB); digits=2))σ"
+    titlefontsize --> 8
+    @series begin
+        linecolor --> nothing
+        markercolor --> :black
+        label --> "MLE"
+        marker --> :hex
+        [MLE(CB)]
+    end
+    for i in 1:length(Sols(CB))
+        @series begin
+            vars := Dirs(CB)[3] == 0 ? (Dirs(CB)[1], Dirs(CB)[2]) : Dirs(CB)
+            label --> ""
+            linecolor --> get(plotattributes, :seriescolor, :red)
+            Sols(CB)[i]
+        end
+    end
+end
+
+
+
+abstract type AbstractConfidenceBoundary end
+
+struct ConfidenceBoundary <: AbstractConfidenceBoundary
+    Slices::AbstractVector{<:AbstractBoundarySlice}
+end
+
+Slices(CB::ConfidenceBoundary) = CB.Slices
+Base.length(CB::ConfidenceBoundary) = CB |> Slices |> length
+Base.firstindex(CB::ConfidenceBoundary) = firstindex(Slices(CB))
+Base.lastindex(CB::ConfidenceBoundary) = lastindex(Slices(CB))
+
+function ConfidenceBoundary(DM::AbstractDataModel, Res::AbstractVector{<:Tuple{<:AbstractVector{<:Plane}, <:AbstractVector{<:AbstractODESolution}}}, Trips::AbstractVector{<:Tuple{<:Int, <:Int, <:Int}})
+    @assert length(Trips) == length(Res)
+    Full = length(Res[1][1][1]) == xpdim(DM)
+    @assert Full || length(Res[1][1][1]) == pdim(DM) "Ambient space of solutions incompatible with DataModel."
+    sort(unique(reduce(vcat, Trips))) != (Full ? (1:xpdim(DM)) : (1:pdim(DM))) && @warn "Not all directions present in ConfidenceBoundary."
+
+    Confnums = map(i->GetConfnum(DM,PlaneCoordinates(Res[i][1][1],Res[i][2][1].u[1]); dof=(Full ? xpdim(DM) : pdim(DM))), 1:length(Res))
+    @assert all(Confnums .≈ Confnums[1]) "Confnums unequal."
+    mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))
+    Names = (Full ? _FullNames(DM) : pnames(DM))
+    [ConfidenceBoundarySlice(EmbeddedODESolution.(Res[i]...), Trips[i], Confnums[1], mle[[Trips[i]...]], Names[[Trips[i]...]], Full) for i in 1:length(Trips)] |> ConfidenceBoundary
+end
+
+@recipe function f(CB::ConfidenceBoundary)
+    layout := CB |> Slices |> length
+    for i in 1:length(Slices(CB))
+        @series begin
+            subplot := i
+            leg --> false
+            Slices(CB)[i]
+        end
+    end
+end
+
+
 
 
 # function isplanar(sol::AbstractODESolution)::Bool

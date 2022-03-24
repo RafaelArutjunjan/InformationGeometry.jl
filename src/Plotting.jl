@@ -430,28 +430,8 @@ function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwa
 end
 
 
-function VisualizeSols(CB::ConfidenceBoundary; vars::Tuple=Tuple(1:length(CB.MLE)), OverWrite::Bool=true, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
-
-    p = OverWrite ? RecipesBase.plot([CB.MLE]; seriestype=:scatter, label="MLE") : []
-    if length(vars) == 2
-        VisualizeSols(CB.sols[1]; vars=vars, color=color, OverWrite=false, label="$(round(CB.Confnum, sigdigits=3))σ Conf. Boundary",
-                        xlabel=CB.pnames[vars[1]], ylabel=CB.pnames[vars[2]], leg=true, kwargs...)
-    else
-        VisualizeSols(CB.sols[1]; vars=vars, color=color, OverWrite=false, label="$(round(CB.Confnum, sigdigits=3))σ Conf. Boundary",
-                        xlabel=CB.pnames[vars[1]], ylabel=CB.pnames[vars[2]], zlabel=CB.pnames[vars[3]],leg=true, kwargs...)
-    end
-    for sol in CB.sols[2:end]
-        p = VisualizeSols(sol; vars=vars, color=color, OverWrite=false, label="", leg=true, kwargs...)
-    end; p
-end
-
-function VisualizeSols(CBs::AbstractVector{<:ConfidenceBoundary}; vars::Tuple=Tuple(1:length(CBs[1].MLE)), OverWrite::Bool=true, kwargs...)
-    @assert all(x->x.MLE==CBs[1].MLE, CBs)
-    @assert allunique(map(x->x.Confnum,CBs))
-    p = OverWrite ? RecipesBase.plot([CBs[1].MLE]; seriestype=:scatter, label="MLE") : []
-    for CB in CBs
-        VisualizeSols(CB; vars=vars, OverWrite=false, kwargs...)
-    end; p
+function VisualizeSols(CB::Union{AbstractBoundarySlice,AbstractConfidenceBoundary}; OverWrite::Bool=true, kwargs...)
+    OverWrite ? RecipesBase.plot(CB; kwargs...) : RecipesBase.plot!(CB; kwargs...)
 end
 
 VisualizeGeos(sol::AbstractODESolution; kwargs...) = VisualizeGeos([sol]; kwargs...)
