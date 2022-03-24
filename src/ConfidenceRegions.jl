@@ -477,7 +477,7 @@ function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Numbe
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
     !mfd && (u0 = PromoteStatic(u0, true))
-    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du);   nothing)
+    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du))
     GradCache = copy(u0)
     IntCurveODE!inplace(du,u,p,t) = (dF(GradCache, u);  CheatingOrth!(du, GradCache))
     solve(ODEProblem(IntCurveODE!inplace,u0,(0.,1e5)), meth; reltol=tol, abstol=tol,
@@ -487,7 +487,7 @@ function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Numbe
                             Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
     @assert length(u0) == 2
     !mfd && (u0 = PromoteStatic(u0, true))
-    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du);   nothing)
+    CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du))
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
     solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol,
                     callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
@@ -756,6 +756,12 @@ end
 
 SphereVolumeFactor(n::Int) = π^(n/2) / gamma(n/2 + 1)
 ExpectedInvariantVolume(DM::AbstractDataModel, Confnum::Real) = SphereVolumeFactor(pdim(DM)) * GeodesicRadius(DM, Confnum)^pdim(DM)
+
+"""
+    EllipsoidVolume(Σ::AbstractMatrix)
+Computes volume of ellipsoid defined by symmetric positive-definite matrix whose eigenvalues constitute the squares of the half-axes of the ellipsoid.
+"""
+EllipsoidVolume(Σ::AbstractMatrix) = (n=size(Σ,1);   sqrt(prod(eigvals(Σ))) * 2 * π^(n/2) / (n * gamma(n/2)))
 
 GeodesicRadius(DM::AbstractDataModel, Confnum::Real) = GeodesicRadius(Confnum, pdim(DM))
 GeodesicRadius(Confnum::Real, dim::Int) = sqrt(InvChisqCDF(dim, ConfVol(Confnum)))
