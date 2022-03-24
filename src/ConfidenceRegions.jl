@@ -1302,8 +1302,9 @@ struct ConfidenceBoundarySlice <: AbstractBoundarySlice
     pnames::AbstractVector{<:String}
     Full::Bool
 end
-Sols(CB::AbstractBoundarySlice) = CB.sols
-Dirs(CB::AbstractBoundarySlice) = CB.Dirs
+Sols(CB::ConfidenceBoundarySlice) = CB.sols
+Dirs(CB::ConfidenceBoundarySlice) = CB.Dirs
+
 Confnum(CB::AbstractBoundarySlice) = CB.Confnum
 MLE(CB::AbstractBoundarySlice) = CB.mle
 pnames(CB::AbstractBoundarySlice) = CB.pnames
@@ -1327,6 +1328,10 @@ function ConfidenceBoundarySlice(DM::AbstractDataModel, sol::AbstractODESolution
     mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))[[Dirs[1],Dirs[2]]]
     Names = (Full ? _FullNames(DM) : pnames(DM))[[Dirs[1],Dirs[2]]]
     ConfidenceBoundarySlice([sol], Dirs, Confnum, mle, Names, Full)
+end
+function ConfidenceBoundarySlice(DM::AbstractDataModel, CI::Tuple{<:Number,<:Number})
+    Confnum = GetConfnum(DM, [CI[1]])
+    ConfidenceInterval(CI, GetConfnum(DM, [CI[1]]), MLE(DM), pnames(DM))
 end
 
 function ConfidenceBoundarySlice(DM::AbstractDataModel, Confnum::Real; Dirs::Tuple{Int,Int,Int}=(1,2,3), kwargs...)
@@ -1371,6 +1376,8 @@ end
 
 
 
+
+
 abstract type AbstractConfidenceBoundary end
 
 struct ConfidenceBoundary <: AbstractConfidenceBoundary
@@ -1396,7 +1403,7 @@ function ConfidenceBoundary(DM::AbstractDataModel, Res::AbstractVector{<:Tuple{<
 end
 
 @recipe function f(CB::ConfidenceBoundary)
-    layout := CB |> Slices |> length
+    layout --> CB |> Slices |> length
     for i in 1:length(Slices(CB))
         @series begin
             subplot := i
@@ -1405,6 +1412,21 @@ end
         end
     end
 end
+
+
+struct ConfidenceInterval <: AbstractBoundarySlice
+    Interval::Tuple{<:Number,<:Number}
+    Confnum::Real
+    mle::AbstractVector{<:Number}
+    pnames::AbstractVector{<:String}
+    function ConfidenceInterval(Interval::Tuple{<:Number,<:Number}, Confnum::Real, mle::AbstractVector{<:Number}, pnames::AbstractVector{<:String})
+        @assert Interval[1] ≤ mle[1] ≤ Interval[2]
+        @assert length(mle) == length(pnames) == 1
+        new(Interval, Confnum, mle, pnames)
+    end
+end
+Interval(CI::ConfidenceInterval) = CI.Interval
+
 
 
 

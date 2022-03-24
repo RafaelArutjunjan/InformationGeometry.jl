@@ -207,7 +207,7 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
         !Test(start) && throw(ArgumentError("LineSearch: Test not true for starting value."))
     end
     # For some weird reason, if the division by 4 is removed, the loop never terminates for BigFloat-valued "start"s - maybe the compiler erroneously tries to optimize the variable "stepsize" away or something?! (Julia version ≤ 1.6.0)
-    stepsize = one(suff(start)) / 4.;       value = start
+    stepsize = one(suff(start)) / 2.;       value = start
     for i in 1:maxiter
         if Test(value + stepsize) # inside
             value += stepsize
