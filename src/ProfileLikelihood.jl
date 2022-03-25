@@ -12,6 +12,20 @@ Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=SafeCopy(X); for
 # If known to be sorted already, can interate via Iterators.reverse(X)
 
 """
+    Consecutive(X::AbstractVector) -> Bool
+Checks whether all elements are separated by a distance of one in ascending order.
+"""
+Consecutive(X::AbstractUnitRange) = true
+# Consecutive(X::Union{StepRange,StepRangeLen})= X.step == one(typeof(X.step))
+function Consecutive(X::AbstractVector{T})::Bool where T <: Number
+    F = isequal(one(T))
+    @inbounds for i in 2:length(X)
+        F(X[i]-X[i-1]) || return false
+    end;    true
+end
+
+
+"""
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
 Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
 In effect, this allows one to pin an input component at a specific value.
@@ -33,7 +47,7 @@ In effect, this allows one to pin multiple input components at a specific values
 function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
     @assert length(Components) == length(Values)
     length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
-    if length(Components) ≥ 2 && diff(Components) == ones(length(Components)-1) # consecutive components.
+    if length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
         ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
     else
         # Sort components to avoid shifts in indices through repeated insertion.
