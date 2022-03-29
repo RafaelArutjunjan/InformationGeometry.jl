@@ -76,7 +76,7 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     R = LsqFit.OnceDifferentiable(f, (rescale ? dfrescaled : df), p0, copy(f(p0)); inplace = false)
     fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
     verbose && !fit.converged && @warn "TLS appears to not have converged."
-    Full ? fit : (Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end])
+    Full ? fit : (Windup(view(fit.param, 1:xlen),xdim(DSE)), view(fit.param, xlen+1:length(fit.param)))
 end
 
 
