@@ -5,14 +5,17 @@ function CompleteObservationFunction(PreObservationFunction::Function)
     if numargs == 1
         ObservationFunction1(u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = PreObservationFunction(u)
         ObservationFunction1(obs, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = copyto!(obs, PreObservationFunction(u))
+        ObservationFunction1(obs::Number, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = obs = PreObservationFunction(u)
         return ObservationFunction1
     elseif numargs == 2
         ObservationFunction2(u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = PreObservationFunction(u, t)
         ObservationFunction2(obs, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = copyto!(obs, PreObservationFunction(u, t))
+        ObservationFunction2(obs::Number, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = obs = PreObservationFunction(u, t)
         return ObservationFunction2
     elseif numargs == 3
         ObservationFunction3(u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = PreObservationFunction(u, t, θ)
         ObservationFunction3(obs, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = copyto!(obs, PreObservationFunction(u, t, θ))
+        ObservationFunction3(obs::Number, u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) = obs = PreObservationFunction(u, t, θ)
         return ObservationFunction3
     elseif numargs == 4
         @warn "Given ObservationFunction appears to accept 4 arguments. Assuming that it has mutating argument structure ObservationFunction!(obs, u, t, θ) but also has 3-arg method version (u,t,θ)."
@@ -50,7 +53,6 @@ end
 #                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
 #     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 # end
-
 
 
 
@@ -93,8 +95,6 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
 end
 
 
-
-
 # Although specialized methods for constant initial condition and specification of observed components in terms of arrays is faster than using functions, also use general method here.
 function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observables; kwargs...) where T
     SplitterFunction = if Initial isa Function
@@ -111,37 +111,55 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Func
 end
 
 
+# ObservationFunction
 function EvalObservationArray(sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, ObservationFunction::Function)
     [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
 end
-function EvalObservationArray(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function)
-    ObservationFunction(sol.u[end], t, θ)
+function EvalObservationArray(Res, sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, ObservationFunction::Function)
+    for (i,Y) in enumerate(Iterators.partition(Res, length(Res)÷length(ts)))
+        ObservationFunction(Y, sol.u[i], sol.t[i], θ) # ObservationFunction(Y, sol.u[i], ts[i], θ)
+    end
 end
-function EvalObservationArray(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function)
-    ObservationFunction(Res, sol.u[end], t, θ)
-end
+EvalObservationArray(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function) = ObservationFunction(sol.u[end], t, θ)
+EvalObservationArray(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function) = ObservationFunction(Res, sol.u[end], t, θ)
+
+# ObservableArray
 function EvalObservationArray(sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
     [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
 end
-function EvalObservationArray(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
-    sol.u[end][observables]
+function EvalObservationArray(Res, sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
+    for (i,Y) in enumerate(Iterators.partition(Res, length(Res)÷length(ts)))
+        Y = sol.u[i][observables]
+    end
 end
+EvalObservationArray(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray}) = sol.u[end][observables]
+EvalObservationArray(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray}) = (Res = sol.u[end][observables])
 
+
+## time-differentiable
+# ObservationFunction
 function EvalObservation(sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, ObservationFunction::Function)
     [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
 end
-function EvalObservation(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function)
-    ObservationFunction(sol(t), t, θ)
+function EvalObservation(Res, sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, ObservationFunction::Function)
+    for (i,Y) in enumerate(Iterators.partition(Res, length(Res)÷length(ts)))
+        ObservationFunction(Y, sol(ts[i]), ts[i], θ) # ObservationFunction(Y, sol.u[i], ts[i], θ)
+    end
 end
-function EvalObservation(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function)
-    ObservationFunction(Res, sol(t), t, θ)
-end
+EvalObservation(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function) = ObservationFunction(sol(t), t, θ)
+EvalObservation(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, ObservationFunction::Function) = ObservationFunction(Res, sol(t), t, θ)
+
+# ObservableArray
 function EvalObservation(sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
     map(t->getindex(sol(t),observables), ts) |> Reduction
 end
-function EvalObservation(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
-    getindex(sol(t),observables)
+function EvalObservation(Res, sol::AbstractODESolution, ts::AbstractVector, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray})
+    for (i,Y) in enumerate(Iterators.partition(1:length(Res), length(Res)÷length(ts)))
+        Y = sol(ts[i])[observables]
+    end
 end
+EvalObservation(sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray}) = getindex(sol(t),observables)
+EvalObservation(Res, sol::AbstractODESolution, t::Real, θ::AbstractVector{<:Number}, observables::Union{Int,AbstractVector{<:Int},BoolArray}) = (Res = getindex(sol(t),observables))
 
 # Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
@@ -315,13 +333,13 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
         FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
         sol = Model.Map(x, θ; FullSol=true, saveat=x, kwargs...)
         length(sol.u) != length(x) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
-        EvalObservationArray(sol, ts, θ, F)
+        EvalObservationArray(sol, x, θ, F)
         # [F(sol.u[i], sol.t[i], θ) for i in 1:length(x)] |> Reduction
     end
     function NewODEmodel(x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
         FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
-        EvalObservationArray(sol, t, θ, F)
+        EvalObservationArray(sol, x, θ, F)
         # F(sol.u[end], sol.t[end], θ)
     end
     ModelMap(NewODEmodel, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
