@@ -811,31 +811,38 @@ _CustomOrNot(::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractV
 _CustomOrNot(::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...) = model(woundX, θ; kwargs...)
 
 
-function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
+function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Union{Val{true},Val{false}}, inplace::Val{true}; kwargs...)
     Y = Vector{suff(θ)}(undef, length(woundX)*ydim(DS))
+    EmbeddingMap!(Y, DS, model!, θ, woundX, custom, inplace);   Y
+end
+
+
+# Need to check for custom here - if custom is true, then assume than an inplace method is already provided
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+    EmbeddingMap!(Y, DS, model!, θ, woundX, model!.CustomEmbedding, model!.inplace; kwargs...)
+end
+
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{true}; kwargs...)
     model!(Y, woundX, θ; kwargs...);    Y
 end
-function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
-    Y = Vector{suff(θ)}(undef, length(woundX)*ydim(DS))
-    EmbeddingMap!(Y, DS, model!, θ, woundX; kwargs...);     Y
-end
 
-
-function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
-    EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
+# Drop DS here
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}; kwargs...)
+    EmbeddingMap!(Y, model!, θ, woundX, custom, inplace, Val(ydim(DS)); kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}, Ydim::Val{1}; kwargs...)
     @inbounds for i in Base.OneTo(length(Y))
         model!(Y[i], woundX[i], θ; kwargs...)
     end
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
-    @inbounds for (i, row) in enumerate(Iterators.partition(1:length(Y), T))
-        model!(view(Y,row), woundX[i], θ; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{true}, Ydim::Val{T}; kwargs...) where T
+    @inbounds for (i, Ypart) in enumerate(Iterators.partition(Y, T))
+        model!(Ypart, woundX[i], θ; kwargs...)
     end
 end
+
 # Fallback for out-of-place models
-function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Union{Val{true},Val{false}}, inplace::Val{false}; kwargs...)
     copyto!(Y, EmbeddingMap(DS, model!, θ, woundX; kwargs...))
 end
 
