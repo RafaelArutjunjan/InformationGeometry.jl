@@ -70,7 +70,12 @@ struct ModelMap{Inplace}
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
 (M::ModelMap{true})(y, x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(y, x, θ; kwargs...)
-(M::ModelMap{true})(x, θ::AbstractVector{<:Number}; kwargs...) = (Res=Vector{suff(θ)}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res)
+function (M::ModelMap{true})(x, θ::AbstractVector{T}; kwargs...) where T <: Number
+    n = length(x)*M.xyp[2]
+    Res = n > 1 ? Vector{T}(undef, n) : zero(T)
+    M.Map(Res, x, θ; kwargs...)
+    Res
+end
 const ModelOrFunction = Union{Function,ModelMap}
 
 
