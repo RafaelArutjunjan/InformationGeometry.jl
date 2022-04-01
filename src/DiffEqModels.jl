@@ -65,15 +65,23 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end
-    if Model isa ModelMap       Model = Model.Map    end
+    # Discard available ModelMap info
+    Model isa ModelMap && (Model = Model.Map)
     pnames = ModelingToolkit.get_ps(sys) .|> string
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
         argnum = MaximalNumberOfArguments(observables)
-        F = if argnum==1  z->observables(z)   elseif argnum==2  z->observables(z,0.1)
-        elseif argnum ≥ 3 z->observables(z,0.1,GetStartP(length(pnames)))    else throw("Error") end
-        num = GetArgLength(F)
-        length(F(ones(num)))
+        argnum > 4 && throw("Error, observation function has argnum=$argnum.")
+        if argnum ≤ 3
+            F = argnum == 1 ? (z->observables(z)) : (argnum == 2 ? (z->observables(z,0.1)) : (z->observables(z,0.1,GetStartP(length(pnames)))))
+            length(F(rand(GetArgLength(F))))
+        else # argnum == 4, i.e. ObservationFunction in-place
+            ## Assume both a 4-arg and 3-arg version are implemented
+            # length(F(rand(GetArgLength((z->observables(z,0.1,GetStartP(length(pnames))))))))
+            Tup = DerivableFunctionsBase._GetArgLengthInPlace((y,z)->observables(y,z,0.1,GetStartP(length(pnames))))[1]
+            @assert Tup isa Int "Output of in-place observation function should be a Number or vector, got array of size $Tup."
+            Tup
+        end
     else
         observables isa BoolArray ? sum(observables) : length(observables)
     end
@@ -89,7 +97,10 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     xyp = (1, ylen, plen)
     Domain = isa(Domain, Bool) ? FullDomain(xyp[3], 1e5) : Domain
 
-    pnames = plen - length(pnames) > 0 ? vcat(CreateSymbolNames(plen - length(pnames), "u"), pnames) : pnames
+    if plen - length(pnames) > 0
+        @warn "Filling up missing $(plen - length(pnames)) parameter names in ODEmodel construction."
+        pnames = vcat(CreateSymbolNames(plen - length(pnames), "u"), pnames)
+    end
     # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     ModelMap(Model, nothing, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
@@ -180,12 +191,27 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         EvalObservationArray(sol, t, θ, observables)
         # sol.u[end][observables]
     end
+    function ODEmodel(Res, t::Number, θ::AbstractArray{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
+                                                        tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        EvalObservationArray(Res, sol, t, θ, observables)
+        # sol.u[end][observables]
+    end
     function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                                 tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         EvalObservationArray(sol, ts, θ, observables)
+        # [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
+    end
+    function ODEmodel(Res::AbstractVector, ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
+                                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
+        length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        EvalObservationArray(Res, sol, ts, θ, observables)
         # [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(ODEmodel, Domain)
@@ -219,12 +245,27 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         EvalObservationArray(sol, t, θ, ObservationFunction)
         # ObservationFunction(sol.u[end], t, θ)
     end
+    function ODEmodel(Res, t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
+                                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        EvalObservationArray(Res, sol, t, θ, ObservationFunction)
+        # ObservationFunction(sol.u[end], t, θ)
+    end
     function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         EvalObservationArray(sol, ts, θ, ObservationFunction)
+        # [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
+    end
+    function ODEmodel(Res, ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
+        sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
+        length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        EvalObservationArray(Res, sol, ts, θ, ObservationFunction)
         # [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(ODEmodel, Domain)
@@ -259,12 +300,27 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Obse
         EvalObservationArray(sol, t, θ, observables)
         # sol.u[end][observables]
     end
+    function ODEmodel(Res, t::Number, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
+                                tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        EvalObservationArray(Res, sol, t, θ, observables)
+        # sol.u[end][observables]
+    end
     function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
                                 tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         EvalObservationArray(sol, ts, θ, observables)
+        # [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
+    end
+    function ODEmodel(Res, ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
+                                tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
+        length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        EvalObservationArray(Res, sol, ts, θ, observables)
         # [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(ODEmodel, Domain)
@@ -304,12 +360,27 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
         EvalObservationArray(sol, t, θ, ObservationFunction)
         # ObservationFunction(sol.u[end], sol.t[end], θ)
     end
+    function ODEmodel(Res, t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                                    tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        EvalObservationArray(Res, sol, t, θ, ObservationFunction)
+        # ObservationFunction(sol.u[end], sol.t[end], θ)
+    end
     function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
         FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
         sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         EvalObservationArray(sol, ts, θ, ObservationFunction)
+        # [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
+    end
+    function ODEmodel(Res, ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
+        sol = GetSol(θ, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
+        length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        EvalObservationArray(Res, sol, ts, θ, ObservationFunction)
         # [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
     MakeCustom(ODEmodel, Domain)
@@ -336,10 +407,23 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
         EvalObservationArray(sol, x, θ, F)
         # [F(sol.u[i], sol.t[i], θ) for i in 1:length(x)] |> Reduction
     end
+    function NewODEmodel(Res, x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+        FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
+        sol = Model.Map(x, θ; FullSol=true, saveat=x, kwargs...)
+        length(sol.u) != length(x) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        EvalObservationArray(Res, sol, x, θ, F)
+        # [F(sol.u[i], sol.t[i], θ) for i in 1:length(x)] |> Reduction
+    end
     function NewODEmodel(x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
         FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
         EvalObservationArray(sol, x, θ, F)
+        # F(sol.u[end], sol.t[end], θ)
+    end
+    function NewODEmodel(Res, x::Number, θ::AbstractVector{<:Number}; FullSol=false, kwargs...)
+        FullSol && return Model.Map(x, θ; FullSol=true, kwargs...)
+        sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
+        EvalObservationArray(Res, sol, x, θ, F)
         # F(sol.u[end], sol.t[end], θ)
     end
     ModelMap(NewODEmodel, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
