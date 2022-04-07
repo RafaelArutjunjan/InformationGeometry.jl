@@ -57,7 +57,7 @@ end
 
 
 function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0);
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, pnames::AbstractVector{<:String}=String[], inplace::Bool=true, kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     Model = if sys isa ModelingToolkit.AbstractODESystem
@@ -67,7 +67,7 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     end
     # Discard available ModelMap info
     Model isa ModelMap && (Model = Model.Map)
-    pnames = ModelingToolkit.get_ps(sys) .|> string
+    length(pnames) == 0 && (pnames = string.(ModelingToolkit.get_ps(sys)))
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
         argnum = MaximalNumberOfArguments(observables)
