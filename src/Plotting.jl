@@ -47,7 +47,7 @@ function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVe
 end
 
 function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{AbstractVector,Nothing}=nothing; N::Int=500, kwargs...)
-    X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM)
+    isnothing(X) && (X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM))
     RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", kwargs...)
 end
 
