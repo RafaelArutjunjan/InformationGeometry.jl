@@ -464,7 +464,9 @@ Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp(x, C.L, C.U)
 Base.clamp!(x::AbstractVector, C::HyperCube) = Base.clamp!(x, C.L, C.U)
 
 Base.log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
+Base.log10(C::HyperCube) = HyperCube(log10.(C.L), log10.(C.U))
 Base.exp(C::HyperCube) = HyperCube(exp.(C.L), exp.(C.U))
+Base.exp10(C::HyperCube) = HyperCube(exp10.(C.L), exp10.(C.U))
 
 
 Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])

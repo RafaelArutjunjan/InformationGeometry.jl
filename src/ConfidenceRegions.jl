@@ -566,11 +566,8 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
     if pdim(DM) == 1
         return (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
-        sols = if parallel
-            @showprogress 1 "Computing boundaries... " pmap(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range)
-        else
-            @showprogress 1 "Computing boundaries... " map(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range)
-        end
+        Prog = Progress(length(Range); enabled=verbose, desc="Computing boundaries... ", dt=1, showspeed=true)
+        sols = (parallel ? progress_pmap : progress_map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range; progress=Prog)
         if tests
             NotTerminated = map(x->(x.retcode != :Terminated), sols)
             verbose && sum(NotTerminated) != 0 && @warn "Solutions $((1:length(sols))[NotTerminated]) did not exit properly."
@@ -1090,14 +1087,10 @@ end
     MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, ADmode::Val=Val(:ForwardDiff), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff),
+function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true,
                         Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, parallel::Bool=false, kwargs...)
-    Map = parallel ? pmap : map
-    if parallel
-        @showprogress 1 "Computing planar solutions... " pmap(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Planes)
-    else
-        @showprogress 1 "Computing planar solutions... " map(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Planes)
-    end
+    Prog = Progress(length(Planes); enabled=verbose, desc="Computing planar solutions... ", dt=1, showspeed=true)
+    (parallel ? progress_pmap : progress_map)(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Planes; progress=Prog)
 end
 
 

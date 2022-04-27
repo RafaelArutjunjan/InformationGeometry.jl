@@ -513,56 +513,64 @@ function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=100)
+                            plot::Bool=true, samples::Int=100, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
-    @showprogress 1 "Sampling confidence boundary... " for t in range(sol.t[1], sol.t[end]; length=samples)
+    Prog = Progress(samples; enabled=verbose, desc="Sampling confidence boundary... ", dt=1, showspeed=true)
+    for t in range(sol.t[1], sol.t[end]; length=samples)
         _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
+        ProgressMeter.next!(Prog)
     end
     plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol))
     M
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=max(2*length(sols),100))
+                            plot::Bool=true, samples::Int=max(2*length(sols),100), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
-    @showprogress 1 "Sampling confidence boundary... " for sol in sols
+    Prog = Progress(length(sols); enabled=verbose, desc="Sampling confidence boundary... ", dt=1, showspeed=true)
+    for sol in sols
         for t in range(sol.t[1], sol.t[end]; length=samples)
             _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
         end
+        ProgressMeter.next!(Prog)
     end
     plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1]))
     M
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=max(2*length(sols),100))
+                            plot::Bool=true, samples::Int=max(2*length(sols),100), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert length(Planes) == length(sols)
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
-    @showprogress 1 "Sampling confidence boundary... " for i in 1:length(sols)
+    Prog = Progress(length(sols); enabled=verbose, desc="Sampling confidence boundary... ", dt=1, showspeed=true)
+    for i in 1:length(sols)
         for t in range(sols[i].t[1], sols[i].t[end]; length=samples)
             _ConfidenceBands!(Res, Yt, DM, PlaneCoordinates(Planes[i], sols[i](t)), woundX)
         end
+        ProgressMeter.next!(Prog)
     end
     plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1]))
     M
 end
 
 # Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
-function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true)
+function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
-    @showprogress 1 "Sampling confidence boundary... " for point in points
+    Prog = Progress(length(points); enabled=verbose, desc="Sampling confidence boundary... ", dt=1, showspeed=true)
+    for point in points
         _ConfidenceBands!(Res, Yt, DM, point, woundX)
+        ProgressMeter.next!(Prog)
     end
     plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, points[1]))
     M

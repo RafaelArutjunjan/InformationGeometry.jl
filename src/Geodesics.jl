@@ -165,7 +165,7 @@ function GeodesicBoundaryFunction(M::ModelMap)
 end
 
 # Also add Plane method!
-function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false, kwargs...)
+function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing, parallel::Bool=false, verbose::Bool=true, kwargs...)
     @assert length(Cube) == 2 && MLE(DM) ∈ Cube
     widths = CubeWidths(Cube);    Metric(x) = FisherMetric(DM, x)
     initialvels = [widths .* [cos(α), sin(α)] for α in range(0, 2π*(1-1/N); length=N)]
@@ -174,11 +174,8 @@ function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol:
     CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(GeodesicBoundaryFunction(Predictor(DM)),terminate!)) : CB
     # Already added Boundaries(u,p,t) function to callbacks if any was passed via kwarg
     Constructor(InitialVel) = ComputeGeodesic(Metric, MLE(DM), InitialVel, 10.0; tol=tol, Boundaries=nothing, callback=CB, kwargs...)
-    if parallel
-        @showprogress 1 "Computing Geodesics... " pmap(Constructor, initialvels)
-    else
-        @showprogress 1 "Computing Geodesics... " map(Constructor, initialvels)
-    end
+    Prog = Progress(length(initialvels); enabled=verbose, desc="Computing Geodesics... ", dt=1, showspeed=true)
+    (parallel ? progress_pmap : progress_map)(Constructor, initialvels; progress=Prog)
 end
 
 
