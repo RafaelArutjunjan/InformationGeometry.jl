@@ -11,7 +11,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     end
     markeralpha :=      0.
     linewidth -->       2
-    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (:auto))
+    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:))
     linestyle -->       :solid
     RSEs = ResidualStandardError(DM, mle)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
@@ -60,6 +60,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
     title -->               (length(name(DS)) > 0 ? name(DS) : "")
+    # color_palette -->       :tab10
     seriescolor := :auto
     if ydim(DS) == 1
         label --> "Data"

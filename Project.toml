@@ -1,11 +1,12 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.12.1"
+version = "1.12.2"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
@@ -40,6 +41,7 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 [compat]
 BenchmarkTools = "0.5, 0.6, 0.7, 1"
 BoundaryValueDiffEq = "2"
+ColorSchemes = "2, 3"
 Combinatorics = "1"
 DataFrames = "0.20, 0.21, 0.22, 1"
 DataInterpolations = "3"

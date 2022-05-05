@@ -325,20 +325,21 @@ function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}; kwa
 end
 
 
-function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=nothing)
     @assert size(A,1) == size(A,2) == length(v)
-    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ + v; kwargs...)
+    TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, A*θ + v; Kwargs...)
 end
-function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number})
+function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=nothing)
     @assert length(M.Domain) == size(A,1) == size(A,2) == length(v)
     Ainv = inv(A)
-    ModelMap(AffineTransform(M.Map, A, v), (M.InDomain isa Function ? (θ->M.InDomain(A*θ+v)) : nothing), HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)),
+    NewDomain = isnothing(Domain) ? HyperCube(Ainv*(M.Domain.L-v), Ainv*(M.Domain.U-v)) : Domain
+    ModelMap(AffineTransform(M.Map, A, v), (M.InDomain isa Function ? (θ->M.InDomain(A*θ+v)) : nothing), NewDomain,
                     M.xyp, M.pnames, M.StaticOutput, M.inplace, M.CustomEmbedding)
 end
 function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
     Ainv = inv(A)
-    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v), Ainv*(MLE(DM)-v); kwargs...)
+    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; kwargs...), Ainv*(MLE(DM)-v))
 end
 
 _GetDecorrelationTransform(DM::AbstractDataModel) = (_GetDecorrelationTransform(FisherMetric(DM, MLE(DM))), MLE(DM))
