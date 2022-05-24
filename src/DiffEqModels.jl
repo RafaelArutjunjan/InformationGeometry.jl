@@ -102,6 +102,12 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Func
 end
 
 
+
+# Promote to Dual only if time is dual
+ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{Number,AbstractVector{<:Number}}) where T = convert.(type, var)
+ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = var
+
+
 # Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
@@ -111,7 +117,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
     function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
-        odeprob = ODEProblem(func, convert.(typeof(max_t),u0), (zero(max_t), max_t), θ)
+        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractArray{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
@@ -148,7 +154,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
-        odeprob = ODEProblem(func, convert.(typeof(max_t),u0), (zero(max_t), max_t), θ)
+        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), θ)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
@@ -186,7 +192,7 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Obse
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
     function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
-        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, convert.(typeof(max_t),u0), (zero(max_t), max_t), p)
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
@@ -229,7 +235,7 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
-        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, convert.(typeof(max_t),u0), (zero(max_t), max_t), p)
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
         solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,

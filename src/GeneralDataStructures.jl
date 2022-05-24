@@ -163,7 +163,7 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=fals
     if ADmode === :Symbolic || ADmode isa Val{:Symbolic}
         Symbolic_dmodel = Optimize(DS, model)[2]
         !isnothing(Symbolic_dmodel) && return Symbolic_dmodel
-        # Fall back to ForwarDiff if Symbolic differentiation did not work
+        # Fall back to ForwardDiff if Symbolic differentiation did not work
         @info "Falling back to ForwardDiff for model jacobian."
         ADmode = Val(:ForwardDiff)
     end

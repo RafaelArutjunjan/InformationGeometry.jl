@@ -5,7 +5,7 @@ module InformationGeometry
 # @reexport
 using LinearAlgebra, Random, Distributions, DataFrames
 
-using Distributed, StaticArrays, SparseArrays
+using Distributed, StaticArrays, SparseArrays, ForwardDiff
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
 using DerivableFunctionsBase

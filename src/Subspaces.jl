@@ -39,7 +39,7 @@ function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Nu
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
     return try
-        # faster but sometimes problems with ForwarDiff-generated gradients in LsqFit
+        # faster but sometimes problems with ForwardDiff-generated gradients in LsqFit
         curve_fit(Data(DM), planarmod, start, PlanarLogPrior; tol=tol).param
     catch;
         planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
