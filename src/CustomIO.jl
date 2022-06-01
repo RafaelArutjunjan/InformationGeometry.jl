@@ -61,7 +61,9 @@ function Base.show(io::IO, DS::AbstractDataSet)
     else
         println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     end
-    print(io, "x-data: ");    show(io, xdata(DS));    print(io, "\n")
+    xnameinsert = any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x")) ? " ["*prod(xnames(DS) .* ", ")[1:end-2]*"] " : ""
+    print(io, "x-data" * xnameinsert * ": ")
+    show(io, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
         if xsigma(DS) isa AbstractVector
             println(io, "Standard deviation associated with x-data:")
@@ -72,7 +74,9 @@ function Base.show(io::IO, DS::AbstractDataSet)
         end
         print(io, "\n")
     end
-    print(io, "y-data: ");    show(io, ydata(DS));    print(io, "\n")
+    ynameinsert = any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y")) ? " ["*prod(ynames(DS) .* ", ")[1:end-2]*"] " : ""
+    print(io, "y-data" * ynameinsert * ": ")
+    show(io, ydata(DS));    print(io, "\n")
     if ysigma(DS) isa AbstractVector
         println(io, "Standard deviation associated with y-data:")
         show(io, ysigma(DS))
