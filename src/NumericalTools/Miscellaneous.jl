@@ -49,11 +49,11 @@ ValToBool(x::Val{false}) = false
 
 function GetMethod(tol::Real)
     if tol > 1e-8
-        Tsit5()
+        AutoTsit5(Rosenbrock23())
     elseif tol < 1e-11
-        Vern9()
+        AutoVern9(KenCarp5())
     else
-        Vern7()
+        AutoVern7(KenCarp4())
     end
 end
 

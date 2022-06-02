@@ -364,6 +364,13 @@ Base.:*(a::Number, C::HyperCube) = HyperCube(a*C.L, a*C.U)
 Base.:*(C::HyperCube, a::Number) = Base.:*(a, C)
 Base.:*(Mat::AbstractMatrix, C::HyperCube) = HyperCube(Mat*C.L, Mat*C.U)
 
+"""
+    ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number}) -> HyperCube
+Replaces the `i`-th components of `Cube` with the given tuple `Tup`.
+"""
+function ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number})
+    L, U = convert(Vector,Cube.L), convert(Vector,Cube.U);      L[i], U[i] = Tup;       HyperCube(L, U)
+end
 
 
 DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
