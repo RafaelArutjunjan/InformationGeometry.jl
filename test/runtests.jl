@@ -59,14 +59,14 @@ end
 
 
 @safetestset "More Boundary tests" begin
-    using InformationGeometry, Test, Random, Distributions, OrdinaryDiffEq, LinearAlgebra
+    using InformationGeometry, Test, Random, Distributions, SciMLBase, OrdinaryDiffEq, LinearAlgebra
 
     Random.seed!(31415);    normerr(sig::Number) = rand(Normal(0,sig));     quarticlin(x,p) = p[1]*x.^4 .+ p[2]
     X = collect(0:0.2:3);   err = 2. .+ 2sqrt.(X);      Y = quarticlin(X,[1,8.]) + normerr.(err)
     ToyDME = DataModel(DataSetExact(X,0.1ones(length(X)),Y,err), (x,p) -> 15p[1]^3 * x.^4 .+ p[2]^5)
 
-    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8; tol=1e-5) isa ODESolution
-    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8.5; tol=1e-5) isa ODESolution
+    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8; tol=1e-5) isa SciMLBase.AbstractODESolution
+    @test InterruptedConfidenceRegion(BigFloat(ToyDME), 8.5; tol=1e-5) isa SciMLBase.AbstractODESolution
 
     NewX, NewP = TotalLeastSquares(ToyDME)
     @test LogLike(Data(ToyDME), NewX, EmbeddingMap(Data(ToyDME),Predictor(ToyDME),NewP,NewX)) > loglikelihood(ToyDME, MLE(ToyDME))

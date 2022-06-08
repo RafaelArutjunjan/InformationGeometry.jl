@@ -290,6 +290,10 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
     end
     HyperCube(vals::Tuple{<:Number,<:Number}; Padding::Number=0.) = HyperCube([vals[1]],[vals[2]]; Padding=Padding)
     HyperCube(center::AbstractVector{<:Number}, width::Real) = HyperCube(center .- (width/2), center .+ (width/2))
+
+    function HyperCube(D::AbstractDict{T,<:Tuple{<:Number,<:Number}}, X::AbstractVector{T}; kwargs...) where T
+        Tups = [D[x] for x in X];    HyperCube(getindex.(Tups,1), getindex.(Tups,2); kwargs...)
+    end
 end
 
 Base.length(Cube::HyperCube) = Base.length(Cube.L)

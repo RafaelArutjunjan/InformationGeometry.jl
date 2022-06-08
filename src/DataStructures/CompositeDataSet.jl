@@ -236,6 +236,7 @@ end
 RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector{<:Number}=xdata(CDS))
     xdim(CDS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
+    title --> name(CDS)
     xguide -->  xnames(CDS)[1]
     yguide -->  "Observations"
     for (i,DS) in enumerate(Data(CDS))

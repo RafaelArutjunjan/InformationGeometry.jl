@@ -46,7 +46,7 @@ end
 
 
 function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0);
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     Model = if sys isa ModelingToolkit.AbstractODESystem
@@ -54,8 +54,8 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end
-    if Model isa ModelMap       Model = Model.Map    end
-    pnames = ModelingToolkit.get_ps(sys) .|> string
+    Model isa ModelMap && (Model = Model.Map)
+    !isnothing(Domain) && (@assert length(pnames) ≤ length(Domain))
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
         argnum = MaximalNumberOfArguments(observables)
@@ -76,9 +76,9 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
         GetArgLength(u0)
     end
     xyp = (1, ylen, plen)
-    Domain = isa(Domain, Bool) ? FullDomain(xyp[3], 1e5) : Domain
+    Domain = isnothing(Domain) ? FullDomain(xyp[3], 1e5) : Domain
 
-    pnames = plen - length(pnames) > 0 ? vcat(CreateSymbolNames(plen - length(pnames), "u"), pnames) : pnames
+    pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
     # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
     ModelMap(Model, nothing, Domain, xyp, pnames, Val(false), Val(false), Val(true))
 end
@@ -110,7 +110,7 @@ ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = va
 
 # Vanilla version with constant array of initial conditions and vector of observables.
 function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, Kwargs...) where T
     @assert T == inplace
     u0 = PromoteStatic(u0, inplace)
     # If observable only has single component, don't pass vector to getindex() in second arg
@@ -118,7 +118,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
 
     function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
         odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), θ)
-        solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
+        solve(odeprob, meth; reltol=tol, abstol=tol, Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractArray{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                                         tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
@@ -148,14 +148,15 @@ Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
 function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, PreObservationFunction::Function; tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @assert T == inplace
+    CB = callback
     u0 = PromoteStatic(u0, inplace)
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
         odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), θ)
-        solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
+        solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
@@ -165,7 +166,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
     end
     function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
-        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, tstops=ts, kwargs...)
+        FullSol && return GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, kwargs...)
         sol = GetSol(θ, u0; tol=tol, max_t=max_t, meth=meth, saveat=ts, kwargs...)
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
@@ -186,14 +187,15 @@ Typically, a fair bit of performance can be gained from ensuring that `SplitterF
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
 function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @assert T == inplace
+    CB = callback
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
-        solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
+        solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
                                 tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
@@ -230,13 +232,14 @@ Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
 function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true) where T
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @assert T == inplace
+    CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
-        solve(odeprob, meth; reltol=tol, abstol=tol, kwargs...)
+        solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                                     tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
@@ -253,6 +256,43 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
     end
     MakeCustom(ODEmodel, Domain)
 end
+
+
+GetModelNaive(func::ODESystem, A, B; kwargs...) = GetModelNaive(ODEFunction(func), A, B; kwargs...)
+function GetModelNaive(func::AbstractODEFunction, u0, Observables; kwargs...)
+    SplitterFunction = if u0 isa Function
+        u0
+    elseif u0 isa Union{Number, AbstractArray}
+        (θ->(u0, θ))
+    else
+        throw("Error 1.")
+    end
+    ObservationFunction = if Observables isa Function
+        Observables
+    elseif Observables isa Union{Int,AbstractVector{<:Int},BoolArray}
+        observables = length(Observables) == 1 ? Observables[1] : Observables
+        u->u[observables]
+    end
+    GetModelNaive(func, SplitterFunction, ObservationFunction; kwargs...)
+end
+function GetModelNaive(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    @assert T == inplace
+    CB = callback
+    ObservationFunction = CompleteObservationFunction(PreObservationFunction)
+
+    function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
+
+        sol = solve(odeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
+    end
+    ODEmodel(t::Number, θ::AbstractVector{<:Number}; kwargs...) = ODEmodel([t], θ; kwargs...)
+    MakeCustom(ODEmodel, Domain)
+end
+
+
 
 """
     ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) -> ModelMap

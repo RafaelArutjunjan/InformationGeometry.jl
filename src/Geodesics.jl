@@ -187,7 +187,7 @@ Computes a geodesic between two given points on the parameter manifold and an ex
 By setting the keyword `approx=true`, the ChristoffelSymbols are assumed to be constant and only computed once at the initial position. This simplifies the computation immensely but may also constitute an inaccurate approximation depending on the magnitude of the Ricci curvature.
 """
 GeodesicBetween(DM::AbstractDataModel, args...; kwargs...) = GeodesicBetween(FisherMetric(DM), args...; kwargs...)
-function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), approx::Bool=false, kwargs...)
+function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), approx::Bool=false, kwargs...)
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
@@ -206,8 +206,8 @@ end
 Computes the length of a geodesic connecting the points `P` and `Q`.
 """
 GeodesicDistance(DM::AbstractDataModel, args...; kwargs...) = GeodesicDistance(FisherMetric(DM), args...; kwargs...)
-function GeodesicDistance(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-10, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
-    GeodesicLength(Metric, GeodesicBetween(Metric, P, Q; tol=tol, meth=meth, kwargs...))
+function GeodesicDistance(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; kwargs...)
+    GeodesicLength(Metric, GeodesicBetween(Metric, P, Q; kwargs...))
 end
 
 ParamVol(sol::AbstractODESolution) = sol.t[end] - sol.t[1]
@@ -228,11 +228,11 @@ end
     ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; tol::Real=1e-9)
 Computes the differential-geometric exponential map ``\\mathrm{exp}_p(v)`` which returns the endpoint that is reached by a geodesic ``\\gamma:[0,1] \\longrightarrow \\mathcal{M}`` with initial direction ``v \\in T_p \\mathcal{M}``.
 """
-function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; FullSol::Bool=false, kwargs...)
     if FullSol
-        ComputeGeodesic(Metric, point, tangent, 1.0; tol=tol, meth=meth, kwargs...)
+        ComputeGeodesic(Metric, point, tangent, 1.0; kwargs...)
     else
-        ComputeGeodesic(Metric, point, tangent, 1.0; tol=tol, meth=meth, save_everystep=false, save_start=false, save_end=true, kwargs...).u[end][1:end÷2]
+        ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[end][1:end÷2]
     end
 end
 ExponentialMap(DM::AbstractDataModel, args...; kwargs...) = ExponentialMap(FisherMetric(DM), args...; kwargs...)
@@ -241,11 +241,11 @@ ExponentialMap(DM::AbstractDataModel, args...; kwargs...) = ExponentialMap(Fishe
     LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-9)
 Computes the inverse of the differential-geometric exponential map, i.e. ``\\mathrm{ln}_p(q) \\equiv (\\mathrm{exp}^{-1})_p(q)`` which returns a (possibly non-unique!) initial direction ``v \\in T_p \\mathcal{M}`` for a geodesic ``\\gamma:[0,1] \\longrightarrow \\mathcal{M}`` that goes from ``p \\in \\mathcal{M}`` to ``q \\in \\mathcal{M}``.
 """
-function LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), FullSol::Bool=false, kwargs...)
+function LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; FullSol::Bool=false, kwargs...)
     if FullSol
-        GeodesicBetween(Metric, P, Q, 1.0; tol=tol, meth=meth, kwargs...)
+        GeodesicBetween(Metric, P, Q, 1.0; kwargs...)
     else
-        GeodesicBetween(Metric, P, Q, 1.0; tol=tol, meth=meth, save_everystep=false, save_start=true, save_end=false, kwargs...).u[1][((end÷2)+1):end]
+        GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[1][((end÷2)+1):end]
     end
 end
 LogarithmicMap(DM::AbstractDataModel, args...; kwargs...) = LogarithmicMap(FisherMetric(DM), args...; kwargs...)
