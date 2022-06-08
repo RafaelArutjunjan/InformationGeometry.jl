@@ -52,6 +52,44 @@ end
 # treenode(x::Foo, i::Int) = missing
 
 
+function ParamSummary(DM::AbstractDataModel)
+    IsLin = try IsLinearParameter(DM) catch; nothing end
+    L, U = if Predictor(DM) isa ModelMap
+        round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
+    else
+        fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
+    end
+    mle = MLE(DM)
+    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
+    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
+    if !isnothing(IsLin) && any(IsLin)
+        H = Highlighter((data,zeile,spalte) -> spalte < 5 && (OnLowerBoundary[zeile] || OnUpperBoundary[zeile]); bold=true, foreground=:red)
+        pretty_table([pnames(DM) L MLEuncert(DM) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+    else
+        H = Highlighter((data,zeile,spalte) -> OnLowerBoundary[zeile] || OnUpperBoundary[zeile]; bold=true, foreground=:red)
+        pretty_table([pnames(DM) L MLEuncert(DM) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+    end
+end
+function ParamSummary(io::IO, DM::AbstractDataModel)
+    IsLin = try IsLinearParameter(DM) catch; nothing end
+    L, U = if Predictor(DM) isa ModelMap
+        round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
+    else
+        fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
+    end
+    mle = MLE(DM)
+    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
+    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
+    if !isnothing(IsLin) && any(IsLin)
+        H = Highlighter((data,zeile,spalte) -> spalte < 5 && (OnLowerBoundary[zeile] || OnUpperBoundary[zeile]); bold=true, foreground=:red)
+        pretty_table(io, [pnames(DM) L MLEuncert(DM) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+    else
+        H = Highlighter((data,zeile,spalte) -> OnLowerBoundary[zeile] || OnUpperBoundary[zeile]; bold=true, foreground=:red)
+        pretty_table(io, [pnames(DM) L MLEuncert(DM) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+    end
+end
+
+
 import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
 #### Show Distribution types for DataSetExact
@@ -94,7 +132,6 @@ end
 
 function Base.show(io::IO, DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
-    IsLin = try IsLinearParameter(DM) catch; nothing end
     if length(name(Data(DM))) > 0
         println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM)))) '$(name(Data(DM)))'")
     else
@@ -108,12 +145,9 @@ function Base.show(io::IO, DM::AbstractDataModel)
         "manually provided by user"
     end
     println(io, "Model jacobian " * Jac)
-    if DM isa DataModel
-        println(io, "Maximum Likelihood Estimate: $(MLE(DM))")
-        println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
-    end
+    println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    !isnothing(IsLin) && println(io, "Model parametrization linear in n-th parameter: $(IsLin)")
+    ParamSummary(io, DM)
 end
 
 function Base.show(io::IO, M::ModelMap)
