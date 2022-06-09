@@ -294,6 +294,9 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
     function HyperCube(D::AbstractDict{T,<:Tuple{<:Number,<:Number}}, X::AbstractVector{T}; kwargs...) where T
         Tups = [D[x] for x in X];    HyperCube(getindex.(Tups,1), getindex.(Tups,2); kwargs...)
     end
+    function HyperCube(V::AbstractVector{<:Measurements.Measurement}, scale::Real=1.0; kwargs...)
+    	HyperCube(getproperty.(V, :val) - scale*getproperty.(V, :err), getproperty.(V, :val) + scale*getproperty.(V, :err); kwargs...)
+    end
 end
 
 Base.length(Cube::HyperCube) = Base.length(Cube.L)

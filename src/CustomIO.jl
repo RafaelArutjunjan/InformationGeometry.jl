@@ -64,10 +64,10 @@ function ParamSummary(DM::AbstractDataModel)
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> spalte < 5 && (OnLowerBoundary[zeile] || OnUpperBoundary[zeile]); bold=true, foreground=:red)
-        pretty_table([pnames(DM) L MLEuncert(DM) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+        pretty_table([pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> OnLowerBoundary[zeile] || OnUpperBoundary[zeile]; bold=true, foreground=:red)
-        pretty_table([pnames(DM) L MLEuncert(DM) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+        pretty_table([pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
     end
 end
 function ParamSummary(io::IO, DM::AbstractDataModel)
@@ -82,10 +82,10 @@ function ParamSummary(io::IO, DM::AbstractDataModel)
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> spalte < 5 && (OnLowerBoundary[zeile] || OnUpperBoundary[zeile]); bold=true, foreground=:red)
-        pretty_table(io, [pnames(DM) L MLEuncert(DM) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+        pretty_table(io, [pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> OnLowerBoundary[zeile] || OnUpperBoundary[zeile]; bold=true, foreground=:red)
-        pretty_table(io, [pnames(DM) L MLEuncert(DM) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+        pretty_table(io, [pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
     end
 end
 

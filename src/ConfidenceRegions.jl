@@ -963,7 +963,7 @@ This test is performed by comparing the Jacobians of the model for two random co
 """
 function IsLinearParameter(DM::AbstractDataModel; kwargs...)
     J1 = EmbeddingMatrix(DM, MLE(DM)+rand(pdim(DM)); kwargs...);    J2 = EmbeddingMatrix(DM,MLE(DM)+rand(pdim(DM)); kwargs...)
-    BitArray(J1[:,i] == J2[:,i]  for i in 1:size(J1,2))
+    BitArray(J1[:,i] == J2[:,i] && !any(x->x==0., J1[:,i]) for i in 1:size(J1,2))
 end
 
 """

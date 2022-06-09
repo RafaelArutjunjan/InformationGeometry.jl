@@ -89,13 +89,13 @@ LogPrior(DM::AbstractDataModel) = x->0.0
 
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 
-function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
     F = FisherMetric(DM, mle)
     try
         mle .± sqrt.(Diagonal(inv(F)).diag)
     catch y;
         if y isa SingularException
-            @warn "MLEuncert: FisherMetric singular, estimating only diagonal uncertainty."
+            verbose && @warn "MLEuncert: FisherMetric singular, estimating only diagonal uncertainty."
             mle .± sqrt.(inv.(Diagonal(F).diag))
         else
             rethrow(y)
