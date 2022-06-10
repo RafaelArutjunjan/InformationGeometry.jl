@@ -492,7 +492,7 @@ end
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain`
 by evaluating the model on the boundary of the confidence region.
 """
-function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}, Xdomain::HyperCube=XCube(DM); N::Int=300, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, sols::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution},Tuple{<:Number,<:Number}}, Xdomain::HyperCube=XCube(DM); N::Int=300, kwargs...)
     ConfidenceBands(DM, sols, DomainSamples(Xdomain; N=N); kwargs...)
 end
 
@@ -561,6 +561,11 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
     end
     plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1]))
     M
+end
+
+# For 1D parameter spaces, drop samples kwarg
+function ConfidenceBands(DM::AbstractDataModel, ConfInterval::Tuple{<:Number,<:Number}, woundX::AbstractVector{<:Number}; samples::Int=200, kwargs...)
+    ConfidenceBands(DM, [[ConfInterval[1]], [ConfInterval[2]]], woundX; kwargs...)
 end
 
 # Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
@@ -702,9 +707,9 @@ function PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::Abstr
         p = SVector{length(pDomain)}(rand(pDomain));        Conf = GetConfnum(DM, p)
         Conf ≤ MaxConfnum ? (p, Conf) : GenerateUniformPoint(DM, pDomain, MaxConfnum)
     end
-    iF = inv(FisherMetric(DM, MLE(DM))) |> Symmetric
+    dist = MvNormal(MLE(DM), Symmetric(inv(FisherMetric(DM, MLE(DM)))))
     function GenerateGaussianPoint(DM::AbstractDataModel, MaxConfnum::Real)
-        p = rand(MvNormal(MLE(DM), iF));    Conf = GetConfnum(DM, p)
+        p = rand(dist);    Conf = GetConfnum(DM, p)
         Conf ≤ MaxConfnum ? (p, Conf) : GenerateGaussianPoint(DM, MaxConfnum)
     end
     function MakePrediction(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}; MaxConfnum::Real=3)
