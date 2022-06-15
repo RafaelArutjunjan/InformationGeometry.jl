@@ -113,8 +113,8 @@ function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::R
     @assert all(x->x>0, widths)
     L = mle - widths;   U = mle + widths
     if ForcePositive
-        clamp!(L, 1e-14ones(length(L)), 1e20ones(length(L)))
-        clamp!(U, 1e-14ones(length(L)), 1e20ones(length(L)))
+        L = clamp.(L, 1e-10, 1e12)
+        U = clamp.(U, 1e-10, 1e12)
     end
     HyperCube(L,U)
 end
@@ -126,7 +126,7 @@ end
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
 
@@ -148,8 +148,12 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    @inbounds for i in eachindex(Res)
-        Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
+    if IsCost
+        @. Res = 2*(Logmax - Res)
+    else
+        @inbounds for i in eachindex(Res)
+            Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
+        end
     end
 
     if SaveTrajectories
@@ -291,9 +295,9 @@ struct ParameterProfile <: AbstractProfile
     Names::AbstractVector{<:String}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
-    function ParameterProfile(DM::AbstractDataModel, Confnum::Real=2; SaveTrajectories::Bool=false, kwargs...)
-        Profs = ProfileLikelihood(DM, Confnum; SaveTrajectories=SaveTrajectories, kwargs...)
-        SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2)) : ParameterProfile(DM, Profs)
+    function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2.; SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
+        Profs = ProfileLikelihood(DM, Confnum; SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
+        SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2); IsCost=IsCost) : ParameterProfile(DM, Profs; IsCost=IsCost)
     end
     function ParameterProfile(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=pnames(DM); IsCost::Bool=false)
         ParameterProfile(Profiles, Trajectories, Names, MLE(DM), IsCost)
