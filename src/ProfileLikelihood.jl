@@ -184,8 +184,12 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, kwargs...)
-    Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
-    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM); progress=Prog)
+    Profiles = if verbose
+        Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
+        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM); progress=Prog)
+    else
+        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+    end
     plot && ProfilePlotter(DM, Profiles)
     Profiles
 end
