@@ -143,8 +143,10 @@ Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFuncti
 Prior(D::DFunction, args...; kwargs...) = D
 
 EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
-EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
-EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
+# EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
+# EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
+EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = GetGrad(P; kwargs...)(θ)
+EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = GetHess(P; kwargs...)(θ)
 
 EvalLogPrior(D::Nothing, x::AbstractVector{<:Number}; kwargs...) = zero(suff(x))
 EvalLogPriorGrad(D::Nothing, x::AbstractVector{<:Number}; kwargs...) = zeros(suff(x),length(x))
