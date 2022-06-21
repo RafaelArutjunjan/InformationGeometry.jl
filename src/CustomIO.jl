@@ -99,7 +99,10 @@ function Base.show(io::IO, DS::AbstractDataSet)
     else
         println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
     end
-    xnameinsert = any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x")) ? " ["*prod(xnames(DS) .* ", ")[1:end-2]*"] " : ""
+    xnameinsert = if any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x"))
+        tempS = prod(xnames(DS) .* ", ")
+        " [" * SubString(tempS, 1, length(tempS)-2) * "] "
+        else "" end
     print(io, "x-data" * xnameinsert * ": ")
     show(io, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
@@ -112,7 +115,10 @@ function Base.show(io::IO, DS::AbstractDataSet)
         end
         print(io, "\n")
     end
-    ynameinsert = any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y")) ? " ["*prod(ynames(DS) .* ", ")[1:end-2]*"] " : ""
+    ynameinsert = if any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y"))
+        tempS = prod(ynames(DS) .* ", ")
+        " [" * SubString(tempS, 1, length(tempS)-2) * "] "
+        else "" end
     print(io, "y-data" * ynameinsert * ": ")
     show(io, ydata(DS));    print(io, "\n")
     if ysigma(DS) isa AbstractVector
