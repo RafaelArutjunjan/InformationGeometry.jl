@@ -554,9 +554,28 @@ y(x,θ) = θ_{n+1} + x_1 * θ_1 + x_2 * θ_2 + ... + x_n * θ_n
 ```
 """
 LinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = dot(view(θ, 1:(length(θ)-1)), x) + θ[end]
+"""
+    QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number})
+```math
+y(x,θ) = θ_1 * x^2 + θ_2 * x + θ_3
+```
+"""
 QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = (n=length(θ);  dot(view(θ,1:((n-1)÷2)), x.^2) + dot(view(θ,(n-1)÷2+1:n-1), x) + θ[end])
+"""
+    ExponentialModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number})
+```math
+y(x,θ) = exp(θ_{n+1} + x_1 * θ_1 + x_2 * θ_2 + ... + x_n * θ_n)
+```
+"""
 ExponentialModel = exp∘LinearModel
 SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = sum(exp.(θ .* x))
+"""
+    PolynomialModel(n::Int)
+Creates a polynomial of degree `n`:
+```math
+y(x,θ) = θ_1 * x^n + θ_2 * x^{n-1} + ... θ_{n} * x + θ_{n+1}
+```
+"""
 PolynomialModel(degree::Int) = Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
 
 

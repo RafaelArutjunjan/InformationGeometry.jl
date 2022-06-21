@@ -115,12 +115,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     xguide --> xnames(DM)[1]
     for i in 1:ydim(DM)
         @series begin
-            markeralpha -->      0.
+            subplot := i
+            markeralpha -->     0.
             linewidth -->       2
             linestyle -->       :solid
-            yguide --> ynames(DM)[i]
-            subplot := i
-            label --> Labels[i]
+            seriescolor -->     :red
+            yguide -->          ynames(DM)[i]
+            label -->           Labels[i]
             X, view(Ypred, :, i)
         end
     end
@@ -128,8 +129,8 @@ end
 
 
 # Bad form but works
-RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; kwargs...) for DS in DSs]...; layout=length(DSs))
-RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; kwargs...) for DM in DMs]...; layout=length(DMs))
+RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; leg=false, kwargs...) for DS in DSs]...; layout=length(DSs))
+RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; leg=false, kwargs...) for DM in DMs]...; layout=length(DMs))
 
 
 RecipesBase.@recipe function f(LU::HyperCube)
