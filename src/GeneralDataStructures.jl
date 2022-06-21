@@ -256,6 +256,29 @@ Base.join(DSVec::AbstractVector{T}) where T <: Union{AbstractDataSet,AbstractDat
 
 SortDataSet(DS::AbstractDataSet) = DS |> DataFrame |> sort |> DataSet
 SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predictor(DM), dPredictor(DM), MLE(DM))
+
+
+"""
+    SubDataSetComponent(DS::AbstractDataSet, i::Int)
+Get a dataset containing only the `i`-th y-components as observations.
+"""
+function SubDataSetComponent(DS::AbstractDataSet, i::Int)
+    @assert !(DS isa CompositeDataSet) "No specialized method for CompositeDataSet yet."
+    @assert 1 ≤ i ≤ ydim(DS)
+    keep = repeat((X=falses(ydim(DS)); X[i]=true; X), Npoints(DS))
+    if sum(abs, xsigma(DS)) == 0
+        DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
+                xnames=xnames(DS), ynames=[ynames(DS)[i]], name=name(DS))
+    else
+        DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
+                xnames=xnames(DS), ynames=[ynames(DS)[i]], name=name(DS))
+    end
+end
+
+"""
+    SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
+Shorten the dataset by restricting to the data points specified by `range`.
+"""
 function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
     @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")

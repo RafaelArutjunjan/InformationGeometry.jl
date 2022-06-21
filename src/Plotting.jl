@@ -92,6 +92,41 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
 end
 
 
+RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositions::AbstractVector{<:Number}=xdata(DS))
+    layout --> ydim(DS)
+    leg --> false
+    for i in 1:ydim(DS)
+        @series begin
+            subplot := i
+            title --> ""
+            SubDataSetComponent(DS, i), xpositions
+        end
+    end
+end
+
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
+    @series begin Data(DM), V, xpositions end
+    X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
+    Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))
+    RSEs = ResidualStandardError(DM, mle)
+    RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
+    Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
+    leg --> false
+    xguide --> xnames(DM)[1]
+    for i in 1:ydim(DM)
+        @series begin
+            markeralpha -->      0.
+            linewidth -->       2
+            linestyle -->       :solid
+            yguide --> ynames(DM)[i]
+            subplot := i
+            label --> Labels[i]
+            X, view(Ypred, :, i)
+        end
+    end
+end
+
+
 # Bad form but works
 RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; kwargs...) for DS in DSs]...; layout=length(DSs))
 RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; kwargs...) for DM in DMs]...; layout=length(DMs))
