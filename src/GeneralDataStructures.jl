@@ -96,10 +96,12 @@ function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::
     catch y;
         if y isa SingularException
             verbose && @warn "MLEuncert: FisherMetric singular, estimating only diagonal uncertainty."
-            mle .± sqrt.(inv.(Diagonal(F).diag))
+        elseif y isa DomainError
+            verbose && @warn "MLEuncert: inverse Fisher metric not positive-definite, estimating only diagonal uncertainty."
         else
             rethrow(y)
         end
+        mle .± sqrt.(inv.(Diagonal(F).diag))
     end
 end
 
