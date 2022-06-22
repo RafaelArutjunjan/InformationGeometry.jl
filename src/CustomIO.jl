@@ -164,5 +164,5 @@ function Base.show(io::IO, M::ModelMap)
         println(io, (isinplacemodel(M) ? "In-place" : "Out-of-place") * " Model with with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
     end
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: $(pnames(M))")
+    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * (S=prod(pnames(M) .* ", "); SubString(S, 1, length(S)-2)) * "]")
 end
