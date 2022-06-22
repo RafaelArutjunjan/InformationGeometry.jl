@@ -279,7 +279,7 @@ GetStartP(DS::AbstractDataSet, model::Function, hint::Int=pdim(DS,model)) = GetS
 GetStartP(DS::AbstractDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetStartP(model)
 GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
-ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(M.Domain, M.InDomain; maxiters=maxiters)
+ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(Domain(M), InDomain(M); maxiters=maxiters)
 function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     naivetry = GetStartP(length(C))
     IsInDomain(InDom, C, naivetry) ? naivetry : SobolStartP(C, InDom; maxiters=maxiters)
@@ -299,13 +299,13 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVe
                                     tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)
+    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
                                     tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=BFGS(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     sum(abs, xsigma(DS)) != 0.0 && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? model.Domain : nothing); meth=meth, tol=tol, kwargs...)
+    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, kwargs...)
 end
 
 
@@ -320,7 +320,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
         curve_fit(DS, model, start; tol=tol).param
     else
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
-        InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? model.Domain : nothing); tol=tol, kwargs...)
+        InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, kwargs...)
     end
 end
 
@@ -333,7 +333,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFun
         curve_fit(DS, model, dmodel, start; tol=tol).param
     else
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
-        InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? model.Domain : nothing); tol=tol, kwargs...)
+        InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, kwargs...)
     end
 end
 

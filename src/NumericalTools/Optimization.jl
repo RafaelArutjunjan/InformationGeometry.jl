@@ -10,8 +10,8 @@ function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Numbe
 end
 
 LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
-LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, initial, args...; lower=convert(Vector{T},M.Domain.L), upper=convert(Vector{T},M.Domain.U), kwargs...)
-LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, dM, initial, args...; lower=convert(Vector{T},M.Domain.L), upper=convert(Vector{T},M.Domain.U), kwargs...)
+LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
+LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number = _curve_fit(DS, M, dM, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 
 
 function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
@@ -170,13 +170,13 @@ end
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); kwargs...) = RobustFit(Data(DM), Predictor(DM), start, LogPrior(DM); kwargs...)
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(yInvCov(DS)).U
     # Since F is minimized, need to subtract LogPrior
     F(θ::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, θ)), p) - EvalLogPrior(LogPriorFn, θ)
     InformationGeometry.minimize(F, start, Domain; tol=tol, kwargs...)
 end
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? M.Domain : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
     HalfSig = cholesky(yInvCov(DS)).U
     # Since F is minimized, need to subtract LogPrior
     F(θ::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS)), p) - EvalLogPrior(LogPriorFn, θ)

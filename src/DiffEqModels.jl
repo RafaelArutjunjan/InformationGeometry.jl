@@ -46,7 +46,7 @@ end
 
 
 function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0);
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     Model = if sys isa ModelingToolkit.AbstractODESystem
@@ -54,7 +54,6 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end
-    Model isa ModelMap && (Model = Model.Map)
     !isnothing(Domain) && (@assert length(pnames) ≤ length(Domain))
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
@@ -79,8 +78,8 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     Domain = isnothing(Domain) ? FullDomain(xyp[3], 1e5) : Domain
 
     pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
-    # new(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding)
-    ModelMap(Model, nothing, Domain, xyp, pnames, Val(false), Val(false), Val(true))
+    # new(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding)
+    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), ModelingToolkit.getname(sys), (Model.Meta isa Tuple ? (sys, Model.Meta...) : Model.Meta))
 end
 
 
@@ -133,7 +132,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain)
+    MakeCustom(ODEmodel, Domain; Meta=(u0, observables))
 end
 
 
@@ -171,7 +170,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain)
+    MakeCustom(ODEmodel, Domain; Meta=(u0, ObservationFunction))
 end
 
 
@@ -210,7 +209,7 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Obse
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain)
+    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, observables))
 end
 
 
@@ -254,7 +253,7 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain)
+    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, ObservationFunction))
 end
 
 
@@ -289,7 +288,7 @@ function GetModelNaive(func::AbstractODEFunction{T}, SplitterFunction::Function,
         [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
     end
     ODEmodel(t::Number, θ::AbstractVector{<:Number}; kwargs...) = ODEmodel([t], θ; kwargs...)
-    MakeCustom(ODEmodel, Domain)
+    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, ObservationFunction))
 end
 
 
@@ -319,5 +318,5 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
         F(sol.u[end], sol.t[end], θ)
     end
-    ModelMap(NewODEmodel, Model.InDomain, Model.Domain, (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Val(out isa SVector), Model.inplace, Model.CustomEmbedding)
+    ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-1]..., F))
 end

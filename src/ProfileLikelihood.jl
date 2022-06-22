@@ -72,12 +72,12 @@ InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVecto
 
 
 ProfilePredictor(DM::AbstractDataModel, args...) = ProfilePredictor(Predictor(DM), args...)
-ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDims(M.Domain, Comp) : nothing))
-ProfilePredictor(M::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=(M isa ModelMap ? DropCubeDims(M.Domain, Comps) : nothing))
+ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDims(Domain(M), Comp) : nothing))
+ProfilePredictor(M::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=(M isa ModelMap ? DropCubeDims(Domain(M), Comps) : nothing))
 
 ProfileDPredictor(DM::AbstractDataModel, args...) = ProfileDPredictor(dPredictor(DM), args...)
-ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comp) : nothing))
-ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(dM.Domain, Comps) : nothing))
+ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDims(Domain(dM), Comp) : nothing))
+ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(Domain(dM), Comps) : nothing))
 
 """
     PinParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat)
