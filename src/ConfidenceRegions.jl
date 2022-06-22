@@ -941,6 +941,24 @@ Calculates the Bayesian Information Criterion given a parameter configuration ``
 BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(DataspaceDim(DM)) - 2loglikelihood(DM, θ; kwargs...)
 
 
+
+"""
+    GetSmoothnessLogPrior(DM::AbstractDataModel, λ=5e-2; N::Int=300, Ran::AbstractVector=range(XCube(DS)[1]...; length=N)[2:end-1])
+Penalize mean curvature of model prediction to obtain smooth solution in maximum likelihood estimation.
+"""
+GetSmoothnessLogPrior(DM::AbstractDataModel, args...; kwargs...) = GetSmoothnessLogPrior(Data(DM), Predictor(DM), args...; kwargs...)
+function GetSmoothnessLogPrior(DS::AbstractDataSet, Model::ModelOrFunction, λ=5e-2; N::Int=300, Ran::AbstractVector=range(XCube(DS)[1]...; length=N)[2:end-1])
+    @assert xdim(DS) == 1 && all(x->x>0, λ)
+    @assert λ isa Real || length(λ) == ydim(DS) # Allow different lambda in each y-component
+    sqrt_λ = sqrt.(λ)
+    function SmoothnessLogPrior(θ::AbstractVector{<:Number})
+        PredHess(X::Real) = ForwardDiff.derivative(z->ForwardDiff.derivative(x->Model(x,θ),z), X)
+        SquareHess(X) = (H=sqrt_λ.*PredHess(X);   dot(H,H))
+        -sum(SquareHess, Ran)/(ydim(DS)*length(Ran))
+    end
+end
+
+
 """
     ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel) -> Tuple{Int,Real}
 Compares the AICc values of both models at best fit and estimates probability that one model is more likely than the other.
@@ -955,16 +973,18 @@ function ModelComparison(DM1::AbstractDataModel, DM2::AbstractDataModel, Crit::F
     (better, res)
 end
 
+"""
+    CompareCols(A::AbstractMatrix, B::AbstractMatrix) -> BitVector
+Check whether two Jacobian matrices have any columns in common which are not completely filled with zeros.
+"""
+CompareCols(A::AbstractMatrix, B::AbstractMatrix) = (@assert size(A) == size(B);    BitArray(A[:,i] == B[:,i] && any(x->x!=0., A[:,i]) for i in 1:size(A,2)))
 
 """
     IsLinearParameter(DM::DataModel) -> BitVector
 Checks with respect to which parameters the model function `model(x,θ)` is linear and returns vector of booleans where `true` indicates linearity.
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
-function IsLinearParameter(DM::AbstractDataModel; kwargs...)
-    J1 = EmbeddingMatrix(DM, MLE(DM)+rand(pdim(DM)); kwargs...);    J2 = EmbeddingMatrix(DM,MLE(DM)+rand(pdim(DM)); kwargs...)
-    BitArray(J1[:,i] == J2[:,i] && any(x->x!=0., J1[:,i]) for i in 1:size(J1,2))
-end
+IsLinearParameter(DM::AbstractDataModel; factor::Real=0.1, kwargs...) = CompareCols(EmbeddingMatrix(DM, MLE(DM)+factor*rand(pdim(DM)); kwargs...), EmbeddingMatrix(DM,MLE(DM)+factor*rand(pdim(DM)); kwargs...))
 
 """
     IsLinear(DM::DataModel) -> Bool
