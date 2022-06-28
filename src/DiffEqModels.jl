@@ -280,13 +280,36 @@ function GetModelNaive(func::AbstractODEFunction{T}, SplitterFunction::Function,
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+    function _ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                             tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
 
         sol = solve(odeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
     end
+    # ts sorted ascending, smallest element is first
+    function _ODEmodelbacksorted(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; max_t::Number=maximum(ts), kwargs...)
+        lastind = findfirst(x->x≥0.0, ts)
+        if isnothing(lastind)
+            _ODEmodel(ts, θ; max_t=ts[1], kwargs...)
+        else
+            [_ODEmodel(view(ts,1:lastind-1), θ; max_t=ts[1], kwargs...); _ODEmodel(view(ts,lastind:length(ts)), θ; max_t=max_t, kwargs...)]
+        end
+    end
+    function _ODEmodelback(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
+        u0, p = SplitterFunction(θ)
+        negTs = map(x->x<0.0, ts);  min_t = minimum(ts)
+
+        odeprob1 = ODEProblem(func, ConditionalConvert(typeof(min_t),u0), (zero(min_t), min_t), p)
+        odeprob2 = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
+
+        sol1 = solve(odeprob1, meth; reltol=tol, abstol=tol, saveat=ts[negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol2 = solve(odeprob2, meth; reltol=tol, abstol=tol, saveat=ts[.!negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        [ObservationFunction((t < 0.0 ? sol1(t) : sol2(t)) , t, θ) for t in ts] |> Reduction
+    end
+
+    ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = all(x->x≥0.0, ts) ? _ODEmodel(ts, θ; kwargs...) : (issorted(ts) ? _ODEmodelbacksorted(ts, θ; kwargs...) : _ODEmodelback(ts, θ; kwargs...))
     ODEmodel(t::Number, θ::AbstractVector{<:Number}; kwargs...) = ODEmodel([t], θ; kwargs...)
     MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, ObservationFunction))
 end
