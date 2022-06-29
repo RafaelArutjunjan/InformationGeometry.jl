@@ -99,7 +99,12 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
         @series begin
             subplot := i
             title --> ""
-            SubDataSetComponent(DS, i), xpositions
+            if DS isa CompositeDataSet # Ignore xpositions since different for every component
+                !(xpositions ≈ xdata(DS)) && @warn "Ignoring given xpositions in CompositeDataSet plotting."
+                SubDataSetComponent(DS, i)
+            else
+                SubDataSetComponent(DS, i), xpositions
+            end
         end
     end
 end

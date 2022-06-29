@@ -148,8 +148,8 @@ function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false
     NAutodmodelN(x::AbstractVector{<:Number},θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
     # Getting extract_gradient! error from ForwardDiff when using gradient method with observables
     # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(Grad(p->model(x,p),θ))
-    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
-    CustomAutodmodelN(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
+    CustomAutodmodelN(x,θ::AbstractVector{<:Number}; kwargs...) = Jac(p->model(x,p; kwargs...),θ)
+    CustomAutodmodelN(x,θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
     if ydim(DS) == 1
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
@@ -267,7 +267,7 @@ SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predicto
 Get a dataset containing only the `i`-th y-components as observations.
 """
 function SubDataSetComponent(DS::AbstractDataSet, i::Int)
-    @assert !(DS isa CompositeDataSet) "No specialized method for CompositeDataSet yet."
+    DS isa CompositeDataSet && return Data(DS)[i]
     @assert 1 ≤ i ≤ ydim(DS)
     keep = repeat((X=falses(ydim(DS)); X[i]=true; X), Npoints(DS))
     if sum(abs, xsigma(DS)) == 0
