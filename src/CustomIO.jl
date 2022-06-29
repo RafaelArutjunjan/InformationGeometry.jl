@@ -153,7 +153,7 @@ function Base.show(io::IO, DM::AbstractDataModel)
     println(io, "Model jacobian " * Jac)
     println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    ParamSummary(io, DM)
+    try ParamSummary(io, DM) catch; end
 end
 
 function Base.show(io::IO, M::ModelMap)

@@ -130,6 +130,10 @@ name(S::String) = S
 name(S::Symbol) = string(S)
 name(DS::AbstractDataSet) = ""
 
+Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,String}) = remake(DS; name=Symbol(name))
+Christen(DM::AbstractDataModel, name::Union{Symbol,String}) = remake(DM; model=remake(Predictor(DM); name=Symbol(name)), dmodel=remake(dPredictor(DM); name=Symbol(name)))
+
+
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
     GradPass, JacPass = DerivableFunctionsBase._GetGradPass, DerivableFunctionsBase._GetJacPass
