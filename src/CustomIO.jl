@@ -3,34 +3,45 @@
 macro CSI_str(str)
     return :(string("\x1b[", $(esc(str)), "m"))
 end
-const TYPE_COLOR = CSI"36"
-# const RED_COLOR = CSI"35"
-# const BLUE_COLOR = CSI"34;1"
-# const YELLOW_COLOR = CSI"33"
+
+
 const ORANGE_COLOR = CSI"38;5;208"
+# ANSI Format: 38;2;R;G;B
+# Color codes from Juno.syntaxcolors()
+const TYPE_COLOR = CSI"38;2;86;182;194" # correct hex color: 0x0056b6c2
+const NUMBER_COLOR = CSI"38;2;209;154;102" # correct hex color: 0x00d19a66
+const STRING_COLOR = CSI"38;2;152;195;121" # correct hex color: 0x0098c379
+const OPERATOR_COLOR = CSI"38;2;189;120;220" # correct hex color: 0x00c678dd
 const NO_COLOR = CSI"0"
 
-import Base: summary
-Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)), NO_COLOR, " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
 
 GeneratedFromAutoDiff(F::Function) = occursin("Autodmodel", string(nameof(typeof(F))))
 GeneratedFromAutoDiff(F::ModelMap) = GeneratedFromAutoDiff(F.Map)
 GeneratedFromSymbolic(F::Function) = occursin("SymbolicModel", string(nameof(typeof(F))))
 GeneratedFromSymbolic(F::ModelMap) = GeneratedFromSymbolic(F.Map)
 
+
+import Base: summary
+Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
+                                        NO_COLOR, (length(name(DS)) > 0 ? " '"*STRING_COLOR*"$(name(DS))"*NO_COLOR*"'" : ""),
+                                        " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
+
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
-    NO_COLOR, " containing ",
+    NO_COLOR, (length(name(Predictor(DM))) > 0 ? " '"*STRING_COLOR*"$(name(Predictor(DM)))"*NO_COLOR*"'" : ""),
+    " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, ". Model jacobian: ",
+    NO_COLOR, (length(name(Data(DM))) > 0 ? " '"*STRING_COLOR*"$(name(Data(DM)))"*NO_COLOR*"'" : ""),
+    ". Model jacobian: ",
     ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : (GeneratedFromSymbolic(dPredictor(DM)) ? "Symbolic" : "manually provided")),
     NO_COLOR)
 end
 
 function Base.summary(M::ModelMap)
-    string(TYPE_COLOR, "ModelMap ",
+    string(TYPE_COLOR, "ModelMap",
+        NO_COLOR, (length(name(M)) > 0 ? " '"*STRING_COLOR*"$(name(M))"*NO_COLOR*"' " : " "),
         ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
         NO_COLOR, " with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
 end
@@ -45,9 +56,13 @@ TreeViews.numberofnodes(x::ModelMap) = 4
 TreeViews.numberofnodes(x::CompositeDataSet) = 1
 TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
 
-function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
-    show(io, mime, Text(Base.summary(DS)))
-end
+# function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
+#     show(io, mime, Text(Base.summary(DS)))
+# end
+
+TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, ::MIME"text/plain") = print(io, Base.summary(DS))
+
+
 # To hide the treenode display, simply return missing:
 # treenode(x::Foo, i::Int) = missing
 
@@ -94,11 +109,7 @@ import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
 #### Show Distribution types for DataSetExact
 function Base.show(io::IO, DS::AbstractDataSet)
-    if length(name(DS)) > 0
-        println(io, "$(nameof(typeof(DS))) '$(name(DS))' with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
-    else
-        println(io, "$(nameof(typeof(DS))) with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS)):")
-    end
+    println(io, Base.summary(DS) * ":")
     xnameinsert = if any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x"))
         tempS = prod(xnames(DS) .* ", ")
         " [" * SubString(tempS, 1, length(tempS)-2) * "] "
@@ -131,18 +142,13 @@ function Base.show(io::IO, DS::AbstractDataSet)
 end
 
 function Base.show(io::IO, GDS::GeneralizedDataSet)
-    println(io, "$(nameof(typeof(GDS))) with N=$(Npoints(GDS)), xdim=$(xdim(GDS)) and ydim=$(ydim(GDS)):")
+    println(io, Base.summary(GDS) * ":")
     print(io, "Combined x-y data: ");    show(io, GetMean(dist(GDS)));    print(io, "\n")
     print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
 end
 
 function Base.show(io::IO, DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
-    if length(name(Data(DM))) > 0
-        println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM)))) '$(name(Data(DM)))'")
-    else
-        println(io, "$(nameof(typeof(DM))) containing a $(nameof(typeof(Data(DM))))")
-    end
     Jac = if GeneratedFromAutoDiff(dPredictor(DM))
         "generated via automatic differentiation"
     elseif GeneratedFromSymbolic(dPredictor(DM))
@@ -150,6 +156,7 @@ function Base.show(io::IO, DM::AbstractDataModel)
     else
         "manually provided by user"
     end
+    println(io, Base.summary(DM))
     println(io, "Model jacobian " * Jac)
     println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
@@ -158,11 +165,7 @@ end
 
 function Base.show(io::IO, M::ModelMap)
     Expr = SymbolicModel(M)
-    if length(name(M)) > 0
-        println(io, (isinplacemodel(M) ? "In-place" : "Out-of-place") * " model '$(name(M))' with with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
-    else
-        println(io, (isinplacemodel(M) ? "In-place" : "Out-of-place") * " Model with with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
-    end
+    println(io, Base.summary(M))
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * (S=prod(pnames(M) .* ", "); SubString(S, 1, length(S)-2)) * "]")
 end
