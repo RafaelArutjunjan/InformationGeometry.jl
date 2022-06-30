@@ -71,22 +71,41 @@ InsertIntoFirst(X::AbstractVector{<:Number}) = PassingIntoLast(θ::AbstractVecto
 InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVector{<:Number}) = [X;θ]
 
 
-ProfilePredictor(DM::AbstractDataModel, args...) = ProfilePredictor(Predictor(DM), args...)
-ProfilePredictor(M::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=(M isa ModelMap ? DropCubeDims(Domain(M), Comp) : nothing))
-ProfilePredictor(M::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=(M isa ModelMap ? DropCubeDims(Domain(M), Comps) : nothing))
+ProfilePredictor(DM::AbstractDataModel, args...; kwargs...) = ProfilePredictor(Predictor(DM), args...; kwargs...)
+ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
+ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
 
-ProfileDPredictor(DM::AbstractDataModel, args...) = ProfileDPredictor(dPredictor(DM), args...)
-ProfileDPredictor(dM::ModelOrFunction, Comp::Int, PinnedValue::AbstractFloat) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=(dM isa ModelMap ? DropCubeDims(Domain(dM), Comp) : nothing))
-ProfileDPredictor(dM::ModelOrFunction, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=(dM isa ModelMap ? DropCubeDims(Domain(dM), Comps) : nothing))
+ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); kwargs...)
+ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); kwargs...)
+
+
+ProfileDPredictor(DM::AbstractDataModel, args...; kwargs...) = ProfileDPredictor(dPredictor(DM), args...; kwargs...)
+ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
+ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+
+ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); kwargs...)
+ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); kwargs...)
+
 
 """
     PinParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat)
     PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
+    PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
 function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}})
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
+    length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values), ProfileDPredictor(DM, Components, Values), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)))
+end
+
+function PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
+    Comps = Int[];  Vals = []
+    for i in 1:pdim(DM)
+        pnames(DM)[i] ∈ keys(ParamDict) && push!(Comps, i) && push!(Vals, ParamDict[pnames(DM)[i]])
+    end
+    @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
+    PinParameters(DM, Comps, Vals)
 end
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
