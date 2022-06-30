@@ -112,7 +112,7 @@ ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :name, :xdist, :ydist, :dist,
+            :xnames, :ynames, :xdist, :ydist, :dist,
             :xdataMat, :ydataMat]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
@@ -129,9 +129,14 @@ Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM
 name(S::String) = S
 name(S::Symbol) = string(S)
 name(DS::AbstractDataSet) = ""
+name(DM::AbstractDataModel) = name(DM, Predictor(DM))
+name(DM::AbstractDataModel, M::ModelMap) = name(M)
+name(DM::AbstractDataModel, F::Function) = ""
 
 Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,String}) = remake(DS; name=Symbol(name))
-Christen(DM::AbstractDataModel, name::Union{Symbol,String}) = remake(DM; model=remake(Predictor(DM); name=Symbol(name)), dmodel=remake(dPredictor(DM); name=Symbol(name)))
+Christen(F::Function, name::Union{Symbol,String}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))
+# Christens ModelMaps
+Christen(DM::AbstractDataModel, name::Union{Symbol,String}) = remake(DM; model=Christen(Predictor(DM); name=name), dmodel=Christen(dPredictor(DM); name=name))
 
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)

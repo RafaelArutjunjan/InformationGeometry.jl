@@ -21,6 +21,10 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction
 import SciMLBase: remake
 export remake
 
+import ModelingToolkit: @named
+export @named
+
+
 import DerivableFunctionsBase: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder
 import DerivableFunctionsBase: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF
 import DerivableFunctionsBase: GetDeriv, GetGrad, GetJac, GetHess, GetMatrixJac

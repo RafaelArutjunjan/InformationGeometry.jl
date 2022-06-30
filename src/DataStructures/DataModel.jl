@@ -51,27 +51,33 @@ struct DataModel <: AbstractDataModel
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...), SkipTests)
-    DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; kwargs...) = DataModel(DS,model,DetermineDmodel(DS,model; kwargs...),mle,SkipTests)
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; kwargs...)
-        DataModel(DS, model, DetermineDmodel(DS, model; kwargs...), mle, LogPriorFn, SkipTests)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
+        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false)
-        SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel))
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode),mle,SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false)
-        DataModel(DS, model, dmodel, mle, nothing, SkipTests)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+        DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; kwargs...)
+        SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true; kwargs...) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel); kwargs...)
+    end
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false; kwargs...)
+        DataModel(DS, model, dmodel, mle, nothing, SkipTests; kwargs...)
+    end
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false; kwargs...)
         LogPriorFn = Prior(logPriorFn, mle)
-        SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true)
+        SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true; kwargs...)
         MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
-        DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, SkipTests)
+        DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,SkipTests::Bool=false)
-        DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,SkipTests::Bool=false; kwargs...)
+        DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false)
+    # Block kwargs here.
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; name::Union{Symbol,String}=Symbol())
+        length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
         new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn,MLE))
