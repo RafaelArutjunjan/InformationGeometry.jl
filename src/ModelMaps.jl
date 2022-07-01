@@ -113,6 +113,7 @@ InDomain(arg) = throw("$arg does not have an InDomain function.")
 
 isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
+iscustom(F::Function) = false
 
 isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
 
