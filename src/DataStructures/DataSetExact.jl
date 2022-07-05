@@ -135,7 +135,7 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
 
-name(DSE::DataSetExact) = DSE.name |> name
+name(DSE::DataSetExact) = DSE.name |> string
 
 # function InformNames(DS::DataSetExact, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)

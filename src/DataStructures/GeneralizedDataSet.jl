@@ -73,7 +73,7 @@ WoundX(GDS::GeneralizedDataSet) = _WoundX(GDS, GDS.WoundX)
 xnames(GDS::GeneralizedDataSet) = GDS.xnames
 ynames(GDS::GeneralizedDataSet) = GDS.ynames
 
-name(GDS::GeneralizedDataSet) = GDS.name |> name
+name(GDS::GeneralizedDataSet) = GDS.name |> string
 
 dist(GDS::GeneralizedDataSet) = GDS.dist
 

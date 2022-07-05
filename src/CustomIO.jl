@@ -149,15 +149,7 @@ end
 
 function Base.show(io::IO, DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
-    Jac = if GeneratedFromAutoDiff(dPredictor(DM))
-        "generated via automatic differentiation"
-    elseif GeneratedFromSymbolic(dPredictor(DM))
-        "symbolically provided"
-    else
-        "manually provided by user"
-    end
     println(io, Base.summary(DM))
-    println(io, "Model jacobian " * Jac)
     println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     try ParamSummary(io, DM) catch; end

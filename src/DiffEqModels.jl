@@ -90,8 +90,9 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observable
     SplitterFunction = if Initial isa Function
         Initial
     else
-        u0 = PromoteStatic(Initial, T)
-        θ -> (u0, θ)
+        # u0 = PromoteStatic(Initial, T)
+        # θ -> (u0, θ)
+        θ -> (Initial, θ)
     end
     GetModel(func, SplitterFunction, (Observables isa Function ? Observables : (u -> u[Observables])); kwargs...)
 end
@@ -111,7 +112,7 @@ ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = va
 function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, Kwargs...) where T
     @assert T == inplace
-    u0 = PromoteStatic(u0, inplace)
+    # u0 = PromoteStatic(u0, inplace)
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
@@ -150,7 +151,7 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @assert T == inplace
     CB = callback
-    u0 = PromoteStatic(u0, inplace)
+    # u0 = PromoteStatic(u0, inplace)
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)

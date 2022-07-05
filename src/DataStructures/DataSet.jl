@@ -127,7 +127,7 @@ logdetInvCov(DS::DataSet) = DS.logdetInvCov
 xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
 
-name(DS::DataSet) = DS.name |> name
+name(DS::DataSet) = DS.name |> string
 
 # function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)

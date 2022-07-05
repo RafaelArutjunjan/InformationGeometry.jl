@@ -164,7 +164,7 @@ DataspaceDim(CDS::CompositeDataSet) = mapreduce(DS->Npoints(DS)*ydim(DS), +, Dat
 xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
 ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 
-name(CDS::CompositeDataSet) = CDS.name |> name
+name(CDS::CompositeDataSet) = CDS.name |> string
 
 
 function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})

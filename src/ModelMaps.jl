@@ -105,7 +105,8 @@ end
 
 
 pnames(M::ModelMap) = M.pnames
-name(M::ModelMap) = M.name |> name
+name(M::ModelMap) = M.name |> string
+name(F::Function) = ""
 Domain(M::ModelMap) = M.Domain
 Domain(arg) = throw("$arg does not have a Domain.")
 InDomain(M::ModelMap) = M.InDomain
