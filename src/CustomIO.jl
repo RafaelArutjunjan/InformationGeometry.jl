@@ -110,10 +110,7 @@ import Base: show
 #### Show Distribution types for DataSetExact
 function Base.show(io::IO, DS::AbstractDataSet)
     println(io, Base.summary(DS) * ":")
-    xnameinsert = if any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x"))
-        tempS = prod(xnames(DS) .* ", ")
-        " [" * SubString(tempS, 1, length(tempS)-2) * "] "
-        else "" end
+    xnameinsert = any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x")) ? (" [" * join(xnames(DS), ", ") * "] ") : ""
     print(io, "x-data" * xnameinsert * ": ")
     show(io, xdata(DS));    print(io, "\n")
     if DS isa DataSetExact
@@ -126,10 +123,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
         end
         print(io, "\n")
     end
-    ynameinsert = if any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y"))
-        tempS = prod(ynames(DS) .* ", ")
-        " [" * SubString(tempS, 1, length(tempS)-2) * "] "
-        else "" end
+    ynameinsert = any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y")) ? (" [" * join(ynames(DS), ", ") * "] ") : ""
     print(io, "y-data" * ynameinsert * ": ")
     show(io, ydata(DS));    print(io, "\n")
     if ysigma(DS) isa AbstractVector
@@ -159,5 +153,5 @@ function Base.show(io::IO, M::ModelMap)
     Expr = SymbolicModel(M)
     println(io, Base.summary(M))
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * (S=prod(pnames(M) .* ", "); SubString(S, 1, length(S)-2)) * "]")
+    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
 end

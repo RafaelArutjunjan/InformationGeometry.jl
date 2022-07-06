@@ -344,3 +344,21 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
     end
     ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-1]..., F))
 end
+
+
+"""
+    IsODEParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...) -> BitVector
+Does the parameter enter the ODEFunction? Initial value parameter do not count.
+"""
+function IsODEParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...)
+    Jac = GetJac(ADmode, θ->SplitterFunc(θ)[2])
+    CompareCols(Jac(MLE(DM) + factor*rand(pdim(DM))), Jac(MLE(DM) + factor*rand(pdim(DM))))
+end
+"""
+    IsInitialParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...) -> BitVector
+Is the parameter an initial value parameter for the ODE model?
+"""
+function IsInitialParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...)
+    Jac = GetJac(ADmode, θ->SplitterFunc(θ)[1])
+    CompareCols(Jac(MLE(DM) + factor*rand(pdim(DM))), Jac(MLE(DM) + factor*rand(pdim(DM))))
+end

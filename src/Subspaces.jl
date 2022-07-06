@@ -308,7 +308,6 @@ Base.length(Cube::HyperCube) = Base.length(Cube.L)
 Checks whether a point `p` lies inside `Cube`.
 """
 Base.in(p::AbstractVector{<:Number}, Cube::HyperCube) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
-@deprecate Inside(Cube::HyperCube, p::AbstractVector{<:Number}) Base.in(Cube, p)
 
 """
     ConstructCube(M::Matrix{<:Number}; Padding::Number=1/50) -> HyperCube
@@ -397,6 +396,11 @@ function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
     @assert all(dim -> 1 ≤ dim ≤ length(Cube), dims)
     HyperCube(Drop(Cube.L, dims), Drop(Cube.U, dims))
 end
+function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Bool})
+    @assert length(Cube) == length(dims)
+    DropCubeDims(Cube, (1:length(dims))[dims])
+end
+
 
 """
     FaceCenters(Cube::HyperCube) -> Vector{Vector}

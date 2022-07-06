@@ -9,6 +9,8 @@ Drop(X::AbstractVector, i::Int) = (Z=SafeCopy(X);   splice!(Z,i);   Z)
 
 _Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
 Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=SafeCopy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
+Drop(X::AbstractVector, Components::AbstractVector{<:Bool}) = (@assert length(X) == length(Components);    Drop(X, (1:length(Components))[Components]))
+
 # If known to be sorted already, can interate via Iterators.reverse(X)
 
 """
@@ -44,7 +46,7 @@ end
 Returns an embedding function which inserts `Values` in the specified `Components`.
 In effect, this allows one to pin multiple input components at a specific values.
 """
-function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat})
+function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number})
     @assert length(Components) == length(Values)
     length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
     if length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
@@ -64,6 +66,22 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
                 Res = insert(Res, components[i], values[i])
             end;    Res
         end
+    end
+end
+function ValInserter(Components::AbstractVector{<:Int}, Value::Number)
+    length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
+    components = sort(Components)
+    function ValInsertionEmbedding(P::AbstractVector)
+        Res = SafeCopy(P)
+        for i in eachindex(components)
+            insert!(Res, components[i], Value)
+        end;    Res
+    end
+    function ValInsertionEmbedding(P::Union{SVector,MVector})
+        Res = insert(P, components[1], Value)
+        for i in 2:length(components)
+            Res = insert(Res, components[i], Value)
+        end;    Res
     end
 end
 
@@ -107,6 +125,34 @@ function PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
     @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
     PinParameters(DM, Comps, Vals)
 end
+
+
+_WithoutFirst(X::AbstractVector{<:Bool}) = (Z=copy(X);  Z[findfirst(X)]=false;  Z)
+function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked))
+    @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2
+    LinkedInds = (1:length(Linked))[Linked]
+    LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainInd])(θ)
+end
+"""
+    LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
+Embeds the model such that all components `i` for which `Linked[i] == true` are linked to the parameter corresponding to component `MainInd`.
+"""
+function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked), args...; kwargs...)
+    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainInd, args...; kwargs...), Drop(MLE(DM), _WithoutFirst(Linked)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainInd)))
+end
+function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
+    @assert length(Linked) == pdim(M)
+    WoFirst = _WithoutFirst(Linked)
+    Pnames = copy(pnames(M))
+    Pnames[MainInd] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
+    Pnames = Pnames[.!WoFirst]
+    EmbedModelVia(M, GetLinkEmbedding(Linked, MainInd); Domain=DropCubeDims(Domain(M), WoFirst), pnames=Pnames, kwargs...)
+end
+function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
+    EmbedModelVia(F, GetLinkEmbedding(Linked, MainInd); kwargs...)
+end
+
+
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
     widths = try
