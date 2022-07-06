@@ -13,14 +13,14 @@ LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _cu
 function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
     if initial ∉ Domain(M)
         verbose && @warn "Initial guess $initial not within given bounds. Clamping to bounds and continuing."
-        initial = clamp(initial, Domain(M))
+        initial = clamp(initial, HyperCube(Domain(M); Padding=-0.01))
     end
     _curve_fit(DS, M, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
 function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
     if initial ∉ Domain(M)
         verbose && @warn "Initial guess $initial not within given bounds. Clamping to bounds and continuing."
-        initial = clamp(initial, Domain(M))
+        initial = clamp(initial, HyperCube(Domain(M); Padding=-0.01))
     end
     _curve_fit(DS, M, dM, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
