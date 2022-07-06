@@ -478,8 +478,13 @@ function _rand(C::HyperCube, ::Val)
     map(f, C.L, C.U)
 end
 
-Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp(x, C.L, C.U)
-Base.clamp!(x::AbstractVector, C::HyperCube) = Base.clamp!(x, C.L, C.U)
+Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp.(x, C.L, C.U)
+function Base.clamp!(x::AbstractVector, C::HyperCube)
+    @assert length(C) == length(x)
+    for i in 1:length(x)
+        x[i] = clamp(x[i], C.L[i], C.U[i])
+    end;    x
+end
 
 Base.log(C::HyperCube) = HyperCube(log.(C.L), log.(C.U))
 Base.log10(C::HyperCube) = HyperCube(log10.(C.L), log10.(C.U))

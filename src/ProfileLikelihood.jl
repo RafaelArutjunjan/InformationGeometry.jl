@@ -151,6 +151,7 @@ end
 function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
     EmbedModelVia(F, GetLinkEmbedding(Linked, MainInd); kwargs...)
 end
+LinkParameters(DM, Linked::AbstractVector{<:Int}, args...; kwargs...) = LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...)
 
 
 
