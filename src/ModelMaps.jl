@@ -73,6 +73,7 @@ struct ModelMap{Inplace}
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{String}, inplace::Val=Val(false), CustomEmbedding::Val=Val(false), name::Union{String,Symbol}=Symbol(), Meta=nothing)
         name isa String && (name = Symbol(name))
+        @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
         isnothing(Domain) ? (Domain = FullDomain(xyp[3], 1e5)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
         new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta)

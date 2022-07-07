@@ -21,7 +21,6 @@ GeneratedFromSymbolic(F::Function) = occursin("SymbolicModel", string(nameof(typ
 GeneratedFromSymbolic(F::ModelMap) = GeneratedFromSymbolic(F.Map)
 
 
-import Base: summary
 Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
                                         NO_COLOR, (length(name(DS)) > 0 ? " '"*STRING_COLOR*"$(name(DS))"*NO_COLOR*"'" : ""),
                                         " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
@@ -78,11 +77,11 @@ function ParamSummary(DM::AbstractDataModel)
     OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (1,2,3)) || (OnUpperBoundary[zeile] && spalte ∈ (1,3,4))); bold=true, foreground=:red)
-        pretty_table([pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (1,2,3)) || (OnUpperBoundary[zeile] && spalte ∈ (1,3,4))); bold=true, foreground=:red)
-        pretty_table([pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 function ParamSummary(io::IO, DM::AbstractDataModel)
@@ -96,16 +95,15 @@ function ParamSummary(io::IO, DM::AbstractDataModel)
     OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (1,2,3)) || (OnUpperBoundary[zeile] && spalte ∈ (1,3,4))); bold=true, foreground=:red)
-        pretty_table(io, [pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:l, :c, :c, :c, :c], highlighters=H)
+        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (1,2,3)) || (OnUpperBoundary[zeile] && spalte ∈ (1,3,4))); bold=true, foreground=:red)
-        pretty_table(io, [pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:l, :c, :c, :c], highlighters=H)
+        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 
 
-import Base: show
 #### Need proper show() methods for DataSet, DataModel, ModelMap
 #### Show Distribution types for DataSetExact
 function Base.show(io::IO, DS::AbstractDataSet)

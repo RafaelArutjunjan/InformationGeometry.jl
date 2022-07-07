@@ -493,7 +493,7 @@ Base.exp10(C::HyperCube) = HyperCube(exp10.(C.L), exp10.(C.U))
 
 
 Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
-
+Base.getindex(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
 
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType

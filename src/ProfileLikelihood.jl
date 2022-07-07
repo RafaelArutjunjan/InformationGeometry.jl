@@ -129,7 +129,7 @@ end
 
 _WithoutFirst(X::AbstractVector{<:Bool}) = (Z=copy(X);  Z[findfirst(X)]=false;  Z)
 function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked))
-    @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2
+    @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainInd=$MainInd."
     LinkedInds = (1:length(Linked))[Linked]
     LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainInd])(θ)
 end
@@ -155,6 +155,11 @@ end
 LinkParameters(DM, Linked::AbstractVector{<:Int}, args...; kwargs...) = LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...)
 LinkParameters(DM, S::String, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
 
+function LinkParameters(DM, S::String, T::String, args...; kwargs...)
+    Sparam = occursin.(S, pnames(DM));    Tparam = occursin.(T, pnames(DM))
+    @assert (sum(Sparam) == sum(Tparam) == 1 && Sparam != Tparam) "Unable to link two distinct parameters uniquely: $S occurs in $(pnames(DM)[Sparam]) and $T occurs in $(pnames(DM)[Tparam])."
+    LinkParameters(DM, Sparam .|| Tparam, args...; kwargs...)
+end
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
     widths = try

@@ -134,6 +134,16 @@ function AutoDiffble(F::Function, x::AbstractVector)
     catch;  false   end
 end
 
+function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true) where T <: Number
+    if Start ∈ Dom
+        convert(Vector{T}, Start)
+    else
+        verbose && @warn "Initial guess $Start not within given bounds. Clamping to bounds and continuing."
+        convert(Vector{T}, clamp(Start, HyperCube(Dom; Padding=-0.01)))
+    end
+end
+ConstrainStart(Start::AbstractVector{T}, Dom::Nothing; kwargs...) where T <: Number = convert(Vector{T}, Start)
+
 
 """
     minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
@@ -150,7 +160,7 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain:
                             meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
                             timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
-    start = Start isa SVector ? convert(Vector, Start) : Start
+    start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both not in-place"
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
     options = if isnothing(Fthresh)
