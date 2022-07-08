@@ -264,6 +264,29 @@ SortDataModel(DM::AbstractDataModel) = DataModel(SortDataSet(Data(DM)), Predicto
 
 
 """
+    AddDataPoint(DS::AbstractDataSet, Tup::Tuple) -> AbstractDataSet
+Given a tuple `Tup = (x,y,σ)`, with `σ` the standard deviation(s), this data point is added to `DS`.
+"""
+function AddDataPoint(DS::AbstractDataSet, Tup::Tuple{<:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}}; kwargs...)
+    @assert !(DS isa CompositeDataSet) "Cannot handle CompositeDataSets."
+    @assert length(Tup[1]) == xdim(DS) && length(Tup[2]) == ydim(DS) && length(Tup[3]) == ydim(DS)
+    remake(DS; x=[xdata(DS);Tup[1]], y=[ydata(DS);Tup[2]], InvCov=BlockMatrix(yInvCov(DS), Diagonal([Tup[3][i]^(-2) for i in 1:length(Tup[3])])),
+                dims=(Npoints(DS)+1, xdim(DS), ydim(DS)), kwargs...)
+end
+
+"""
+    AddDataPoint(DS::AbstractDataSet, Tup::Tuple) -> AbstractDataSet
+Given a tuple `Tup = (x,xσ,y,yσ)`, with `σ` the standard deviation(s), this data point is added to `DS`.
+"""
+function AddDataPoint(DS::AbstractDataSet, Tup::Tuple{<:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}}; kwargs...)
+    @assert !(DS isa CompositeDataSet) "Cannot handle CompositeDataSets."
+    @assert length(Tup[1]) == xdim(DS) && length(Tup[2]) == xdim(DS)
+    @assert length(Tup[3]) == ydim(DS) && length(Tup[4]) == ydim(DS)
+    throw("Not implemented yet.")
+end
+
+
+"""
     SubDataSetComponent(DS::AbstractDataSet, i::Int)
 Get a dataset containing only the `i`-th y-components as observations.
 """

@@ -139,7 +139,7 @@ export xdata, ydata, xsigma, ysigma, xInvCov, yInvCov, Npoints, xdim, ydim, pdim
 export xdist, ydist, dist, Residuals
 export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance
-export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length
+export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length, AddDataPoint
 export MLEinPlane, PlanarDataModel, DetermineDmodel
 
 
