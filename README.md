@@ -22,7 +22,6 @@ In addition, this package also allows for computations of
 
 * likelihoods,
 * confidence bands,
-* Kullback-Leibler divergences,
 * the Fisher metric, geodesics,
 * Riemann and Ricci curvature tensors
 

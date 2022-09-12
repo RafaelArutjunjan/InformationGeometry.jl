@@ -13,7 +13,8 @@ makedocs(
                                     "Model Transformations" => "transformations.md",
                                     "Parallelization" => "parallelization.md",
                                     "Exporting" => "exporting.md",
-                                    "Kullback-Leibler Divergences" => "kullback-leibler.md"],
+                                    # "Kullback-Leibler Divergences" => "kullback-leibler.md",
+                                    ],
                 # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, PDE / Stochastic Examples, Exporting
                 "Advanced Examples" => Any["ODE-based models" => "ODEmodels.md", "Advanced Datasets" => "AdvancedData.md"],
                 "List of useful methods" => "methodlist.md",

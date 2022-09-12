@@ -14,7 +14,6 @@ This is the documentation of [**InformationGeometry.jl**](https://github.com/Raf
 
 * maximum likelihood estimation
 * construction and visualization of exact confidence regions
-* efficient calculation of Kullback-Leibler divergences
 * computation of geometric quantities such as geodesics and curvature on the parameter manifold
 
 
