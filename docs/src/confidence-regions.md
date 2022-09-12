@@ -25,8 +25,8 @@ Depending on how the parameters ``\theta`` enter into the model, the shapes of c
 ```@setup 1
 # sols = ConfidenceRegions(DM, 1:2; tol=1e-9) # hide
 # scatter([MLE(DM)[1]],[MLE(DM)[2]],marker=:c,label="MLE") # hide
-# plot!(sols[1],vars=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
-# plot!(sols[2],vars=(1,2),label="2σ CR") # hide
+# plot!(sols[1],idxs=(1,2),label="1σ CR",title="Confidence Regions for linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
+# plot!(sols[2],idxs=(1,2),label="2σ CR") # hide
 # savefig("../assets/sols.svg"); nothing # hide
 ```
 ```julia
@@ -42,8 +42,8 @@ model2(x::Real, θ::AbstractVector{<:Real}) = θ[1]^3 * x + exp(θ[1] + θ[2])
 DM2 = DataModel(DS, model2)
 sols2 = ConfidenceRegions(DM2, 1:2; tol=1e-9)
 # scatter([MLE(DM2)[1]],[MLE(DM2)[2]],marker=:c,label="MLE") # hide
-# plot!(sols2[1],vars=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
-# plot!(sols2[2],vars=(1,2),label="2σ CR") # hide
+# plot!(sols2[1],idxs=(1,2),label="1σ CR",title="Confidence Regions for non-linearly parametrized model", xlabel="θ[1]", ylabel="θ[2]") # hide
+# plot!(sols2[2],idxs=(1,2),label="2σ CR") # hide
 # savefig("../assets/sols2.svg"); nothing # hide
 ```
 ```julia

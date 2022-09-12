@@ -1379,7 +1379,7 @@ end
     end
     for i in 1:length(Sols(CB))
         @series begin
-            vars := Dirs(CB)[3] == 0 ? (Dirs(CB)[1], Dirs(CB)[2]) : Dirs(CB)
+            idxs := Dirs(CB)[3] == 0 ? (Dirs(CB)[1], Dirs(CB)[2]) : Dirs(CB)
             label --> ""
             linecolor --> get(plotattributes, :seriescolor, :red)
             Sols(CB)[i]

@@ -415,55 +415,56 @@ Deplanarize(PL::Plane, sol::AbstractODESolution, Ts::AbstractVector{<:Number}) =
     VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=true)
 Visualizes vectors of type `ODESolution` using the `Plots.jl` package. If `OverWrite=false`, the solution is displayed on top of the previous plot object.
 """
-function VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
+function VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(sols[1].u[1])), OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && RecipesBase.plot()
     for sol in sols
-        p = VisualizeSols(sol; vars=vars, leg=leg, kwargs...)
+        p = VisualizeSols(sol; idxs=idxs, leg=leg, kwargs...)
     end;    p
 end
-function VisualizeSols(sol::AbstractODESolution; vars::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
+function VisualizeSols(sol::AbstractODESolution; idxs::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
                                         ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     OverWrite && RecipesBase.plot()
     if ModelMapMeta isa ModelMap
         names = pnames(ModelMapMeta)
-        if length(vars) == 2
-            return RecipesBase.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], vars=vars, leg=leg, kwargs...)
-        elseif length(vars) == 3
-            return RecipesBase.plot!(sol; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], vars=vars, leg=leg, kwargs...)
+        if length(idxs) == 2
+            return RecipesBase.plot!(sol; xlabel=names[idxs[1]], ylabel=names[idxs[2]], idxs=idxs, leg=leg, kwargs...)
+        elseif length(idxs) == 3
+            return RecipesBase.plot!(sol; xlabel=names[idxs[1]], ylabel=names[idxs[2]], zlabel=names[idxs[3]], idxs=idxs, leg=leg, kwargs...)
         end
-        # What if vars > 3? Does Plots.jl throw an error?
+        # What if idxs > 3? Does Plots.jl throw an error?
     end
-    RecipesBase.plot!(sol; vars=vars, leg=leg, kwargs...)
+    RecipesBase.plot!(sol; idxs=idxs, leg=leg, kwargs...)
 end
 
-function VisualizeSols(PL::Plane, sol::AbstractODESolution; vars::Tuple=Tuple(1:length(PL)), leg::Bool=false, N::Int=500,
+function VisualizeSols(PL::Plane, sol::AbstractODESolution; idxs::Tuple=Tuple(1:length(PL)), leg::Bool=false, N::Int=500,
                             ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
     H = Deplanarize(PL, sol; N=N)
     if ModelMapMeta isa ModelMap
         names = pnames(ModelMapMeta)
-        return RecipesBase.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; xlabel=names[vars[1]], ylabel=names[vars[2]], zlabel=names[vars[3]], leg=leg, kwargs...)
+        return RecipesBase.plot!(H[:,idxs[1]], H[:,idxs[2]], H[:,idxs[3]]; xlabel=names[idxs[1]], ylabel=names[idxs[2]], zlabel=names[idxs[3]], leg=leg, kwargs...)
     else
-        return RecipesBase.plot!(H[:,vars[1]], H[:,vars[2]], H[:,vars[3]]; leg=leg, kwargs...)
+        return RecipesBase.plot!(H[:,idxs[1]], H[:,idxs[2]], H[:,idxs[3]]; leg=leg, kwargs...)
     end
 end
-function VisualizeSols(PL::Plane, sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
+function VisualizeSols(PL::Plane, sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && RecipesBase.plot()
     for sol in sols
-        p = VisualizeSols(PL, sol; N=N, vars=vars, leg=leg, kwargs...)
+        p = VisualizeSols(PL, sol; N=N, idxs=idxs, leg=leg, kwargs...)
     end;    p
 end
 
 VisualizeSols(X::Tuple, args...; kwargs...) = VisualizeSols(X..., args...; kwargs...)
-function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; vars::Tuple=Tuple(1:length(PL[1])), N::Int=500,
-                OverWrite::Bool=true,leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
+function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(PL[1])), N::Int=500,
+                OverWrite::Bool=true, leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && RecipesBase.plot()
     for i in 1:length(sols)
-        p = VisualizeSols(PL[i], sols[i]; N=N, vars=vars, leg=leg, color=color, kwargs...)
+        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=color, kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
     (OverWrite ? RecipesBase.plot : RecipesBase.plot!)([MLE(DM)]; seriestype=:scatter, label="MLE")
+    # Labels = round.([GetConfnum(DM, args...)]; sigdigits=2)
     if Predictor(DM) isa ModelMap
         VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
     else
@@ -478,7 +479,7 @@ end
 
 VisualizeGeos(sol::AbstractODESolution; kwargs...) = VisualizeGeos([sol]; kwargs...)
 function VisualizeGeos(sols::AbstractVector{<:AbstractODESolution}; OverWrite::Bool=false, leg::Bool=false, kwargs...)
-    VisualizeSols(sols; vars=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg, kwargs...)
+    VisualizeSols(sols; idxs=Tuple(1:Int(length(sols[1].u[1])/2)), OverWrite=OverWrite, leg=leg, kwargs...)
 end
 
 
@@ -835,7 +836,7 @@ function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100)
         ran = range(sol.t[1],sol.t[end],length=N)
         for i in 1:length(ran)    A[i,:] = sol(ran[i])[1:2]  end
         p = RecipesBase.plot!(A[:,1],A[:,2])
-        # p = RecipesBase.plot!(sol,vars=(1,2))
+        # p = RecipesBase.plot!(sol,idxs=(1,2))
     end
     p
 end
