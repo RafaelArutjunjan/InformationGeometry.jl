@@ -3,7 +3,7 @@ module InformationGeometry
 
 # using Reexport
 # @reexport
-using LinearAlgebra, Random, Distributions, DataFrames
+using LinearAlgebra, Random, Distributions, DistributionsAD, DataFrames
 
 using Distributed, StaticArrays, SparseArrays, ForwardDiff
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
@@ -37,6 +37,11 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 
 
 ############## TODOs ##############
+
+
+# Make GetModelRobust (vs. GetModelFast) default
+# Give a warning message for GetModelFast that time gradients are not possible
+
 
 
 #### Functionality

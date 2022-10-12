@@ -29,7 +29,7 @@ function ToExpr(model::Function, xyp::Tuple{Int,Int,Int}; timeout::Real=5)
     end
 end
 function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
-    @assert xyp == M.xyp "Inconsistent xyp information."
+    xyp != M.xyp && @warn "Inconsistent xyp information: given $xyp, ModelMap contains $(M.xyp) - using given xyp."
     X, Y, θ = SymbolicArguments(xyp)
     isinplacemodel(M) ? (Res=Vector{Num}(undef,length(Y));  KillAfter(M.Map, Res, X, θ; timeout=timeout); Res) : KillAfter(M.Map, X, θ; timeout=timeout)
 end

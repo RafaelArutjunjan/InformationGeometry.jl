@@ -1301,7 +1301,7 @@ Constructs lifted embedding map from initial space into extended dataspace ``\\h
 LiftedEmbedding(DM::AbstractDataModel) = LiftedEmbedding(Data(DM), Predictor(DM), pdim(DM))
 function LiftedEmbedding(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
     ĥ(ξ::AbstractVector; kwargs...) = ĥ(view(ξ,1:length(ξ)-pd), view(ξ,length(ξ)-pd+1:length(ξ)); kwargs...)
-    ĥ(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, xdat; kwargs...)]
+    ĥ(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, Windup(xdat, xdim(DS)); kwargs...)]
 end
 
 

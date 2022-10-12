@@ -258,8 +258,8 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
 end
 
 
-GetModelNaive(func::ODESystem, A, B; kwargs...) = GetModelNaive(ODEFunction(func), A, B; kwargs...)
-function GetModelNaive(func::AbstractODEFunction, u0, Observables; kwargs...)
+GetModelRobust(func::ODESystem, A, B; kwargs...) = GetModelRobust(ODEFunction(func), A, B; kwargs...)
+function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
     SplitterFunction = if u0 isa Function
         u0
     elseif u0 isa Union{Number, AbstractArray}
@@ -273,9 +273,9 @@ function GetModelNaive(func::AbstractODEFunction, u0, Observables; kwargs...)
         observables = length(Observables) == 1 ? Observables[1] : Observables
         u->u[observables]
     end
-    GetModelNaive(func, SplitterFunction, ObservationFunction; kwargs...)
+    GetModelRobust(func, SplitterFunction, ObservationFunction; kwargs...)
 end
-function GetModelNaive(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
+function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @assert T == inplace
     CB = callback
@@ -348,7 +348,7 @@ end
 
 """
     IsODEParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...) -> BitVector
-Does the parameter enter the ODEFunction? Initial value parameter do not count.
+Does the parameter enter the ODEFunction? Initial value parameters do not count.
 """
 function IsODEParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...)
     Jac = GetJac(ADmode, θ->SplitterFunc(θ)[2])
