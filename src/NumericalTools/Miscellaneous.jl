@@ -85,7 +85,7 @@ _PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
 
 # Surely, this can be made more efficient?
-SplitAfter(n::Int) = X->(X[1:n], X[n+1:end])
+SplitAfter(n::Int) = X->(view(X,1:n), view(X,n+1:length(X)))
 
 
 """

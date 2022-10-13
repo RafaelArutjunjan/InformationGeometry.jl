@@ -195,16 +195,19 @@ end
 
 
 """
-    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> N×2 Matrix
+    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
+    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(name(DM)) does not have prior."
+
     ps = DomainSamples(dom; N=N)
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
-    Res = fill(-Inf, N)
-    path = SaveTrajectories ? Vector{Vector{Float64}}(undef, N) : nothing
+    Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
+    path = SaveTrajectories ? Vector{Vector{eltype(MLE(DM))}}(undef, N) : nothing
+    priors = SavePriors ? eltype(MLE(DM))[] : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Res = map(x->loglikelihood(DM, [x]), ps)
     else
@@ -213,29 +216,34 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
             NewModel = ProfilePredictor(DM, Comp, p)
             DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
             MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior; tol=tol, kwargs...).param
-            SaveTrajectories && (path[i] = MLEstash)
-            Res[i] = loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior)
+            push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
+            push!(visitedps, p)
+            SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
+            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, p))
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
+    Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
     if IsCost
         @. Res = 2*(Logmax - Res)
+        if SavePriors
+            @. priors = 2*(Priormax - priors)
+        end
     else
         @inbounds for i in eachindex(Res)
             Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
         end
+        if SavePriors
+            @inbounds for i in eachindex(priors)
+                priors[i] = InvConfVol(ChisqCDF(dof, 2(Priormax - prior[i])))
+            end
+        end
     end
 
-    if SaveTrajectories
-        for (i,p) in enumerate(ps)
-            insert!(path[i], Comp, p)
-        end
-        [ps Res], path
-    else
-        [ps Res]
-    end
+    ResMat = SavePriors ? [visitedps Res priors] : [visitedps Res]
+    SaveTrajectories ? (ResMat, path) : ResMat
 end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false, kwargs...)
@@ -443,6 +451,7 @@ end
             view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,2)
             # P(i)
         end
+        # Draw prior contribution
         ## Mark MLE in profiles
         @series begin
             subplot := i

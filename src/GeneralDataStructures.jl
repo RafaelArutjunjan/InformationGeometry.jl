@@ -10,11 +10,11 @@ ConsistentElDims(T::Tuple) = ConsistentElDims(collect(T))
 
 
 
-function HealthyCovariance(M::AbstractMatrix{<:Number}; verbose::Bool=true, kwargs...)
+function HealthyCovariance(M::AbstractMatrix{<:Number}; verbose::Bool=true, tol::Real=1e-20, kwargs...)
     M = size(M,1) > size(M,2) ? Unwind(M) : M
     M = if isdiag(M)
         Diagonal(floatify(M))
-    elseif sum(abs, M - Diagonal(floatify(M))) < 1e-20
+    elseif sum(abs, M - Diagonal(floatify(M))) < tol
         Diagonal(floatify(M))
     else
         floatify(M)
