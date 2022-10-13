@@ -128,8 +128,11 @@ end
     dm = DataModel(DataSet([0.2,1,2], [0.9,0.4,0.25], [0.1,0.1,0.1]), sys, Split, Observe)
     @test dm isa DataModel
     # ObservationFunction is extended to 3 arguments, does not equal initially given PreObservationFunction
-    @test length(Predictor(dm).Meta) == 3 && Predictor(dm).Meta[1:2] == (sys, Split)
+    @test length(Predictor(dm).Meta) == 4 && Predictor(dm).Meta[1:2] == (sys, Split)
     @test string(Predictor(dm).name) == "Decay System"
+
+    # Backwards in time integration (GetModelRobust)
+    @test all(EmbeddingMap(SIRDM, MLE(SIRDM), [-10, 3, -0.5, 15]) .> 0)
 end
 
 

@@ -79,7 +79,7 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
 
     pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
     # new(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding)
-    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), ModelingToolkit.getname(sys), (Model.Meta isa Tuple ? (sys, Model.Meta...) : Model.Meta))
+    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), ModelingToolkit.getname(sys), (Model.Meta isa Tuple ? (sys, (Model.Meta[2:end])...) : Model.Meta))
 end
 
 
@@ -103,22 +103,69 @@ end
 
 
 
+# Retain argument-type specific docstrings but allow for robust
+
+"""
+    GetModel(func::ODEFunction, u0::AbstractArray, ObservationFunction::Function; tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+Returns a `ModelMap` which evolves the given system of ODEs from the initial configuration `u0` and afterwards applies the `ObservationFunction` to produce its predictions.
+
+`ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
+Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
+
+A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
+"""
+GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, ObservationFunc::Function; kwargs...) where T = GetModelFastOrRobust(func,u0,ObservationFunc; kwargs...)
+
+"""
+    GetModel(func::ODEFunction, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}; tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+Returns a `ModelMap` which evolves the given system of ODEs and returns `u[observables]` to produce its predictions.
+Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
+
+`SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a `Tuple` whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.
+Typically, a fair bit of performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
+
+A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
+"""
+GetModel(func::AbstractODEFunction{T}, Splitter::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1; kwargs...) where T = GetModelFastOrRobust(func, Splitter, Observables; kwargs...)
+
+"""
+    GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+Returns a `ModelMap` which evolves the given system of ODEs and afterwards applies the `ObservationFunction` to produce its predictions.
+Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
+
+`SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a `Tuple` whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.
+Typically, a fair bit of additional performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
+
+`ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
+Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
+
+!!! note
+    The vector `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting.
+    This is because `ObservationFunction` might also depend on the initial conditions in general.
+
+A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
+"""
+GetModel(func::AbstractODEFunction{T}, Splitter::Function, ObservationFunc::Function; kwargs...) where T = GetModelFastOrRobust(func, Splitter, ObservationFunc; kwargs...)
+
+
+
 # Promote to Dual only if time is dual
 ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{Number,AbstractVector{<:Number}}) where T = convert.(type, var)
 ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = var
 
-
 # Vanilla version with constant array of initial conditions and vector of observables.
-function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
-                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, Kwargs...) where T
+function GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
+                    meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
     @assert T == inplace
+    CB = callback
     # u0 = PromoteStatic(u0, inplace)
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, kwargs...)
+    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Number=10., meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
         odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), θ)
-        solve(odeprob, meth; reltol=tol, abstol=tol, Kwargs..., kwargs...)
+        solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractArray{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
                                                         tol::Real=tol, max_t::Number=t, meth::OrdinaryDiffEqAlgorithm=meth, FullSol::Bool=false, kwargs...)
@@ -133,22 +180,12 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain; Meta=(u0, observables))
+    MakeCustom(ODEmodel, Domain; Meta=(func, u0, observables, callback))
 end
 
-
-
-"""
-    GetModel(func::ODEFunction, u0::AbstractArray, ObservationFunction::Function; tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
-Returns a `ModelMap` which evolves the given system of ODEs from the initial configuration `u0` and afterwards applies the `ObservationFunction` to produce its predictions.
-
-`ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
-Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
-
-A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
-"""
-function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, PreObservationFunction::Function; tol::Real=1e-7,
+function GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
     @assert T == inplace
     CB = callback
     # u0 = PromoteStatic(u0, inplace)
@@ -171,23 +208,12 @@ function GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain; Meta=(u0, ObservationFunction))
+    MakeCustom(ODEmodel, Domain; Meta=(func, u0, ObservationFunction, callback))
 end
 
-
-
-"""
-    GetModel(func::ODEFunction, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
-Returns a `ModelMap` which evolves the given system of ODEs and returns `u[observables]` to produce its predictions.
-Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
-
-`SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a `Tuple` whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.
-Typically, a fair bit of performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
-
-A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
-"""
-function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
+function GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
     @assert T == inplace
     CB = callback
     # If observable only has single component, don't pass vector to getindex() in second arg
@@ -210,29 +236,12 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, Obse
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [sol.u[i][observables] for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, observables))
+    MakeCustom(ODEmodel, Domain; Meta=(func, SplitterFunction, observables, callback))
 end
 
-
-"""
-    GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7, meth::OrdinaryDiffEqAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
-Returns a `ModelMap` which evolves the given system of ODEs and afterwards applies the `ObservationFunction` to produce its predictions.
-Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
-
-`SplitterFunction` should be of the form `F(θ) -> (u0, p)`, i.e. the output is a `Tuple` whose first entry is the initial condition for the ODE model and the second entry constitutes the parameters which go on to enter the `ODEFunction`.
-Typically, a fair bit of additional performance can be gained from ensuring that `SplitterFunction` outputs the initial condition `u0` as type `MVector` or `MArray`, if it has less than ~100 components.
-
-`ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
-Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if it is not already defined to accept three arguments.
-
-!!! note
-    The vector `θ` passed to `ObservationFunction` is the same `θ` that is passed to `SplitterFunction`, i.e. before splitting.
-    This is because `ObservationFunction` might also depend on the initial conditions in general.
-
-A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
-"""
-function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
+function GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
     @assert T == inplace
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
@@ -254,9 +263,19 @@ function GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreO
         length(sol.u) != length(ts) && throw("ODE integration failed, maybe try using a lower tolerance value. θ=$θ.")
         [ObservationFunction(sol.u[i], sol.t[i], θ) for i in 1:length(ts)] |> Reduction
     end
-    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, ObservationFunction))
+    MakeCustom(ODEmodel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback))
 end
 
+"""
+Switch between possibly slightly faster method which does not allow for time autodifferentiation vs 'robust' method which additionally includes backward integration.
+"""
+function GetModelFastOrRobust(func::AbstractODEFunction{T}, Splitter, ObservationFunc; robust::Bool=true, kwargs...) where T
+    if robust
+        GetModelRobust(func, Splitter, ObservationFunc; kwargs...)
+    else
+        GetModelFast(func, Splitter, ObservationFunc; kwargs...)
+    end
+end
 
 GetModelRobust(func::ODESystem, A, B; kwargs...) = GetModelRobust(ODEFunction(func), A, B; kwargs...)
 function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
@@ -265,13 +284,15 @@ function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
     elseif u0 isa Union{Number, AbstractArray}
         (θ->(u0, θ))
     else
-        throw("Error 1.")
+        throw("SplitterFunction must be either Function, AbstractArray or Number.")
     end
     ObservationFunction = if Observables isa Function
         Observables
     elseif Observables isa Union{Int,AbstractVector{<:Int},BoolArray}
         observables = length(Observables) == 1 ? Observables[1] : Observables
         u->u[observables]
+    else
+        throw("ObservationFunction must be either Function, AbstractArray or Number.")
     end
     GetModelRobust(func, SplitterFunction, ObservationFunction; kwargs...)
 end
@@ -282,14 +303,19 @@ function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function _ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...)
         u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(typeof(max_t),u0), (zero(max_t), max_t), p)
 
         sol = solve(odeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
-        [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
+        if FullSol
+            sol
+        else
+            [ObservationFunction(sol(t), t, θ) for t in ts] |> Reduction
+        end
     end
     # ts sorted ascending, smallest element is first
-    function _ODEmodelbacksorted(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; max_t::Number=maximum(ts), kwargs...)
+    function _ODEmodelbacksorted(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; max_t::Number=maximum(ts), FullSol::Bool=false, kwargs...)
+        @assert !FullSol "Cannot provide FullSol for backwards integration."
         lastind = findfirst(x->x≥0.0, ts)
         if isnothing(lastind)
             _ODEmodel(ts, θ; max_t=ts[1], kwargs...)
@@ -298,7 +324,8 @@ function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function
         end
     end
     function _ODEmodelback(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, kwargs...)
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::OrdinaryDiffEqAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...)
+        @assert !FullSol "Cannot provide FullSol for backwards integration."
         u0, p = SplitterFunction(θ)
         negTs = map(x->x<0.0, ts);  min_t = minimum(ts)
 
@@ -312,10 +339,10 @@ function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function
 
     ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = all(x->x≥0.0, ts) ? _ODEmodel(ts, θ; kwargs...) : (issorted(ts) ? _ODEmodelbacksorted(ts, θ; kwargs...) : _ODEmodelback(ts, θ; kwargs...))
     ODEmodel(t::Number, θ::AbstractVector{<:Number}; kwargs...) = ODEmodel([t], θ; kwargs...)
-    MakeCustom(ODEmodel, Domain; Meta=(SplitterFunction, ObservationFunction))
+    MakeCustom(ODEmodel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback))
 end
 
-
+@deprecate GetModelNaive(func, split, obs; kwargs...) GetModelRobust(func, split, obs; kwargs...) false
 
 """
     ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) -> ModelMap
@@ -323,6 +350,8 @@ Constructs a new `ModelMap` with new observation function `f(u,t,θ)` from a giv
 """
 ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) = ModifyODEmodel(DM, Predictor(DM), NewObservationFunc)
 function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFunc::Function)
+    @assert !isnothing(Model.Meta) "It appears as though the given model is not an ODEmodel."
+    @assert length(Model.Meta) == 4
     # Model.Map isa DEModel && return ModifyDEModel(Model, NewObservationFunc)
     Eval = try
         Model(WoundX(DM)[1], MLE(DM); FullSol=true).u[1]
@@ -342,7 +371,7 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
         F(sol.u[end], sol.t[end], θ)
     end
-    ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-1]..., F))
+    ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-2]..., F, Model.Meta[end]))
 end
 
 
