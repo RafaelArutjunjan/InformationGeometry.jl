@@ -219,7 +219,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
             push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
             push!(visitedps, p)
             SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
-            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, p))
+            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
@@ -237,7 +237,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         end
         if SavePriors
             @inbounds for i in eachindex(priors)
-                priors[i] = InvConfVol(ChisqCDF(dof, 2(Priormax - prior[i])))
+                priors[i] = InvConfVol(ChisqCDF(dof, 2(Priormax - priors[i])))
             end
         end
     end
@@ -280,9 +280,15 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
-        [RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        P = [RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, label="Profile", subplot=i, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        if all(x->size(x,2)==3, Profiles)
+            P = [P;[RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,3); label="Prior", color=:red, line=:dash, subplot=i) for i in 1:length(Profiles)]]
+        end;    P
     else
-        P1 = [RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        P1 = [RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, label="Profile", subplot=i, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
+        if all(i->size(Profiles[i][1],2)==3, 1:length(Profiles))
+            P1 = [P1;[RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,3); label="Prior", color=:red, line=:dash, subplot=i) for i in 1:length(Profiles)]]
+        end;    P
         if length(Profiles) ≤ 3
             P2 = PlotProfileTrajectories(DM, Profiles)
             vcat(P1,[P2])
@@ -444,7 +450,7 @@ end
     layout := length(pnames(P))
     for i in 1:length(pnames(P))
         @series begin
-            legend --> nothing
+            label --> "Profile Likelihood"
             xguide --> pnames(P)[i]
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             subplot := i
@@ -452,6 +458,16 @@ end
             # P(i)
         end
         # Draw prior contribution
+        if size(Profiles(P)[i],2) == 3
+            @series begin
+                label --> "Prior contribution"
+                color --> :red
+                line --> :dash
+                subplot := i
+                view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,3)
+                # P(i)
+            end
+        end
         ## Mark MLE in profiles
         @series begin
             subplot := i

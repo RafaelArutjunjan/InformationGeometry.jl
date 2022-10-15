@@ -60,6 +60,8 @@ DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
 
+HasXerror(DS::AbstractDataSet) = any(x->x>0.0, xsigma(DS))
+
 dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
 
 Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
@@ -112,7 +114,7 @@ ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :xdist, :ydist, :dist,
+            :xnames, :ynames, :xdist, :ydist, :dist, :HasXerror,
             :xdataMat, :ydataMat]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
@@ -227,8 +229,8 @@ yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 
 
-function Residuals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
-    sum(abs, xsigma(DM)) != 0 && @warn "Ignoring x-uncertainties in computatation of Residuals."
+function Residuals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
+    verbose && HasXerror(DM) && @warn "Ignoring x-uncertainties in computatation of Residuals."
     cholesky(yInvCov(DM)).U * (ydata(DM) - EmbeddingMap(DM, mle))
 end
 
@@ -294,7 +296,7 @@ function SubDataSetComponent(DS::AbstractDataSet, i::Int)
     DS isa CompositeDataSet && return Data(DS)[i]
     @assert 1 ≤ i ≤ ydim(DS)
     keep = repeat((X=falses(ydim(DS)); X[i]=true; X), Npoints(DS))
-    if sum(abs, xsigma(DS)) == 0
+    if !HasXerror(DS)
         DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
                 xnames=xnames(DS), ynames=[ynames(DS)[i]], name=name(DS))
     else

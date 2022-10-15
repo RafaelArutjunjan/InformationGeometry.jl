@@ -109,7 +109,7 @@ function DataFrames.DataFrame(DS::DataSet; kwargs...)
 end
 function DataFrames.DataFrame(DS::DataSetExact; kwargs...)
     @assert ysigma(DS) isa AbstractVector && xsigma(DS) isa AbstractVector
-    sum(abs, xsigma(DS)) == 0 && return DataFrame(DataSet(DS))
+    !HasXerror(DS) && return DataFrame(DataSet(DS))
     M = [Unpack(WoundX(DS)) UnpackWindup(xsigma(DS), xdim(DS)) UnpackWindup(ydata(DS), ydim(DS)) UnpackWindup(ysigma(DS), ydim(DS))]
     DataFrame(M, vcat(xnames(DS), xnames(DS) .* "_σ", ynames(DS), ynames(DS) .* "_σ"); kwargs...)
 end
@@ -117,7 +117,7 @@ end
 
 function DataFrames.DataFrame(CDS::CompositeDataSet; kwargs...)
     @assert ysigma(CDS) isa AbstractVector && xsigma(CDS) isa AbstractVector
-    @assert sum(abs, xsigma(CDS)) == 0 "Not programmed for x-uncertainties yet."
+    @assert !HasXerror(CDS) "Not programmed for x-uncertainties yet."
     Vectorize(x::AbstractVector) = x;   Vectorize(x::Union{Number,Missing}) = [x]
     # How many observations per WoundX(CDS) in subdatasets?
     _Counts(CDS::CompositeDataSet) = [[count(isequal(x), Windup(xdata(DS),xdim(DS))) for x in WoundX(CDS)] for DS in Data(CDS)]

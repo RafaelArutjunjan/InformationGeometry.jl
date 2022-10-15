@@ -116,6 +116,7 @@ _TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
 _TryVectorize(D::Diagonal) = sqrt.(D.diag)
 
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
+HasXerror(DS::DataSet) = false
 
 yInvCov(DS::DataSet) = DS.InvCov
 

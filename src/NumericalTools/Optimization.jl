@@ -94,7 +94,7 @@ end
 
 ## Remove above custom method and implement LiftedCost∘LiftedEmbedding for both
 function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DS, model); kwargs...)
-    sum(abs, xsigma(DS)) == 0.0 && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
+    !HasXerror(DS) && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
     xlen = Npoints(DS)*xdim(DS);    Cost(x::AbstractVector) = -logpdf(dist(DS), x)
     function predictY(ξ::AbstractVector)
         x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))

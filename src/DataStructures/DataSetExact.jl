@@ -102,7 +102,7 @@ name::Union{String,Symbol}=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, 
 
 # Conversion to DataSet
 function DataSet(DSE::DataSetExact)
-    sum(abs,xsigma(DSE)) > 0 && @warn "Dropping x-uncertainties in conversion to DataSet."
+    HasXerror(DSE) && @warn "Dropping x-uncertainties in conversion to DataSet."
     DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE), name=name(DSE))
 end
 
@@ -131,6 +131,8 @@ Sigma(P::Distribution) = cov(P)
 # Sigma(P::Distribution) = try P.Σ catch; cov(P) end
 xsigma(DSE::DataSetExact) = Sigma(xdist(DSE)) |> _TryVectorize
 ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
+
+HasXerror(DSE::DataSetExact) = xdist(DSE) isa InformationGeometry.Dirac ? false : any(x->x>0.0, xsigma(DSE))
 
 xnames(DSE::DataSetExact) = DSE.xnames
 ynames(DSE::DataSetExact) = DSE.ynames
