@@ -17,7 +17,7 @@ Negloglikelihood(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihood(θ::A
     loglikelihood(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
-loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = loglikelihood(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
+loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = loglikelihood(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
 
 loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _loglikelihood(DS, model, θ; kwargs...)
 loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _loglikelihood(DS, model, θ; kwargs...) + EvalLogPrior(LogPriorFn, θ)
@@ -1287,13 +1287,13 @@ end
 Computes log-likelihood on the extended data space ``\\hat{\\ell} : \\mathcal{X}^N \\times\\mathcal{Y}^N \\longrightarrow \\mathbb{R}``.
 Should be maximized. Does not account for priors.
 """
-LiftedLogLikelihood(DM::AbstractDataModel) = (G = dist(DM);  ℓ(Z::AbstractVector{<:Number}) = logpdf(G, Z))
+LiftedLogLikelihood(DM::Union{AbstractDataModel,AbstractDataSet}) = (G = dist(DM);  ℓ(Z::AbstractVector{<:Number}) = logpdf(G, Z))
 """
     LiftedCost(DM::AbstractDataModel) -> Function
 Computes negative log-likelihood as cost function on the extended data space ``C : \\mathcal{X}^N \\times\\mathcal{Y}^N \\longrightarrow \\mathbb{R}``.
 Should be minimized. Does not account for priors.
 """
-LiftedCost(DM::AbstractDataModel) = (G = dist(DM);  Negativeℓ(Z::AbstractVector{<:Number}) = -logpdf(G, Z))
+LiftedCost(DM::Union{AbstractDataModel,AbstractDataSet}) = (G = dist(DM);  Negativeℓ(Z::AbstractVector{<:Number}) = -logpdf(G, Z))
 
 """
     LiftedEmbedding(DM::AbstractDataModel) -> Function
@@ -1310,16 +1310,13 @@ end
     FullLiftedLogLikelihood(DM::AbstractDataModel) -> Function
 Computes the full likelihood given Xθ INCLUDING PRIOR.
 """
-function FullLiftedLogLikelihood(DM::AbstractDataModel)
-    L = LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)
-    isnothing(LogPrior(DM)) && return L
-    ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPrior(DM), view(Xθ, length(Xθ)-pdim(DM)+1:length(Xθ)))
+FullLiftedLogLikelihood(DM::AbstractDataModel) = FullLiftedLogLikelihood(Data(DM), Predictor(DM), LogPrior(DM), pdim(DM))
+FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd)
+function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int)
+    L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd)
+    ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
-function FullLiftedNegLogLikelihood(DM::AbstractDataModel)
-    NegL = LiftedCost(DM)∘LiftedEmbedding(DM)
-    isnothing(LogPrior(DM)) && return NegL
-    Negℓ(Xθ::AbstractVector{<:Number}; kwargs...) = NegL(Xθ; kwargs...) - EvalLogPrior(LogPrior(DM), view(Xθ, length(Xθ)-pdim(DM)+1:length(Xθ)))
-end
+FullLiftedNegLogLikelihood(DM::AbstractDataModel) = (L=FullLiftedLogLikelihood(DM); Xθ::AbstractVector{<:Number}->L(Xθ))
 
 
 abstract type AbstractBoundarySlice end
