@@ -245,10 +245,18 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
 
-function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12) where T<:Real
-    find_zero(Test, Domain, meth; xatol=tol, xrtol=tol)
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12, kwargs...) where T<:Real
+    find_zero(Test, Domain, meth; xatol=tol, xrtol=tol, kwargs...)
 end
-function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10))) where T<:BigFloat
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10))) where T<:BigFloat
     Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-14, xrtol=1e-14)
-    find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Bisection(); xatol=tol, xrtol=tol)
+    find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Roots.Bisection(); xatol=tol, xrtol=tol)
+end
+
+function AltLineSearch(Test::Function, start::Real, meth::Roots.AbstractNonBracketingMethod; tol::Real=1e-12, kwargs...)
+    find_zero(Test, start, meth; xatol=tol, xrtol=tol, kwargs...)
+end
+function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod; tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
+    Res = find_zero(Test, Float64(start), meth; xatol=1e-14, xrtol=1e-14)
+    find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
 end

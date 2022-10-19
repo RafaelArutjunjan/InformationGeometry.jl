@@ -68,6 +68,10 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
         end
     end
 end
+function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number})
+    @assert length(Components) == length(Values)
+    ValInserter((1:length(Components))[Components], Values[Components])
+end
 function ValInserter(Components::AbstractVector{<:Int}, Value::Number)
     length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
     components = sort(Components)
