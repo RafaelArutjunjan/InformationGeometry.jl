@@ -61,16 +61,16 @@ DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloa
 
 function SplitDS(DS::DataSet)
     if ysigma(DS) isa AbstractVector
-        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 function SplitDS(DS::DataSetExact)
     if ysigma(DS) isa AbstractVector
-        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 
@@ -235,16 +235,21 @@ end
 # Ignore xpositions
 RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector{<:Number}=xdata(CDS))
     xdim(CDS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
-    title --> name(CDS)
-    xguide -->  xnames(CDS)[1]
-    yguide -->  "Observations"
-    for (i,DS) in enumerate(Data(CDS))
-        @series begin
-            label --> "Data: " * ynames(DS)[1]
-            markercolor --> [:red,:blue,:green,:orange,:grey,:brown,:yellow,:black][i]
-            DS
+    if ydim(CDS) ≤ 16
+        !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
+        title --> name(CDS)
+        xguide -->  xnames(CDS)[1]
+        yguide -->  "Observations"
+        for (i,DS) in enumerate(Data(CDS))
+            @series begin
+                label --> "Data: " * ynames(DS)[1]
+                # requires ydim(CDS) ≤ 16
+                markercolor --> palette(:default)[i]
+                DS
+            end
         end
+    else
+        Data(CDS)
     end
 end
 

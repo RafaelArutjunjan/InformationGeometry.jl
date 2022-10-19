@@ -133,9 +133,19 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
 end
 
 
-# Bad form but works
-RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; leg=false, kwargs...) for DS in DSs]...; layout=length(DSs))
-RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; leg=false, kwargs...) for DM in DMs]...; layout=length(DMs))
+## Bad form but works
+# RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; leg=false, kwargs...) for DS in DSs]...; layout=length(DSs))
+# RecipesBase.plot(DMs::AbstractVector{<:AbstractDataModel}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DM; leg=false, kwargs...) for DM in DMs]...; layout=length(DMs))
+
+RecipesBase.@recipe function f(DSs::Union{<:AbstractVector{<:AbstractDataSet},<:AbstractVector{<:AbstractDataModel}})
+    leg --> false
+    layout --> length(DSs)
+    for DS in DSs
+        @series begin
+            DS
+        end
+    end
+end
 
 
 RecipesBase.@recipe function f(LU::HyperCube)
