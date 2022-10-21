@@ -204,7 +204,7 @@ Computes profile likelihood associated with the component `Comp` of the paramete
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
-    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(name(DM)) does not have prior."
+    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
     ps = DomainSamples(dom; N=N)
 
@@ -229,7 +229,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
+    # Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
     if IsCost
         @. Res = 2*(Logmax - Res)
         if SavePriors
@@ -274,46 +274,41 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, 
     else
         (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
     end
-    plot && ProfilePlotter(DM, Profiles)
+    plot && display(ProfilePlotter(DM, Profiles))
     Profiles
 end
 
+# x and y labels must be passed as kwargs
+PlotSingleProfile(DM::AbstractDataModel, Prof::Tuple{<:AbstractMatrix, <:Any}, i::Int; kwargs...) = PlotSingleProfile(DM, Prof[1], i; kwargs...)
+function PlotSingleProfile(DM::AbstractDataModel, Prof::AbstractMatrix, i::Int; kwargs...)
+    P = RecipesBase.plot(view(Prof, :,1), view(Prof, :,2); leg=false, label="Profile", kwargs...)
+    size(Prof,2) == 3 && RecipesBase.plot!(P, view(Prof, :,1), view(Prof, :,3); label="Prior", color=:red, line=:dash)
+    P
+end
+
+HasTrajectories(M::AbstractVector) = any(HasTrajectories, M)
+HasTrajectories(M::Tuple) = true
+HasTrajectories(M::AbstractMatrix) = false
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
-    PlotObjects = if Profiles isa AbstractVector{<:AbstractMatrix{<:Number}}
-        P = [RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,2); leg=false, label="Profile", subplot=i, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
-        if all(x->size(x,2)==3, Profiles)
-            P = [P;[RecipesBase.plot(view(Profiles[i], :,1), view(Profiles[i], :,3); label="Prior", color=:red, line=:dash, subplot=i) for i in 1:length(Profiles)]]
-        end;    P
-    else
-        P1 = [RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,2); leg=false, label="Profile", subplot=i, xlabel=Pnames[i], ylabel=Ylab) for i in 1:length(Profiles)]
-        if all(i->size(Profiles[i][1],2)==3, 1:length(Profiles))
-            P1 = [P1;[RecipesBase.plot(view(Profiles[i][1], :,1), view(Profiles[i][1], :,3); label="Prior", color=:red, line=:dash, subplot=i) for i in 1:length(Profiles)]]
-        end;    P
-        if length(Profiles) ≤ 3
-            P2 = PlotProfileTrajectories(DM, Profiles)
-            vcat(P1,[P2])
-        else
-            P1
-        end
-    end
-    RecipesBase.plot(PlotObjects...; layout=length(PlotObjects)) |> display
+    PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in 1:length(Profiles)]
+    length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles))
+    RecipesBase.plot(PlotObjects...; layout=length(PlotObjects))
 end
 # Plot trajectories of Profile Likelihood
 """
     PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; OverWrite=true, kwargs...)
 """
 function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite=true, kwargs...)
-    @assert Profiles[1][1] isa AbstractMatrix{<:Number} && Profiles[1][2] isa AbstractVector{<:AbstractVector{<:Number}}
+    @assert HasTrajectories(Profiles)
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in 1:length(Profiles)
-        RecipesBase.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
+        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
     end
     RecipesBase.plot!(P, [MLE(DM)]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
-    P
 end
 
 
