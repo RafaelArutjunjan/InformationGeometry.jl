@@ -202,11 +202,14 @@ end
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
     ps = DomainSamples(dom; N=N)
+
+    FitFunc = isnothing(LogPrior(DM)) ? ((args...; kwargs...)->curve_fit(args...; kwargs...).param) : ((args...; kwargs...)->InformationGeometry.minimize(args...; meth=meth, kwargs...))
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
@@ -219,7 +222,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
         for (i,p) in enumerate(ps)
             NewModel = ProfilePredictor(DM, Comp, p)
             DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
-            MLEstash = curve_fit(Data(DM), NewModel, ProfileDPredictor(DM, Comp, p), MLEstash, DroppedLogPrior; tol=tol, kwargs...).param
+            MLEstash = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; tol=tol, kwargs...)
             push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
             push!(visitedps, p)
             SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
@@ -229,20 +232,21 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     Logmax = max(maximum(Res), LogLikeMLE(DM))
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    # Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
+    Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
     if IsCost
         @. Res = 2*(Logmax - Res)
         if SavePriors
-            @. priors = 2*(Priormax - priors)
+            @. priors = 2*(Logmax - priors)
         end
     else
         @inbounds for i in eachindex(Res)
             Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
         end
         if SavePriors
-            @inbounds for i in eachindex(priors)
-                priors[i] = InvConfVol(ChisqCDF(dof, 2(Priormax - priors[i])))
-            end
+            throw("Not programmed for this case yet, please use kwarg IsCost=true with SavePriors=true.")
+            # @inbounds for i in eachindex(priors)
+            #     priors[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - priors[i])))
+            # end
         end
     end
 
@@ -384,9 +388,11 @@ struct ParameterProfile <: AbstractProfile
     Names::AbstractVector{<:String}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
-    function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2.; SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
-        Profs = ProfileLikelihood(DM, Confnum; SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
-        SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2); IsCost=IsCost) : ParameterProfile(DM, Profs; IsCost=IsCost)
+    function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2.; plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
+        Profs = ProfileLikelihood(DM, Confnum; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
+        P = SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2); IsCost=IsCost) : ParameterProfile(DM, Profs; IsCost=IsCost)
+        plot && display(RecipesBase.plot(P))
+        P
     end
     function ParameterProfile(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=pnames(DM); IsCost::Bool=false)
         ParameterProfile(Profiles, Trajectories, Names, MLE(DM), IsCost)

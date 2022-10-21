@@ -187,6 +187,13 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain:
     Full ? Res : Optim.minimizer(Res)
 end
 
+GetDomain(DM::AbstractDataModel) = GetDomain(Predictor(DM))
+GetDomain(M::ModelMap) = Domain(M)
+GetDomain(F::Function) = nothing
+function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
+    F = HasXerror(DS) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
+    minimize(F, start, Domain; kwargs...)
+end
 """
     RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.

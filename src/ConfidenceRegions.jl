@@ -1316,7 +1316,7 @@ function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, Lo
     L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd)
     ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
-FullLiftedNegLogLikelihood(DM::AbstractDataModel) = (L=FullLiftedLogLikelihood(DM); Xθ::AbstractVector{<:Number}->L(Xθ))
+FullLiftedNegLogLikelihood(args...; kwargs...) = (L=FullLiftedLogLikelihood(args...; kwargs...); Xθ::AbstractVector{<:Number}->-L(Xθ))
 
 
 abstract type AbstractBoundarySlice end
