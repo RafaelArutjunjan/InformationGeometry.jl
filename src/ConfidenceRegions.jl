@@ -788,6 +788,7 @@ end
 # Reduction(X::AbstractVector{<:SVector{Len,T}}) where Len where T = reinterpret(T, X)
 Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
 Reduction(X::AbstractVector{<:Number}) = X
+Reduction(X::AbstractVector{<:SubArray{<:Number, 0}}) = [@inbounds X[i][1] for i in 1:length(X)]
 
 
 # h(θ) ∈ Dataspace
