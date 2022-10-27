@@ -39,6 +39,9 @@ function _CustomOrNot(DS::AbstractDataSet, model!::ModelOrFunction, θ::Abstract
 end
 
 
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...)
+    EmbeddingMap!(Y, Data(DM), Predictor(DM), θ, woundX; kwargs...)
+end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
 end
@@ -85,6 +88,9 @@ function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::Abstr
 end
 
 
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...)
+    EmbeddingMatrix!(J, Data(DM), dPredictor(DM), θ, woundX; kwargs...)
+end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     EmbeddingMatrix!(J, dmodel!, θ, woundX, Val(ydim(DS)); kwargs...)
 end

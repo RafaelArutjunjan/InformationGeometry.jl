@@ -50,15 +50,17 @@ struct DataModel <: AbstractDataModel
     MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
+    # LogLikelihoodFn::Function
+    # ScoreFn::Function
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
-        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipTests; kwargs...)
+        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipTests; ADmode=ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
-        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode),mle,SkipTests; kwargs...)
+        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode),mle,SkipTests; ADmode=ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
-        DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; kwargs...)
+        DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; ADmode=ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-14, kwargs...)
         SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true; kwargs...) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel; tol=tol); kwargs...)
@@ -76,11 +78,15 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests; kwargs...)
     end
     # Block kwargs here.
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; name::Union{Symbol,String}=Symbol())
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false;
+                                            name::Union{Symbol,String}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
-        new(DS, model, dmodel, MLE, LogLikeMLE, Prior(LogPriorFn,MLE))
+        NewLogPriorFn = Prior(LogPriorFn,MLE)
+        # LogLikelihoodFn = GetLogLikelihoodFn(DS,model,NewLogPriorFn)
+        # ScoreFn = GetScoreFn(DS,model,dmodel,NewLogPriorFn,LogLikelihoodFn; ADmode=ADmode)
+        new(DS, model, dmodel, MLE, LogLikeMLE, NewLogPriorFn) #, LogLikelihoodFn, ScoreFn)
     end
 end
 
@@ -107,7 +113,10 @@ model::ModelOrFunction=(x,p)->-Inf,
 dmodel::ModelOrFunction=(x,p)->[-Inf],
 MLE::AbstractVector{<:Number}=[-Inf],
 LogLikeMLE::Real=-Inf,
-LogPrior::Union{Function,Nothing}=nothing) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior)
+LogPrior::Union{Function,Nothing}=nothing,
+# LogLikelihoodFn::Function=p->0.0,
+# ScoreFn::Function=p->ones(length(p))
+) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior) #, LogLikelihoodFn, ScoreFn)
 
 
 # Specialized methods for DataModel
@@ -116,6 +125,8 @@ Data(DM::DataModel) = DM.Data
 Predictor(DM::DataModel) = DM.model
 dPredictor(DM::DataModel) = DM.dmodel
 LogPrior(DM::DataModel) = DM.LogPrior
+# loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
+# Score(DM::DataModel) = DM.ScoreFn
 
 """
     MLE(DM::DataModel) -> Vector

@@ -30,7 +30,24 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
     -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
-
+function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; Kwargs...)
+    # Pre-Computations or buffers here
+    if isnothing(LogPriorFn)
+        """
+            LogLikelihoodWithoutPrior(θ::AbstractVector; kwargs...) -> Real
+        Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
+        No prior was given for the parameters.
+        """
+        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
+    else
+        """
+            LogLikelihoodWithPrior(θ::AbstractVector; kwargs...) -> Real
+        Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
+        The given prior information is already incorporated.
+        """
+        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
+    end
+end
 
 InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
@@ -87,7 +104,7 @@ NegScore(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihoodGradient(θ::A
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff))
 Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``.
-`ADmode=Val(false)` computes the Score by separately evaluating the `model` as well as the Jacobian `dmodel` provided in `DM`.
+`ADmode=Val(false)` computes the Score using the Jacobian `dmodel` provided in `DM`, i.e. by having to separately evaluate both the `model` as well as `dmodel`.
 Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 """
 Score(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = Score(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
@@ -107,7 +124,54 @@ _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ:
     transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (yInvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
 
+function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    if !(ADmode isa Val{false})
+        # In this case, performance gain from in-place score is usually marginal since it uses out-of-place EmbeddingMap
+        ADS, ADS! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
+        """
+            LogLikelihoodGradient(θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+            LogLikelihoodGradient(dl::AbstractVector, θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+        Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``.
+        Both an out-of-place as well as an in-place method is provided.
+        !!! note
+            The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
+        """
+        LogLikelihoodGradient(θ::AbstractVector{<:Number}; kwargs...) = ADS(θ; Kwargs..., kwargs...)
+        LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADS!(dl, θ; Kwargs..., kwargs...)
+    else
+        @warn "No smart way for switching back to other ADmode via kwarg yet. You are stuck with manually computed Score. To switch, remake the DataModel."
+        @warn "Also, the currently provided in-place method is fake."
+        S = ((θ::AbstractVector; kwargs...) -> _Score(DS, model, dmodel, θ, Val(false); Kwargs..., kwargs...))
+        # This is where the buffer magic should happen for inplace EmbeddingMap! and EmbeddingMatrix!
+        S! = ((dl::AbstractVector, θ::AbstractVector; kwargs...) -> copyto!(dl,_Score(DS, model, dmodel, θ, Val(false); Kwargs..., kwargs...)))
 
+        if isnothing(LogPriorFn)
+            """
+                ScoreWithoutPrior(θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+                ScoreWithoutPrior(dl::AbstractVector, θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+            Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. No prior was given for the parameters.
+            Both an out-of-place as well as an in-place method is provided.
+            !!! note
+                The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
+            """
+            ScoreWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...)
+            ScoreWithoutPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = S!(dl, θ; kwargs...)
+        else
+            """
+                ScoreWithPrior(θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+                ScoreWithPrior(dl::AbstractVector, θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
+            Calculates the gradient of the log-likelihood ``\\ell`` with respect to a set of parameters ``\\theta``. No prior was given for the parameters.
+            Both an out-of-place as well as an in-place method is provided.
+            !!! note
+                The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
+            """
+            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) + EvalLogPriorGrad(LogPriorFn, θ)
+            function ScoreWithPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
+                S!(dl, θ; kwargs...);    dl += EvalLogPriorGrad(LogPriorFn, θ);    dl
+            end
+        end
+    end
+end
 
 
 
