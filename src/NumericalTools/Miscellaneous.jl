@@ -142,36 +142,6 @@ InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
 InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 
-InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
-# InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
-
-InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Mat[i,j] * Y[j]
-InnerProductV(Mat::Diagonal, Y::AbstractVector) = @tullio Res := Mat.diag[j] * Y[j]^2
-
-
-
-# Does not hit BLAS, sadly
-"""
-    InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T}) -> T
-Computes ``|| Mat * Y ||^2``, i.e. ``Y^t \\, * (Mat^t * Mat) * Y``.
-"""
-function InnerProductChol(Mat::UpperTriangular, Y::AbstractVector{T})::T where T <: Number
-    @assert size(Mat,2) == length(Y)
-    Res = zero(T);    temp = zero(T);    n = size(Mat,2)
-    @inbounds for i in 1:n
-        temp = dot(view(Mat,i,i:n), view(Y,i:n))
-        Res += temp^2
-    end;    Res
-end
-function InnerProductChol(Mat::Diagonal, Y::AbstractVector{T})::T where T <: Number
-    @assert length(Mat.diag) == length(Y)
-    # sum(abs2, Mat.diag .* Y)
-    sum((Mat.diag .* Y).^2) # faster for differentiation
-end
-function InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T})::T where T <: Number
-    @assert size(Mat,1) == size(Mat,2) == length(Y)
-    sum(abs2, Mat*Y)
-end
 
 
 import Base.==

@@ -181,8 +181,16 @@ export LineSearch, MonteCarloArea
 export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
+include("Likelihoods.jl")
+export likelihood, loglikelihood, Score
+
+
+include("ModelPredictions.jl")
+export EmbeddingMap, EmbeddingMatrix, EmbeddingMap!, EmbeddingMatrix!
+
+
 include("ConfidenceRegions.jl")
-export likelihood, loglikelihood, Score, WilksCriterion, WilksTest, OrthVF, OrthVF!, FindMLE
+export WilksCriterion, WilksTest, OrthVF, OrthVF!, FindMLE
 export AutoScore, AutoMetric
 export FindConfBoundary, FCriterion, FTest, FindFBoundary
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
@@ -192,7 +200,7 @@ export FisherMetric, GeometricDensity
 export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
-export EmbeddingMap, EmbeddingMatrix, EmbeddingMap!, EmbeddingMatrix!, Pullback, Pushforward
+export Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
