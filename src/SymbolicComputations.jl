@@ -66,7 +66,7 @@ Optimize(DS::AbstractDataSet, model::ModelOrFunction; kwargs...) = Optimize(mode
 Optimize(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = _Optimize(model, xyp; kwargs...)
 function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=(xyp[2] > 1), kwargs...)
     model, dmodel = _Optimize(M, xyp; inplace=inplace, kwargs...)
-    (!isnothing(model) && !isnothing(dmodel)) ? (ModelMap(model, M; inplace=inplace), ModelMap(dmodel, M; inplace=inplace)) : (nothing, nothing)
+    (!isnothing(model) && !isnothing(dmodel)) ? (ModelMap(model, M; inplace=(inplace && (xyp[2] > 1))), ModelMap(dmodel, M; inplace=inplace)) : (nothing, nothing)
 end
 
 function _Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
@@ -78,7 +78,9 @@ function _Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Boo
     !(modelexpr isa AbstractVector{<:Num}) && (modelexpr = [modelexpr])
     derivative = Symbolics.jacobian(modelexpr, θ; simplify=true)
 
-    ExprToModelMap(X, θ, modelexpr; inplace=inplace, parallel=parallel, IsJacobian=false, kwargs...), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true, kwargs...)
+    inplace && (xyp[2] == 1) && @warn "Although given inplace=true, will nevertheless create out-of-place version for model because ydim=1. Model jacobian will be in-place."
+
+    ExprToModelMap(X, θ, modelexpr; inplace=(inplace && (xyp[2] > 1)), parallel=parallel, IsJacobian=false, kwargs...), ExprToModelMap(X, θ, derivative; inplace=inplace, parallel=parallel, IsJacobian=true, kwargs...)
 end
 
 

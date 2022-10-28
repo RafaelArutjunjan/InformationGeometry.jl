@@ -45,6 +45,7 @@ end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
 end
+# in-place does not really make sense for 1D output
 function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
     @inbounds for i in Base.OneTo(length(Y))
         model!(Y[i], woundX[i], θ; kwargs...)
@@ -96,7 +97,7 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmod
 end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
     @inbounds for row in Base.OneTo(size(J,1))
-        dmodel!(view(J,row,:), woundX[row], θ; kwargs...)
+        dmodel!(view(J,row:row,:), woundX[row], θ; kwargs...)
     end
 end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
