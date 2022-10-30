@@ -21,7 +21,7 @@ For more complicated boundary constraints, scalar function `InDomain` can be spe
     A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
     Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
-struct ModelMap{Inplace}
+struct ModelMap{Inplace, Custom}
     Map::Function
     InDomain::Union{Nothing,Function}
     Domain::Cuboid
@@ -76,7 +76,7 @@ struct ModelMap{Inplace}
         @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
         isnothing(Domain) ? (Domain = FullDomain(xyp[3], 1e5)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
-        new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta)
+        new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta)
     end
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)

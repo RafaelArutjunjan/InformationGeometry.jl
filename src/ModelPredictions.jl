@@ -43,22 +43,30 @@ function EmbeddingMap!(Y::AbstractVector{<:Number}, DM::AbstractDataModel, θ::A
     EmbeddingMap!(Y, Data(DM), Predictor(DM), θ, woundX; kwargs...)
 end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
-    EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
+    _EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)), Val(false); kwargs...)
 end
-# in-place does not really make sense for 1D output
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
-    @inbounds for i in Base.OneTo(length(Y))
-        model!(Y[i], woundX[i], θ; kwargs...)
-    end
-end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
-    @inbounds for (i, row) in enumerate(Iterators.partition(1:length(Y), T))
-        model!(view(Y,row), woundX[i], θ; kwargs...)
-    end
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{true}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+    _EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)), model!.CustomEmbedding; kwargs...)
 end
 # Fallback for out-of-place models
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     copyto!(Y, EmbeddingMap(DS, model!, θ, woundX; kwargs...))
+end
+
+
+# in-place does not really make sense for 1D output
+function _EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}, custom::Val{false}; kwargs...)
+    @inbounds for i in Base.OneTo(length(Y))
+        model!(Y[i], woundX[i], θ; kwargs...)
+    end
+end
+function _EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}, custom::Val{false}; kwargs...) where T
+    @inbounds for (i, row) in enumerate(Iterators.partition(1:length(Y), T))
+        model!(view(Y,row), woundX[i], θ; kwargs...)
+    end
+end
+function _EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val, custom::Val{true}; kwargs...)
+    model!(Y, woundX, θ; kwargs...)
 end
 
 
@@ -93,19 +101,27 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DM::AbstractDataModel, θ
     EmbeddingMatrix!(J, Data(DM), dPredictor(DM), θ, woundX; kwargs...)
 end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
-    EmbeddingMatrix!(J, dmodel!, θ, woundX, Val(ydim(DS)); kwargs...)
+    _EmbeddingMatrix!(J, dmodel!, θ, woundX, Val(ydim(DS)), Val(false); kwargs...)
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
-    @inbounds for row in Base.OneTo(size(J,1))
-        dmodel!(view(J,row:row,:), woundX[row], θ; kwargs...)
-    end
-end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
-    @inbounds for (i, row) in enumerate(Iterators.partition(1:size(J,1), T))
-        dmodel!(view(J,row,:), woundX[i], θ; kwargs...)
-    end
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelMap{true}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+    _EmbeddingMatrix!(J, dmodel!, θ, woundX, Val(ydim(DS)), dmodel!.CustomEmbedding; kwargs...)
 end
 # Fallback for out-of-place models
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, DS::AbstractDataSet, dmodel!::ModelMap{false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     copyto!(J, EmbeddingMatrix(DS, dmodel!, θ, woundX; kwargs...))
+end
+
+
+function _EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}, custom::Val{false}; kwargs...)
+    @inbounds for row in Base.OneTo(size(J,1))
+        dmodel!(view(J,row:row,:), woundX[row], θ; kwargs...)
+    end
+end
+function _EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}, custom::Val{false}; kwargs...) where T
+    @inbounds for (i, row) in enumerate(Iterators.partition(1:size(J,1), T))
+        dmodel!(view(J,row,:), woundX[i], θ; kwargs...)
+    end
+end
+function _EmbeddingMatrix!(J::AbstractMatrix{<:Number}, dmodel!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val, custom::Val{true}; kwargs...)
+    dmodel!(J, woundX, θ; kwargs...)
 end
