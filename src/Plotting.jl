@@ -11,7 +11,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     end
     markeralpha :=      0.
     linewidth -->       2
-    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:))
+    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:) : :auto))
     linestyle -->       :solid
     RSEs = ResidualStandardError(DM, mle)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
