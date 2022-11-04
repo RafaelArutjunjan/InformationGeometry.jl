@@ -182,7 +182,7 @@ function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVec
 end
 
 
-function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
+function _CustomOrNot(CDS::CompositeDataSet, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
@@ -190,12 +190,19 @@ function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::Abstrac
 end
 
 # Apparently reduce(vcat, map(z->transpose(G(z)), X))  just as fast as   transpose(reshape(reduce(vcat, map(z->transpose(G(z)), X)), ydim, :))
-function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
+function _CustomOrNot(CDS::CompositeDataSet, model::ModelMap{false,true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
     _FillResVector(CDS, X, (ydim(CDS) == 1 ? reshape(model(X, θ; kwargs...), :, 1) : transpose(reshape(model(X, θ; kwargs...), ydim(CDS), :))))
 end
+
+# function _CustomOrNot(CDS::CompositeDataSet, model::ModelMap{true}, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
+#     throw("Not programmed CompositeDataSet for in-place ModelMaps yet.")
+# end
+
+# Also add test for in-place CompositeDataSet with missing values
+
 
 function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{<:Number})
     Res = Vector{suff(Mapped)}(undef, DataspaceDim(CDS));      i = 1
@@ -209,13 +216,13 @@ function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::Abstra
 end
 
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{false}, inplace::Val{false}; kwargs...)
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX)
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
+function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
     [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in 1:length(X)]
