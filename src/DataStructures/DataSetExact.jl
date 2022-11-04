@@ -27,7 +27,7 @@ DataSetExact(X, Y, (2,1,1))
     ```
     where `DS1 == DS2 == DS3` will evaluate to `true`.
 """
-struct DataSetExact <: AbstractDataSet
+struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: AbstractDataSet
     xdist::Distribution
     ydist::Distribution
     dims::Tuple{Int,Int,Int}
@@ -83,7 +83,7 @@ struct DataSetExact <: AbstractDataSet
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
                             xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
-        new(xd, yd, dims, InvCov, WoundX, xnames, ynames, Name)
+        new{typeof(xd), typeof(yd)}(xd, yd, dims, InvCov, WoundX, xnames, ynames, Name)
     end
 end
 

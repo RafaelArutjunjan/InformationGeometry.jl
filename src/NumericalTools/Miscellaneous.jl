@@ -84,6 +84,15 @@ _PromoteStatic(X::AbstractVector, Length=length(X)) = SVector{Length}(X)
 _PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
 
+# Return type of DataSet without specialized parametrization
+DataSetType(DS::AbstractDataSet) = typeof(DS)
+DataSetType(DS::DataSet) = DataSet
+DataSetType(DS::DataSetExact) = DataSetExact
+DataSetType(DS::CompositeDataSet) = CompositeDataSet
+DataSetType(DS::GeneralizedDataSet) = GeneralizedDataSet
+
+
+
 # Surely, this can be made more efficient?
 SplitAfter(n::Int) = X->(view(X,1:n), view(X,n+1:length(X)))
 

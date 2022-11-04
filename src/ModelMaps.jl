@@ -447,12 +447,12 @@ end
 function TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform"; xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
     if !HasXerror(DS)
-        typeof(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
+        DataSetType(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     else
         @assert xsigma(DS) isa AbstractVector
         EmbJac = xdim(DS) > 1 ? GetJac(ADmode, Emb, xdim(DS)) : GetDeriv(ADmode, Emb)
         NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DS), Windup(xsigma(DS), xdim(DS))) # |> Reduction
-        typeof(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
+        DataSetType(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     end
 end
 # Drop iEmb
@@ -514,9 +514,9 @@ function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::Strin
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
     NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction
     if !HasXerror(DS)
-        typeof(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
+        DataSetType(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
     else
-        typeof(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
+        DataSetType(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
     end
 end
 
