@@ -29,15 +29,15 @@ function KullbackLeibler(p::Function, q::Function, Domain::HyperCube; tol::Real=
 end
 
 
-function KullbackLeibler(p::Product{Continuous}, q::DiagNormal, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+function KullbackLeibler(p::Distributions.Product{Distributions.Continuous}, q::Distributions.DiagNormal, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     sum(KullbackLeibler(p.v[i], Normal(q.μ[i],sqrt(q.Σ.diag[i])), HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
 end
-function KullbackLeibler(p::DiagNormal, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+function KullbackLeibler(p::Distributions.DiagNormal, q::Distributions.Product{Distributions.Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     sum(KullbackLeibler(Normal(p.μ[i],sqrt(p.Σ.diag[i])), q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
 end
-function KullbackLeibler(p::Product{Continuous}, q::Product{Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
+function KullbackLeibler(p::Distributions.Product{Distributions.Continuous}, q::Distributions.Product{Distributions.Continuous}, Domain::HyperCube=HyperCube([[-20,20] for i in 1:length(p)]); tol::Real=1e-12, kwargs...)
     !(length(p) == length(q) == length(Domain)) && throw("KL: Sampling dimension mismatch: dim(p) = $(length(p)), dim(q) = $(length(q)), Domain = $(length(Domain))")
     sum(KullbackLeibler(p.v[i], q.v[i], HyperCube([Domain.L[i], Domain.U[i]]); tol=tol) for i in 1:length(p))
 end
@@ -57,15 +57,15 @@ end
 
 
 # Known analytic expressions
-function KullbackLeibler(P::MvNormal, Q::MvNormal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
+function KullbackLeibler(P::Distributions.MvNormal, Q::Distributions.MvNormal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
     (1/2) * (logdet(Q.Σ) - logdet(P.Σ) - length(P.μ) + tr(inv(Q.Σ) * P.Σ) + InnerProduct(inv(Q.Σ), Q.μ-P.μ))
 end
-KullbackLeibler(P::Normal, Q::Normal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(Q.σ / P.σ) + (1/2) * ((P.σ / Q.σ)^2 + (P.μ - Q.μ)^2 * Q.σ^(-2) -1.)
-KullbackLeibler(P::Cauchy, Q::Cauchy, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(((P.σ + Q.σ)^2 + (P.μ - Q.μ)^2) / (4P.σ * Q.σ))
+KullbackLeibler(P::Distributions.Normal, Q::Distributions.Normal, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(Q.σ / P.σ) + (1/2) * ((P.σ / Q.σ)^2 + (P.μ - Q.μ)^2 * Q.σ^(-2) -1.)
+KullbackLeibler(P::Distributions.Cauchy, Q::Distributions.Cauchy, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(((P.σ + Q.σ)^2 + (P.μ - Q.μ)^2) / (4P.σ * Q.σ))
 
 # Note the sign difference between the conventions (1/θ)*exp(-x/θ) and λ*exp(-λx). Distributions.jl uses the former.
-KullbackLeibler(P::Exponential, Q::Exponential, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(Q.θ / P.θ) + P.θ / Q.θ - 1.
-function KullbackLeibler(P::Weibull, Q::Weibull, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
+KullbackLeibler(P::Distributions.Exponential, Q::Distributions.Exponential, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...) = log(Q.θ / P.θ) + P.θ / Q.θ - 1.
+function KullbackLeibler(P::Distributions.Weibull, Q::Distributions.Weibull, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
     log(P.α / (P.θ^P.α)) - log(Q.α / (Q.θ^Q.α)) + (P.α - Q.α)*(log(P.θ) - Base.MathConstants.γ / P.α) + (P.θ / Q.θ)^Q.α * SpecialFunctions.gamma(1 + Q.α / P.α) - 1.
 end
 function KullbackLeibler(P::Distributions.Gamma, Q::Distributions.Gamma, Domain::HyperCube=HyperCube([-Inf,Inf]); kwargs...)
