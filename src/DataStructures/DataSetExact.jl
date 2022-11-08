@@ -167,8 +167,8 @@ function DataMetric(P::Distributions.GenericMvTDist)
 end
 
 # Needs testing!!!!
-isCauchy(P::Distribution{Univariate,Continuous}) = false;    isCauchy(P::Cauchy) = true
-function DataMetric(P::Product)
+isCauchy(P::Distribution{Distributions.Univariate,Distributions.Continuous}) = false;    isCauchy(P::Distributions.Cauchy) = true
+function DataMetric(P::Distributions.Product)
     icov = InvCov(P).diag
     [isCauchy(P.v[i]) ? 0.5 : 1. for i in 1:length(P)] .* icov |> Diagonal
 end
