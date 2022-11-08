@@ -27,3 +27,7 @@ or alternatively by
 ```julia
 julia> using Pkg; Pkg.add("InformationGeometry")
 ```
+
+## Citation
+
+If [**InformationGeometry.jl**](https://github.com/RafaelArutjunjan/InformationGeometry.jl) was helpful in your own work, please consider citing [https://doi.org/10.48550/arXiv.2211.03421](https://doi.org/10.48550/arXiv.2211.03421) and [https://doi.org/10.5281/zenodo.5530660](https://doi.org/10.5281/zenodo.5530660).
