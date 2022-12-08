@@ -507,7 +507,7 @@ struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <
     dense::Bool
     tslocation::Int
     destats::DE
-    retcode::Symbol
+    retcode
     Embedding::Function
 end
 (ES::EmbeddedODESolution)(t::Real,deriv::Type=Val{0};idxs=nothing,continuity=:left) = ES.Embedding(ES.interp(t,idxs,deriv,ES.prob.p,continuity))

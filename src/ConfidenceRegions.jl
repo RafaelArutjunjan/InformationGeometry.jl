@@ -498,7 +498,7 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
         Prog = Progress(length(Range); enabled=verbose, desc="Computing boundaries... ", dt=1, showspeed=true)
         sols = (parallel ? progress_pmap : progress_map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range; progress=Prog)
         if tests
-            NotTerminated = map(x->(x.retcode != :Terminated), sols)
+            NotTerminated = map(x->(x.retcode !=== SciMLBase.ReturnCode.Terminated), sols)
             verbose && sum(NotTerminated) != 0 && @warn "Solutions $((1:length(sols))[NotTerminated]) did not exit properly."
             roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)

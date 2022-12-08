@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.14.0"
+version = "1.14.1"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
