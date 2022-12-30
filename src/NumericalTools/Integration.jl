@@ -2,15 +2,15 @@
 
 
 """
-    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
+    Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=Tsit5())
 Integrates `F` over a one-dimensional domain specified via a `HyperCube` by rephrasing the integral as an ODE and using `DifferentialEquations.jl`.
 """
-function Integrate1D(F::Function, Cube::HyperCube; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
+function Integrate1D(F::Function, Cube::HyperCube; kwargs...)
     length(Cube) != 1 && throw(ArgumentError("Cube dim = $(length(Cube)) instead of 1"))
-    Integrate1D(F,(Cube.L[1],Cube.U[1]); tol=tol,FullSol=FullSol,meth=meth)
+    Integrate1D(F, (Cube.L[1],Cube.U[1]); kwargs...)
 end
-Integrate1D(F::Function, Interval::AbstractVector{<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing) = Integrate1D(F, Tuple(Interval); tol=tol, FullSol=FullSol, meth=meth)
-function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing)
+Integrate1D(F::Function, Interval::AbstractVector{<:Number}; kwargs...) = Integrate1D(F, Tuple(Interval); kwargs...)
+function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing, kwargs...)
     Interval = floatify(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
     @assert Interval[1] < Interval[2]
@@ -22,9 +22,9 @@ function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=
         meth = isnothing(meth) ? Tsit5() : meth
     end
     if FullSol
-        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol)
+        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol, kwargs...)
     else
-        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true).u[end]
+        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true, kwargs...).u[end]
     end
 end
 

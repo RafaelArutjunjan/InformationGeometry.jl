@@ -158,15 +158,15 @@ minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) =
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
 function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
                             meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
-                            timeout::Real=200, Full::Bool=false, verbose::Bool=true, kwargs...) where T <: Number
+                            timeout::Real=200, Full::Bool=false, verbose::Bool=true, iterations::Int=5000, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both not in-place"
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
     options = if isnothing(Fthresh)
-        Optim.Options(g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+        Optim.Options(; g_tol=tol, x_tol=tol, time_limit=floatify(timeout), iterations)
     else  # stopping criterion via callback kwarg
-        Optim.Options(callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout))
+        Optim.Options(; callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout), iterations)
     end
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
