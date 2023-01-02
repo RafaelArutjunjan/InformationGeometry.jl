@@ -326,10 +326,10 @@ function ConstructCube(sols::AbstractVector{<:AbstractODESolution}, Npoints::Int
     mapreduce(sol->ConstructCube(sol; N=N, Padding=Padding), union, sols)
 end
 
-ConstructCube(Tup::Tuple{AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}; Padding=0.) = ConstructCube(Tup[1], Tup[2]; Padding=Padding)
-function ConstructCube(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; Padding=0.)
+ConstructCube(Tup::Tuple{AbstractVector{<:Plane},AbstractVector{<:AbstractODESolution}}; kwargs...) = ConstructCube(Tup[1], Tup[2]; kwargs...)
+function ConstructCube(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}; N::Int=300, Padding::Number=0.)
     @assert length(Planes) == length(sols)
-    reduce(union, map((x,y)->ConstructCube(x,y; Padding=Padding), Planes, sols))
+    reduce(union, map((x,y)->ConstructCube(x,y; N=N, Padding=Padding), Planes, sols))
 end
 
 """
