@@ -974,7 +974,7 @@ function ToGeos(pointlist::AbstractVector{<:AbstractVector{<:Number}})
     text *= "$(pointlist[1][1]) $(pointlist[1][2])" * "))"
     LibGEOS.readgeom(text)
 end
-UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}}) = LibGEOS.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
+UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}}) = LibGEOS.GeoInterface.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
 UnionPolygons(p1::LibGEOS.Polygon, p2::LibGEOS.Polygon) = LibGEOS.union(p1,p2)
 
 ToAmbient(DM::AbstractDataModel, pointlist::AbstractVector{<:AbstractVector{<:Number}}, dirs::Tuple{<:Int, <:Int}) = ToAmbient(DM, pointlist, dirs[1], dirs[2])
