@@ -346,10 +346,10 @@ function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVe
     @assert size(A,1) == size(A,2) == length(v)
     TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, A*θ + v; Kwargs...)
 end
-function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=nothing)
-    @assert length(Domain(M)) == size(A,1) == size(A,2) == length(v)
+function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=Domain(M))
+    @assert isnothing(Domain) || (length(Domain) == size(A,1) == size(A,2) == length(v))
     Ainv = inv(A)
-    NewDomain = isnothing(Domain) ? HyperCube(Ainv*(Domain(M).L-v), Ainv*(Domain(M).U-v)) : Domain
+    NewDomain = isnothing(Domain) ? HyperCube(Ainv*(Domain.L-v), Ainv*(Domain.U-v)) : nothing
     ModelMap(AffineTransform(M.Map, A, v), (InDomain(M) isa Function ? (θ->InDomain(M)(A*θ+v)) : nothing), NewDomain,
                     M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
 end
