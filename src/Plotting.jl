@@ -155,6 +155,7 @@ end
 
 RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
     seriestype --> :scatter
+    markersize --> 2
     ToCols(Unpack(X))
 end
 

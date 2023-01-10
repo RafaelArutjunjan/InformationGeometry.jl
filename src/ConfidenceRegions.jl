@@ -954,8 +954,10 @@ CastShadow(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},<:Abstrac
 CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, dirs::Tuple{<:Int,<:Int}; kwargs...) = CastShadow(DM, Planes, sols, dirs[1], dirs[2]; kwargs...)
 function CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, dir1::Int, dir2::Int; threshold::Real=0.2)
     @assert length(Planes) == length(sols)
-    @assert pdim(DM) == length(Planes[1])
-    @assert 1 ≤ dir1 ≤ pdim(DM) && 1 ≤ dir2 ≤ pdim(DM) && dir1 != dir2
+    @assert dir1 != dir2
+
+    (1 ≤ dir1 ≤ pdim(DM) && 1 ≤ dir2 ≤ pdim(DM)) || @warn "Projection directions > pdim(DM)."
+    pdim(DM) == length(Planes[1]) || @warn "Pdim = $(pdim(DM)) but ambient dim of planes is $(length(Planes[1]))."
 
     Project(p::AbstractVector{<:Number}, dir1::Int, dir2::Int) = SA[p[dir1], p[dir2]]
 
