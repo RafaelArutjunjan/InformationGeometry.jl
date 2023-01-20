@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum::Real=1, dof::Int=pdim(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
@@ -10,31 +10,50 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         Data(DM), xpositions
     end
     markeralpha :=      0.
-    linewidth -->       2
-    seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:) : :auto))
-    linestyle -->       :solid
-    RSEs = ResidualStandardError(DM, mle)
-    RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
-    label -->  if ydim(DM) == 1
-        # "Fit with RSE≈$(RSEs[1])"
-        "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
-    elseif ydim(DM) ≤ Npoints(DM)
-        # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
-        reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
-    else
-        reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
-    end
-    # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
     X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=500) : xdata(DM)
     Y = predictedY(DM, mle, X)
-    # Y = EmbeddingMap(Data(DM), Predictor(DM), mle, X)
-    # Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
-    if ydim(DM) ≤ Npoints(DM)
-        return X, Y
-    elseif xpositions != xdata(DM)
-        return xpositions, Y
-    else
-        return Y
+    @series begin
+        linewidth -->       2
+        seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:) : :auto))
+        linestyle -->       :solid
+        RSEs = ResidualStandardError(DM, mle)
+        RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
+        label -->  if ydim(DM) == 1
+            # "Fit with RSE≈$(RSEs[1])"
+            "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
+        elseif ydim(DM) ≤ Npoints(DM)
+            # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
+            reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
+        else
+            reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
+        end
+        # ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
+        # Y = EmbeddingMap(Data(DM), Predictor(DM), mle, X)
+        # Y = ydim(DM) == 1 ? Y : (ydim(DM) ≤ Npoints(DM) ? Unpack(Windup(Y, ydim(DM))) : transpose(Unpack(Windup(Y, ydim(DM)))))
+        if ydim(DM) ≤ Npoints(DM)
+            X, Y
+        elseif xpositions != xdata(DM)
+            xpositions, Y
+        else
+            Y
+        end
+    end
+    # Plot symmetric 1σ variance propagation from pseudo-inverse of Fisher Metric
+    if Confnum > 0 && ydim(DM) == 1
+        SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(FisherMetric(DM, mle))).(X)
+        COL = get(plotattributes, :seriescolor, :orange)
+        @series begin
+            seriescolor --> COL
+            linestyle   --> :dash
+            label       --> "$(Confnum)σ Prediction Variance"
+            X, Y .+ SqrtVar
+        end
+        @series begin
+            seriescolor --> COL
+            linestyle   --> :dash
+            label       --> ""
+            X, Y .- SqrtVar
+        end
     end
 end
 function predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM))

@@ -589,6 +589,15 @@ FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:
 _FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
 
+
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), C::AbstractMatrix=quantile(Chisq(pdim(DM)), ConfVol(1)) * pinv(FisherMetric(DM, mle)); kwargs...)
+    VarCholesky(x) = (J = dPredictor(DM)(x, mle);   cholesky(J * C * transpose(J)).U)
+    VarSqrt(x) = (J = dPredictor(DM)(x, mle);   sqrt((J * C * transpose(J))[1]))
+    ydim(DM) > 1 ? VarCholesky : VarSqrt
+end
+
+
+
 """
     GeometricDensity(DM::AbstractDataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.

@@ -196,7 +196,7 @@ export FindConfBoundary, FCriterion, FTest, FindFBoundary
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable
-export FisherMetric, GeometricDensity
+export FisherMetric, GeometricDensity, VariancePropagation
 export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
