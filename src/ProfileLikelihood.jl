@@ -216,7 +216,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     path = SaveTrajectories ? Vector{Vector{eltype(MLE(DM))}}(undef, N) : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
-        Res = map(x->loglikelihood(DM, [x]), ps)
+        visitedps = [[x] for x in ps]
+        Res = map(loglikelihood(DM), visitedps)
     else
         MLEstash = Drop(MLE(DM), Comp)
         for (i,p) in enumerate(ps)

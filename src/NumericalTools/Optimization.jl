@@ -260,10 +260,10 @@ function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractB
     find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Roots.Bisection(); xatol=tol, xrtol=tol)
 end
 
-function AltLineSearch(Test::Function, start::Real, meth::Roots.AbstractNonBracketingMethod; tol::Real=1e-12, kwargs...)
+function AltLineSearch(Test::Function, start::Real, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=1e-12, kwargs...)
     find_zero(Test, start, meth; xatol=tol, xrtol=tol, kwargs...)
 end
-function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod; tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
+function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
     Res = find_zero(Test, Float64(start), meth; xatol=1e-14, xrtol=1e-14)
     find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
 end
