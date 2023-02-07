@@ -245,7 +245,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
                 ADmode::Union{Val,Symbol}=Val(:ForwardDiff), tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    if isnothing(LogPriorFn) && !(DS isa GeneralizedDataSet) && isnothing(meth)
+    if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
         curve_fit(DS, model, start; tol=tol).param
     else
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
@@ -259,10 +259,10 @@ end
 
 
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing;
-                ADmode::Union{Val,Symbol}=Val(:ForwardDiff), Big::Bool=false, tol::Real=1e-14, verbose::Bool=true, kwargs...)
+                ADmode::Union{Val,Symbol}=Val(:ForwardDiff), Big::Bool=false, tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    if isnothing(LogPriorFn) && !(DS isa GeneralizedDataSet)
+    if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
         curve_fit(DS, model, dmodel, start; tol=tol).param
     else
         NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
