@@ -102,6 +102,8 @@ abstract type AbstractDataModel end
 abstract type Cuboid end
 export AbstractDataSet, AbstractDataModel, Cuboid
 
+abstract type AbstractUnknownUncertaintyDataSet <: AbstractDataSet end
+abstract type AbstractFixedUncertaintyDataSet <: AbstractDataSet end
 
 
 import Base: length, rand, BigFloat, in, union, intersect, join, ==

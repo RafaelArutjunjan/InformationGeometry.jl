@@ -98,7 +98,7 @@ The boolean-valued keywords `stripedXs` and `stripedYs` can be used to indicate 
 Also, `xerrs=true` can be used to indicate that the `x`-values also carry uncertainties.
 Basically all functions which can be called on other data containers such as `DataSet` have been specialized to also work with `CompositeDataSet`s.
 """
-struct CompositeDataSet <: AbstractDataSet
+struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     DSs::AbstractVector{<:AbstractDataSet}
     InvCov::AbstractMatrix{<:Number}
     logdetInvCov::Real

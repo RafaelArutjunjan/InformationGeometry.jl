@@ -35,7 +35,7 @@ DS = DataSet(X, Y, Cov, dims)
 In this case, `X` is a vector consisting of the concatenated x-values (with 3 components each) for 4 different data points.
 The values of `Y` are the corresponding concatenated y-values (with 2 components each) of said 4 data points. Clearly, the covariance matrix must therefore be a positive-definite ``(m \\cdot N) \\times (m \\cdot N)`` matrix.
 """
-struct DataSet <: AbstractDataSet
+struct DataSet <: AbstractFixedUncertaintyDataSet
     x::AbstractVector
     y::AbstractVector
     InvCov::AbstractMatrix

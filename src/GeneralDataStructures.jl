@@ -82,6 +82,9 @@ function InformNames(DS::T, Xnames::AbstractVector{String}, Ynames::AbstractVect
 end
 
 
+SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> X
+
+
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
 pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
 MLE(DM::AbstractDataModel) = FindMLE(DM)
@@ -115,7 +118,8 @@ for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
             :xnames, :ynames, :xdist, :ydist, :dist, :HasXerror,
-            :xdataMat, :ydataMat]
+            :xdataMat, :ydataMat,
+            :SplitErrorParams]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end
 

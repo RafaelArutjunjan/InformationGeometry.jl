@@ -10,7 +10,7 @@ Typically, `dist` is a multivariate Gaussian but other distributions such as Cau
 !!! note
     If there is no correlation between the ``x`` and ``y`` variables (i.e. if the offdiagonal blocks of `cov(dist)` are zero), it can be more performant to use the type `DataSetExact` to encode the given data instead.
 """
-struct GeneralizedDataSet{DistType<:Distribution} <: AbstractDataSet
+struct GeneralizedDataSet{DistType<:Distribution} <: AbstractFixedUncertaintyDataSet
     dist::ContinuousMultivariateDistribution
     dims::Tuple{Int,Int,Int}
     WoundX::Union{AbstractVector,Nothing}

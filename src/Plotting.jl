@@ -7,6 +7,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
     title -->               (length(name(DM)) > 0 ? name(DM) : "")
     @series begin
+        if Data(DM) isa AbstractUnknownUncertaintyDataSet
+            yerror := ysigma(Data(DM), (SplitErrorParams(DM)(mle))[2])
+        end
         Data(DM), xpositions
     end
     markeralpha :=      0.
