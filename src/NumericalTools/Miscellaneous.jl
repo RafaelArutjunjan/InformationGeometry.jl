@@ -51,9 +51,9 @@ function GetMethod(tol::Real)
     if tol > 1e-8
         AutoTsit5(Rosenbrock23())
     elseif tol < 1e-11
-        AutoVern9(KenCarp5())
+        AutoVern9(Rodas5())
     else
-        AutoVern7(KenCarp4())
+        AutoVern7(Rodas5())
     end
 end
 
