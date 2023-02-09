@@ -134,4 +134,4 @@ function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOr
 end
 
 
-# _FisherMetric(DS::GeneralizedDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS,dmodel,DataMetric(DS),θ; kwargs...)
+# _FisherMetric(DS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS,dmodel,DataMetric(DS),θ; kwargs...)

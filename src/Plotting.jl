@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum::Real=1, dof::Int=pdim(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, dof=pdim(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")

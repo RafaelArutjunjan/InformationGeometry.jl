@@ -581,16 +581,15 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = FisherMetric(Data(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
 
-FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _FisherMetric(DS, dmodel, θ; kwargs...)
+FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _FisherMetric(DS, model, dmodel, θ; kwargs...)
 # ADD MINUS SIGN FOR LogPrior TERM TO ACCOUNT FOR NEGATIVE SIGN IN DEFINTION OF FISHER METRIC
-FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _FisherMetric(DS, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ)
-# FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = exp(EvalLogPrior(LogPriorFn, θ)) * (_FisherMetric(DS, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ))
+FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _FisherMetric(DS, model, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ)
 
 
 # Specialize this for other DataSet types
-_FisherMetric(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
+_FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
 
 
@@ -607,7 +606,6 @@ end
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
 GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM, θ; kwargs...) |> det |> sqrt
-# GeometricDensity(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, dmodel, θ; kwargs...) |> det |> sqrt
 GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
 GeometricDensity(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> GeometricDensity(DM, θ; kwargs...)
 
