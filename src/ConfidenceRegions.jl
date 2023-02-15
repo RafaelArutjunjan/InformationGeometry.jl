@@ -605,8 +605,9 @@ _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFuncti
 
 
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), C::AbstractMatrix=quantile(Chisq(pdim(DM)), ConfVol(1)) * pinv(FisherMetric(DM, mle)); kwargs...)
-    VarCholesky(x) = (J = dPredictor(DM)(x, mle);   cholesky(J * C * transpose(J)).U)
-    VarSqrt(x) = (J = dPredictor(DM)(x, mle);   sqrt((J * C * transpose(J))[1]))
+    det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
+    VarCholesky(X) = (J = EmbeddingMatrix(DM, mle, X);   cholesky(J * C * transpose(J)).U)
+    VarSqrt(X) = (J = J = EmbeddingMatrix(DM, mle, X);   sqrt((J * C * transpose(J))[1]))
     ydim(DM) > 1 ? VarCholesky : VarSqrt
 end
 

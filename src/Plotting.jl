@@ -43,7 +43,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     end
     # Plot symmetric 1σ variance propagation from pseudo-inverse of Fisher Metric
     if Confnum > 0 && ydim(DM) == 1
-        SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(FisherMetric(DM, mle))).(X)
+        SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(FisherMetric(DM, mle)))(Windup(X, xdim(DM)))
         COL = get(plotattributes, :seriescolor, :orange)
         @series begin
             seriescolor --> COL
