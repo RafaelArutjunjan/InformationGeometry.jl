@@ -606,9 +606,22 @@ _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFuncti
 
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), C::AbstractMatrix=quantile(Chisq(pdim(DM)), ConfVol(1)) * pinv(FisherMetric(DM, mle)); kwargs...)
     det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
-    VarCholesky(X) = (J = EmbeddingMatrix(DM, mle, X);   cholesky(J * C * transpose(J)).U)
-    VarSqrt(X) = (J = J = EmbeddingMatrix(DM, mle, X);   sqrt((J * C * transpose(J))[1]))
-    ydim(DM) > 1 ? VarCholesky : VarSqrt
+    JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
+
+    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, mle);   cholesky(J * C * transpose(J)).U)
+    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->cholesky(J * C * transpose(J)).U, JacobianWindup(Jf, ydim(DM))))
+    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, mle);   R = sqrt((J * C * transpose(J))[1]))
+    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->sqrt((J * C * transpose(J))[1]), JacobianWindup(Jf, ydim(DM))))
+
+    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   cholesky(J * C * transpose(J)).U)
+    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->cholesky(J * C * transpose(J)).U, JacobianWindup(Jf, ydim(DM))))
+    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   R = sqrt((J * C * transpose(J))[1]))
+    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->sqrt((J * C * transpose(J))[1]), JacobianWindup(Jf, ydim(DM))))
+    if xdim(DM) == 1
+        ydim(DM) > 1 ? VarCholesky1 : VarSqrt1
+    else
+        ydim(DM) > 1 ? VarCholeskyN : VarSqrtN
+    end
 end
 
 
