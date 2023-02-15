@@ -162,9 +162,10 @@ end
 RecipesBase.@recipe function f(DSs::Union{<:AbstractVector{<:AbstractDataSet},<:AbstractVector{<:AbstractDataModel}})
     leg --> false
     layout --> length(DSs)
-    for DS in DSs
+    for i in eachindex(DSs)
         @series begin
-            DS
+            subplot := i
+            DSs[i]
         end
     end
 end

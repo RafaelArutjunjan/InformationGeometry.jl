@@ -274,16 +274,27 @@ end
     ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Number,Number}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
-function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-13, ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
     Func(p::Number) = loglikelihood(DM, muladd(p, BasisVector(1,pdim(DM)), MLE(DM))) - A
-    Df = GetDeriv(ADmode, Func)
-    B = find_zero((Func,Df),0.1,Roots.Order1(); xatol=tol)
-    A = find_zero((Func,Df),-B,Roots.Order1(); xatol=tol)
+    B = try
+        AltLineSearch(Func, sqrt(quantile(Chisq(pdim(DM)), ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol, kwargs...)
+    catch;
+        LineSearch(Func, sqrt(quantile(Chisq(pdim(DM)), ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol)
+    end
+    A = try
+        AltLineSearch(Func, -B; tol, kwargs...)
+    catch;
+        SFunc = x->Func(-x)
+        LineSearch(SFunc, -B; tol)
+    end
+    # Df = GetDeriv(ADmode, Func)
+    # B = find_zero((Func,Df),0.1,Roots.Order1(); xatol=tol)
+    # A = find_zero((Func,Df),-B,Roots.Order1(); xatol=tol)
     rts = (MLE(DM)[1]+A, MLE(DM)[1]+B)
-    rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored...") : return rts
+    rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored by producing $rts.") : return rts
 end
 
 function SpatialBoundaryFunction(M::ModelMap)
