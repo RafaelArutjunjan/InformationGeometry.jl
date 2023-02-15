@@ -146,9 +146,9 @@ ConstrainStart(Start::AbstractVector{T}, Dom::Nothing; kwargs...) where T <: Num
 
 
 """
-    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
-    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
-    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, timeout::Real=200, kwargs...) -> Vector
+    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
+    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
+    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
 Minimizes the scalar input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument (ignoring derivatives).
@@ -156,9 +156,9 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 minimize(F::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,), start, args...; kwargs...)
 minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF), start, args...; kwargs...)
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
-function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain::Union{HyperCube,Nothing}=nothing; Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
+function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain, Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
                             meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
-                            timeout::Real=200, Full::Bool=false, verbose::Bool=true, iterations::Int=10000, kwargs...) where T <: Number
+                            timeout::Real=600, Full::Bool=false, verbose::Bool=true, iterations::Int=10000, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
@@ -174,7 +174,12 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, Domain:
         if length(Fs) == 1
             Optim.optimize(Fs[1], convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
+            if Cmeth isa Fminbox
+                # Optim.optimize only accepts inplace kwarg for Fminbox
+                Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
+            else
+                Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; kwargs...)
+            end
         end
     else
         if length(Fs) == 1

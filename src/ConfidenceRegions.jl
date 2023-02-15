@@ -248,7 +248,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
     if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
         curve_fit(DS, model, start; tol=tol).param
     else
-        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
+        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
         if isnothing(meth)
             InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
         else
@@ -265,8 +265,12 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFun
     if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
         curve_fit(DS, model, dmodel, start; tol=tol).param
     else
-        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn; kwargs...)
-        InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
+        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
+        if isnothing(meth)
+            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
+        else
+            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
+        end
     end
 end
 
