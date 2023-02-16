@@ -132,8 +132,9 @@ pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
 
-name(DS::AbstractDataSet) = ""
-name(DM::AbstractDataModel) = name(Predictor(DM))
+name(DS::Union{AbstractDataSet, AbstractVector{<:AbstractDataSet}}) = ""
+# Prioritise Predictor name, if empty use Dataset name
+name(DM::AbstractDataModel) = length(name(Predictor(DM))) == 0 ? name(Data(DM)) : name(Predictor(DM))
 
 Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,String}) = remake(DS; name=Symbol(name))
 Christen(F::Function, name::Union{Symbol,String}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))
