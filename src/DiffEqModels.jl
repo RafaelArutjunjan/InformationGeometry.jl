@@ -46,7 +46,7 @@ end
 
 
 function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0);
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::Union{String,Symbol}=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     Model = if sys isa ModelingToolkit.AbstractODESystem
@@ -79,7 +79,7 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
 
     pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
     # new(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding)
-    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), ModelingToolkit.getname(sys), (Model.Meta isa Tuple ? (sys, (Model.Meta[2:end])...) : Model.Meta))
+    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), name, (Model.Meta isa Tuple ? (sys, (Model.Meta[2:end])...) : Model.Meta))
 end
 
 

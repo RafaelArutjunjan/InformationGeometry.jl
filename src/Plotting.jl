@@ -1,14 +1,14 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=pdim(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=length(mle))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
     title -->               name(DM)
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
-            yerror := ysigma(Data(DM), (SplitErrorParams(DM)(mle))[2])
+            yerror := Unpack(Windup(ysigma(Data(DM), (SplitErrorParams(DM)(mle))[2]), ydim(DM)))
         end
         Data(DM), xpositions
     end
@@ -42,23 +42,45 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         end
     end
     # Plot symmetric 1σ variance propagation from pseudo-inverse of Fisher Metric
-    if Confnum > 0 && ydim(DM) == 1
+    if Confnum > 0
         F = FisherMetric(DM, mle)
         # Use PlotVariance kwarg to force VariancePlot
         if PlotVariance || det(F) > 0
-            SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM)))
-            COL = get(plotattributes, :seriescolor, :orange)
-            @series begin
-                seriescolor --> COL
-                linestyle   --> :dash
-                label       --> "$(Confnum)σ Prediction Variance"
-                X, Y .+ SqrtVar
-            end
-            @series begin
-                seriescolor --> COL
-                linestyle   --> :dash
-                label       --> ""
-                X, Y .- SqrtVar
+            if ydim(DM) == 1
+                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM)))
+                COL = get(plotattributes, :seriescolor, :orange)
+                @series begin
+                    seriescolor --> COL
+                    linestyle   --> :dash
+                    linealpha   --> 0.75
+                    label       --> "$(Confnum)σ Prediction Variance"
+                    X, Y .+ SqrtVar
+                end
+                @series begin
+                    seriescolor --> COL
+                    linestyle   --> :dash
+                    linealpha   --> 0.75
+                    label       --> ""
+                    X, Y .- SqrtVar
+                end
+            else
+                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                for i in 1:ydim(DM)
+                    @series begin
+                        seriescolor := palette(:default)[i]
+                        linestyle   --> :dash
+                        linealpha   --> 0.75
+                        label       --> "$(Confnum)σ Prediction Variance"
+                        X, view(Y,:,i) .+ getindex.(SqrtVar, i)
+                    end
+                    @series begin
+                        seriescolor := palette(:default)[i]
+                        linestyle   --> :dash
+                        linealpha   --> 0.75
+                        label       --> ""
+                        X, view(Y,:,i) .- getindex.(SqrtVar, i)
+                    end
+                end
             end
         end
     end
@@ -135,7 +157,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
     end
 end
 
-RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=length(mle))
     @series begin Data(DM), V, xpositions end
     X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
     Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))
@@ -144,6 +166,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
     leg --> false
     xguide --> xnames(DM)[1]
+    F = Confnum > 0 ? FisherMetric(DM, mle) : Diagonal(zeros(length(mle)))
     for i in 1:ydim(DM)
         @series begin
             subplot := i
@@ -151,9 +174,34 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
             linewidth -->       2
             linestyle -->       :solid
             seriescolor -->     :red
-            yguide -->          ynames(DM)[i]
-            label -->           Labels[i]
+            yguide -->         ynames(DM)[i]
+            label -->          Labels[i]
             X, view(Ypred, :, i)
+        end
+    end
+    if PlotVariance || det(F) > 0
+        SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+        for i in 1:ydim(DM)
+            for i in 1:ydim(DM)
+                @series begin
+                    subplot := i
+                    seriescolor --> get(plotattributes, :seriescolor, :orange)
+                    linestyle   --> :dash
+                    linealpha   --> 0.75
+                    yguide      :=  ynames(DM)[i]
+                    label       := ""
+                    X, view(Ypred, :, i) .+ getindex.(SqrtVar, i)
+                end
+                @series begin
+                    subplot := i
+                    seriescolor --> get(plotattributes, :seriescolor, :orange)
+                    linestyle   --> :dash
+                    linealpha   --> 0.75
+                    yguide      :=  ynames(DM)[i]
+                    label       := ""
+                    X, view(Ypred, :, i) .- getindex.(SqrtVar, i)
+                end
+            end
         end
     end
 end
