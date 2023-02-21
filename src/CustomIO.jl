@@ -54,6 +54,8 @@ TreeViews.numberofnodes(x::AbstractDataModel) = 4
 TreeViews.numberofnodes(x::ModelMap) = 4
 TreeViews.numberofnodes(x::CompositeDataSet) = 1
 TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
+TreeViews.numberofnodes(DS::DataSetUncertain) = 5
+
 
 # function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
 #     show(io, mime, Text(Base.summary(DS)))

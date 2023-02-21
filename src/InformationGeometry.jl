@@ -166,6 +166,10 @@ include("DataStructures/GeneralizedDataSet.jl")
 export GeneralizedDataSet
 
 
+include("DataStructures/DataSetUncertain.jl")
+export DataSetUncertain
+
+
 include("DataStructures/DataModel.jl")
 export DataModel, Prior
 
