@@ -608,7 +608,14 @@ _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFuncti
 
 
 
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), C::AbstractMatrix=quantile(Chisq(pdim(DM)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
+
+"""
+    VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), kwargs...)
+    VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix=quantile(Chisq(length(mle)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
+Computes the forward propagation of the parameter covariance to the residuals.
+Matrix `C` corresponds to a covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
+"""
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix)
     det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
 
@@ -635,7 +642,9 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM),
         ydim(DM) > 1 ? VarCholeskyN : VarSqrtN
     end
 end
-
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=length(mle), kwargs...)
+    VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
+end
 
 
 """
