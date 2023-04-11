@@ -145,7 +145,7 @@ LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 pdim(DM::DataModel) = length(MLE(DM))
 
 
-Base.BigFloat(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), BigFloat.(MLE(DM)))
+Base.BigFloat(DM::DataModel) = DataModel((try BigFloat(Data(DM)) catch; Data(DM) end), Predictor(DM), dPredictor(DM), BigFloat.(MLE(DM)))
 Base.Float64(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Float64.(MLE(DM)))
 
 

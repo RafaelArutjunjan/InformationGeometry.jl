@@ -130,6 +130,15 @@ ynames(DS::DataSet) = DS.ynames
 
 name(DS::DataSet) = DS.name |> string
 
+
+function Base.BigFloat(DS::DataSet; kwargs...)
+	newx = BigFloat.(xdata(DS))
+	NewInvCov = BigFloat.(yInvCov(DS))
+	remake(DS; x=newx, WoundX=(isnothing(DS.WoundX) ? nothing : Windup(newx, xdim(DS))),
+				y=BigFloat.(ydata(DS)), InvCov=NewInvCov, logdetInvCov=logdet(NewInvCov), kwargs...)
+end
+
+
 # function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSet(xdata(DS), ydata(DS), yInvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)

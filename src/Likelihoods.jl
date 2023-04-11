@@ -26,7 +26,7 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
 
 
 # Specialize this for different DataSet types
-@inline function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
     -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
@@ -120,8 +120,10 @@ _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ:
 _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Union{Symbol,Val}; kwargs...) = _AutoScore(DS, model, θ; ADmode=ADmode, kwargs...)
 
 # Specialize this for different DataSet types
-@inline function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
-    transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (yInvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
+function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
+    mul3(A,B,C) = A * (B * C)
+    mul3(transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)), yInvCov(DS), (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
+    # transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (yInvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
 
 function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)

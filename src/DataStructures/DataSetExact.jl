@@ -139,6 +139,14 @@ ynames(DSE::DataSetExact) = DSE.ynames
 
 name(DSE::DataSetExact) = DSE.name |> string
 
+
+function Base.BigFloat(DSE::DataSetExact; kwargs...)
+	BigDist(D::MultivariateNormal) = MvNormal(BigFloat.(mean(D)), BigFloat.(cov(D)))
+	remake(DSE; xdist=BigDist(xdist(DSE)), ydist=BigDist(ydist(DSE)), InvCov=BigFloat.(yInvCov(DSE)),
+				WoundX=(isnothing(DSE.WoundX) ? nothing : Windup(BigFloat.(xdata(DSE)), xdim(DSE))), kwargs...)
+end
+
+
 # function InformNames(DS::DataSetExact, xnames::AbstractVector{String}, ynames::AbstractVector{String})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), yInvCov(DS), WoundX(DS), xnames, ynames)
