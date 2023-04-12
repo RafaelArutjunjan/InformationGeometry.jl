@@ -262,4 +262,38 @@ include("CustomIO.jl")
 # export GeneratedFromAutoDiff, GeneratedFromSymbolic
 
 
+
+using SnoopPrecompile
+
+SnoopPrecompile.@precompile_all_calls begin
+    DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), LinearModel)
+    DataModel(DataSetExact([1,2,3,4], 0.5*[0.5,0.45,0.6,1], [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->p[1]*x + p[2], [1.48,2.27], true)
+
+    function SIR!(du,u,p,t)
+        S, I, R = u
+        β, γ = p
+        du[1] = -β * I * S
+        du[2] = +β * I * S - γ * I
+        du[3] = +γ * I
+        nothing
+    end
+    DataModel(DataSet(collect(1:14), [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5], 5ones(14); xnames= ["Days"], ynames=["Infected"]),
+            ODEFunction(SIR!), X->([763.0-X[1], X[1], 0.0], X[2:3]), x->x[2], [0.6,0.0023,0.46], true; tol=1e-6)
+
+    SIR! = nothing
+
+    # DM = DataModel(DataSet([1,2,3],[4,1,5,2,6.5,3.5],[0.5,0.5,0.45,0.45,0.6,0.6], (3,1,2)), (x,p)-> [p[1]^3*x, p[2]^2*x])
+    # dm = InplaceDM(DM)
+
+    DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]),
+                ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]-θ[2], PositiveDomain(2,1e2), (1,1,2)))
+
+    TotalLeastSquaresV(
+        DataModel(DataSetExact([0.33, 1, 3], 0.5*[0.1,0.3,0.2], [0.88,0.5,0.35], [0.1,0.3,0.2]),
+                ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]-θ[2], PositiveDomain(2,1e2), (1,1,2)), [16, 0.41], true)
+    )
+    nothing
+end
+
+
 end # module
