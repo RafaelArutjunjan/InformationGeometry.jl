@@ -17,17 +17,17 @@ end
 GeneralProduct(DM::Union{AbstractDataModel,AbstractDataSet}) = GeneralProduct([xdist(DM),ydist(DM)])
 
 
-import Base.length
-length(P::GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
 
-import Distributions: insupport, mean, cov, invcov, pdf, logpdf, gradlogpdf, product_distribution
+Base.length(P::GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
+
+
 # insupport(P::GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
 # sum(!insupport(P.v[i],X[i]) for i in 1:length(P.v)) == 0
-mean(P::GeneralProduct) = reduce(vcat, map(GetMean, P.v))
-cov(P::GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
+Distributions.mean(P::GeneralProduct) = reduce(vcat, map(GetMean, P.v))
+Distributions.cov(P::GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
 
 
-for F = (:logpdf, :gradlogpdf)
+for F = (Symbol("Distributions.logpdf"), Symbol("Distributions.gradlogpdf"))
     eval(quote
         # Base.$F(a::MyNumber) = MyNumber($F(a.x))
         $F(P::GeneralProduct, X::AbstractVector) = sum($F(P.v[i], X[i]) for i in 1:length(P.v))
@@ -43,9 +43,9 @@ for F = (:logpdf, :gradlogpdf)
 end
 
 
-pdf(P::GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
-invcov(P::GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
-product_distribution(X::AbstractVector{<:ContinuousMultivariateDistribution}) = GeneralProduct(X)
+Distributions.pdf(P::GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
+Distributions.invcov(P::GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
+Distributions.product_distribution(X::AbstractVector{<:ContinuousMultivariateDistribution}) = GeneralProduct(X)
 
 
 Sigma(P::GeneralProduct) = cov(P)
@@ -67,19 +67,18 @@ struct Dirac <: ContinuousMultivariateDistribution
     Dirac(μ) = new(floatify(Unwind(μ)))
 end
 
-import Base.length
-length(d::InformationGeometry.Dirac) = length(d.μ)
 
-import Distributions: insupport, mean, cov, invcov, pdf, logpdf
-insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
-mean(d::InformationGeometry.Dirac) = d.μ
-cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
-invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
-pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
-logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
+Base.length(d::InformationGeometry.Dirac) = length(d.μ)
+
+
+Distributions.insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
+Distributions.mean(d::InformationGeometry.Dirac) = d.μ
+Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
+Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
+Distributions.pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
+Distributions.logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
-import Distributions: gradlogpdf
-gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
-gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
+Distributions.gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
+Distributions.gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
