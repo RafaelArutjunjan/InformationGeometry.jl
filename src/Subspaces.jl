@@ -299,7 +299,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
     end
 end
 
-Base.length(Cube::HyperCube) = Base.length(Cube.L)
+Base.length(Cube::HyperCube) = length(Cube.L)
 
 
 

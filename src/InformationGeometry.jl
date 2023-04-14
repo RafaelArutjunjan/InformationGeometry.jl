@@ -286,7 +286,7 @@ SnoopPrecompile.@precompile_all_calls begin
     # dm = InplaceDM(DM)
 
     DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]),
-                ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]-θ[2], PositiveDomain(2,1e2), (1,1,2)))
+                ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]-θ[2], PositiveDomain(2,1e2), (1,1,2)), [16, 0.41])
 
     TotalLeastSquaresV(
         DataModel(DataSetExact([0.33, 1, 3], 0.5*[0.1,0.3,0.2], [0.88,0.5,0.35], [0.1,0.3,0.2]),

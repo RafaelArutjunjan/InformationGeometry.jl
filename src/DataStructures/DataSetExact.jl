@@ -53,7 +53,7 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
         dims(DS) != Dims && throw("DataSetExact: Given dims Tuple inconsistent: $Dims.")
         DataSetExact(DS, Σ_x; kwargs...)
     end
-    DataSetExact(DS::DataSet, σ_x::Real; kwargs...) = DataSetExact(DS, σ_x*ones(length(xdata)); kwargs...)
+    DataSetExact(DS::DataSet, σ_x::Real; kwargs...) = DataSetExact(DS, σ_x*ones(length(xdata(DS))); kwargs...)
     function DataSetExact(DS::DataSet, Σ_x::AbstractArray; kwargs...)
         Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))

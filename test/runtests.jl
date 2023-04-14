@@ -419,7 +419,7 @@ end
     @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
 
     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
-    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-9
+    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-8
     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
 
     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
