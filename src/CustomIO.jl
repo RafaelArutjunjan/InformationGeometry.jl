@@ -141,12 +141,21 @@ function Base.show(io::IO, GDS::GeneralizedDataSet)
     print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
 end
 
-function Base.show(io::IO, DM::AbstractDataModel)
+# Multi-line display when used on its own in REPL
+function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
     println(io, Base.summary(DM))
     println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     try ParamSummary(io, DM) catch; end
+end
+
+# Single line display
+function Base.show(io::IO, DM::AbstractDataModel)
+    Expr = SymbolicModel(DM)
+    println(io, Base.summary(DM))
+    println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
 function Base.show(io::IO, M::ModelMap)

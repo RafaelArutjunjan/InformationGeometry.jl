@@ -84,6 +84,10 @@ _PromoteStatic(X::AbstractVector, Length=length(X)) = SVector{Length}(X)
 _PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
 
+DeStatic(X::AbstractArray{T,N}) where T <: Number where N = convert(Array{T, N}, X)
+DeStatic(X::Array{T,N}) where T <: Number where N = X
+
+
 # Return type of DataSet without specialized parametrization
 DataSetType(DS::AbstractDataSet) = typeof(DS)
 DataSetType(DS::DataSet) = DataSet
