@@ -19,9 +19,10 @@ end
 
 # accuracy ≈ 6e-11
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.;
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), approx::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
-    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), PromoteStatic(vcat(InitialPos,InitialVel), true), (0.0,Endtime))
+    u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
+    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, (0.0,Endtime))
     if isnothing(Boundaries)
         solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
@@ -187,7 +188,7 @@ Computes a geodesic between two given points on the parameter manifold and an ex
 By setting the keyword `approx=true`, the ChristoffelSymbols are assumed to be constant and only computed once at the initial position. This simplifies the computation immensely but may also constitute an inaccurate approximation depending on the magnitude of the Ricci curvature.
 """
 GeodesicBetween(DM::AbstractDataModel, args...; kwargs...) = GeodesicBetween(FisherMetric(DM), args...; kwargs...)
-function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), approx::Bool=false, kwargs...)
+function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
@@ -196,7 +197,8 @@ function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::Abstr
     end
     # Slightly perturb initial direction:
     initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
-    BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, PromoteStatic(initial, true), (0.0, Endtime))
+    promote && (initial = PromoteStatic(initial, true))
+    BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, initial, (0.0, Endtime))
     solve(BVP, Shooting(meth); reltol=tol, abstol=tol, kwargs...)
 end
 

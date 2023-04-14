@@ -141,9 +141,10 @@ Other choices of `ADmode` directly compute the Score by differentiating the form
 """
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
-    # Mutate alpha and return it to avoid further allocations
+    # completely non-allocating version
     S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S)
-    alpha .*= P;    alpha ./= S;    normalize!(alpha);    alpha
+    normalize(alpha .* P ./ S)
+    # alpha .*= P;    alpha ./= S;    normalize!(alpha);    alpha
 end
 OrthVF(DM::AbstractDataModel; Kwargs...) = (args...; kwargs...)->OrthVF(DM, args...; Kwargs..., kwargs...)
 
@@ -331,8 +332,8 @@ end
 Basic method for constructing a curve lying on the confidence region associated with the initial configuration `u0`.
 """
 function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, Boundaries::Union{Function,Nothing}=nothing,
-                            meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
-    u0 = !mfd ? PromoteStatic(u0, true) : u0
+                            meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, promote::Bool=!OrdinaryDiffEq.isimplicit(meth), ADmode::Val=Val(:ForwardDiff), kwargs...)
+    promote && !mfd && (u0 = PromoteStatic(u0, true))
     LogLikeOnBoundary = loglikelihood(DM, u0)
     IntCurveODE!(du,u,p,t)  =  (OrthVF!(du, DM, u; ADmode=ADmode);  du .*= 0.1)
     g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - loglikelihood(DM,u))
@@ -352,10 +353,10 @@ end
     GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
 """
 function GenerateBoundary2(DM::AbstractDataModel, U0::AbstractVector{<:Number}; tol::Real=1e-5, Boundaries::Union{Function,Nothing}=nothing,
-                meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false,
+                meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, promote::Bool=!OrdinaryDiffEq.isimplicit(meth), ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false,
                 Embedded::Bool=true, factor::Real=1.0, kwargs...)
     iEmb, Emb = Rescaling(FisherMetric(DM, MLE(DM))/InvChisqCDF(pdim(DM),ConfVol(GetConfnum(DM,U0))), MLE(DM); Full=FullRescale, factor=factor)
-    u0 = !mfd ? PromoteStatic(iEmb(U0), true) : iEmb(U0)
+    u0 = (promote && !mfd) ? PromoteStatic(iEmb(U0), true) : DeStatic(iEmb(U0))
     EmbLikelihood = loglikelihood(DM) ∘ Emb
     LogLikeOnBoundary = EmbLikelihood(u0)
     CheatingOrth!(du::AbstractVector, dF::AbstractVector) = (mul!(du, SA[0 1; -1 0.], dF);  normalize!(du))
@@ -385,9 +386,10 @@ EmbedLogPrior(F::Function, PL::Plane) = EmbedLogPrior(F, PlaneCoordinates(PL))
 EmbedLogPrior(F::Function, Emb::Function) = F∘Emb
 
 function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<:Number}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), ADmode::Val=Val(:ForwardDiff), Embedded::Bool=false, kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), promote::Bool=!OrdinaryDiffEq.isimplicit(meth),
+                            ADmode::Val=Val(:ForwardDiff), Embedded::Bool=false, kwargs...)
     @assert length(u0) == 2
-    u0 = !mfd ? PromoteStatic(u0, true) : u0
+    promote && !mfd && (u0 = PromoteStatic(u0, true))
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
     IntCurveODE!(du,u,p,t)  =  (copyto!(du, OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode));  du .*= 0.1)
@@ -422,9 +424,9 @@ function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Numbe
     _GenerateBoundary(F, dF, u0, inplaceDF; kwargs...)
 end
 function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}, inplaceDF::Val{true}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), kwargs...)
     @assert length(u0) == 2
-    !mfd && (u0 = PromoteStatic(u0, true))
+    promote && !mfd && (u0 = PromoteStatic(u0, true))
     CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du))
     GradCache = copy(u0)
     IntCurveODE!inplace(du,u,p,t) = (dF(GradCache, u);  CheatingOrth!(du, GradCache))
@@ -432,9 +434,9 @@ function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Numbe
                 callback=_CallbackConstructor(F, u0, F(u0); Boundaries=Boundaries, mfd=mfd), kwargs...)
 end
 function _GenerateBoundary(F::Function, dF::Function, u0::AbstractVector{<:Number}, inplaceDF::Val{false}; tol::Real=1e-9, mfd::Bool=false,
-                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), kwargs...)
     @assert length(u0) == 2
-    !mfd && (u0 = PromoteStatic(u0, true))
+    promote && !mfd && (u0 = PromoteStatic(u0, true))
     CheatingOrth!(du::AbstractVector, x::AbstractVector) = (mul!(du, SA[0 1; -1 0.], x);  normalize!(du))
     IntCurveODE!(du,u,p,t) = CheatingOrth!(du, dF(u))
     solve(ODEProblem(IntCurveODE!,u0,(0.,1e5)), meth; reltol=tol, abstol=tol,
@@ -554,8 +556,8 @@ Integrates along the level lines of the log-likelihood in the counter-clockwise 
 It then integrates from where this obstruction was met in the clockwise direction until said obstruction is hit again, resulting in a half-open confidence region.
 """
 function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-9,
-                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
-    u0 = !mfd ? PromoteStatic(u0, true) : u0
+                                redo::Bool=true, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, promote::Bool=!OrdinaryDiffEq.isimplicit(meth), ADmode::Val=Val(:ForwardDiff), kwargs...)
+    promote && !mfd && (u0 = PromoteStatic(u0, true))
     LogLikeOnBoundary = loglikelihood(DM,u0)
     IntCurveODE!(du,u,p,t)  =  (du .= 0.1 .* OrthVF(DM, u; ADmode=ADmode))
     BackwardsIntCurveODE!(du,u,p,t)  =  (du .= -0.1 .* OrthVF(DM, u; ADmode=ADmode))
@@ -744,7 +746,7 @@ ExpectedInvariantVolume(DM::AbstractDataModel, Confnum::Real) = SphereVolumeFact
     EllipsoidVolume(Σ::AbstractMatrix)
 Computes volume of ellipsoid defined by symmetric positive-definite matrix whose eigenvalues constitute the squares of the half-axes of the ellipsoid.
 """
-EllipsoidVolume(Σ::AbstractMatrix) = (n=size(Σ,1);   sqrt(prod(eigvals(Σ))) * 2 * π^(n/2) / (n * gamma(n/2)))
+EllipsoidVolume(Σ::AbstractMatrix) = (n=size(Σ,1);   sqrt(exp(sum(log.(eigvals(Σ))))) * 2 * π^(n/2) / (n * gamma(n/2)))
 
 GeodesicRadius(DM::AbstractDataModel, Confnum::Real) = GeodesicRadius(Confnum, pdim(DM))
 GeodesicRadius(Confnum::Real, dim::Int) = sqrt(InvChisqCDF(dim, ConfVol(Confnum)))
