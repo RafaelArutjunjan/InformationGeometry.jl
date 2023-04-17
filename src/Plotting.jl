@@ -903,9 +903,9 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,mle)),mle)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dof::Int=length(MLE), dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
-    corr = Confnum != 0. ? sqrt(quantile(Chisq(length(MLE)),ConfVol(Confnum))) : 1.0
+    corr = Confnum != 0. ? sqrt(quantile(Chisq(dof),ConfVol(Confnum))) : 1.0
     C = corr .* cholesky(Symmetric(Mat)).L
     angles = range(0, 2π; length=N)
     F(α::Number) = muladd(C, RotatedVector(α, dims[1], dims[2], length(MLE)), MLE)

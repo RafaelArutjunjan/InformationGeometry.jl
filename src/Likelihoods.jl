@@ -209,10 +209,10 @@ end
     FullLiftedLogLikelihood(DM::AbstractDataModel) -> Function
 Computes the full likelihood ``\\hat{\\ell} : \\mathcal{X}^N \\times\\mathcal{M}^N \\longrightarrow \\mathbb{R}`` given `Xθ` from initial space INCLUDING PRIOR.
 """
-FullLiftedLogLikelihood(DM::AbstractDataModel) = FullLiftedLogLikelihood(Data(DM), Predictor(DM), LogPrior(DM), pdim(DM))
-FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd)
-function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int)
-    L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd)
+FullLiftedLogLikelihood(DM::AbstractDataModel; kwargs...) = FullLiftedLogLikelihood(Data(DM), Predictor(DM), LogPrior(DM), pdim(DM); kwargs...)
+FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int; kwargs...) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; kwargs...)
+function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int; Kwargs...)
+    L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; Kwargs...)
     ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
 FullLiftedNegLogLikelihood(args...; kwargs...) = (L=FullLiftedLogLikelihood(args...; kwargs...); Xθ::AbstractVector{<:Number}->-L(Xθ))

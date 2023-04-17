@@ -86,7 +86,7 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
     df(θ::AbstractVector) = u * Jac(θ)
     p0 = vcat(xdata(DSE), initialp)
     R = LsqFit.OnceDifferentiable(f, (rescale ? dfrescaled : df), p0, copy(f(p0)); inplace = false)
-    fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); x_tol=tol, g_tol=tol, kwargs...)
+    fit = LsqFit.lmfit(R, p0, BlockMatrix(InvCov(xdist(DSE)), InvCov(ydist(DSE))); g_tol=tol, kwargs...)
     verbose && !fit.converged && @warn "TLS appears to not have converged."
     Full ? fit : (Windup(fit.param[1:xlen],xdim(DSE)), fit.param[xlen+1:end])
 end
@@ -157,16 +157,16 @@ minimize(F::Function, start::AbstractVector, args...; kwargs...) = InformationGe
 minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF), start, args...; kwargs...)
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
 function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain, Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
-                            meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
+                            g_tol::Real=tol, x_tol::Real=0.0, meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
                             timeout::Real=600, Full::Bool=false, verbose::Bool=true, iterations::Int=10000, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
     options = if isnothing(Fthresh)
-        Optim.Options(; g_tol=tol, x_tol=tol, time_limit=floatify(timeout), iterations)
+        Optim.Options(; g_tol=g_tol, x_tol=x_tol, time_limit=floatify(timeout), iterations)
     else  # stopping criterion via callback kwarg
-        Optim.Options(; callback=(z->z.value<Fthresh), g_tol=tol, x_tol=tol, time_limit=floatify(timeout), iterations)
+        Optim.Options(; callback=(z->z.value<Fthresh), g_tol=g_tol, x_tol=x_tol, time_limit=floatify(timeout), iterations)
     end
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
