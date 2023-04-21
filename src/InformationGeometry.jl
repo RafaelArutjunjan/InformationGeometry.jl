@@ -116,7 +116,7 @@ const BoolVector = Union{BitVector,AbstractVector{<:Bool}}
 
 include("Subspaces.jl")
 export Plane
-export BasisVector, PlaneCoordinates, Shift, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
+export BasisVector, PlaneCoordinates, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
 export DistanceToPlane, ProjectOntoPlane, IsNormalToPlane, MinimizeOnPlane, ParallelPlanes
 export HyperPlane, HyperCube
 export ConstructCube, CubeWidths, CubeVol, Center, TranslateCube, ResizeCube

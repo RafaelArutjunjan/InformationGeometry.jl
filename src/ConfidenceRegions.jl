@@ -928,11 +928,11 @@ function AntiPrune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum:
     length(Planes) < 2 && throw("Not enough Planes to infer translation direction.")
     CF = ConfVol(Confnum)
     while true
-        TestPlane = Shift(Planes[2], Planes[1])
+        TestPlane = ShiftTo(Planes[2], Planes[1])
         WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? pushfirst!(Planes,TestPlane) : break
     end
     while true
-        TestPlane = Shift(Planes[end-1], Planes[end])
+        TestPlane = ShiftTo(Planes[end-1], Planes[end])
         WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? push!(Planes,TestPlane) : break
     end;    Planes
 end
