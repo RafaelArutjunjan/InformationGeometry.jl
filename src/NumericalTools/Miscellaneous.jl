@@ -58,14 +58,13 @@ function GetMethod(tol::Real)
 end
 
 # For ODE-based models, lower order methods in integral curve generation perform better.
-function GetBoundaryMethod(tol::Real, DM::AbstractDataModel)
+function GetBoundaryMethod(tol::Real, DM::Union{AbstractDataModel,Nothing}=nothing)
     # if IsDEbased(DM)
-        tol > 1e-10 ? BS3() : Tsit5()
+        tol > 1e-9 ? BS3() : Tsit5()
     # else
     #     GetMethod(tol)
     # end
 end
-GetBoundaryMethod(tol::Real) = GetMethod(tol)
 
 
 # Check for length

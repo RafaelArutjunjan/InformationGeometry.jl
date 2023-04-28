@@ -335,7 +335,14 @@ function GenerateBoundary(DM::AbstractDataModel, u0::AbstractVector{<:Number}; t
                             meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, promote::Bool=!OrdinaryDiffEq.isimplicit(meth), ADmode::Val=Val(:ForwardDiff), kwargs...)
     promote && !mfd && (u0 = PromoteStatic(u0, true))
     LogLikeOnBoundary = loglikelihood(DM, u0)
-    IntCurveODE!(du,u,p,t)  =  (OrthVF!(du, DM, u; ADmode=ADmode);  du .*= 0.1)
+    # Problem with inplace OrthVF! for implicit methods
+    IntCurveODE! = if !OrdinaryDiffEq.isimplicit(meth)
+        IntCurveODE_expl!(du,u,p,t)  =  (OrthVF!(du, DM, u; ADmode=ADmode);  du .*= 0.1)
+    else
+        function IntCurveODE_impl!(u::T,p,t)::T where T <: AbstractArray
+            0.1 .* OrthVF(DM, u; ADmode=ADmode)
+        end
+    end
     g!(resid,u,p,t)  =  (resid[1] = LogLikeOnBoundary - loglikelihood(DM,u))
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     # TerminateCondition only on upwards crossing --> supply two different affect functions, leave second free I
@@ -392,7 +399,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     promote && !mfd && (u0 = PromoteStatic(u0, true))
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
-    IntCurveODE!(du,u,p,t)  =  (copyto!(du, OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode));  du .*= 0.1)
+    IntCurveODE!(du,u,p,t)  =  (copyto!(du, 0.1 .* OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode)))
     g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
