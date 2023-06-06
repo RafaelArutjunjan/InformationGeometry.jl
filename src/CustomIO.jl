@@ -152,15 +152,25 @@ end
 
 # Single line display
 function Base.show(io::IO, DM::AbstractDataModel)
-    Expr = SymbolicModel(DM)
+    # Expr = SymbolicModel(DM)
     println(io, Base.summary(DM))
     println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
-    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
+    # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
-function Base.show(io::IO, M::ModelMap)
+
+# Multi-line display when used on its own in REPL
+function Base.show(io::IO, ::MIME"text/plain", M::ModelMap)
     Expr = SymbolicModel(M)
     println(io, Base.summary(M))
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
+    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
+end
+
+# Single line display
+function Base.show(io::IO, M::ModelMap)
+    # Expr = SymbolicModel(M)
+    println(io, Base.summary(M))
+    # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
 end
