@@ -117,14 +117,14 @@ xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
 
 
-GetMean(P::Product) = [location(P.v[i]) for i in 1:length(P)]
+GetMean(P::Product) = [(try location(P.v[i]) catch; mean(P.v[i]) end) for i in 1:length(P)]
 GetMean(P::Distribution) = mean(P)
 # GetMean(P::Distribution) = P.μ
 
 xdata(DSE::DataSetExact) = GetMean(xdist(DSE))
 ydata(DSE::DataSetExact) = GetMean(ydist(DSE))
 
-Sigma(P::Product) = [P.v[i].σ^2 for i in 1:length(P)] |> Diagonal
+Sigma(P::Product) = [(try P.v[i].σ^2 catch; cov(P.v[i]) end) for i in 1:length(P)] |> Diagonal
 # I thought this was faster but it occasionally causes type problems with PDDiagMat etc.
 # Sigma(P::Distribution) = P.Σ
 Sigma(P::Distribution) = cov(P)
@@ -153,7 +153,7 @@ end
 # end
 
 
-InvCov(P::Product) = [P.v[i].σ^(-2) for i in 1:length(P)] |> Diagonal
+InvCov(P::Product) = [(try P.v[i].σ^(-2) catch; invcov(P.v[i]) end) for i in 1:length(P)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)
     if P.df < 3
         return inv(P.Σ).mat
