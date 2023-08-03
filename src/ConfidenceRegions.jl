@@ -494,6 +494,23 @@ function StructurallyIdentifiable(DM::AbstractDataModel, sols::AbstractVector{<:
     (parallel ? pmap : map)(x->StructurallyIdentifiable(DM, x; kwargs...), sols)
 end
 
+"""
+    StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, thresh::Real=1e-12, N::Int=3)
+Checks if jacobian of model wrt parameters has singular values below threshold and provides associated singular directions.
+"""
+function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, thresh::Real=1e-12, N::Int=3)
+    J = reduce(vcat, [EmbeddingMatrix(DM, mle + noise .* (rand(length(mle)) .- 0.5)) for i in 1:N])
+    _, S, Vt = svd(J)
+    nonids = count(x->x<thresh, S)
+    nonids == 0 && println("$(length(name(DM)) > 0 ? name(DM) : "DataModel") is structurally identifiable! Smallest singular value $(round(S[end]; sigdigits=5)) > $thresh.")
+    !showall && return
+    for ind in length(S):-1:1
+        if showall || S[ind] < thresh
+            println("Singular direction associated with value $(round(S[ind]; sigdigits=6)):")
+            println(DataFrame([[x] for x in Vt[:, ind]], string.(pnames(DM))))
+        end
+    end;    S, Vt
+end
 
 
 """
