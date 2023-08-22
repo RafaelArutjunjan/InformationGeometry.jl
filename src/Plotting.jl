@@ -548,8 +548,8 @@ function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:Abstra
         p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=color, kwargs...)
     end;    p
 end
-function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, kwargs...)
-    (OverWrite ? RecipesBase.plot : RecipesBase.plot!)([MLE(DM)]; seriestype=:scatter, label="MLE")
+function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, mle::AbstractVector{<:Number}=MLE(DM), kwargs...)
+    (OverWrite ? RecipesBase.plot : RecipesBase.plot!)([mle]; seriestype=:scatter, label="MLE")
     # Labels = round.([GetConfnum(DM, args...)]; sigdigits=2)
     if Predictor(DM) isa ModelMap
         VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)

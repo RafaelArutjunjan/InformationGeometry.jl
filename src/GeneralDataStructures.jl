@@ -64,6 +64,8 @@ HasXerror(DS::AbstractDataSet) = any(x->x>0.0, xsigma(DS))
 
 dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
 
+@deprecate Ndata Npoints
+
 Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
 xdim(DS::AbstractDataSet) = xdim(dims(DS))
 ydim(DS::AbstractDataSet) = ydim(dims(DS))
@@ -112,6 +114,9 @@ end
 
 xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
 ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
+
+Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
+
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
