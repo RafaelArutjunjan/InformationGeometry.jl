@@ -44,7 +44,7 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
 BenchmarkTools = "0.5, 0.6, 0.7, 1"
-BoundaryValueDiffEq = "2, 3"
+BoundaryValueDiffEq = "2, 3, 4"
 ColorSchemes = "2, 3"
 Combinatorics = "1"
 DataFrames = "0.20, 0.21, 0.22, 1"
