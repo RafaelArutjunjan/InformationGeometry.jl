@@ -209,7 +209,11 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 
     ps = DomainSamples(dom; N=N)
 
-    FitFunc = isnothing(LogPrior(DM)) ? ((args...; kwargs...)->curve_fit(args...; kwargs...).param) : ((args...; kwargs...)->InformationGeometry.minimize(args...; meth=meth, kwargs...))
+    FitFunc = if !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet || !(meth isa NewtonTrustRegion)
+        ((args...; kwargs...)->InformationGeometry.minimize(args...; meth=meth, kwargs...))
+    else 
+        ((args...; kwargs...)->curve_fit(args...; kwargs...).param)
+    end
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
