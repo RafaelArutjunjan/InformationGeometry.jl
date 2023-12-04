@@ -86,14 +86,14 @@ _TryVectorizeNoSqrt(D::Diagonal) = D.diag
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
-    @warn "Cheating by not constructing uncertainty around given prediction."
+    c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(DS.inverrormodel(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 function yInvCov(DS::DataSetUncertain, c::AbstractVector=DS.testp)
-    @warn "Cheating by not constructing uncertainty around given prediction."
+    c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=DS.inverrormodel(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
