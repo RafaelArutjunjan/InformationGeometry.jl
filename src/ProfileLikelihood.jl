@@ -202,7 +202,7 @@ end
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
                         SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
@@ -217,7 +217,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
-    path = SaveTrajectories ? Vector{Vector{eltype(MLE(DM))}}(undef, N) : nothing
+    path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in 1:N] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         visitedps = [[x] for x in ps]
@@ -230,7 +230,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
             MLEstash = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; tol=tol, kwargs...)
             push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
             push!(visitedps, p)
-            SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
+            # SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
+            SaveTrajectories && (path[i] .= insert!(copy(MLEstash), Comp, p))
             SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
         end
     end
@@ -276,7 +277,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=50, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, kwargs...)
     Profiles = if verbose
         Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
         (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM); progress=Prog)
