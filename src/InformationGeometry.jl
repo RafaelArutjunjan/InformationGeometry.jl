@@ -188,7 +188,7 @@ export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("Likelihoods.jl")
-export likelihood, loglikelihood, Score
+export likelihood, loglikelihood, Score, GetRemainderFunction
 
 
 include("ModelPredictions.jl")
@@ -210,6 +210,7 @@ export Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
+export ContourDiagram
 
 export ApproxInRegion, ShadowTheatre, CastShadow, CrossValidation
 

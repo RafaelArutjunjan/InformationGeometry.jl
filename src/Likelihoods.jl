@@ -176,6 +176,16 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
 end
 
 
+"""
+    GetRemainderFunction(DM::AbstractDataModel)
+Returns remaineder function ``R(θ) = ℓ(θ) - QuadraticApprox(θ)``.
+"""
+function GetRemainderFunction(DM::AbstractDataModel)
+    F = FisherMetric(DM, MLE(DM))
+    QuadraticApprox(θ::AbstractVector{<:Number}) = LogLikeMLE(DM) - 0.5 * InformationGeometry.InnerProduct(F, θ-MLE(DM))
+    Remainder(θ::AbstractVector{<:Number}) = loglikelihood(DM, θ) - QuadraticApprox(θ)
+end
+
 
 """
     LiftedLogLikelihood(DM::AbstractDataModel) -> Function

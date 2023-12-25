@@ -1026,6 +1026,33 @@ end
 
 
 
+"""
+    ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
+Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
+"""
+function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, kwargs...)
+    @assert Confnum > 0 && allunique(paridxs) && all(1 .≤ paridxs .≤ pdim(DM))
+    Cube = LinearCuboid(DM, Confnum);    widths = CubeWidths(Cube);    Planes = Plane[]
+    inds = Vector{Int}[]
+    for j in 1:length(paridxs)-1, i in 2:length(paridxs) 
+        if j < i
+            push!(Planes, Plane(MLE(DM), 
+                0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 
+                0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))))
+            push!(inds, [j,i])
+        end
+    end    
+    sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
+    esols = [EmbeddedODESolution(sols[k], (x->getindex(x, inds[k]))∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
+    eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
+    Plts = [(p = scatter([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]]);
+            plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
+    plot(Plts...; layout=length(Plts)) |> display
+    esols
+end
+
+
+
 function Thinner(S::AbstractVector{<:AbstractVector{<:Number}}; threshold::Real=0.2)
     M = S |> diff .|> norm;    b = threshold * median(M);    Res = [S[1]]
     for i in 2:length(M)
