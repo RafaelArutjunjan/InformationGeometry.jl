@@ -73,6 +73,7 @@ name(DS::DataSetUncertain) = DS.name |> string
 
 xsigma(DS::DataSetUncertain) = zeros(length(xdata(DS)))
 
+HasXerror(DS::DataSetUncertain) = false
 
 xerrormoddim(DS::DataSetUncertain) = 0
 yerrormoddim(DS::DataSetUncertain) = length(DS.testp)

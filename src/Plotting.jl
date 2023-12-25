@@ -4,7 +4,7 @@
 RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=length(mle))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
-    yguide -->              (ydim(DM) ==1 ? ynames(DM)[1] : "Observations")
+    yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
     title -->               name(DM)
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
@@ -103,7 +103,7 @@ end
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     Σ_y = ysigma(DS) isa AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    Σ_x = DS isa DataSetExact ? (xsigma(DS) isa AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)) : nothing
+    Σ_x = HasXerror(DS) ? (xsigma(DS) isa AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)) : nothing
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")

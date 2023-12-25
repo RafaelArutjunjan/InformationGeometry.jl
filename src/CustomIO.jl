@@ -113,7 +113,7 @@ function Base.show(io::IO, DS::AbstractDataSet)
     xnameinsert = any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x")) ? (" [" * join(xnames(DS), ", ") * "] ") : ""
     print(io, "x-data" * xnameinsert * ": ")
     show(io, xdata(DS));    print(io, "\n")
-    if DS isa DataSetExact
+    if HasXerror(DS)
         if xsigma(DS) isa AbstractVector
             println(io, "Standard deviation associated with x-data:")
             show(io, xsigma(DS))
