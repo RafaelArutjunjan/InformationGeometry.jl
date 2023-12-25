@@ -1045,9 +1045,9 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractV
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = [EmbeddedODESolution(sols[k], (x->getindex(x, inds[k]))∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
-    Plts = [(p = scatter([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]]);
-            plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
-    plot(Plts...; layout=length(Plts)) |> display
+    Plts = [(p = RecipesBase.plot([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]], seriestype=:scatter);
+            RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
+    RecipesBase.plot(Plts...; layout=length(Plts)) |> display
     esols
 end
 
