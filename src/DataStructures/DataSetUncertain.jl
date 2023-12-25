@@ -122,13 +122,17 @@ end
 # Potential for optimization by specializing on Type of invcov
 function _FisherMetric(DS::DataSetUncertain, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...)
     normalparams, errorparams = SplitErrorParams(DS)(θ)
-    woundYpred = Windup(EmbeddingMap(DS, model, θ), ydim(DS))
-    woundInvσ = BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred))
-    J = EmbeddingMatrix(DS, dmodel, θ)
-    F_m = transpose(J) * transpose(woundInvσ) * woundInvσ * J
+    woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
+    woundInvσ = map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
 
-    Σposhalf = inv(woundInvσ)
-    InvSqrtCovFromFull(θ) = ((normalparams, errorparams) = SplitErrorParams(DS)(θ);  BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), Windup(EmbeddingMap(DS, model, θ), ydim(DS)))))
+    SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(DS, dmodel, θ) # Using θ for correct F size
+    F_m = transpose(SJ) * SJ
+
+    Σposhalf = BlockReduce(map(inv, woundInvσ))
+    function InvSqrtCovFromFull(θ)
+        normalparams, errorparams = SplitErrorParams(DS)(θ)
+        BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))))
+    end
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 
     @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]

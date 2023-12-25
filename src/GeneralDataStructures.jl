@@ -84,7 +84,7 @@ function InformNames(DS::T, Xnames::AbstractVector{String}, Ynames::AbstractVect
 end
 
 
-SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> X
+SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, nothing)
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
@@ -135,6 +135,12 @@ pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
+
+
+xsigma(DM::AbstractDataModel, p::AbstractVector) = xsigma(Data(DM), p)
+ysigma(DM::AbstractDataModel, p::AbstractVector) = ysigma(Data(DM), p)
+xInvCov(DM::AbstractDataModel, p::AbstractVector) = xInvCov(Data(DM), p)
+yInvCov(DM::AbstractDataModel, p::AbstractVector) = yInvCov(Data(DM), p)
 
 
 name(DS::Union{AbstractDataSet, AbstractVector{<:AbstractDataSet}}) = ""
