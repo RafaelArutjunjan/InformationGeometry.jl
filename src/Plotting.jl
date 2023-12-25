@@ -397,7 +397,7 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
     PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     func(args...) = F([args...])
@@ -415,7 +415,7 @@ end
     PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` by evaluating the given `PlotPlane` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=true, parallel::Bool=false, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=35, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))

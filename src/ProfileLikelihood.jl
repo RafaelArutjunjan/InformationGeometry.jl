@@ -203,7 +203,7 @@ end
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), kwargs...)
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), approximate::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
@@ -225,11 +225,22 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     else
         MLEstash = Drop(MLE(DM), Comp)
         for (i,p) in enumerate(ps)
-            NewModel = ProfilePredictor(DM, Comp, p)
-            DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
-            MLEstash = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; tol=tol, kwargs...)
-            push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
-            push!(visitedps, p)
+            if approximate
+                # Use approximate paths from quadratic likelihood here
+                throw("Not programmed yet.")
+            else
+                if Data(DM) isa AbstractUnknownUncertaintyDataSet
+                    L = (args...; Kwargs...)->(loglikelihood(DM)∘ValInserter(Comp,p))(args...; Kwargs...)
+                    MLEstash = FitFunc(L, MLEstash; tol=tol, kwargs...)
+                    push!(Res, L(MLEstash))
+                else
+                    NewModel = ProfilePredictor(DM, Comp, p)
+                    DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
+                    MLEstash = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; tol=tol, kwargs...)
+                    push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
+                end
+                push!(visitedps, p)
+            end
             # SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
             SaveTrajectories && (path[i] .= insert!(copy(MLEstash), Comp, p))
             SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
