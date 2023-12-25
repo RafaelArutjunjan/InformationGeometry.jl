@@ -29,11 +29,17 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
     ynames::AbstractVector{<:AbstractString}
     name::Union{<:AbstractString,<:Symbol}
 
+    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
+        size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
+        @info "Assuming error model σ(x,y,c) = exp10.(c)"
+        errmod = ydim(dims) == 1 ? ((x,y,c)->inv(exp10(c[1]))) : (x,y,c)->inv.(exp10.(c))
+        DataSetUncertain(Unwind(X), Unwind(Y), errmod, zeros(ydim(dims)), dims; kwargs...)
+    end
     function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testp::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(collect(eachrow(X)), collect(eachrow(Y)), inverrormodel, testp; kwargs...)
     end
-    function DataSetUncertain(X::AbstractVector, Y::AbstractVector, inverrormodel::Function, testp::AbstractVector; kwargs...)
+    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, inverrormodel::Function, testp::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testp, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
@@ -48,13 +54,9 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         # Check that inverrormodel either outputs Matrix for ydim > 1
-        if ydim(dims) == 1
-            M = _TestErrorModel(inverrormodel, Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
-            @assert M isa Number && M > 0
-        else
-            M = _TestErrorModel(inverrormodel, Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
-            @assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0
-        end
+        M = inverrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
+        ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
+        
         new(x, y, dims, inverrormodel, testp, errorparamsplitter, xnames, ynames, name)
     end
 end
@@ -71,13 +73,15 @@ name(DS::DataSetUncertain) = DS.name |> string
 
 xsigma(DS::DataSetUncertain) = zeros(length(xdata(DS)))
 
+
+xerrormoddim(DS::DataSetUncertain) = 0
+yerrormoddim(DS::DataSetUncertain) = length(DS.testp)
 errormoddim(DS::DataSetUncertain) = length(DS.testp)
 
 SplitErrorParams(DS::DataSetUncertain) = DS.errorparamsplitter
 
+yinverrormodel(DS::DataSetUncertain) = DS.inverrormodel
 
-_TestErrorModel(DS::DataSetUncertain) = _TestErrorModel(DS.inverrormodel, WoundX(DS)[1], WoundY(DS)[1], DS.testp)
-_TestErrorModel(inverrormodel::Function, x, y, c::AbstractVector) = inverrormodel(x,y,c)
 
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
 _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.BlockReduce(X) |> _TryVectorizeNoSqrt
@@ -87,25 +91,25 @@ _TryVectorizeNoSqrt(D::Diagonal) = D.diag
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
     c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
-    map((x,y)->inv(DS.inverrormodel(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 function yInvCov(DS::DataSetUncertain, c::AbstractVector=DS.testp)
     c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
-    map(((x,y)->(S=DS.inverrormodel(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 
 function _loglikelihood(DS::DataSetUncertain, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    normalparams, errorparams = DS.errorparamsplitter(θ)
+    normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, θ; kwargs...), ydim(DS))
-    woundInvσ = map((x,y)->DS.inverrormodel(x,y,errorparams), WoundX(DS), woundYpred)
+    woundInvσ = map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
     woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
         Res = -DataspaceDim(DS)*log(2π)
-        @inbounds for i in 1:length(woundY)
+        for i in 1:length(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
         end
@@ -116,14 +120,14 @@ end
 
 # Potential for optimization by specializing on Type of invcov
 function _FisherMetric(DS::DataSetUncertain, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...)
-    normalparams, errorparams = DS.errorparamsplitter(θ)
+    normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, θ), ydim(DS))
-    woundInvσ = BlockReduce(map((x,y)->DS.inverrormodel(x,y,errorparams), WoundX(DS), woundYpred))
+    woundInvσ = BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred))
     J = EmbeddingMatrix(DS, dmodel, θ)
     F_m = transpose(J) * transpose(woundInvσ) * woundInvσ * J
 
     Σposhalf = inv(woundInvσ)
-    InvSqrtCovFromFull(θ) = ((normalparams, errorparams) = DS.errorparamsplitter(θ);  BlockReduce(map((x,y)->DS.inverrormodel(x,y,errorparams), WoundX(DS), Windup(EmbeddingMap(DS, model, θ), ydim(DS)))))
+    InvSqrtCovFromFull(θ) = ((normalparams, errorparams) = SplitErrorParams(DS)(θ);  BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), Windup(EmbeddingMap(DS, model, θ), ydim(DS)))))
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 
     @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
