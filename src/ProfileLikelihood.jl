@@ -175,8 +175,8 @@ function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1),
     sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
 end
 
-function GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; kwargs...)
-    Cube = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; kwargs...)
+function GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; dof::Int=DOF(DM), kwargs...)
+    Cube = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; dof=dof, kwargs...)
     Predictor(DM) isa ModelMap ? (Cube ∩ Predictor(DM).Domain) : Cube
 end
 """
@@ -199,10 +199,10 @@ end
 
 
 """
-    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=pdim(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
+    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
                         SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
@@ -297,7 +297,7 @@ end
 
 
 """
-    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> Vector{Matrix}
+    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, dof::Int=DOF(DM), SaveTrajectories::Bool=false) -> Vector{Matrix}
 Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
 Returns a vector of N×2 matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
 

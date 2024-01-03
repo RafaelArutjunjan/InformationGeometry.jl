@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=length(mle))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -157,7 +157,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
     end
 end
 
-RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=length(mle))
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM))
     @series begin Data(DM), V, xpositions end
     X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
     Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))

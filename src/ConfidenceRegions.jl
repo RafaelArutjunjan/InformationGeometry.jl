@@ -4,8 +4,8 @@
 """
 Point θ lies outside confidence region of level `Confvol` if this function > 0.
 """
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.)); dof::Int=pdim(DM), kwargs...) = ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=pdim(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::BigFloat=ConfVol(BigFloat(1.)); dof::Int=DOF(DM), kwargs...) = ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM,θ; kwargs...))) - Confvol
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=DOF(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))) - Confvol
 
 # Do not give default to third argument here such as to not overrule the defaults from above
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat; kwargs...) = WilksCriterion(DM, BigFloat.(θ), Confvol; kwargs...)
@@ -23,10 +23,10 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 SmallFloat(X::AbstractVector{<:Number}, tol::Real) = X
 SmallFloat(X::AbstractVector{<:BigFloat}, tol::Real) = tol < 2e-15 ? X : convert(Vector{Float64}, X)
 
-function _GetBoolTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
+function _GetBoolTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=DOF(DM), Comp::Int=1, kwargs...)
     Wilks_Test(x::Real) = WilksTest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
 end
-function _GetFloatTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=pdim(DM), Comp::Int=1, kwargs...)
+function _GetFloatTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=DOF(DM), Comp::Int=1, kwargs...)
     Wilks_Criterion(x::Real) = WilksCriterion(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
 end
 function _GetBoolFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
@@ -43,7 +43,7 @@ Finds parameter configuration which lies on the boundary of the confidence regio
 * `BoolTest` can be used to specify whether the threshold is found using a `Bool`-valued test or a `Float`-valued test. Since it uses less memory, the `Bool`-valued test performs better when using `BigFloat` (i.e. when Confnum > 8).
 * `Ftest=true` uses the F-test rather than the Wilks test to define the threshold. Typically, the F-test will yield more conservative estimates (i.e. larger confidence regions) since it accounts for small sample sizes.
 """
-function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(Confnum > 8), Ftest::Bool=false, tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, verbose::Bool=true, factor::Real=10.0, kwargs...)
+function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(Confnum > 8), Ftest::Bool=false, tol::Real=4e-15, dof::Int=DOF(DM), Comp::Int=1, verbose::Bool=true, factor::Real=10.0, kwargs...)
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
     mle = if CF isa BigFloat
         verbose && suff(MLE(DM)) != BigFloat && @info "FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead."
@@ -65,7 +65,7 @@ end
 function _FindBoolBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, dof::Int=length(mle), Comp::Int=1, verbose::Bool=true, kwargs...)
     muladd(LineSearch(Test, zero(suff(mle)); tol=tol, verbose=verbose, kwargs...), BasisVector(Comp, length(mle)), mle)
 end
-function _FindFloatBoundary(DM::AbstractDataModel, Test::Function, mle::AbstractVector{<:Number}, CF::Real; dof::Int=length(mle), Comp::Int=1, factor::Real=10.0, kwargs...)
+function _FindFloatBoundary(DM::AbstractDataModel, Test::Function, mle::AbstractVector{<:Number}, CF::Real; dof::Int=DOF(DM), Comp::Int=1, factor::Real=10.0, kwargs...)
     Interval = _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor)
     _FindFloatBoundary(Test, Interval, mle; dof=dof, Comp=Comp, kwargs...)
 end
@@ -74,14 +74,14 @@ function _FindFloatBoundary(Test::Function, Interval::Tuple{<:Real,<:Real}, mle:
     muladd(AltLineSearch(Test, Interval, meth; tol=tol), BasisVector(Comp, length(mle)), mle)
 end
 
-function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=pdim(DM), Comp::Int=1, factor::Real=10.0)
+function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=DOF(DM), Comp::Int=1, factor::Real=10.0)
     b = sqrt(quantile(Chisq(dof),CF) / FisherMetric(DM,MLE(DM))[Comp,Comp])
     (b/factor, factor*b)
 end
 
 
 ## old
-function FindConfBoundaryOld(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), verbose::Bool=true, kwargs...)
+function FindConfBoundaryOld(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=DOF(DM), verbose::Bool=true, kwargs...)
     CF = tol < 2e-15 ? ConfVol(BigFloat(Confnum); verbose=verbose) : ConfVol(Confnum; verbose=verbose)
     mle = if CF isa BigFloat
         verbose && suff(MLE(DM)) != BigFloat && @info "FindConfBoundary: Promoting MLE to BigFloat and continuing. However, it is advisable to promote the entire DataModel object via DM = BigFloat(DM) instead."
@@ -96,7 +96,7 @@ function FindConfBoundaryOld(Test::Function, mle::AbstractVector{<:Number}; tol:
     SmallFloat(Res, tol)
 end
 # Takes roughly 1/3 of the time of Boolean LineSearch
-function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=pdim(DM), Comp::Int=1, maxiter::Int=-1, factor::Real=10.0, verbose::Bool=true,
+function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=DOF(DM), Comp::Int=1, maxiter::Int=-1, factor::Real=10.0, verbose::Bool=true,
                         meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
     CF = ConfVol(Confnum; verbose=verbose)
     muladd(AltLineSearch(_GetFloatTesterFunc(DM, MLE(DM), CF; dof=dof, Comp=Comp), _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor), meth; tol), BasisVector(Comp, pdim(DM)), MLE(DM))
@@ -471,7 +471,7 @@ Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidenc
 The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, verbose::Bool=true,
-                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=pdim(DM), kwargs...)
+                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=DOF(DM), kwargs...)
     if pdim(DM) == 1
         ConfidenceInterval1D(DM, Confnum; tol=tol)
     elseif pdim(DM) == 2
@@ -534,7 +534,7 @@ Keyword arguments:
 """
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false, verbose::Bool=true,
                         tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff),
-                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=pdim(DM), kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
     det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     if pdim(DM) == 1
@@ -636,7 +636,7 @@ _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFuncti
 
 
 """
-    VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), kwargs...)
+    VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=DOF(DM), kwargs...)
     VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix=quantile(Chisq(length(mle)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
 Computes the forward propagation of the parameter covariance to the residuals.
 Matrix `C` corresponds to a covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
@@ -668,7 +668,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         ydim(DM) > 1 ? VarCholeskyN : VarSqrtN
     end
 end
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=length(mle), kwargs...)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), kwargs...)
     VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
 end
 
@@ -922,7 +922,7 @@ If such a point cannot be found (i.e. does not seem to exist), the method return
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, kwargs...)
     FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; tol=tol, kwargs...)
 end
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=length(PL), tol::Real=1e-8, maxiter::Int=10000)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=DOF(DM), tol::Real=1e-8, maxiter::Int=10000)
     CF = ConfVol(Confnum);      model = Predictor(DM)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
@@ -1178,7 +1178,7 @@ end
 
 
 
-function GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=length(θ), kwargs...)
+function GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::Int=DOF(DM), kwargs...)
     if length(θ) == pdim(DM)
         InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
     elseif length(θ) == xpdim(DM)
@@ -1240,7 +1240,7 @@ pnames(CB::AbstractBoundarySlice) = CB.pnames
 function ConfidenceBoundarySlice(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, Dirs::Tuple{Int,Int,Int})
     Full = length(sols[1].u[1]) == xpdim(DM)
     @assert Full || length(sols[1].u[1]) == pdim(DM)
-    Confnum = GetConfnum(DM, sols[1].u[1]; dof=(Full ? xpdim(DM) : pdim(DM)))
+    Confnum = GetConfnum(DM, sols[1].u[1]; dof=DOF(DM))
     mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))[Dirs...]
     Names = (Full ? _FullNames(DM) : pnames(DM))[Dirs...]
     ConfidenceBoundarySlice(DM, sols, Dirs, Confnum, mle, Names, Full)
@@ -1252,7 +1252,7 @@ function ConfidenceBoundarySlice(DM::AbstractDataModel, sol::AbstractODESolution
     @assert length(sol.u[1]) == 2
     Dirs[3] != 0 && (Dirs = (Dirs[1], Dirs[2],0))
     Full = xpdim(DM) == 2
-    Confnum = GetConfnum(DM, sol.u[1]; dof=(Full ? xpdim(DM) : pdim(DM)))
+    Confnum = GetConfnum(DM, sol.u[1]; dof=DOF(DM))
     mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))[[Dirs[1],Dirs[2]]]
     Names = (Full ? _FullNames(DM) : pnames(DM))[[Dirs[1],Dirs[2]]]
     ConfidenceBoundarySlice([sol], Dirs, Confnum, mle, Names, Full)
@@ -1323,7 +1323,7 @@ function ConfidenceBoundary(DM::AbstractDataModel, Res::AbstractVector{<:Tuple{<
     @assert Full || length(Res[1][1][1]) == pdim(DM) "Ambient space of solutions incompatible with DataModel."
     sort(unique(reduce(vcat, Trips))) != (Full ? (1:xpdim(DM)) : (1:pdim(DM))) && @warn "Not all directions present in ConfidenceBoundary."
 
-    Confnums = map(i->GetConfnum(DM,PlaneCoordinates(Res[i][1][1],Res[i][2][1].u[1]); dof=(Full ? xpdim(DM) : pdim(DM))), 1:length(Res))
+    Confnums = map(i->GetConfnum(DM,PlaneCoordinates(Res[i][1][1],Res[i][2][1].u[1]); dof=DOF(DM)), 1:length(Res))
     @assert all(Confnums .≈ Confnums[1]) "Confnums unequal."
     mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))
     Names = (Full ? _FullNames(DM) : pnames(DM))

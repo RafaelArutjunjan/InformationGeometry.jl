@@ -143,6 +143,13 @@ xInvCov(DM::AbstractDataModel, p::AbstractVector) = xInvCov(Data(DM), p)
 yInvCov(DM::AbstractDataModel, p::AbstractVector) = yInvCov(Data(DM), p)
 
 
+# How many degrees of freedom does the model have?
+# Error parameters should not be counted
+DOF(DM::AbstractDataModel) = DOF(Data(DM), MLE(DM))
+DOF(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = length((SplitErrorParams(DS)(mle))[1])
+DOF(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = length(mle)
+
+
 name(DS::Union{AbstractDataSet, AbstractVector{<:AbstractDataSet}}) = ""
 # Prioritise Predictor name, if empty use Dataset name
 name(DM::AbstractDataModel) = length(name(Predictor(DM))) == 0 ? name(Data(DM)) : name(Predictor(DM))

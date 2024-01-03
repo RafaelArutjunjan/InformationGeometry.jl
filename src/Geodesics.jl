@@ -130,7 +130,7 @@ end
 
 
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
-                                    Confnum::Real=1, Endtime::Real=500.0; dof::Int=length(MLE(DM)), kwargs...)
+                                    Confnum::Real=1, Endtime::Real=500.0; dof::Int=DOF(DM), kwargs...)
     WilksCond = (1/2)*quantile(Chisq(dof),ConfVol(Confnum))
     BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, u[1:end÷2]) > WilksCond
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
