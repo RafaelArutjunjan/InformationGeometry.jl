@@ -203,7 +203,7 @@ end
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=pdim(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), approximate::Bool=false, kwargs...)
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
@@ -217,18 +217,29 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
-    path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in 1:N] : nothing
+    # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in 1:N] : nothing
+    path = SaveTrajectories ? Vector{eltype(MLE(DM))}[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         visitedps = [[x] for x in ps]
         Res = map(loglikelihood(DM), visitedps)
     else
         MLEstash = Drop(MLE(DM), Comp)
-        for (i,p) in enumerate(ps)
-            if approximate
-                # Use approximate paths from quadratic likelihood here
-                throw("Not programmed yet.")
-            else
+        if ApproximatePaths
+            dir = GetLocalProfileDir(DM, Comp, MLE(DM))
+            dir ./= dir[Comp]
+            pmle = MLE(DM)[Comp]
+            
+            for p in ps
+                θ = muladd(p-pmle, dir, MLE(DM))
+                push!(Res, loglikelihood(DM, θ))
+                push!(visitedps, p)
+            
+                SaveTrajectories && push!(path, θ)
+                SavePriors && push!(priors, EvalLogPrior(LogPrior(DM), θ))
+            end
+        else
+            for p in ps
                 if Data(DM) isa AbstractUnknownUncertaintyDataSet
                     L = (args...; Kwargs...)->(loglikelihood(DM)∘ValInserter(Comp,p))(args...; Kwargs...)
                     MLEstash = FitFunc(L, MLEstash; tol=tol, kwargs...)
@@ -240,10 +251,10 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
                     push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
                 end
                 push!(visitedps, p)
+            
+                SaveTrajectories && push!(path, insert!(copy(MLEstash), Comp, p))
+                SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
             end
-            # SaveTrajectories && (push!(path,MLEstash);    insert!(path[end], Comp, p))
-            SaveTrajectories && (path[i] .= insert!(copy(MLEstash), Comp, p))
-            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
         end
     end
     Logmax = max(maximum(Res), LogLikeMLE(DM))
@@ -276,6 +287,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositi
 end
 
 
+
+function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM))
+    F = FisherMetric(DM, p)
+    F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
+    isinf(logdet(F)) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
+    pinv(F)[:, Comp]
+end
+
+
 """
     ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, dof::Int=pdim(DM), SaveTrajectories::Bool=false) -> Vector{Matrix}
 Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
@@ -288,14 +308,14 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs=nothing, kwargs...)
     Profiles = if verbose
         Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
         (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM); progress=Prog)
     else
         (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
     end
-    plot && display(ProfilePlotter(DM, Profiles))
+    plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
 end
 
@@ -312,25 +332,27 @@ HasTrajectories(M::Tuple) = true
 HasTrajectories(M::AbstractMatrix) = false
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
-    Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), kwargs...)
+    Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in 1:length(Profiles)]
-    length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles))
+    length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
     RecipesBase.plot(PlotObjects...; layout=length(PlotObjects))
 end
 # Plot trajectories of Profile Likelihood
 """
-    PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; OverWrite=true, kwargs...)
+    PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; idxs::Tuple=(1,2,3), OverWrite=true, kwargs...)
 """
-function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite=true, kwargs...)
+function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite::Bool=true, idxs=nothing, kwargs...)
     @assert HasTrajectories(Profiles)
+    @assert isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in 1:length(Profiles)
-        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, Profiles[i][2]; marker=:circle, label="Comp: $i", kwargs...)
+        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, (isnothing(idxs) ? Profiles[i][2] : map(x->getindex(x,idxs),Profiles[i][2])); marker=:circle, label="Comp: $i", kwargs...)
     end
-    RecipesBase.plot!(P, [MLE(DM)]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
+    RecipesBase.plot!(P, [isnothing(idxs) ? MLE(DM) : MLE(DM)[idxs]]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
 end
+
 
 
 """
@@ -399,7 +421,7 @@ end
 
 abstract type AbstractProfile end
 
-struct ParameterProfile <: AbstractProfile
+mutable struct ParameterProfile <: AbstractProfile
     Profiles::AbstractVector{<:AbstractMatrix}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{<:String}
@@ -432,6 +454,7 @@ Trajectories(P::ParameterProfile) = P.Trajectories
 pnames(P::ParameterProfile) = P.Names
 MLE(P::ParameterProfile) = P.mle
 IsCost(P::ParameterProfile) = P.IsCost
+HasTrajectories(P::ParameterProfile) = !(Trajectories(P) isa AbstractVector{<:Nothing})
 
 Base.length(P::ParameterProfile) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfile) = Profiles(P) |> firstindex
@@ -445,27 +468,43 @@ ProfileBox(DM::AbstractDataModel, P::ParameterProfile, Confnum::Real; kwargs...)
 PracticallyIdentifiable(P::ParameterProfile) = PracticallyIdentifiable(Profiles(P))
 
 
+function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfile; kwargs...)
+    @assert HasTrajectories(P)
+    PlotProfileTrajectories(DM, [(Profiles(P)[i], Trajectories(P)[i]) for i in 1:length(pnames(P))]; kwargs...)
+end
+
+function ExtendProfiles(P::ParameterProfile)
+    throw("Not programmed yet.")
+end
+
+
 @recipe f(P::ParameterProfile) = P, Val(all(!isnothing, Trajectories(P)))
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{true})
-    @assert length(pnames(P)) ≤ 3
     layout := length(pnames(P)) + 1
     @series P, Val(false)
     label --> reshape(["Comp $i" for i in 1:length(pnames(P))], 1, :)
+
+    idxs = get(plotattributes, :idxs, nothing)
+    if !(isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM))))
+        @warn "Ignoring given idxs=$idxs because unsuitable."
+        idxs = nothing
+    end
+
     for i in 1:length(pnames(P))
         @series begin
             subplot := length(pnames(P)) + 1
-            Trajectories(P)[i]
+            isnothing(idxs) ? Trajectories(P)[i] : map(x->getindex(x, idxs), Trajectories(P)[i])
         end
     end
     @series begin
         label := "MLE"
-        xguide --> pnames(P)[1]
-        yguide --> pnames(P)[2]
-        if length(pnames(P)) == 3
-            zguide --> pnames(P)[3]
+        xguide --> isnothing(idxs) ? pnames(P)[1] : pnames(P)[idxs[1]]
+        yguide --> isnothing(idxs) ? pnames(P)[2] : pnames(P)[idxs[2]]
+        if (!isnothing(idxs) && length(idxs) == 3) || length(pnames(P)) > 2
+            zguide --> isnothing(idxs) ? pnames(P)[3] : pnames(P)[idxs[3]]
         end
         subplot := length(pnames(P)) + 1
-        [MLE(P)]
+        [isnothing(idxs) ? MLE(P) : MLE(P)[idxs]]
     end
 end
 @recipe function f(P::ParameterProfile, HasTrajectories::Val{false})
