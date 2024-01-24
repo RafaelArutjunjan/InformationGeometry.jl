@@ -45,15 +45,11 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
         @info "Assuming error parameters always given by last $(length(testp)) parameters."
-        DataSetUncertain(x, y, inverrormodel, DefaultErrorModel(length(testp)), testp, dims; kwargs...)
+        DataSetUncertain(x, y, dims, inverrormodel, DefaultErrorModel(length(testp)), testp; kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector;
             xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"),
             name::Union{String,Symbol}=Symbol(), kwargs...)
-        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name)
-    end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector,
-            xnames::AbstractVector{<:String}, ynames::AbstractVector{<:String}, name::Union{String,Symbol}=Symbol())
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -64,18 +60,6 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
         new(x, y, dims, inverrormodel, testp, errorparamsplitter, xnames, ynames, name)
     end
 end
-
-# For SciMLBase.remake
-DataSetUncertain(;
-x::AbstractVector=[0.],
-y::AbstractVector=[0.],
-dims::Tuple{Int,Int,Int}=(1,1,1),
-inverrormodel::Function=identity,
-testp::AbstractVector{<:Number}=[0.],
-errorparamsplitter::Function=x->(x[1], x[2]),
-xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name)
 
 DefaultErrorModel(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 
@@ -95,15 +79,9 @@ xerrormoddim(DS::DataSetUncertain) = 0
 yerrormoddim(DS::DataSetUncertain) = length(DS.testp)
 errormoddim(DS::DataSetUncertain) = length(DS.testp)
 
-
 SplitErrorParams(DS::DataSetUncertain) = DS.errorparamsplitter
 
 yinverrormodel(DS::DataSetUncertain) = DS.inverrormodel
-
-
-xerrorparams(DS::DataSetUncertain, mle::AbstractVector) = nothing
-yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[2]
-
 
 
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X

@@ -142,8 +142,6 @@ ysigma(DM::AbstractDataModel, p::AbstractVector) = ysigma(Data(DM), p)
 xInvCov(DM::AbstractDataModel, p::AbstractVector) = xInvCov(Data(DM), p)
 yInvCov(DM::AbstractDataModel, p::AbstractVector) = yInvCov(Data(DM), p)
 
-xerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xerrorparams(Data(DM), mle)
-yerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yerrorparams(Data(DM), mle)
 
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted
