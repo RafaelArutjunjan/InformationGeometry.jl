@@ -96,7 +96,7 @@ function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelO
         !IsInDomain(model, MLE) && @warn "Supposed MLE $MLE not inside valid parameter domain specified for ModelMap. Consider specifying an appropriate intial parameter configuration."
     end
     if LogPriorFn isa Function
-        @assert LogPriorFn(MLE) isa Real && LogPriorFn(MLE) ≤ 0.0
+        @assert LogPriorFn(MLE) isa Real
         !all(x->x ≤ 0.0, eigvals(EvalLogPriorHess(LogPriorFn, MLE))) && @warn "Hessian of specified LogPrior does not appear to be negative-semidefinite at MLE."
     end
     S = Score(DS, model, dmodel, MLE, LogPriorFn)

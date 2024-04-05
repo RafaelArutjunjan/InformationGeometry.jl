@@ -144,8 +144,10 @@ end
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
     Expr = SymbolicModel(DM)
+    LogPr = !isnothing(LogPrior(DM)) ? LogPrior(DM)(MLE(DM)) : nothing
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+    println(io, "Maximal value of log-likelihood: $(round(LogLikeMLE(DM); sigdigits=5))")
+    isnothing(LogPr) || println(io, "Log prior at MLE: $(round(LogPr; sigdigits=5))")
     Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     try ParamSummary(io, DM) catch; end
 end
@@ -154,7 +156,7 @@ end
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = SymbolicModel(DM)
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: $(LogLikeMLE(DM))")
+    println(io, "Maximal value of log-likelihood: $(round(LogLikeMLE(DM); sigdigits=5))")
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
