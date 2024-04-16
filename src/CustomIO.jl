@@ -22,17 +22,17 @@ GeneratedFromSymbolic(F::ModelMap) = GeneratedFromSymbolic(F.Map)
 
 
 Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
-                                        NO_COLOR, (length(name(DS)) > 0 ? " '"*STRING_COLOR*"$(name(DS))"*NO_COLOR*"'" : ""),
-                                        " with N=$(Npoints(DS)), xdim=$(xdim(DS)) and ydim=$(ydim(DS))")
+                                        NO_COLOR, (length(name(DS)) > 0 ? " '" *STRING_COLOR*string(name(DS)) *NO_COLOR*"'" : ""),
+                                        " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
-    NO_COLOR, (length(name(Predictor(DM))) > 0 ? " '"*STRING_COLOR*"$(name(Predictor(DM)))"*NO_COLOR*"'" : ""),
+    NO_COLOR, (length(name(Predictor(DM))) > 0 ? " '"*STRING_COLOR* string(name(Predictor(DM))) *NO_COLOR*"'" : ""),
     " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, (length(name(Data(DM))) > 0 ? " '"*STRING_COLOR*"$(name(Data(DM)))"*NO_COLOR*"'" : ""),
+    NO_COLOR, (length(name(Data(DM))) > 0 ? " '"*STRING_COLOR* string(name(Data(DM)))*NO_COLOR*"'" : ""),
     ". Model jacobian: ",
     ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : (GeneratedFromSymbolic(dPredictor(DM)) ? "Symbolic" : "manually provided")),
     NO_COLOR)
@@ -40,9 +40,9 @@ end
 
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap",
-        NO_COLOR, (length(name(M)) > 0 ? " '"*STRING_COLOR*"$(name(M))"*NO_COLOR*"' " : " "),
+        NO_COLOR, (length(name(M)) > 0 ? " '"*STRING_COLOR*string(name(M))*NO_COLOR*"' " : " "),
         ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
-        NO_COLOR, " with xdim=$(xdim(M)), ydim=$(ydim(M)), pdim=$(pdim(M))")
+        NO_COLOR, " with xdim="*string(xdim(M))*", ydim="*string(ydim(M))*", pdim="*string(pdim(M)))
 end
 
 
@@ -143,12 +143,12 @@ end
 
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
-    Expr = SymbolicModel(DM)
+    Expr = string(SymbolicModel(DM))
     LogPr = !isnothing(LogPrior(DM)) ? LogPrior(DM)(MLE(DM)) : nothing
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: $(round(LogLikeMLE(DM); sigdigits=5))")
-    isnothing(LogPr) || println(io, "Log prior at MLE: $(round(LogPr; sigdigits=5))")
-    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
+    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
+    isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
+    Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
     try ParamSummary(io, DM) catch; end
 end
 
@@ -156,16 +156,16 @@ end
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = SymbolicModel(DM)
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: $(round(LogLikeMLE(DM); sigdigits=5))")
+    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
 
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", M::ModelMap)
-    Expr = SymbolicModel(M)
+    Expr = string(SymbolicModel(M))
     println(io, Base.summary(M))
-    Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
+    Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
     pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
 end
 
