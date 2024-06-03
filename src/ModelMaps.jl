@@ -416,7 +416,11 @@ Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and retur
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
 """
 function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
-    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start; kwargs...)
+    if isnothing(LogPrior(DM))
+        DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start; kwargs...)
+    else
+        DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, F∘LogPrior(DM); kwargs...)
+    end
 end
 
 

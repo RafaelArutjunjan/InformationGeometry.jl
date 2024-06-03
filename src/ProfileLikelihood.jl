@@ -202,12 +202,15 @@ end
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
-    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
-
     ps = DomainSamples(dom; N=N)
+    GetProfile(DM, Comp, ps; kwargs...)
+end
+
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
+    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
     FitFunc = if !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet || !(meth isa NewtonTrustRegion)
         ((args...; kwargs...)->InformationGeometry.minimize(args...; meth=meth, kwargs...))
@@ -217,7 +220,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
-    # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in 1:N] : nothing
+    # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in eachindex(ps)] : nothing
     path = SaveTrajectories ? Vector{eltype(MLE(DM))}[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
