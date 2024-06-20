@@ -739,16 +739,16 @@ function CoordinateVolume(DM::AbstractDataModel, Confnum::Real; N::Int=Int(1e5),
         else
             ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
         end
-        return IntegrateOverConfidenceRegion(DM, Domain, Confnum, z->one(suff(z)); N=N, WE=WE, kwargs...)
+        return IntegrateOverConfidenceRegion(DM, Domain, Confnum, ((z::T) where {T<:Number}) -> one(T); N=N, WE=WE, kwargs...)
     end
 end
 function CoordinateVolume(DM::AbstractDataModel, sol::AbstractODESolution; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     @assert pdim(DM) == length(sol.u[1]) == 2
     Domain = ConstructCube(sol; Padding=1e-2)
     if Approx
-        IntegrateOverApproxConfidenceRegion(DM, Domain, sol, z->one(suff(z)); N=N, WE=WE)
+        IntegrateOverApproxConfidenceRegion(DM, Domain, sol, ((z::T) where {T<:Number}) -> one(T); N=N, WE=WE)
     else
-        IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), z->one(suff(z)); N=N, WE=WE, kwargs...)
+        IntegrateOverConfidenceRegion(DM, Domain, GetConfnum(DM, sol), ((z::T) where {T<:Number}) -> one(T); N=N, WE=WE, kwargs...)
     end
 end
 function CoordinateVolume(DM::AbstractDataModel, Tup::Tuple{<:AbstractVector{<:Plane},<:AbstractVector{<:AbstractODESolution}}; N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
@@ -757,9 +757,9 @@ end
 function CoordinateVolume(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
     Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
     if Approx
-        IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, z->one(suff(z)); N=N, WE=WE)
+        IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, ((z::T) where {T<:Number}) -> one(T); N=N, WE=WE)
     else
-        IntegrateOverConfidenceRegion(DM, Domain, Confnum, z->one(suff(z)); N=N, WE=WE, kwargs...)
+        IntegrateOverConfidenceRegion(DM, Domain, Confnum, ((z::T) where {T<:Number}) -> one(T); N=N, WE=WE, kwargs...)
     end
 end
 

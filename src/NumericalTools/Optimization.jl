@@ -11,18 +11,10 @@ end
 
 LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
 function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
-    if initial ∉ Domain(M)
-        verbose && @warn "Initial guess $initial not within given bounds. Clamping to bounds and continuing."
-        initial = clamp(initial, HyperCube(Domain(M); Padding=-0.01))
-    end
-    _curve_fit(DS, M, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
+    _curve_fit(DS, M, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
 function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
-    if initial ∉ Domain(M)
-        verbose && @warn "Initial guess $initial not within given bounds. Clamping to bounds and continuing."
-        initial = clamp(initial, HyperCube(Domain(M); Padding=-0.01))
-    end
-    _curve_fit(DS, M, dM, initial, args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
+    _curve_fit(DS, M, dM, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
 
 
@@ -32,9 +24,8 @@ function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::Abstra
     u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
     F(θ::AbstractVector) = muladd(u, EmbeddingMap(DS, model, θ), Ydat)
     iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
-    p0 = convert(Vector, initial)
-    R = LsqFit.OnceDifferentiable(iF, p0, copy(F(p0)); inplace = true, autodiff = :forward)
-    LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    R = LsqFit.OnceDifferentiable(iF, initial, copy(F(initial)); inplace = true, autodiff = :forward)
+    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
 function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
@@ -45,9 +36,8 @@ function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
     dF(θ::AbstractVector) = u * EmbeddingMatrix(DS, dmodel, θ)
     iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
     idF(Jac::AbstractMatrix, θ::AbstractVector) = mul!(Jac, u, EmbeddingMatrix(DS, dmodel, θ))
-    p0 = convert(Vector, initial)
-    R = LsqFit.OnceDifferentiable(iF, idF, p0, copy(F(p0)); inplace = true)
-    LsqFit.lmfit(R, p0, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    R = LsqFit.OnceDifferentiable(iF, idF, initial, copy(F(initial)); inplace = true)
+    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
 function rescaledjac(M::AbstractMatrix{<:Number}, xlen::Int)
@@ -134,15 +124,16 @@ function AutoDiffble(F::Function, x::AbstractVector)
     catch;  false   end
 end
 
+
 function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true) where T <: Number
     if Start ∈ Dom
-        convert(Vector{T}, Start)
+        Start
     else
         verbose && @warn "Initial guess $Start not within given bounds. Clamping to bounds and continuing."
-        convert(Vector{T}, clamp(Start, HyperCube(Dom; Padding=-0.01)))
+        clamp(Start, HyperCube(Dom; Padding=-1e-3))
     end
 end
-ConstrainStart(Start::AbstractVector{T}, Dom::Nothing; kwargs...) where T <: Number = convert(Vector{T}, Start)
+ConstrainStart(Start::AbstractVector{<:Number}, Dom::Nothing; kwargs...) = Start
 
 
 """
@@ -195,6 +186,8 @@ end
 GetDomain(DM::AbstractDataModel) = GetDomain(Predictor(DM))
 GetDomain(M::ModelMap) = Domain(M)
 GetDomain(F::Function) = nothing
+
+minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); kwargs...) = minimize(Data(DM), Predictor(DM), start, LogPrior(DM); kwargs...)
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
     F = HasXerror(DS) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
     minimize(F, start, Domain; kwargs...)
@@ -261,14 +254,14 @@ function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots
     find_zero(Test, Domain, meth; xatol=tol, xrtol=tol, kwargs...)
 end
 function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10))) where T<:BigFloat
-    Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-14, xrtol=1e-14)
-    find_zero(Test, (BigFloat(Res-3e-14),BigFloat(Res+3e-14)), Roots.Bisection(); xatol=tol, xrtol=tol)
+    Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-12, xrtol=1e-12)
+    find_zero(Test, (BigFloat(Res-3e-12),BigFloat(Res+3e-12)), Roots.Bisection(); xatol=tol, xrtol=tol)
 end
 
 function AltLineSearch(Test::Function, start::Real, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=1e-12, kwargs...)
     find_zero(Test, start, meth; xatol=tol, xrtol=tol, kwargs...)
 end
 function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
-    Res = find_zero(Test, Float64(start), meth; xatol=1e-14, xrtol=1e-14)
+    Res = find_zero(Test, Float64(start), meth; xatol=1e-12, xrtol=1e-12)
     find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
 end

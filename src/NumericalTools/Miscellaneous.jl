@@ -18,7 +18,7 @@ Converts vector of vectors to a matrix whose n-th column corresponds to the n-th
 """
 @inline function Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector{<:Number},Tuple}
     N = length(Z);      M = length(Z[1])
-    A = Array{suff(Z)}(undef, N, M)
+    A = Matrix{suff(Z)}(undef, N, M)
     @inbounds for i in Base.OneTo(N)
         for j in Base.OneTo(M)
             A[i,j] = Z[i][j]
@@ -104,12 +104,12 @@ SplitAfter(n::Int) = X->(view(X,1:n), view(X,n+1:length(X)))
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` using Roots.jl. Ideally, `F` should be monotone and there should only be one correct result.
 """
-function invert(F::Function, x::Number, Domain::Tuple{<:Number,<:Number}=(zero(suff(x)), 1e4*one(suff(x)));
-                    tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1())
+function invert(F::Function, x::T, Domain::Tuple{<:Number,<:Number}=(zero(T), 1e4*one(T));
+                    tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1()) where T<:Number
     @assert Domain[1] < Domain[2]
     try
         if meth isa Roots.AbstractNonBracketing
-            find_zero(z-> F(z) - x, 0.5one(suff(x)), meth; xatol=tol)
+            find_zero(z-> F(z) - x, 0.5one(T), meth; xatol=tol)
         else
             find_zero(z-> F(z) - x, Domain, meth; xatol=tol)
         end
@@ -118,8 +118,8 @@ function invert(F::Function, x::Number, Domain::Tuple{<:Number,<:Number}=(zero(s
         find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol)
     end
 end
-# function invert(F::Function, x::Number; tol::Real=GetH(x)*100, meth::Roots.AbstractUnivariateZeroMethod=Order1())
-#     find_zero(z-> F(z) - x, 0.8one(suff(x)), meth; xatol=tol)
+# function invert(F::Function, x::T; tol::Real=GetH(x)*100, meth::Roots.AbstractUnivariateZeroMethod=Order1()) where T<:Number
+#     find_zero(z-> F(z) - x, 0.8one(T), meth; xatol=tol)
 # end
 
 
@@ -240,8 +240,8 @@ BlockMatrix(M::Diagonal, N::Int) = Diagonal(repeat(M.diag, N))
     BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
 Constructs blockdiagonal matrix from `A` and `B`.
 """
-function BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
-    Res = zeros(suff(A), size(A,1)+size(B,1), size(A,2)+size(B,2))
+function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Number, S<:Number}
+    Res = zeros(Union{T,S}, size(A,1)+size(B,1), size(A,2)+size(B,2))
     Res[1:size(A,1), 1:size(A,1)] = A
     Res[size(A,1)+1:end, size(A,1)+1:end] = B
     Res

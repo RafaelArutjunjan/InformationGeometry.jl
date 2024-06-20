@@ -232,8 +232,7 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
     Res
 end
 
-function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction; verbose::Bool=true)
-    P = GetStartP(DS, model)
+function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction, P::AbstractVector=GetStartP(DS, model); verbose::Bool=true)
     out = try  model(WoundX(DS)[1],P)   catch Err
         throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
     end

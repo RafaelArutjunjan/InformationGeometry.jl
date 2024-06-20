@@ -204,8 +204,8 @@ end
 # Also add test for in-place CompositeDataSet with missing values
 
 
-function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{<:Number})
-    Res = Vector{suff(Mapped)}(undef, DataspaceDim(CDS));      i = 1
+function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{T}) where T<:Number
+    Res = Vector{T}(undef, DataspaceDim(CDS));      i = 1
     for SetInd in 1:length(Data(CDS))
         for xval in WoundX(Data(CDS)[SetInd])
             # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]

@@ -307,16 +307,18 @@ Returns a vector of N×2 matrices where the first column of the n-th matrix spec
 The domain over which the profile likelihood is computed is not (yet) adaptively chosen. Instead the size of the domain is estimated from the inverse Fisher metric.
 Therefore, often has to pass higher value for `Confnum` to this method than the confidence level one is actually interested in, to ensure that it is still covered (if the model is even practically identifiable in the first place).
 """
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; ForcePositive::Bool=false, kwargs...)
-    ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, kwargs...)
+    ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube; N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs=nothing, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs=nothing, kwargs...)
+    # idxs for plotting only
+    @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
     Profiles = if verbose
         Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
-        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM); progress=Prog)
+        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), inds; progress=Prog)
     else
-        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), 1:pdim(DM))
+        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), inds)
     end
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
@@ -408,7 +410,7 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=1.5
     PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, kwargs...) = PracticallyIdentifiable(ProfileLikelihood(DM, Confnum; plot=plot, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ProfileLikelihood(DM, Confnum; plot=plot, N=N, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
@@ -430,6 +432,7 @@ mutable struct ParameterProfile <: AbstractProfile
     Names::AbstractVector{<:String}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
+    # Allow for different inds and fill rest with nothing or NaN
     function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2.; plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
         Profs = ProfileLikelihood(DM, Confnum; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         P = SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2); IsCost=IsCost) : ParameterProfile(DM, Profs; IsCost=IsCost)

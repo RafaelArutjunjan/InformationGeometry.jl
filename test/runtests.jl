@@ -382,7 +382,7 @@ end
 
     S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
     function S2Christoffel((θ,ϕ))
-        Symbol = zeros(suff(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
+        Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
         Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
     end
     # Calculation by hand works out such that in this special case:
@@ -468,4 +468,8 @@ end
     @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=NelderMead())) < 5e-1
     @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=LBFGS())) < 5e-2
     @test norm(InformationGeometry.minimize(F, initial; tol=1e-5, meth=Newton())) < 5e-2
+
+    # Check type stability of optimization
+    using ComponentArrays
+    @test InformationGeometry.minimize(X->X.A[1]^2 + 0.5X.B[1]^4, ComponentVector(A=[initial[1]], B=[initial[1]]); tol=1e-5, meth=Newton()) isa ComponentVector
 end

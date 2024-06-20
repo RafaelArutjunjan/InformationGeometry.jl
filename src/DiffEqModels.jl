@@ -49,8 +49,10 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
                 Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:String}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::Union{String,Symbol}=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
+    
+    odefunc = ODEFunction{inplace}(sys; jac = true)
     Model = if sys isa ModelingToolkit.AbstractODESystem
-        GetModel(ODEFunction{inplace}(sys), u0, observables; Domain=Domain, inplace=inplace, kwargs...)
+        GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end

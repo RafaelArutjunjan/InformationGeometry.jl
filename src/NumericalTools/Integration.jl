@@ -58,7 +58,7 @@ function IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube,
     # Multiply F with characteristic function for confidence region
     Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
     InsideRegion(X::AbstractVector{<:Number}) = loglikelihood(DM, X; kwargs...) > Threshold
-    Integrand(X::AbstractVector{<:Number}) = InsideRegion(X) ? F(X) : zero(suff(X))
+    Integrand(X::AbstractVector{T}) where T<:Number = InsideRegion(X) ? F(X) : zero(T)
     # Use HCubature instead of MonteCarlo
     MonteCarloArea(Integrand, Domain, N; WE=WE)
 end
@@ -70,7 +70,7 @@ Integrates a function `F` over the intersection of `Domain` and the polygon defi
 """
 function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, sol::AbstractODESolution, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM) == length(sol.u[1]) == 2
-    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(sol, X) ? F(X) : zero(suff(X))
+    Integrand(X::AbstractVector{T}) where T<:Number = ApproxInRegion(sol, X) ? F(X) : zero(T)
     # Use HCubature instead of MonteCarlo
     MonteCarloArea(Integrand, Domain, N; WE=WE)
 end
@@ -81,7 +81,7 @@ end
 function IntegrateOverApproxConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
     @assert length(Domain) == pdim(DM) == ConsistentElDims(Planes)
     @assert length(Planes) == length(sols)
-    Integrand(X::AbstractVector{<:Number}) = ApproxInRegion(Planes, sols, X) ? F(X) : zero(suff(X))
+    Integrand(X::AbstractVector{T}) where T<:Number  = ApproxInRegion(Planes, sols, X) ? F(X) : zero(T)
     # Use HCubature instead of MonteCarlo
     MonteCarloArea(Integrand, Domain, N; WE=WE)
 end

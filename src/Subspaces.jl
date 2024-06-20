@@ -208,7 +208,7 @@ end
 
 
 function GramSchmidt(v::AbstractVector, dim::Int=length(v))
-    Basis = Vector{Vector{suff(v)}}(undef, dim)
+    Basis = Vector{typeof(v)}(undef, dim)
     Basis[1] = normalize(v)
     for i in 2:dim
         Basis[i] = BasisVector(i,dim)

@@ -81,7 +81,7 @@ struct ModelMap{Inplace, Custom}
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
 (M::ModelMap{true})(y, x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(y, x, θ; kwargs...)
-(M::ModelMap{true})(x, θ::AbstractVector{<:Number}; kwargs...) = (Res=Vector{suff(θ)}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res)
+(M::ModelMap{true})(x, θ::AbstractVector{T}; kwargs...) where T<:Number = (Res=Vector{T}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res)
 const ModelOrFunction = Union{Function,ModelMap}
 
 

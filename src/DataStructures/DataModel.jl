@@ -62,13 +62,13 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-14, meth=nothing, kwargs...)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-12, meth=LBFGS(), kwargs...)
         SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true; kwargs...) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel; tol=tol, meth=meth); kwargs...)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false; kwargs...)
         DataModel(DS, model, dmodel, mle, nothing, SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false; tol::Real=1e-14, meth=nothing, kwargs...)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false; tol::Real=1e-12, meth=LBFGS(), kwargs...)
         LogPriorFn = Prior(logPriorFn, mle)
         SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true; kwargs...)
         MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=tol, meth=meth);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
@@ -91,7 +91,7 @@ struct DataModel <: AbstractDataModel
 end
 
 function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}=nothing)
-    CheckModelHealth(DS, model)
+    CheckModelHealth(DS, model, MLE)
     if model isa ModelMap
         !IsInDomain(model, MLE) && @warn "Supposed MLE $MLE not inside valid parameter domain specified for ModelMap. Consider specifying an appropriate intial parameter configuration."
     end
@@ -102,7 +102,7 @@ function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelO
     S = Score(DS, model, dmodel, MLE, LogPriorFn)
     norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherMetric(DS, model, dmodel, MLE, LogPriorFn)
-    det(g) == 0. && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
+    logdet(g) == -Inf && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
     !isposdef(Symmetric(g)) && @warn "Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init)."
 end
 
@@ -164,6 +164,6 @@ EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs..
 EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = GetGrad(P; kwargs...)(θ)
 EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = GetHess(P; kwargs...)(θ)
 
-EvalLogPrior(D::Nothing, x::AbstractVector{<:Number}; kwargs...) = zero(suff(x))
-EvalLogPriorGrad(D::Nothing, x::AbstractVector{<:Number}; kwargs...) = zeros(suff(x),length(x))
-EvalLogPriorHess(D::Nothing, x::AbstractVector{<:Number}; kwargs...) = zeros(suff(x),length(x),length(x))
+EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zero(T)
+EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x))
+EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x), length(x))
