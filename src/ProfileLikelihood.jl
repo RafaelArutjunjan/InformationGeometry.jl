@@ -433,9 +433,17 @@ mutable struct ParameterProfile <: AbstractProfile
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2.; plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
-        Profs = ProfileLikelihood(DM, Confnum; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
-        P = SaveTrajectories ? ParameterProfile(DM, getindex.(Profs,1), getindex.(Profs,2); IsCost=IsCost) : ParameterProfile(DM, Profs; IsCost=IsCost)
+    function ParameterProfile(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
+        inds = sort(Inds)
+        FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
+        Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
+        Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(Profs))
+        if !(inds == 1:pdim(DM))
+            for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
+                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));    SaveTrajectories ? insert!(Trajs, i, fill(NaN, pdim(DM))) : insert!(Trajs, i, nothing))
+            end
+        end
+        P = ParameterProfile(DM, Profs, Trajs; IsCost=IsCost)
         plot && display(RecipesBase.plot(P))
         P
     end
@@ -452,8 +460,8 @@ mutable struct ParameterProfile <: AbstractProfile
 end
 (P::ParameterProfile)(t::Real, i::Int) = InterpolatedProfiles(P,i)(t)
 (P::ParameterProfile)(i::Int) = InterpolatedProfiles(P,i)
-InterpolatedProfiles(P::ParameterProfile, i::Int) = QuadraticInterpolation(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
-InterpolatedProfiles(P::ParameterProfile) = [QuadraticInterpolation(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
+InterpolatedProfiles(P::ParameterProfile, i::Int, Interp=QuadraticInterpolation) = Interp(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
+InterpolatedProfiles(P::ParameterProfile, Interp=QuadraticInterpolation) = [Interp(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
 
 Profiles(P::ParameterProfile) = P.Profiles
 Trajectories(P::ParameterProfile) = P.Trajectories
