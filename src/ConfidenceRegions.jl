@@ -1183,7 +1183,7 @@ function GetConfnum(DM::AbstractDataModel, θ::AbstractVector{<:Number}; dof::In
         InvConfVol(ChisqCDF(dof, 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))))
     elseif length(θ) == xpdim(DM)
         @warn "Using LiftedEmbedding for determining the Confnum here."
-        LiftedLogLike = LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)
+        LiftedLogLike = FullLiftedLogLikelihood(DM)
         InvConfVol(ChisqCDF(dof, 2(LiftedLogLike(TotalLeastSquaresV(DM)) - LiftedLogLike(θ; kwargs...))))
     else
         throw("Length of θ $(length(θ)) neither corresponds to pdim=$(pdim(DM)) nor xpdim=$(xpdim(DM)).")

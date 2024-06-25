@@ -282,14 +282,11 @@ function _PrepareEllipsePlot(pos::AbstractVector{<:Number}, cov::AbstractMatrix{
     @assert length(pos) == size(cov,1) == size(cov,2)
     C = cholesky(collect(cov)).U
     if length(pos) == 2
-        ran = range(0, 2π; length=N)
-        M = Unpack([pos + C*[cos(α),sin(α)] for α in ran])
-        M[:,1], M[:,2]
+        M = Unpack([pos + C*[cos(α),sin(α)] for α in range(0, 2π; length=N)])
+        @views M[:,1], M[:,2]
     elseif length(pos) == 3
-        θran = range(0, π; length=N);  ϕran = range(0, 2π; length=N)
-        # M = mapreduce(x->transpose(pos + C * x), vcat, eachrow([cos.(ϕran).*sin.(θran) sin.(ϕran).*sin.(θran) cos.(θran)]))
-        M = Unpack([pos + C*[cos(ϕ)*sin(θ),sin(ϕ)*sin(θ),cos(θ)] for θ in θran for ϕ in ϕran])
-        M[:,1], M[:,2], M[:,3]
+        M = Unpack([pos + C*[cos(ϕ)*sin(θ),sin(ϕ)*sin(θ),cos(θ)] for θ in range(0, π; length=N) for ϕ in range(0, 2π; length=N)])
+        @views M[:,1], M[:,2], M[:,3]
     else
         throw("Cannot plot Ellipses for dim > 3.")
     end
@@ -377,14 +374,21 @@ RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVect
     xguide --> names[1]
     yguide --> names[2]
     N = xdim(GDS) + ydim(GDS) == 2 ? 200 : 80
+    seriescolor --> :blue
     for (x,σ) in ToEllipsoidTuples(GetMean(dist(GDS)),Sigma(dist(GDS)),dims(GDS))
         A = cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))']
         @series begin
             seriestype := :shape
-            fillalpha --> 0.3
-            fillcolor --> :blue
+            fillalpha --> 0.4
+            fillcolor --> get(plotattributes, :seriescolor, :blue)
             label := ""
             x[1] .+ A[1,:], x[2] .+ A[2,:]
+        end
+        @series begin
+            seriestype := :scatter
+            color --> get(plotattributes, :seriescolor, :blue)
+            label := ""
+            [x[1]], [x[2]]
         end
     end
 end
