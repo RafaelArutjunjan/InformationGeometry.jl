@@ -40,8 +40,8 @@ function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
     LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
-function rescaledjac(M::AbstractMatrix{<:Number}, xlen::Int)
-    M[:,1:xlen] .*= sqrt(size(M,1)/xlen -1.);    return M
+function rescaledjac(M::AbstractMatrix{T}, xlen::Int) where T<:Number
+    M[:,1:xlen] .*= sqrt(size(M,1)/xlen -one(T));    return M
 end
 
 
@@ -148,17 +148,20 @@ minimize(F::Function, start::AbstractVector, args...; kwargs...) = InformationGe
 minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF), start, args...; kwargs...)
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
 function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain, Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
-                            g_tol::Real=tol, x_tol::Real=0.0, meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : NewtonTrustRegion())),
-                            timeout::Real=600, Full::Bool=false, verbose::Bool=true, iterations::Int=10000, kwargs...) where T <: Number
+                    Full::Bool=false, verbose::Bool=true, timeout::Real=600.0, meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : Newton())),
+                    g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
+                    callback=nothing, iterations::Int=10000, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
+                    store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
-    options = if isnothing(Fthresh)
-        Optim.Options(; g_tol=g_tol, x_tol=x_tol, time_limit=floatify(timeout), iterations)
-    else  # stopping criterion via callback kwarg
-        Optim.Options(; callback=(z->z.value<Fthresh), g_tol=g_tol, x_tol=x_tol, time_limit=floatify(timeout), iterations)
-    end
+    
+    # Construct callback for early stopping if objective function below Fthresh unless any other callback is given
+    cb = isnothing(callback) ? (!isnothing(Fthresh) ? (z->z.value<Fthresh) : nothing) : callback
+    options = Optim.Options(; x_tol, f_tol, g_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, g_reltol, f_calls_limit, show_every, show_trace,
+                            allow_f_increases, iterations, store_trace, extended_trace, callback=cb, time_limit=timeout)
+    
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
         start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
