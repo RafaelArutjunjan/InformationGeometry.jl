@@ -83,7 +83,9 @@ struct DataModel <: AbstractDataModel
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
-        NewLogPriorFn = Prior(LogPriorFn,MLE)
+        # Assert that LogPriorFn has MaximalNumberOfArguments == 1, otherwise DFunction will interpret it as in-place
+        @assert isnothing(LogPriorFn) || MaximalNumberOfArguments(LogPriorFn) == 1
+        NewLogPriorFn = Prior(LogPriorFn, MLE, (-1, length(MLE)))
         # LogLikelihoodFn = GetLogLikelihoodFn(DS,model,NewLogPriorFn)
         # ScoreFn = GetScoreFn(DS,model,dmodel,NewLogPriorFn,LogLikelihoodFn; ADmode=ADmode)
         new(DS, model, dmodel, MLE, LogLikeMLE, NewLogPriorFn) #, LogLikelihoodFn, ScoreFn)
@@ -102,7 +104,7 @@ function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelO
     S = Score(DS, model, dmodel, MLE, LogPriorFn)
     norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherMetric(DS, model, dmodel, MLE, LogPriorFn)
-    logdet(g) == -Inf && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
+    det(g) == 0 && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
     !isposdef(Symmetric(g)) && @warn "Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init)."
 end
 

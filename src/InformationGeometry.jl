@@ -16,7 +16,7 @@ using RecipesBase, PlotUtils
 using TreeViews, PrettyTables
 
 import DataInterpolations: AbstractInterpolation
-import SciMLBase: AbstractODESolution, AbstractODEFunction
+import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm
 
 import SciMLBase: remake
 export remake

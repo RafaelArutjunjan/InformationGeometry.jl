@@ -19,7 +19,7 @@ end
 
 # accuracy ≈ 6e-11
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.;
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
     prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, (0.0,Endtime))
@@ -188,7 +188,7 @@ Computes a geodesic between two given points on the parameter manifold and an ex
 By setting the keyword `approx=true`, the ChristoffelSymbols are assumed to be constant and only computed once at the initial position. This simplifies the computation immensely but may also constitute an inaccurate approximation depending on the magnitude of the Ricci curvature.
 """
 GeodesicBetween(DM::AbstractDataModel, args...; kwargs...) = GeodesicBetween(FisherMetric(DM), args...; kwargs...)
-function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::OrdinaryDiffEqAlgorithm=Tsit5(), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
+function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::AbstractODEAlgorithm=Tsit5(), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
@@ -257,7 +257,7 @@ function KarcherMeanStep(Metric::Function, points::AbstractVector{<:AbstractVect
     dirs = map(x->LogarithmicMap(Metric, initialmean, x; kwargs...), points)
     ExponentialMap(Metric, initialmean, sum(dirs) / length(dirs))
 end
-function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); verbose::Bool=true, tol::Real=1e-8, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), maxiter::Int=10, kwargs...)
+function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); verbose::Bool=true, tol::Real=1e-8, meth::AbstractODEAlgorithm=GetMethod(tol), maxiter::Int=10, kwargs...)
     @assert ConsistentElDims(points) == length(initialmean)
     oldmean = initialmean
     for iter in 1:maxiter
@@ -293,7 +293,7 @@ function MBAMBoundaries(DM::AbstractDataModel; componentlim::Real=1e4, singularl
     end
 end
 
-function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::OrdinaryDiffEqAlgorithm=GetMethod(tol), componentlim::Real=1e4, singularlim::Real=1e-8, kwargs...)
+function MBAM(DM::AbstractDataModel; Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-5, meth::AbstractODEAlgorithm=GetMethod(tol), componentlim::Real=1e4, singularlim::Real=1e-8, kwargs...)
     InitialVel = normalize(LeastInformativeDirection(DM,MLE(DM)))
     CB = DiscreteCallback(MBAMBoundaries(DM; componentlim=componentlim, singularlim=singularlim), terminate!)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(Boundaries, terminate!)) : CB
