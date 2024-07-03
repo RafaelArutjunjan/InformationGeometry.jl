@@ -12,11 +12,14 @@ end
 
 # Callback triggers when Boundaries is `true`.
 """
-    ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::HyperCube)
+    ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::HyperCube; startp::AbstractVector)
     ModelMap(Map::Function, InDomain::Function, xyp::Tuple{Int,Int,Int})
 A container which stores additional information about a model map, in particular its domain of validity.
 `Map` is the actual map `(x,θ) -> model(x,θ)`. `Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
 For more complicated boundary constraints, scalar function `InDomain` can be specified, which should be strictly positive on the valid parameter domain.
+
+The kwarg `startp` may be used to pass a suitable parameter vector for the ModelMap.
+
 !!! note
     A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
     Providing this information about the domain can be advantageous in the optimization process for complicated models.
@@ -44,8 +47,11 @@ struct ModelMap{Inplace, Custom}
         ModelMap(model, nothing, FullDomain(xyp[3]), xyp; kwargs...)
     end
     # Given: Function only (potentially) -> Find xyp
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
-        startp = isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; 
+                            startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
+        ModelMap(model, startp, InDomain, Domain; kwargs...)
+    end
+    function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
         xlen = MaximalNumberOfArguments(model) > 2 ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
         testout = _TestOut(model, startp, xlen)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); kwargs...)

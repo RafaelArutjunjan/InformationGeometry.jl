@@ -10,16 +10,16 @@ function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Numbe
 end
 
 LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
+function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number
     _curve_fit(DS, M, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
+function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number
     _curve_fit(DS, M, dM, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
 end
 
 
-function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
-    !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
+function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-14, kwargs...)
+    verbose && !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     LsqFit.check_data_health(xdata(DS), ydata(DS))
     u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
     F(θ::AbstractVector) = muladd(u, EmbeddingMap(DS, model, θ), Ydat)
@@ -28,8 +28,8 @@ function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::Abstra
     LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
 end
 
-function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; tol::Real=1e-14, kwargs...)
-    !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
+function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-14, kwargs...)
+    verbose && !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     LsqFit.check_data_health(xdata(DS), ydata(DS))
     u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
     F(θ::AbstractVector) = u * (EmbeddingMap(DS, model, θ) - ydata(DS))
@@ -45,16 +45,16 @@ function rescaledjac(M::AbstractMatrix{T}, xlen::Int) where T<:Number
 end
 
 
-function TotalLeastSquares(DM::AbstractDataModel, args...; kwargs...)
+function TotalLeastSquaresOLD(DM::AbstractDataModel, args...; kwargs...)
     !isnothing(LogPrior(DM)) && @warn "TotalLeastSquares() cannot account for priors. Throwing away given prior and continuing anyway."
-    TotalLeastSquares(Data(DM), Predictor(DM), args...; kwargs...)
+    TotalLeastSquaresOLD(Data(DM), Predictor(DM), args...; kwargs...)
 end
 """
-    TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}; tol::Real=1e-13, kwargs...) -> Vector
+    TotalLeastSquaresOLD(DSE::DataSetExact, model::ModelOrFunction, initial::AbstractVector{<:Number}; tol::Real=1e-13, kwargs...) -> Vector
 Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
 Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
 """
-function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DSE, model); tol::Real=1e-13,
+function TotalLeastSquaresOLD(DSE::DataSetExact, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DSE, model); tol::Real=1e-13,
                                 ADmode::Union{Symbol,Val}=Val(:ForwardDiff), rescale::Bool=true, verbose::Bool=true, Full::Bool=false, kwargs...)
     # Improve starting values by fitting with ordinary least squares first
     initialp = curve_fit(DataSet(WoundX(DSE),Windup(ydata(DSE),ydim(DSE)),ysigma(DSE)), model, initialp; tol=tol, kwargs...).param
@@ -82,15 +82,22 @@ function TotalLeastSquares(DSE::DataSetExact, model::ModelOrFunction, initialp::
 end
 
 
-## Remove above custom method and implement LiftedCost∘LiftedEmbedding for both
-function TotalLeastSquares(DS::AbstractDataSet, model::ModelOrFunction, initialp::AbstractVector{<:Number}=GetStartP(DS, model); kwargs...)
-    !HasXerror(DS) && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
-    xlen = Npoints(DS)*xdim(DS);    Cost(x::AbstractVector) = -logpdf(dist(DS), x)
-    function predictY(ξ::AbstractVector)
-        x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
-        vcat(x, EmbeddingMap(DS, model, p, Windup(x,xdim(DS))))
+
+"""
+    TotalLeastSquares(DM::DataModel, initialθ::AbstractVector=MLE(DM), start::AbstractVector=[xdata(DM);initialp]; tol::Real=1e-13, kwargs...) -> Vector
+Experimental feature which takes into account uncertainties in x-values to improve the accuracy of the fit.
+Returns concatenated vector of x-values and parameters. Assumes that the uncertainties in the x-values and y-values are normal, i.e. Gaussian!
+"""
+function TotalLeastSquares(DM::AbstractDataModel, initialp::AbstractVector{<:Number}=MLE(DM), start::AbstractVector{<:Number}=[xdata(DM);initialp]; Full::Bool=false, 
+                            rescale::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+    if rescale
+        @assert Data(DM) isa DataSetExact "rescale kwarg only implemented for DataSetExact."
+        !isnothing(LogPrior(DM)) && @warn "TotalLeastSquaresOLD() cannot account for priors. Throwing away given prior and continuing anyway."
+        return TotalLeastSquaresOLD(Data(DM), Predictor(DM), initialp; rescale, Full, ADmode, kwargs...)
     end
-    InformationGeometry.minimize(Cost∘predictY, [xdata(DS); initialp]; kwargs...)
+    !HasXerror(DM) && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
+    Res = InformationGeometry.minimize(FullLiftedNegLogLikelihood(DM), start; Full, kwargs...)
+    Full ? Res : (Windup(Res[1:length(xdata(DM))],xdim(DM)), Res[length(xdata(DM))+1:end])
 end
 
 """
