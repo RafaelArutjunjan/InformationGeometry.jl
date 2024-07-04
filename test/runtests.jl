@@ -197,7 +197,7 @@ end
     @test OrthVF(DM, MLE(DM)) ≈ OrthVF(dm, MLE(dm))
 
     # (y,x,p)->(y .= [p[1]^3*x, p[2]^2*x])
-    @test DataModel(Data(DM), Optimize(Predictor(dm); inplace=false)...) isa AbstractDataModel
+    @test DataModel(Data(DM), OptimizeModel(Predictor(dm); inplace=false)...) isa AbstractDataModel
 
     @test curve_fit(Data(DM), Predictor(DM), rand(pdim(DM))).param ≈ curve_fit(Data(DM), Predictor(DM), dPredictor(DM), rand(pdim(DM))).param
 end

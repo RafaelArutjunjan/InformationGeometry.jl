@@ -623,7 +623,7 @@ function GetGeneralLinearModel(DS::AbstractDataSet)
     for (i,series) in enumerate(Names)
         push!(series, "p_(" * ynames(DS)[i] * " × Offset)")
     end
-    Optimize(ModelMap(NaiveGeneralLinearModel, nothing, nothing, (xdim(DS), ydim(DS), ydim(DS)*(xdim(DS)+1)), reduce(vcat, Names), Val(true), Val(false), Val(false)); inplace=false)[1]
+    OptimizeModel(ModelMap(NaiveGeneralLinearModel, nothing, nothing, (xdim(DS), ydim(DS), ydim(DS)*(xdim(DS)+1)), reduce(vcat, Names), Val(true), Val(false), Val(false)); inplace=false)[1]
 end
 
 

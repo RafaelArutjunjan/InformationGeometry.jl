@@ -195,7 +195,7 @@ Returns appropriate function which constitutes the automatic derivative of the `
 function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
     # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
     if ADmode === :Symbolic || ADmode isa Val{:Symbolic}
-        Symbolic_dmodel = Optimize(DS, model)[2]
+        Symbolic_dmodel = OptimizeModel(DS, model)[2]
         !isnothing(Symbolic_dmodel) && return Symbolic_dmodel
         # Fall back to ForwardDiff if Symbolic differentiation did not work
         @info "Falling back to ForwardDiff for model jacobian."

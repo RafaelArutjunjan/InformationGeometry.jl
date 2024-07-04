@@ -60,16 +60,16 @@ end
 
 # mixing inplace (outcome) with isinplace (input) here. Disambiguate!
 
-Optimize(DM::AbstractDataModel; kwargs...) = Optimize(Data(DM), Predictor(DM); kwargs...)
-Optimize(DS::AbstractDataSet, model::ModelOrFunction; kwargs...) = Optimize(model, Getxyp(DS, model); kwargs...)
+OptimizeModel(DM::AbstractDataModel; kwargs...) = OptimizeModel(Data(DM), Predictor(DM); kwargs...)
+OptimizeModel(DS::AbstractDataSet, model::ModelOrFunction; kwargs...) = OptimizeModel(model, Getxyp(DS, model); kwargs...)
 
-Optimize(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = _Optimize(model, xyp; kwargs...)
-function Optimize(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=(xyp[2] > 1), kwargs...)
-    model, dmodel = _Optimize(M, xyp; inplace=inplace, kwargs...)
+OptimizeModel(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = _OptimizeModel(model, xyp; kwargs...)
+function OptimizeModel(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; inplace::Bool=(xyp[2] > 1), kwargs...)
+    model, dmodel = _OptimizeModel(M, xyp; inplace=inplace, kwargs...)
     (!isnothing(model) && !isnothing(dmodel)) ? (ModelMap(model, M; inplace=(inplace && (xyp[2] > 1))), ModelMap(dmodel, M; inplace=inplace)) : (nothing, nothing)
 end
 
-function _Optimize(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
+function _OptimizeModel(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace::Bool=false, timeout::Real=5, parallel::Bool=false, kwargs...)
     modelexpr = ToExpr(model, xyp; timeout=timeout) |> Symbolics.simplify
     isnothing(modelexpr) && return nothing, nothing
 
@@ -101,13 +101,13 @@ end
 
 
 function OptimizedDM(DM::AbstractDataModel; kwargs...)
-    model, dmodel = Optimize(DM; kwargs...)
+    model, dmodel = OptimizeModel(DM; kwargs...)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
     !isnothing(dmodel) ? DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM)) : DM
 end
 
 function InplaceDM(DM::AbstractDataModel; inplace::Bool=true, kwargs...)
-    model!, dmodel! = Optimize(ModelMappize(DM); inplace=inplace, kwargs...)
+    model!, dmodel! = OptimizeModel(ModelMappize(DM); inplace=inplace, kwargs...)
     @assert !isnothing(model!) && !isnothing(dmodel!) "Could not create inplace version of given DataModel."
     DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM), true)
 end
