@@ -54,9 +54,9 @@ struct ModelMap{Inplace, Custom}
     function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
         xlen = MaximalNumberOfArguments(model) > 2 ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
         testout = _TestOut(model, startp, xlen)
-        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); kwargs...)
+        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
     end
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], name::Union{String,Symbol}=Symbol(), Meta=nothing, kwargs...)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], name::Union{String,Symbol}=Symbol(), Meta=nothing, startp=nothing, kwargs...)
         pnames = length(pnames) == 0 ? CreateSymbolNames(xyp[3],"θ") : pnames
         # startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         # testout = _TestOut(model, startp, xyp[1])

@@ -242,7 +242,7 @@ export GetModel, ModifyODEmodel
 
 
 include("SymbolicComputations.jl")
-export Optimize, OptimizedDM, InplaceDM, SymbolicModel, SymbolicdModel
+export OptimizeModel, OptimizedDM, InplaceDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
