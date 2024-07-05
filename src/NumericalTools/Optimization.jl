@@ -144,9 +144,9 @@ ConstrainStart(Start::AbstractVector{<:Number}, Dom::Nothing; kwargs...) = Start
 
 
 """
-    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
-    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
-    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, timeout::Real=600, kwargs...) -> Vector
+    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
+    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
+    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
 Minimizes the scalar input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument (ignoring derivatives).
@@ -154,11 +154,23 @@ Optionally, the search domain can be bounded by passing a suitable `HyperCube` o
 minimize(F::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,), start, args...; kwargs...)
 minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF), start, args...; kwargs...)
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
-function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain, Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10,
-                    Full::Bool=false, verbose::Bool=true, timeout::Real=600.0, meth::Optim.AbstractOptimizer=(length(Fs) == 1 ? NelderMead() : (length(Fs) == 2 ? LBFGS() : Newton())),
-                    g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
-                    callback=nothing, iterations::Int=10000, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
-                    store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, kwargs...) where T <: Number
+
+
+function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
+                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? Optim.LBFGS() : Optim.Newton())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
+    minimize(Fs, Start, meth; Domain, maxtime, kwargs...)
+end
+
+
+# Force use of custom function instead of using OptimizationOptimJL.jl as intermediate layer
+minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; kwargs...) = minimizeOptimJL(Fs, Start, meth; kwargs...)
+
+# Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
+function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
+                Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime, 
+                g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
+                maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
+                store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
@@ -167,7 +179,7 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain:
     # Construct callback for early stopping if objective function below Fthresh unless any other callback is given
     cb = isnothing(callback) ? (!isnothing(Fthresh) ? (z->z.value<Fthresh) : nothing) : callback
     options = Optim.Options(; x_tol, f_tol, g_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, g_reltol, f_calls_limit, show_every, show_trace,
-                            allow_f_increases, iterations, store_trace, extended_trace, callback=cb, time_limit=timeout)
+                            allow_f_increases, iterations, store_trace, extended_trace, time_limit, callback=cb)
     
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
@@ -193,15 +205,90 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, domain:
     Full ? Res : Optim.minimizer(Res)
 end
 
+ADtypeConverter(V::Val{true}) = Optimization.AutoForwardDiff()
+ADtypeConverter(V::Val{:ForwardDiff}) = Optimization.AutoForwardDiff()
+ADtypeConverter(V::Val{:ReverseDiff}) = Optimization.AutoReverseDiff()
+ADtypeConverter(V::Val{:Zygote}) = Optimization.AutoZygote()
+ADtypeConverter(V::Val{:FiniteDifferences}) = Optimization.AutoFiniteDifferences()
+ADtypeConverter(V::Val{:FiniteDiff}) = Optimization.AutoFiniteDiff()
+ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
+ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
+
+function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, kwargs...)
+    @assert 1 ≤ length(Fs) ≤ 3
+    
+    optf = if length(Fs) == 1
+        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons)
+    else
+        @warn "minimize(): Currently ignoring manually given derivatives and using adtype=$adtype instead."
+        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons)
+    # elseif length(Fs) == 2
+    #     numarg = MaximalNumberOfArguments(Fs[2])
+    #     if numarg == 1
+    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x))
+    #     else
+    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x))
+    #     end
+    # else
+    #     @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
+    #     numarg = MaximalNumberOfArguments(Fs[2])
+    #     if numarg == 1
+    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x), hess=(x,p)->Fs[3](x))
+    #     else
+    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
+    #     end
+    end
+    minimize(optf, Start, meth; kwargs...)
+end
+
+# For Optimizers from the Optimization.jl ecosystem
+function minimize(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
+                    tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, lcons=nothing, ucons=nothing, kwargs...)
+
+    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, sense=MinSense,
+                                lb=(!isnothing(Domain) ? Domain.L : nothing), ub=(!isnothing(Domain) ? Domain.U : nothing))
+
+    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, kwargs...) # callback
+    verbose && sol.retcode !== ReturnCode.Success && @warn "minimize(): Optimization appears to not have converged."
+    Full ? sol : sol.u
+end
+
+
 GetDomain(DM::AbstractDataModel) = GetDomain(Predictor(DM))
 GetDomain(M::ModelMap) = Domain(M)
 GetDomain(F::Function) = nothing
 
-minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); kwargs...) = minimize(Data(DM), Predictor(DM), start, LogPrior(DM); kwargs...)
+GetConstraintFunc(DM::AbstractDataModel, startp::AbstractVector{<:Number}=MLE(DM); kwargs...) = GetDomain(Predictor(DM), startp; kwargs...)
+GetConstraintFunc(F::Function, startp::AbstractVector{<:Number} = rand(1); kwargs...) = (nothing, nothing, nothing)
+function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStartP(M); inplace::Bool=true)
+    if isnothing(InDomain(M))
+        (nothing, nothing, nothing)
+    else
+        Cons = InDomain(M);     testout = Cons(startp)
+        if testout isa AbstractVector
+            (0.0 .* testout, testout .+ Inf, inplace ? ((y::AbstractVector,x::AbstractVector,p)-> copyto!(y,Cons(x))) : ((x::AbstractVector,p)->Cons(x)))
+        elseif testout isa Number
+            ([0.0], [Inf], inplace ? ((y::AbstractVector,x::AbstractVector,p)-> copyto!(y,Cons(x))) : ((x::AbstractVector,p)->[Cons(x)]))
+        end
+    end
+end
+
+function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
+    F = HasXerror(DM) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)
+    # Get constraint function and Hypercube from ModelMap if available?
+    Lcons, Ucons, Cons = GetConstraintFunc(DM, startp; inplace=true) # isinplacemodel(DM)
+    isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
+end
+
+# If DM not constructed yet
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
     F = HasXerror(DS) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
-    minimize(F, start, Domain; kwargs...)
+    Lcons, Ucons, Cons = GetConstraintFunc(Model, startp; inplace=true) # isinplacemodel(DM)
+    isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
 end
+
+
+
 """
     RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.

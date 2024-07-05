@@ -200,6 +200,7 @@ end
     @test DataModel(Data(DM), OptimizeModel(Predictor(dm); inplace=false)...) isa AbstractDataModel
 
     @test curve_fit(Data(DM), Predictor(DM), rand(pdim(DM))).param ≈ curve_fit(Data(DM), Predictor(DM), dPredictor(DM), rand(pdim(DM))).param
+    @test minimize(Data(DM), Predictor(DM), rand(pdim(DM))) ≈ minimize(Data(DM), Predictor(DM), dPredictor(DM), rand(pdim(DM)))
 end
 
 @safetestset "Inputting Datasets of various shapes" begin
@@ -438,25 +439,8 @@ end
 end
 
 
-@safetestset "Numerical Helper Functions" begin
+@safetestset "Optimization Functions" begin
     using InformationGeometry, Test, BenchmarkTools, LinearAlgebra, Optim
-
-    # Compare Integrate1D and IntegrateND
-
-    # Test integration, differentiation, Monte Carlo, GeodesicLength
-    # TEST WITH AND WITHOUT BIGFLOAT
-    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - π) < 1.5e-3
-    @test abs(Integrate1D(cos, (0,π/2); tol=1e-12) - IntegrateND(cos, (0,π/2); tol=1e-12)) < 1e-10
-    z = 3rand()
-    @test abs(Integrate1D(x->2/sqrt(π) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
-    @test abs(LineSearch(x->(x < BigFloat(π))) - π) < 1e-14
-    @test abs(LineSearch(x->(x < BigFloat(π)), BigFloat(1e-14); tol=1e-30) - BigFloat(π)) < 1e-25
-    @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,π],[-sqrt(2),0]]),rand(3))) - sqrt(2)*π) < 3e-15
-
-    k = rand(1:20);     r = 10rand()
-    @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
-    @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
-
 
     # Test optimizers:
     F(x) = x[1]^2 + 0.5x[2]^4;    initial = 10ones(2) + rand(2);    Cube = HyperCube(-2ones(2), 18ones(2))
@@ -472,4 +456,21 @@ end
     # Check type stability of optimization
     using ComponentArrays
     @test InformationGeometry.minimize(X->X.A[1]^2 + 0.5X.B[1]^4, ComponentVector(A=[initial[1]], B=[initial[1]]); tol=1e-5, meth=Newton()) isa ComponentVector
+end
+
+
+@safetestset "Numerical Helper Functions" begin
+    using InformationGeometry, Test
+    
+    @test abs(InformationGeometry.MonteCarloArea(x->((x[1]^2 + x[2]^2) < 1), HyperCube([[-1,1],[-1,1]])) - π) < 1.5e-3
+    @test abs(Integrate1D(cos, (0,π/2); tol=1e-12) - IntegrateND(cos, (0,π/2); tol=1e-12)) < 1e-10
+    z = 3rand()
+    @test abs(Integrate1D(x->2/sqrt(π) * exp(-x^2), [0,z/sqrt(2)]) - ConfVol(z)) < 1e-12
+    @test abs(LineSearch(x->(x < BigFloat(π))) - π) < 1e-14
+    @test abs(LineSearch(x->(x < BigFloat(π)), BigFloat(1e-14); tol=1e-30) - BigFloat(π)) < 1e-25
+    @test abs(CubeVol(TranslateCube(HyperCube([[0,1],[0,π],[-sqrt(2),0]]),rand(3))) - sqrt(2)*π) < 3e-15
+
+    k = rand(1:20);     r = 10rand()
+    @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
+    @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
 end

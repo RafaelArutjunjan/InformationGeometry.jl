@@ -9,14 +9,14 @@ using Distributed, StaticArrays, SparseArrays, ForwardDiff
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
 using DerivableFunctionsBase
-using BenchmarkTools, LsqFit, Optim, Measurements, HCubature
+using BenchmarkTools, LsqFit, Optim, Optimization, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
 using RecipesBase, PlotUtils
 using TreeViews, PrettyTables
 
 import DataInterpolations: AbstractInterpolation
-import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm
+import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm, AbstractADType
 
 import SciMLBase: remake
 export remake
