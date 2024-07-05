@@ -9,6 +9,15 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=1
         Res[1:(findfirst(isinf, Res) - 1)]
     end
 end
+function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, IsInplace::Bool)
+    woundX = Windup(collect(1:2xyp[1]) .+ 0.1rand(2xyp[1]), xyp[1])
+    if !IsInplace
+        try   length(model(woundX, startp)) == 2xyp[2]   catch;  false   end
+    else
+        Res = fill(-Inf, 2xyp[2])
+        try   model(Res, woundX, startp);   !any(isinf, Res)    catch; false  end
+    end
+end
 
 # Callback triggers when Boundaries is `true`.
 """
@@ -16,7 +25,8 @@ end
     ModelMap(Map::Function, InDomain::Function, xyp::Tuple{Int,Int,Int})
 A container which stores additional information about a model map, in particular its domain of validity.
 `Map` is the actual map `(x,θ) -> model(x,θ)`. `Domain` is a `HyperCube` which allows one to roughly specify the ranges of the various parameters.
-For more complicated boundary constraints, scalar function `InDomain` can be specified, which should be strictly positive on the valid parameter domain.
+For more complicated boundary constraints, a function `InDomain(θ)` can be specified, for which all outputted components should be .≥ 0 on the valid parameter domain.
+Alternatively, `InDomain` may also be a bool-valued function, evaluating to `true` in admissible parts of the parameter domain.
 
 The kwarg `startp` may be used to pass a suitable parameter vector for the ModelMap.
 
@@ -56,13 +66,16 @@ struct ModelMap{Inplace, Custom}
         testout = _TestOut(model, startp, xlen)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
     end
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], name::Union{String,Symbol}=Symbol(), Meta=nothing, startp=nothing, kwargs...)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], name::Union{String,Symbol}=Symbol(), Meta=nothing, 
+                            startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
         pnames = length(pnames) == 0 ? CreateSymbolNames(xyp[3],"θ") : pnames
         # startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         # testout = _TestOut(model, startp, xyp[1])
         # StaticOutput = testout isa SVector
         Inplace = MaximalNumberOfArguments(model) > 2
-        ModelMap(model, InDomain, Domain, xyp, pnames, Val(Inplace), Val(false), name, Meta; kwargs...)
+        # Given xyp, check if given model is custom, i.e. if it can output sensible values for woundX input
+        IsCustom = CheckIfIsCustom(model, startp, xyp, Inplace)
+        ModelMap(model, InDomain, Domain, xyp, pnames, Val(Inplace), Val(IsCustom), name, Meta; kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
     ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, InDomain(M), Domain(M), M.xyp, M.pnames, Val(inplace), M.CustomEmbedding, name(M), M.Meta)
@@ -77,7 +90,7 @@ struct ModelMap{Inplace, Custom}
                     pnames::AbstractVector{String}, StaticOutput::Val, inplace::Val, CustomEmbedding::Val, name::Symbol) ModelMap(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, nothing))
 
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                        pnames::AbstractVector{String}, inplace::Val=Val(false), CustomEmbedding::Val=Val(false), name::Union{String,Symbol}=Symbol(), Meta=nothing)
+                        pnames::AbstractVector{String}, inplace::Val, CustomEmbedding::Val, name::Union{String,Symbol}=Symbol(), Meta=nothing)
         name isa String && (name = Symbol(name))
         @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
         isnothing(Domain) ? (Domain = FullDomain(xyp[3], 1e5)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
@@ -131,7 +144,7 @@ IsInDomain(InDomain::Union{Nothing,Function}, Domain::Union{Nothing,Cuboid}, θ:
 
 # Eval InDomain function
 _TestInDomain(::Nothing, θ::AbstractVector) = true
-_TestInDomain(InDomain::Function, θ::AbstractVector) = InDomain(θ) > 0
+_TestInDomain(InDomain::Function, θ::AbstractVector) = all(InDomain(θ) .≥ 0)
 # Eval Domain HyperCube
 _TestDomain(::Nothing, θ::AbstractVector) = true       # Excluded
 _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
@@ -139,17 +152,17 @@ _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 
 MakeCustom(F::Function, Domain::Union{Bool,Nothing}=nothing; kwargs...) = MakeCustom(ModelMap(F); kwargs...)
 MakeCustom(F::Function, Domain::Cuboid; kwargs...) = MakeCustom(ModelMap(F, Domain); kwargs...)
-function MakeCustom(M::ModelMap; Meta=M.Meta)
+function MakeCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     if iscustom(M)
-        @warn "MakeCustom: Given Map already uses custom embedding."
+        verbose && @warn "MakeCustom: Given Map already uses custom embedding."
         return M
     else
         return ModelMap(M.Map, InDomain(M), Domain(M), M.xyp, M.pnames, M.inplace, Val(true), name(M), Meta)
     end
 end
-function MakeNonCustom(M::ModelMap; Meta=M.Meta)
+function MakeNonCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     if !iscustom(M)
-        @warn "MakeNonCustom: Given Map already using non-custom embedding."
+        verbose && @warn "MakeNonCustom: Given Map already using non-custom embedding."
         return M
     else
         return ModelMap(M.Map, InDomain(M), Domain(M), M.xyp, M.pnames, M.inplace, Val(false), name(M), Meta)
