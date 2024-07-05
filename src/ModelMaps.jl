@@ -137,6 +137,7 @@ iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 iscustom(F::Function) = false
 
 isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
+isinplacemodel(DM::AbstractDataModel) = isinplacemodel(Predictor(DM))
 
 IsInDomain(M::ModelMap) = θ::AbstractVector -> IsInDomain(M, θ)
 IsInDomain(M::ModelMap, θ::AbstractVector) = IsInDomain(InDomain(M), Domain(M), θ)
@@ -155,7 +156,7 @@ MakeCustom(F::Function, Domain::Cuboid; kwargs...) = MakeCustom(ModelMap(F, Doma
 function MakeCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     if iscustom(M)
         verbose && @warn "MakeCustom: Given Map already uses custom embedding."
-        return M
+        return remake(M; Meta)
     else
         return ModelMap(M.Map, InDomain(M), Domain(M), M.xyp, M.pnames, M.inplace, Val(true), name(M), Meta)
     end
@@ -163,7 +164,7 @@ end
 function MakeNonCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     if !iscustom(M)
         verbose && @warn "MakeNonCustom: Given Map already using non-custom embedding."
-        return M
+        return remake(M; Meta)
     else
         return ModelMap(M.Map, InDomain(M), Domain(M), M.xyp, M.pnames, M.inplace, Val(false), name(M), Meta)
     end

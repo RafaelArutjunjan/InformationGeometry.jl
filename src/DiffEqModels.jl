@@ -50,8 +50,8 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     
-    odefunc = ODEFunction{inplace}(sys; jac = true)
     Model = if sys isa ModelingToolkit.AbstractODESystem
+        odefunc = ODEFunction{inplace}(structural_simplify(sys); jac = true)
         GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
