@@ -87,10 +87,16 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
-        new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, Name)
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, name::Union{String,Symbol}=Symbol())
+        new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
     end
 end
+
+function (::Type{T})(DS::DataSet; kwargs...) where T<:Number
+	NewInvCov = T.(yInvCov(DS))
+    DataSet(T.(xdata(DS)), T.(ydata(DS)), NewInvCov, dims(DS), logdet(NewInvCov), [SVector{xdim(dims(DS))}(Z) for Z in Windup(T.(xdata(DS)),xdim(dims(DS)))]; xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
+end
+
 
 # For SciMLBase.remake
 DataSet(;
@@ -129,14 +135,6 @@ xnames(DS::DataSet) = DS.xnames
 ynames(DS::DataSet) = DS.ynames
 
 name(DS::DataSet) = DS.name |> string
-
-
-function Base.BigFloat(DS::DataSet; kwargs...)
-	newx = BigFloat.(xdata(DS))
-	NewInvCov = BigFloat.(yInvCov(DS))
-	remake(DS; x=newx, WoundX=(isnothing(DS.WoundX) ? nothing : Windup(newx, xdim(DS))),
-				y=BigFloat.(ydata(DS)), InvCov=NewInvCov, logdetInvCov=logdet(NewInvCov), kwargs...)
-end
 
 
 # function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})

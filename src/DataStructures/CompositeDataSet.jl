@@ -118,6 +118,14 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
         new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
     end
 end
+
+function (::Type{T})(DS::CompositeDataSet) where T<:Number
+    DSs = T.(Data(DS))
+    InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
+    CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)), name(DS))
+end
+
+
 CompositeDataSet(DS::AbstractDataSet; kwargs...) = CompositeDataSet([DS]; kwargs...)
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, kwargs...)
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs), kwargs...)

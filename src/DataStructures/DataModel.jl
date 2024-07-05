@@ -147,8 +147,15 @@ LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 pdim(DM::DataModel) = length(MLE(DM))
 
 
-Base.BigFloat(DM::DataModel) = DataModel((try BigFloat(Data(DM)) catch; Data(DM) end), Predictor(DM), dPredictor(DM), BigFloat.(MLE(DM)))
-Base.Float64(DM::DataModel) = DataModel(Data(DM), Predictor(DM), dPredictor(DM), Float64.(MLE(DM)))
+function (::Type{T})(DM::DataModel) where T<:Number
+    D = try
+        T(Data(DM))
+    catch err
+        @warn "Was unable to convert $(typeof(Data(DM))) to $T due to: $err"
+        Data(DM)
+    end
+    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)))
+end
 
 
 InformNames(DM::AbstractDataModel, xnames::AbstractVector{String}, ynames::AbstractVector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
