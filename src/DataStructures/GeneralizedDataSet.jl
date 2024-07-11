@@ -54,6 +54,12 @@ struct GeneralizedDataSet{DistType<:Distribution} <: AbstractFixedUncertaintyDat
     end
 end
 
+function (::Type{T})(DS::GeneralizedDataSet; kwargs...) where T<:Number
+	GeneralizedDataSet(ConvertDist(dist(DS),T), dims(DS),
+				(isnothing(DS.WoundX) ? nothing : [SVector{xdim(DS)}(Z) for Z in Windup(T.(xdata(DS)), xdim(DS))]); 
+                xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+end
+
 # For SciMLBase.remake
 begin
     GeneralizedDataSet(;

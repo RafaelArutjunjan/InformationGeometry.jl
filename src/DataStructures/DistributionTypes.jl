@@ -77,8 +77,24 @@ Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
 Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
 Distributions.pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
 Distributions.logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
+Distributions.params(d::InformationGeometry.Dirac) = (d.μ,)
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
 Distributions.gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
 Distributions.gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
+
+
+
+# Get Symbol for everything before {} in type.
+UnparametrizeType(D) = (S=string(typeof(D)); Symbol(S[1:findfirst('{',S)-1]))
+
+## Change Number Type of distributions
+ConvertDist(D::UnivariateDistribution, ::Type{T}) where T<:Number = eval(quote $(UnparametrizeType(D)){$T}($(T).($(params(D)))...) end)
+ConvertDist(D::InformationGeometry.Dirac, ::Type{T}) where T<:Number = InformationGeometry.Dirac(T.(D.μ))
+ConvertDist(D::MultivariateNormal, ::Type{T}) where T<:Number = MvNormal(T.(mean(D)), T.(cov(D)))
+
+function ConvertDist(D::Union{Distributions.Product, InformationGeometry.GeneralProduct}, ::Type{T}) where T<:Number
+    @assert eltype(D.v) <: Distribution{Univariate, Continuous}
+    product_distribution(broadcast(x->ConvertDist(x,T), D.v))
+end

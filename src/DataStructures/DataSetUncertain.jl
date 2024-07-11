@@ -65,6 +65,10 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
     end
 end
 
+function (::Type{T})(DS::DataSetUncertain; kwargs...) where T<:Number
+	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), xnames(DS), ynames(DS), name(DS))
+end
+
 # For SciMLBase.remake
 DataSetUncertain(;
 x::AbstractVector=[0.],
