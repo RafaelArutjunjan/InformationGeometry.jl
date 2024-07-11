@@ -20,7 +20,7 @@ Copy the state names saved in `ODESystem` to `DS`.
 """
 function InformNames(DS::AbstractDataSet, sys::ModelingToolkit.AbstractSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
     newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : xnames(DS)
-    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.(ModelingToolkit.get_states(sys)[observables]) : ynames(DS)
+    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 

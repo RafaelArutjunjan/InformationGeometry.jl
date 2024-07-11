@@ -532,7 +532,9 @@ function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Fun
     EmbeddedODESolution(newu, isnothing(sol.u_analytic) ? nothing : Embedding∘sol.u_analytic, # Is this translation correct?
                  sol.errors, sol.t, newk, sol.prob, sol.alg,
                  sol.interp, # Leaving old interp object as is and only using embedding on calls of EmbeddedODESolution objects themselves.
-                 sol.dense, sol.tslocation, sol.destats, sol.retcode, Embedding)
+                 sol.dense, sol.tslocation, 
+                 try sol.stats catch; sol.destats end, # destats field deprecated in newer versions 
+                 sol.retcode, Embedding)
 end
 EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) = EmbeddedODESolution(sol, PlaneCoordinates(PL))
 function EmbeddedODESolution(sols::AbstractVector{<:AbstractODESolution}, Planes::AbstractVector{<:Plane})

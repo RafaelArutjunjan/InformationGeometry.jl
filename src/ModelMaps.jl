@@ -587,7 +587,8 @@ Transforms the parameters of a `ODESystem` according to `F`.
 function SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))))
     SubstDict = Dict(parameters(Sys) .=> [(idxs[i] ? F(x) : x) for (i,x) in enumerate(parameters(Sys))])
     NewEqs = [(equations(Sys)[i].lhs ~ substitute(equations(Sys)[i].rhs, SubstDict)) for i in 1:length(equations(Sys))]
-    ODESystem(NewEqs, independent_variables(Sys)[1], states(Sys), parameters(Sys); name=nameof(Sys))
+    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
+    ODESystem(NewEqs, independent_variables(Sys)[1], try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, ModelingToolkit.parameters(Sys); name=nameof(Sys))
 end
 
 """
