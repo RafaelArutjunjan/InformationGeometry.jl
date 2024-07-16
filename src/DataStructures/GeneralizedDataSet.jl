@@ -89,7 +89,7 @@ Does the data have mixed covariance, i.e. offdiagonal blocks in total covariance
 """
 isseparable(GDS::GeneralizedDataSet) = isseparable(dist(GDS))
 isseparable(P::Distribution) = false
-isseparable(P::GeneralProduct) = length(P) == 2 ? true : false
+isseparable(P::InformationGeometry.GeneralProduct) = length(P) == 2 ? true : false
 
 
 xInvCov(GDS::GeneralizedDataSet) = InvCov(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))]

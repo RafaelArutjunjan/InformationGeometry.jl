@@ -18,24 +18,25 @@ GeneralProduct(DM::Union{AbstractDataModel,AbstractDataSet}) = GeneralProduct([x
 
 
 
-Base.length(P::GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
+Base.length(P::InformationGeometry.GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
 
 
-# insupport(P::GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
+# insupport(P::InformationGeometry.GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
 # sum(!insupport(P.v[i],X[i]) for i in 1:length(P.v)) == 0
-Distributions.mean(P::GeneralProduct) = reduce(vcat, map(GetMean, P.v))
-Distributions.cov(P::GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
+Distributions.mean(P::InformationGeometry.GeneralProduct) = reduce(vcat, map(GetMean, P.v))
+Distributions.cov(P::InformationGeometry.GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
 
-
-for F = (Symbol("Distributions.logpdf"), Symbol("Distributions.gradlogpdf"))
+# For MetaProgramming using the module prefix "Distributions." doesn't appear to work and functions must be imported explicitly
+import Distributions: logpdf, gradlogpdf
+for F = (Symbol("logpdf"), Symbol("gradlogpdf"))
     eval(quote
         # Base.$F(a::MyNumber) = MyNumber($F(a.x))
-        $F(P::GeneralProduct, X::AbstractVector) = sum($F(P.v[i], X[i]) for i in 1:length(P.v))
-        $F(P::GeneralProduct, X::AbstractVector{<:Real}) = $F(P, X, Val(length(P.v)))
-        $F(P::GeneralProduct, X::AbstractVector{<:Real}, ::Val{1}) = $F(P.v[1], X)
-        $F(P::GeneralProduct, X::AbstractVector{<:Real}, ::Val{2}) = $F(P.v[1], view(X,1:length(P.v[1]))) + $F(P.v[2], view(X,length(P.v[1])+1:lastindex(X)))
+        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector) = sum($F(P.v[i], X[i]) for i in 1:length(P.v))
+        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}) = $F(P, X, Val(length(P.v)))
+        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val{1}) = $F(P.v[1], X)
+        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val{2}) = $F(P.v[1], view(X,1:length(P.v[1]))) + $F(P.v[2], view(X,length(P.v[1])+1:lastindex(X)))
         # There has to be a more performant way than this!
-        function $F(P::GeneralProduct, X::AbstractVector{<:Real}, ::Val)
+        function $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val)
             C = vcat([0],cumsum(length.(P.v)))
             sum($F(P.v[i], X[C[i]+1:C[i+1]]) for i in 1:length(P.v))
         end
@@ -43,15 +44,15 @@ for F = (Symbol("Distributions.logpdf"), Symbol("Distributions.gradlogpdf"))
 end
 
 
-Distributions.pdf(P::GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
-Distributions.invcov(P::GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
+Distributions.pdf(P::InformationGeometry.GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
+Distributions.invcov(P::InformationGeometry.GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
 Distributions.product_distribution(X::AbstractVector{<:ContinuousMultivariateDistribution}) = GeneralProduct(X)
 
 
-Sigma(P::GeneralProduct) = cov(P)
+Sigma(P::InformationGeometry.GeneralProduct) = cov(P)
 
 
-# LogLike(P::GeneralProduct, args...) = logpdf(P,[args...])
+# LogLike(P::InformationGeometry.GeneralProduct, args...) = logpdf(P,[args...])
 
 
 
@@ -87,14 +88,15 @@ Distributions.gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]
 
 
 # Get Symbol for everything before {} in type.
-UnparametrizeType(D) = (S=string(typeof(D)); Symbol(S[1:findfirst('{',S)-1]))
+UnparametrizeType(D) = (S=string(typeof(D)); ind=findfirst('{',S); isnothing(ind) ? Symbol(S) : Symbol(S[1:(ind-1)]))
 
 ## Change Number Type of distributions
-ConvertDist(D::UnivariateDistribution, ::Type{T}) where T<:Number = eval(quote $(UnparametrizeType(D)){$T}($(T).($(params(D)))...) end)
+ConvertDist(D::Distributions.Distribution, ::Type{T}) where T<:Number = eval(quote $(UnparametrizeType(D))(broadcast(x->broadcast($T,x), $(Distributions.params(D)))...) end)
+# Dirac not exported so MetaProgramming solution does not work
 ConvertDist(D::InformationGeometry.Dirac, ::Type{T}) where T<:Number = InformationGeometry.Dirac(T.(D.μ))
-ConvertDist(D::MultivariateNormal, ::Type{T}) where T<:Number = MvNormal(T.(mean(D)), T.(cov(D)))
+# Has type specializations depending on structure of covariance which should be ignored due to missing constructors
+ConvertDist(D::MvNormal, ::Type{T}) where T<:Number = MvNormal(T.(mean(D)), T.(cov(D)))
 
 function ConvertDist(D::Union{Distributions.Product, InformationGeometry.GeneralProduct}, ::Type{T}) where T<:Number
-    @assert eltype(D.v) <: Distribution{Univariate, Continuous}
     product_distribution(broadcast(x->ConvertDist(x,T), D.v))
 end

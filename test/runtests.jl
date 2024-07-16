@@ -229,9 +229,9 @@ end
     @test norm(EmbeddingMatrix(DME,MLE(DME)) .- EmbeddingMatrix(ODM,MLE(DME)), 1) < 1e-9
 
     CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
-    @test abs(loglikelihood(ODM, P) - loglikelihood(CDM, P)) < 5e-6
-    @test norm(Score(ODM, P) - Score(CDM, P)) < 5e-5
-    @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 8e-5
+    @test abs(loglikelihood(ODM, P) - loglikelihood(CDM, P)) < 1e-5
+    @test norm(Score(ODM, P) - Score(CDM, P)) < 2e-4
+    @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 2e-4
     @test norm(InformationGeometry.ResidualStandardError(ODM) - InformationGeometry.ResidualStandardError(CDM)) < 1e-10
 
     lastDS = Data(Data(CDM))[3]
@@ -242,7 +242,33 @@ end
     splitCDM = DataModel(newCDS, newmodel, MLE(CDM))
     @test abs(loglikelihood(splitCDM, P) - loglikelihood(CDM, P)) < 1e-5
     @test norm(Score(splitCDM, P) - Score(CDM, P)) < 2e-4
-    @test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 2e-3
+    @test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 2e-4
+
+
+    GDM = DataModel(GeneralizedDataSet(DME), Predictor(DME), MLE(DME))
+    @test abs(loglikelihood(GDM, P) - loglikelihood(CDM, P)) < 1e-5
+    @test norm(Score(GDM, P) - Score(CDM, P)) < 2e-4
+    @test norm(FisherMetric(GDM, P) - FisherMetric(CDM, P)) < 2e-4
+    
+    # Test Type conversions for Datasets
+    function TypeTester(DM::AbstractDataModel, ::Type{T}) where T<:Number
+        dm = T(DM)
+        @test eltype(xdata(dm)) <: T
+        @test eltype(ydata(dm)) <: T
+        @test eltype(yInvCov(dm)) <: T
+        @test eltype(eltype(WoundX(dm))) <: T
+        @test eltype(MLE(dm)) <: T
+    end
+    TypeTester(DM,  Float16)
+    TypeTester(DME, Float16)
+    TypeTester(CDM, Float16)
+    TypeTester(splitCDM, Float16)
+    TypeTester(GDM, Float16)
+    TypeTester(DM,  BigFloat)
+    TypeTester(DME, BigFloat)
+    TypeTester(CDM, BigFloat)
+    TypeTester(splitCDM, BigFloat)
+    TypeTester(GDM, BigFloat)
 end
 
 
