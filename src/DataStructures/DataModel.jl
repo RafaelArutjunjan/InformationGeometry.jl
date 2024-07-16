@@ -147,14 +147,14 @@ LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 pdim(DM::DataModel) = length(MLE(DM))
 
 
-function (::Type{T})(DM::DataModel) where T<:Number
+function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
     D = try
         T(Data(DM))
     catch err
         @warn "Was unable to convert $(typeof(Data(DM))) to $T due to: $err"
         Data(DM)
     end
-    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)))
+    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)); kwargs...)
 end
 
 

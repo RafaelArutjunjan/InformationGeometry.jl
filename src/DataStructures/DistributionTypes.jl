@@ -24,7 +24,7 @@ Base.length(P::InformationGeometry.GeneralProduct) = sum(length(P.v[i]) for i in
 # insupport(P::InformationGeometry.GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
 # sum(!insupport(P.v[i],X[i]) for i in 1:length(P.v)) == 0
 Distributions.mean(P::InformationGeometry.GeneralProduct) = reduce(vcat, map(GetMean, P.v))
-Distributions.cov(P::InformationGeometry.GeneralProduct) = BlockMatrix(map(Sigma, P.v)...)
+Distributions.cov(P::InformationGeometry.GeneralProduct) = reduce(BlockMatrix, map(Sigma, P.v))
 
 # For MetaProgramming using the module prefix "Distributions." doesn't appear to work and functions must be imported explicitly
 import Distributions: logpdf, gradlogpdf
@@ -45,7 +45,7 @@ end
 
 
 Distributions.pdf(P::InformationGeometry.GeneralProduct, X::AbstractVector) = exp(logpdf(P,X))
-Distributions.invcov(P::InformationGeometry.GeneralProduct) = BlockMatrix(map(InvCov,P.v)...)
+Distributions.invcov(P::InformationGeometry.GeneralProduct) = reduce(BlockMatrix, map(InvCov,P.v))
 Distributions.product_distribution(X::AbstractVector{<:ContinuousMultivariateDistribution}) = GeneralProduct(X)
 
 
@@ -74,8 +74,8 @@ Base.length(d::InformationGeometry.Dirac) = length(d.μ)
 
 Distributions.insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
 Distributions.mean(d::InformationGeometry.Dirac) = d.μ
-Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(zeros(length(d)))
-Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal([Inf for i in 1:length(d)])
+Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(zeros(eltype(d.μ),length(d)))
+Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal(eltype(d.μ)[Inf for i in 1:length(d)])
 Distributions.pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
 Distributions.logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
 Distributions.params(d::InformationGeometry.Dirac) = (d.μ,)

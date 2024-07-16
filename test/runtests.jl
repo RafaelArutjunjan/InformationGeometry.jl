@@ -249,6 +249,9 @@ end
     @test abs(loglikelihood(GDM, P) - loglikelihood(CDM, P)) < 1e-5
     @test norm(Score(GDM, P) - Score(CDM, P)) < 2e-4
     @test norm(FisherMetric(GDM, P) - FisherMetric(CDM, P)) < 2e-4
+
+    UDS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/abs(p[1]), [0.4])
+    UDM = DataModel(UDS, (x,p)->p[1]*x + p[2], [1, 1, 1.])
     
     # Test Type conversions for Datasets
     function TypeTester(DM::AbstractDataModel, ::Type{T}) where T<:Number
@@ -264,11 +267,14 @@ end
     TypeTester(CDM, Float16)
     TypeTester(splitCDM, Float16)
     TypeTester(GDM, Float16)
+    TypeTester(UDM, Float16)
+
     TypeTester(DM,  BigFloat)
     TypeTester(DME, BigFloat)
     TypeTester(CDM, BigFloat)
     TypeTester(splitCDM, BigFloat)
     TypeTester(GDM, BigFloat)
+    TypeTester(UDM, BigFloat)
 end
 
 

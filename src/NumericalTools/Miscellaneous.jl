@@ -241,12 +241,13 @@ BlockMatrix(M::Diagonal, N::Int) = Diagonal(repeat(M.diag, N))
 Constructs blockdiagonal matrix from `A` and `B`.
 """
 function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Number, S<:Number}
-    Res = zeros(Union{T,S}, size(A,1)+size(B,1), size(A,2)+size(B,2))
+    # Adopt eltype of first matrix instead of union
+    Res = zeros(T, size(A,1)+size(B,1), size(A,2)+size(B,2))
     Res[1:size(A,1), 1:size(A,1)] = A
     Res[size(A,1)+1:end, size(A,1)+1:end] = B
     Res
 end
 BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
 
-BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = BlockMatrix(As...)
+BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)

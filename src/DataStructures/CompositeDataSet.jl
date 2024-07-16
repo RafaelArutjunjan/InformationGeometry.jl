@@ -119,10 +119,10 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     end
 end
 
-function (::Type{T})(DS::CompositeDataSet) where T<:Number
+function (::Type{T})(DS::CompositeDataSet; kwargs...) where T<:Number
     DSs = T.(Data(DS))
     InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
-    CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)), name(DS))
+    CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)); name=name(DS), kwargs...)
 end
 
 
