@@ -3,11 +3,11 @@
 function CompleteObservationFunction(PreObservationFunction::Function)
     numargs = MaximalNumberOfArguments(PreObservationFunction)
     if numargs == 1
-        return (u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u)
+        return (u::Union{Number,AbstractArray{<:Number}}, t::Real=0., θ::AbstractVector{<:Number}=Float64[]) -> PreObservationFunction(u)
     elseif numargs == 2
-        return (u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t)
+        return (u::Union{Number,AbstractArray{<:Number}}, t::Real=0., θ::AbstractVector{<:Number}=Float64[]) -> PreObservationFunction(u, t)
     elseif numargs == 3
-        return (u::Union{Number,AbstractArray{<:Number}}, t::Real, θ::AbstractVector{<:Number}) -> PreObservationFunction(u, t, θ)
+        return (u::Union{Number,AbstractArray{<:Number}}, t::Real=0., θ::AbstractVector{<:Number}=Float64[]) -> PreObservationFunction(u, t, θ)
     else
         throw("Given ObservationFunction should accept either arguments (u) or (u,t) or (u,t,θ). Got function which accepts $numargs arguments.")
     end

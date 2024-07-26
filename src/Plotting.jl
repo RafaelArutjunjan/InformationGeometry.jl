@@ -96,7 +96,7 @@ end
 
 function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{AbstractVector,Nothing}=nothing; N::Int=500, kwargs...)
     isnothing(X) && (X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM))
-    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", kwargs...)
+    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", linewidth=2, kwargs...)
 end
 
 # xpositions for PDE Datasets
