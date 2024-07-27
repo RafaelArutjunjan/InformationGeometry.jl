@@ -18,11 +18,11 @@ GeneralProduct(DM::Union{AbstractDataModel,AbstractDataSet}) = GeneralProduct([x
 
 
 
-Base.length(P::InformationGeometry.GeneralProduct) = sum(length(P.v[i]) for i in 1:length(P.v))
+Base.length(P::InformationGeometry.GeneralProduct) = sum(length(P.v[i]) for i in eachindex(P.v))
 
 
-# insupport(P::InformationGeometry.GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in 1:length(P.lengths)])
-# sum(!insupport(P.v[i],X[i]) for i in 1:length(P.v)) == 0
+# insupport(P::InformationGeometry.GeneralProduct, X::AbstractVector)::Bool = all([insupport(P.v[i], X[P.lengths[i],]) for i in eachindex(P.lengths)])
+# sum(!insupport(P.v[i],X[i]) for i in eachindex(P.v)) == 0
 Distributions.mean(P::InformationGeometry.GeneralProduct) = reduce(vcat, map(GetMean, P.v))
 Distributions.cov(P::InformationGeometry.GeneralProduct) = reduce(BlockMatrix, map(Sigma, P.v))
 
@@ -31,14 +31,14 @@ import Distributions: logpdf, gradlogpdf
 for F = (Symbol("logpdf"), Symbol("gradlogpdf"))
     eval(quote
         # Base.$F(a::MyNumber) = MyNumber($F(a.x))
-        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector) = sum($F(P.v[i], X[i]) for i in 1:length(P.v))
+        $F(P::InformationGeometry.GeneralProduct, X::AbstractVector) = sum($F(P.v[i], X[i]) for i in eachindex(P.v))
         $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}) = $F(P, X, Val(length(P.v)))
         $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val{1}) = $F(P.v[1], X)
         $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val{2}) = $F(P.v[1], view(X,1:length(P.v[1]))) + $F(P.v[2], view(X,length(P.v[1])+1:lastindex(X)))
         # There has to be a more performant way than this!
         function $F(P::InformationGeometry.GeneralProduct, X::AbstractVector{<:Real}, ::Val)
             C = vcat([0],cumsum(length.(P.v)))
-            sum($F(P.v[i], X[C[i]+1:C[i+1]]) for i in 1:length(P.v))
+            sum($F(P.v[i], X[C[i]+1:C[i+1]]) for i in eachindex(P.v))
         end
     end)
 end
@@ -83,7 +83,7 @@ Distributions.params(d::InformationGeometry.Dirac) = (d.μ,)
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general
 Distributions.gradlogpdf(P::Cauchy,x::Real) = gradlogpdf(TDist(1), (x - P.μ) / P.σ) / P.σ
-Distributions.gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in 1:length(x)]
+Distributions.gradlogpdf(P::Product,x::AbstractVector) = [gradlogpdf(P.v[i],x[i]) for i in eachindex(x)]
 
 
 

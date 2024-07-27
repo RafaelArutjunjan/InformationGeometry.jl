@@ -170,7 +170,7 @@ function ProjectionOperator(A::AbstractMatrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator(Projector(PL))
 
-IsNormalToPlane(PL::Plane, v::AbstractVector)::Bool = abs(dot(PL.Vx, v)) < 4e-15 && abs(dot(PL.Vy, v)) < 4e-15
+IsNormalToPlane(PL::Plane, v::AbstractVector; tol::Real=4e-15) = abs(dot(PL.Vx, v)) < tol && abs(dot(PL.Vy, v)) < tol
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
     Basis = GramSchmidt(floatify([X,Y]))
@@ -282,7 +282,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
         M = Unpack(H);        HyperCube(M[:,1],M[:,2]; Padding=Padding)
     end
     function HyperCube(T::AbstractVector{<:Tuple{<:Real,<:Real}}; Padding::Number=0.)
-        HyperCube([T[i][1] for i in 1:length(T)], [T[i][2] for i in 1:length(T)]; Padding=Padding)
+        HyperCube([T[i][1] for i in eachindex(T)], [T[i][2] for i in eachindex(T)]; Padding=Padding)
     end
     function HyperCube(vals::AbstractVector{<:Number}; Padding::Number=0.)
         length(vals) != 2 && throw("Input has too many components.")
@@ -300,7 +300,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
 end
 
 Base.length(Cube::HyperCube) = length(Cube.L)
-
+Base.keys(Cube::HyperCube) = Base.OneTo(length(Cube.L))
 
 
 """
@@ -313,7 +313,7 @@ Base.in(p::AbstractVector{<:Number}, Cube::HyperCube) = all(Cube.L .≤ p) && al
     ConstructCube(M::Matrix{<:Number}; Padding::Number=1/50) -> HyperCube
 Returns a `HyperCube` which encloses the extrema of the columns of the input matrix.
 """
-ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = HyperCube([minimum(M[:,i]) for i in 1:size(M,2)], [maximum(M[:,i]) for i in 1:size(M,2)]; Padding=Padding)
+ConstructCube(M::AbstractMatrix{<:Number}; Padding::Number=0.) = @views HyperCube([minimum(M[:,i]) for i in axes(M,2)], [maximum(M[:,i]) for i in axes(M,2)]; Padding=Padding)
 ConstructCube(V::AbstractVector{<:Number}; Padding::Number=0.) = HyperCube(extrema(V); Padding=Padding)
 ConstructCube(PL::Plane, sol::AbstractODESolution, Npoints::Int=300; N::Int=Npoints, Padding::Number=0.) = ConstructCube(Deplanarize(PL, sol; N=N); Padding=Padding)
 ConstructCube(Ps::AbstractVector{<:AbstractVector{<:Number}}; Padding::Number=0.) = ConstructCube(Unpack(Ps); Padding=Padding)
@@ -438,8 +438,8 @@ function Base.intersect(A::HyperCube, B::HyperCube)
     HyperCube(map(max, A.L, B.L), map(min, A.U, B.U))
 end
 function Base.intersect(Cubes::AbstractVector{<:HyperCube})
-    LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
-    UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
+    LowerMatrix = [Cubes[i].L for i in eachindex(Cubes)] |> Unpack
+    UpperMatrix = [Cubes[i].U for i in eachindex(Cubes)] |> Unpack
     HyperCube([maximum(col) for col in eachcol(LowerMatrix)], [minimum(col) for col in eachcol(UpperMatrix)])
 end
 
@@ -451,8 +451,8 @@ That is, the returned cube is strictly speaking not the union, but a cover (whic
 """
 Base.union(A::HyperCube, B::HyperCube) = Base.union([A, B])
 function Base.union(Cubes::AbstractVector{<:HyperCube})
-    LowerMatrix = [Cubes[i].L for i in 1:length(Cubes)] |> Unpack
-    UpperMatrix = [Cubes[i].U for i in 1:length(Cubes)] |> Unpack
+    LowerMatrix = [Cubes[i].L for i in eachindex(Cubes)] |> Unpack
+    UpperMatrix = [Cubes[i].U for i in eachindex(Cubes)] |> Unpack
     HyperCube([minimum(col) for col in eachcol(LowerMatrix)], [maximum(col) for col in eachcol(UpperMatrix)])
 end
 
@@ -481,7 +481,7 @@ end
 Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp.(x, C.L, C.U)
 function Base.clamp!(x::AbstractVector, C::HyperCube)
     @assert length(C) == length(x)
-    for i in 1:length(x)
+    for i in eachindex(x)
         x[i] = clamp(x[i], C.L[i], C.U[i])
     end;    x
 end

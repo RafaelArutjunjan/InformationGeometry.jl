@@ -136,7 +136,7 @@ function _loglikelihood(DS::DataSetUncertain, model::ModelOrFunction, θ::Abstra
     woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
         Res = -DataspaceDim(DS)*log(2π)
-        for i in 1:length(woundY)
+        for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
         end

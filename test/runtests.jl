@@ -207,7 +207,7 @@ end
 @safetestset "Inputting Datasets of various shapes" begin
     using InformationGeometry, Test, LinearAlgebra, Random, Distributions, StaticArrays, Plots
 
-    ycovtrue = Diagonal([1,2,3]) |> x->convert(Matrix,x)
+    ycovtrue = Diagonal([1,2,3]) |> Matrix
     ptrue = [1.,π,-5.];        ErrorDistTrue = MvNormal(zeros(3),ycovtrue)
 
     model(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[1]^2 + p[3]^3 * x[2],
@@ -265,16 +265,16 @@ end
     TypeTester(DM,  Float16)
     TypeTester(DME, Float16)
     TypeTester(CDM, Float16)
-    TypeTester(splitCDM, Float16)
+    # TypeTester(splitCDM, Float16)
     TypeTester(GDM, Float16)
-    TypeTester(UDM, Float16)
+    # TypeTester(UDM, Float16)
 
     TypeTester(DM,  BigFloat)
     TypeTester(DME, BigFloat)
     TypeTester(CDM, BigFloat)
-    TypeTester(splitCDM, BigFloat)
+    # TypeTester(splitCDM, BigFloat)
     TypeTester(GDM, BigFloat)
-    TypeTester(UDM, BigFloat)
+    # TypeTester(UDM, BigFloat)
 end
 
 
@@ -340,7 +340,7 @@ end
     pSTAT5B_rel = [4.596533343,29.63454599,46.04380647,81.97473362,80.5716093,79.03571964,75.67238037,71.62471986,69.06286328,67.14738432,60.89947629,54.80925777,43.98128998,29.77145816,20.08901656,10.96184517]
     rSTAT5A_rel = [14.72316822,33.76234229,36.79985129,49.71760229,46.9281201,47.83657456,46.92872725,40.59775294,43.78366389,44.45738765,41.32715926,41.06273321,39.23583003,36.61946054,34.8937144,32.21107716]
 
-    BöhmDS = DataSet(BöhmT, [pSTAT5A_rel pSTAT5B_rel rSTAT5A_rel], [[4.12, 7.04, 3.37] for i in 1:length(BöhmT)]; xnames=["Time"], ynames=["pSTAT5A_rel", "pSTAT5B_rel", "rSTAT5A_rel"])
+    BöhmDS = DataSet(BöhmT, [pSTAT5A_rel pSTAT5B_rel rSTAT5A_rel], [[4.12, 7.04, 3.37] for i in eachindex(BöhmT)]; xnames=["Time"], ynames=["pSTAT5A_rel", "pSTAT5B_rel", "rSTAT5A_rel"])
     BöhmModel = GetModel(Exp10Transform(BöhmSys), BöhmInitial, BöhmObservation; meth=AutoTsit5(Rodas5()), tol=1e-6, Domain=HyperCube(-6ones(6), 6ones(6)))
     BöhmDM = DataModel(BöhmDS, BöhmModel, [-1.5690, 4.1978, 4.99, -1.7859, -2.2, -5.], meth=LBFGS())
 

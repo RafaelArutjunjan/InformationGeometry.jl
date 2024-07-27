@@ -183,7 +183,7 @@ function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVec
     @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
     Res = Vector{AbstractDataSet}(undef, length(DSs))
     j = 1   # Use this to infer how many elements have been popped from ynames
-    for i in 1:length(DSs)
+    for i in eachindex(DSs)
         Res[i] = InformNames(DSs[i], xnames, ynames[j:j-1+ydim(DSs[i])])
         j += ydim(DSs[i])
     end;    Res
@@ -214,7 +214,7 @@ end
 
 function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{T}) where T<:Number
     Res = Vector{T}(undef, DataspaceDim(CDS));      i = 1
-    for SetInd in 1:length(Data(CDS))
+    for SetInd in eachindex(Data(CDS))
         for xval in WoundX(Data(CDS)[SetInd])
             # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
             Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
@@ -233,7 +233,7 @@ end
 function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
-    [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in 1:length(X)]
+    [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in eachindex(X)]
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 

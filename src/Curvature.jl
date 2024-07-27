@@ -101,7 +101,7 @@ ChristoffelTerm(Γ::AbstractArray{<:Number,3}, v::AbstractVector{<:Number}) = @t
 #     BigCalc && (θ = BigFloat.(θ))
 #     DownUpDownDown = Array{suff(θ)}(undef,length(θ),length(θ),length(θ),length(θ))
 #     h = GetH(θ)
-#     for i in 1:length(θ)
+#     for i in eachindex(θ)
 #         DownUpDownDown[i,:,:,:] .= (ChristoffelSymbol(Metric,θ + h*BasisVector(i,length(θ))) .- ChristoffelSymbol(Metric,θ - h*BasisVector(i,length(θ))))
 #     end;        (1/(2*h))*DownUpDownDown
 # end

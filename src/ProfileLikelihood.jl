@@ -340,7 +340,7 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
-    PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in 1:length(Profiles)]
+    PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
     length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
     RecipesBase.plot(PlotObjects...; layout=length(PlotObjects))
 end
@@ -352,7 +352,7 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     @assert HasTrajectories(Profiles)
     @assert isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
-    for i in 1:length(Profiles)
+    for i in eachindex(Profiles)
         HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, (isnothing(idxs) ? Profiles[i][2] : map(x->getindex(x,idxs),Profiles[i][2])); marker=:circle, label="Comp: $i", kwargs...)
     end
     RecipesBase.plot!(P, [isnothing(idxs) ? MLE(DM) : MLE(DM)[idxs]]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
@@ -376,9 +376,9 @@ function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpol
     ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
 end
 function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10, meth::Roots.AbstractUnivariateZeroMethod=Roots.Bisection())
-    crossings = [find_zeros(x->(Fs[i](x)-Confnum), Fs[i].t[1], Fs[i].t[end]) for i in 1:length(Fs)]
+    crossings = [find_zeros(x->(Fs[i](x)-Confnum), Fs[i].t[1], Fs[i].t[end]) for i in eachindex(Fs)]
     # crossings = map(F->[F.t[1], F.t[end]], Fs)
-    # for i in 1:length(crossings)
+    # for i in eachindex(crossings)
     #     if any(isfinite, Fs[i].u)
     #         crossings[i][1] = find_zero(x->abs(Fs[i](x)-Confnum), (Fs[i].t[1], mle[i]), meth)
     #         crossings[i][2] = find_zero(x->abs(Fs[i](x)-Confnum), (mle[i], Fs[i].t[end]), meth)
@@ -386,7 +386,7 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
     #         crossings[i] .= SA[-max, max]
     #     end
     # end
-    for i in 1:length(crossings)
+    for i in eachindex(crossings)
         if length(crossings[i]) == 2
             continue
         elseif length(crossings[i]) == 1
@@ -483,7 +483,7 @@ PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles
 
 function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfiles; kwargs...)
     @assert HasTrajectories(P)
-    PlotProfileTrajectories(DM, [(Profiles(P)[i], Trajectories(P)[i]) for i in 1:length(pnames(P))]; kwargs...)
+    PlotProfileTrajectories(DM, [(Profiles(P)[i], Trajectories(P)[i]) for i in eachindex(pnames(P))]; kwargs...)
 end
 
 function ExtendProfiles(P::ParameterProfiles)
@@ -499,7 +499,7 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
     layout := length(pnames(P)) + 1
     @series P, Val(false)
-    label --> reshape(["Comp $i" for i in 1:length(pnames(P))], 1, :)
+    label --> reshape(["Comp $i" for i in eachindex(pnames(P))], 1, :)
 
     idxs = get(plotattributes, :idxs, nothing)
     if !(isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM))))
@@ -507,7 +507,7 @@ end
         idxs = nothing
     end
 
-    for i in 1:length(pnames(P))
+    for i in eachindex(pnames(P))
         @series begin
             subplot := length(pnames(P)) + 1
             isnothing(idxs) ? Trajectories(P)[i] : map(x->getindex(x, idxs), Trajectories(P)[i])
@@ -526,7 +526,7 @@ end
 end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout := length(pnames(P))
-    for i in 1:length(pnames(P))
+    for i in eachindex(pnames(P))
         @series begin
             label --> "Profile Likelihood"
             xguide --> pnames(P)[i]
@@ -564,7 +564,7 @@ end
     # if !IsCost(P) && length(1:Int(floor(PracticallyIdentifiable(P)))) > 0
     #     maxlevel = Int(floor(PracticallyIdentifiable(P)))
     #     Boxes = map(level->ProfileBox(P, level), 1:maxlevel)
-    #     for i in 1:length(pnames(P))
+    #     for i in eachindex(pnames(P))
     #         for level in 1:maxlevel
     #             @series begin
     #                 subplot := i

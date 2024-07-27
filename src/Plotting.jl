@@ -462,13 +462,13 @@ end
 
 
 """
-    VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
+    VFRescale(ZeilenVecs::AbstractMatrix{<:Number},C::HyperCube;scaling=0.85)
 Rescale vector to look good in 2D plot.
 """
-function VFRescale(ZeilenVecs::Array{<:Number,2},C::HyperCube;scaling=0.85)
-    VecsPerLine = sqrt(size(ZeilenVecs)[1])
+function VFRescale(ZeilenVecs::AbstractMatrix{<:Number},C::HyperCube;scaling=0.85)
+    VecsPerLine = sqrt(size(ZeilenVecs,1))
     SpacePerVec = (scaling/VecsPerLine) * CubeWidths(C)
-    for i in 1:size(ZeilenVecs)[1]
+    for i in axes(ZeilenVecs,1)
         if SpacePerVec[1] < abs(ZeilenVecs[i,1])
             rescale = SpacePerVec[1] / abs(ZeilenVecs[i,1])
             ZeilenVecs[i,:] .*= rescale
@@ -548,7 +548,7 @@ function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:Abstra
                 OverWrite::Bool=true, leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && RecipesBase.plot()
-    for i in 1:length(sols)
+    for i in eachindex(sols)
         p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=color, kwargs...)
     end;    p
 end
@@ -685,7 +685,7 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
     M, Res, Yt = _CreateMats(DM, woundX)
     # gradually refine Res for each solution to avoid having to allocate a huge list of points
     Prog = Progress(length(sols); enabled=verbose, desc="Sampling confidence boundary... ", dt=1, showspeed=true)
-    for i in 1:length(sols)
+    for i in eachindex(sols)
         for t in range(sols[i].t[1], sols[i].t[end]; length=samples)
             _ConfidenceBands!(Res, Yt, DM, PlaneCoordinates(Planes[i], sols[i](t)), woundX)
         end
@@ -723,7 +723,7 @@ function _ConfidenceBands!(Res::AbstractMatrix, Yt::AbstractMatrix, DM::Abstract
     copyto!(Yt, EmbeddingMap(DM, point, woundX))
     @inbounds for col in 1:2:2ydim(DM)
         Ycol = Int(ceil(col/2))
-        for row in 1:size(Res,1)
+        for row in axes(Res,1)
             Yt[Ycol, row] < Res[row, col]   && (Res[row, col]   = Yt[Ycol, row])
             Yt[Ycol, row] > Res[row, col+1] && (Res[row, col+1] = Yt[Ycol, row])
         end
@@ -739,11 +739,11 @@ function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::Abstract
     InOut = (length(woundX[1]), length(F(woundX[1], sol.u[1])))
     M = Matrix{Float64}(undef, length(woundX), InOut[1]+2InOut[2])
     Xmat = view(M, :, 1:InOut[1])
-    @inbounds for line in 1:length(woundX)
+    @inbounds for line in eachindex(woundX)
         Xmat[line, :] .= woundX[line]
     end
     Res = view(M, :, 1+InOut[1]:size(M,2))
-    for i in 1:size(Res, 2)
+    for i in axes(Res, 2)
         fill!(view(Res,:,i), (isodd(i) ? Inf : -Inf))
     end
     InOut[2] > 1 && @warn "Propagating uncertainty component-wise, instead of via proper union."
@@ -761,7 +761,7 @@ end
 
 function _PropagateUncertainty(Res::AbstractMatrix, F::Function, woundX::AbstractVector, point::AbstractVector{<:Number}, SingleOut::Val{1}; kwargs...)
     @assert size(Res,2) == 2
-    @inbounds for row in 1:size(Res,1)
+    @inbounds for row in axes(Res,1)
         output = F(woundX[row], point)
         output < Res[row, 1] && (Res[row, 1] = output)
         output > Res[row, 2] && (Res[row, 2] = output)
@@ -770,7 +770,7 @@ end
 
 # Componentwise bands
 function _PropagateUncertainty(Res::AbstractMatrix, F::Function, woundX::AbstractVector, point::AbstractVector{<:Number}, SingleOut::Val{N}; kwargs...) where N
-    for row in 1:size(Res,1)
+    for row in axes(Res,1)
         output = F(woundX[row], point)
         for i in 1:N
             output[i] < Res[row, 1 + (i-1)*2] && (Res[row, 1 + (i-1)*2] = output[i])
@@ -786,7 +786,7 @@ _PropagateUncertainty(Res::AbstractMatrix, F::Function, point::AbstractVector{<:
 # 1D output to [min max] Matrix
 function UnionInto!(Res::AbstractMatrix, output::AbstractVector{<:Number})
     @assert size(Res,1) == length(output) && size(Res,2) == 2
-    @inbounds for row in 1:size(Res, 1)
+    @inbounds for row in axes(Res, 1)
         output[row] < Res[row, 1] && (Res[row, 1] = output[row])
         output[row] > Res[row, 2] && (Res[row, 2] = output[row])
     end
@@ -872,7 +872,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
         Lims = ConstructCube(sol)
         low = Vector{Float64}(undef,N); up = Vector{Float64}(undef,N)
         X = DomainSamples(Cube; N=N)
-        for i in 1:length(X)
+        for i in eachindex(X)
             Y = Predictor(DM)(X[i],MLE)
             up[i] = maximum(Y); low[i] = minimum(Y)
         end
@@ -881,7 +881,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
         for i in 1:N
             num = rand.(Uniform.(Lims.L,Lims.U))
             if WilksTestPrepared(DM,num,LogLikeMLE,Confvol)
-                for i in 1:length(X)
+                for i in eachindex(X)
                     Y = Predictor(DM)(X[i],num)
                     Y > up[i] && (up[i] = Y)
                     Y < low[i] && (low[i] = Y)
@@ -924,7 +924,7 @@ function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100)
     p = [];    A = Array{Float64,2}(undef,N,2)
     for sol in Curves
         ran = range(sol.t[1],sol.t[end],length=N)
-        for i in 1:length(ran)    A[i,:] = sol(ran[i])[1:2]  end
+        for i in eachindex(ran)    A[i,:] = sol(ran[i])[1:2]  end
         p = RecipesBase.plot!(A[:,1],A[:,2])
         # p = RecipesBase.plot!(sol,idxs=(1,2))
     end
@@ -1011,7 +1011,7 @@ Returns a N×3 matrix whose rows correspond to the coordinates of various points
 The second Matrix is either N×4 or N×3 depending on the value of `rectangular` and enumerates the points which are to be connected up to a rectangular or triangular face in counter-clockwise fashion. The indices of the points correspond to the lines in the first Matrix.
 """
 function CreateMesh(Planes::AbstractVector{<:Plane}, Sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(Sols), rectangular::Bool=true, pointy::Bool=true)
-    Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in 1:length(Sols)])
+    Vertices = reduce(vcat, [Deplanarize(Planes[i], Sols[i]; N=N) for i in eachindex(Sols)])
     M = RectangularFaceIndices(N)
     Faces = reduce(vcat, [M .+ (i-1)*N for i in 1:(length(Sols)-1)])
     !rectangular && (Faces = RectToTriangFaces(Faces))
@@ -1045,17 +1045,17 @@ end
 
 function ToObj(Vertices::AbstractMatrix, Faces::AbstractMatrix)
     text = ""
-    for i in 1:size(Vertices,1)
+    for i in axes(Vertices,1)
         text *= "v"
-        for j in 1:size(Vertices,2)
+        for j in axes(Vertices,2)
             text *= " $(Vertices[i,j])"
         end
         text *= '\n'
     end
     # ONE-BASED facet indices for .obj files
-    for i in 1:size(Faces,1)
+    for i in axes(Faces,1)
         text *= "f"
-        for j in 1:size(Faces,2)
+        for j in axes(Faces,2)
             text *= " $(Faces[i,j])"
         end
         text *= '\n'
@@ -1094,7 +1094,7 @@ function AddCaps(X::M, Y::M, Z::M, fact::Real=1.4) where M <: AbstractMatrix{<:N
     @assert fact ≥ 1
     function rowmean(X::M, Y::M, Z::M, i::Int) where M <: AbstractMatrix{<:Number}
         point = zeros(3)
-        for j in 1:size(X,2)
+        for j in axes(X,2)
             point += SA[X[i,j], Y[i,j], Z[i,j]]
         end;    point / size(X,2)
     end
@@ -1116,11 +1116,9 @@ Returns tuple of three `length(Planes) × N` matrices `X, Y, Z` for plotting of 
 function ToMatrices(Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, fact::Real=1.4; N::Int=2*length(sols), pointy::Bool=true)
     θs = range(0, π; length=size(Planes,1));    ϕs = range(0, 2π; length=N);    P = PolarSolution(Planes, sols)
     X = Array{Float64}(undef, length(θs), length(ϕs));    Y = Array{Float64}(undef, length(θs), length(ϕs));    Z = Array{Float64}(undef, length(θs), length(ϕs))
-    for i in 1:length(θs)
-        for j in 1:length(ϕs)
-            # X[i,j], Y[i,j], Z[i,j] = P(θs[i], ϕs[j])
-            X[i,j], Y[i,j], Z[i,j] = P(Planes[i], sols[i], ϕs[j])
-        end
+    for i in eachindex(θs), j in eachindex(ϕs)
+        # X[i,j], Y[i,j], Z[i,j] = P(θs[i], ϕs[j])
+        X[i,j], Y[i,j], Z[i,j] = P(Planes[i], sols[i], ϕs[j])
     end
     pointy ? AddCaps(X, Y, Z, fact) : (X, Y, Z)
 end

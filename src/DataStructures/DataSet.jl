@@ -63,11 +63,11 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         #Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
         DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
-    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...; kwargs...) = DataSet(x,[y[i].val for i in 1:length(y)],[y[i].err for i in 1:length(y)], args...; kwargs...)
+    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...; kwargs...) = DataSet(x,[y[i].val for i in eachindex(y)],[y[i].err for i in eachindex(y)], args...; kwargs...)
     ####### Only looking at sigma from here on out
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
         Sigma = Unwind(sigma)
-        DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in 1:length(Sigma)]), dims; kwargs...)
+        DataSet(Unwind(x), Unwind(y), Sigma, Diagonal([Sigma[i]^(-2) for i in eachindex(Sigma)]), dims; kwargs...)
     end
     DataSet(x::AbstractVector, y::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int,Int}; kwargs...) = DataSet(Unwind(x), Unwind(y), Σ, inv(Σ), dims; kwargs...)
     function DataSet(x::AbstractVector{<:Number},y::AbstractVector{<:Number},sigma::AbstractArray{<:Number},InvCov::AbstractMatrix{<:Number},dims::Tuple{Int,Int,Int}; kwargs...)

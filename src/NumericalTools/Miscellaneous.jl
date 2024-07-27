@@ -40,7 +40,7 @@ end
 UnpackWindup(X::AbstractVector{<:Union{Number,Missing}}, dim::Int) = (@assert length(X)%dim==0;  permutedims(reshape(X, (dim,:))))
 
 
-ToCols(M::AbstractMatrix) = Tuple(view(M,:,i) for i in 1:size(M,2))
+ToCols(M::AbstractMatrix) = Tuple(view(M,:,i) for i in axes(M,2))
 
 
 ValToBool(x::Val{true}) = true
@@ -204,7 +204,7 @@ GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 normalize(x::AbstractVector{<:Number}, scaling::Float64=1.0) = (scaling / norm(x)) * x
 function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, scaling::Float64=1.0)
     newu = u;    newv = v
-    for i in 1:length(u)
+    for i in eachindex(u)
         factor = sqrt(u[i]^2 + v[i]^2)
         newu[i] = (scaling/factor)*u[i]
         newv[i] = (scaling/factor)*v[i]
@@ -215,7 +215,7 @@ function normalizeVF(u::AbstractVector{<:Number},v::AbstractVector{<:Number},Pla
     length(PlanarCube) != 2 && throw("normalizeVF: Cube not planar.")
     newu = u;    newv = v
     Widths = CubeWidths(PlanarCube) |> normalize
-    for i in 1:length(u)
+    for i in eachindex(u)
         factor = sqrt(u[i]^2 + v[i]^2)
         newu[i] = (scaling/factor)*u[i] * Widths[1]
         newv[i] = (scaling/factor)*v[i] * Widths[2]

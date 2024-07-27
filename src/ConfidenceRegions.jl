@@ -547,7 +547,7 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
             verbose && sum(NotTerminated) != 0 && @warn "Solutions $((1:length(sols))[NotTerminated]) did not exit properly."
             roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)
-            for i in 1:length(roots)
+            for i in eachindex(roots)
                 length(roots[i]) != 0 && verbose && @warn "Solution $i hits chart boundary at t = $(roots[i]) and should therefore be considered invalid."
             end
         end
@@ -888,7 +888,7 @@ end
     CompareCols(A::AbstractMatrix, B::AbstractMatrix) -> BitVector
 Check whether two Jacobian matrices have any columns in common which are not completely filled with zeros.
 """
-CompareCols(A::AbstractMatrix, B::AbstractMatrix) = (@assert size(A) == size(B);    BitArray(A[:,i] == B[:,i] && any(x->x!=0., A[:,i]) for i in 1:size(A,2)))
+CompareCols(A::AbstractMatrix, B::AbstractMatrix) = (@assert size(A) == size(B);    BitArray(@views A[:,i] == B[:,i] && any(x->x!=0., A[:,i]) for i in axes(A,2)))
 
 """
     IsLinearParameter(DM::DataModel) -> BitVector
@@ -976,7 +976,7 @@ function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); P
     @assert size(Σ,1) == size(Σ,2) == length(μ)
     E = eigen(Σ)
     @assert all(x->x>0, E.values)
-    offsets = [dot(E.values, E.vectors[i,:].^2) for i in 1:length(E.values)] .|> sqrt
+    offsets = [dot(E.values, E.vectors[i,:].^2) for i in eachindex(E.values)] .|> sqrt
     HyperCube(μ-offsets, μ+offsets; Padding=Padding)
 end
 
@@ -1246,7 +1246,7 @@ function ConfidenceBoundarySlice(DM::AbstractDataModel, sols::AbstractVector{<:A
     ConfidenceBoundarySlice(DM, sols, Dirs, Confnum, mle, Names, Full)
 end
 function ConfidenceBoundarySlice(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Dirs::Tuple{Int,Int,Int})
-    ConfidenceBoundarySlice([EmbeddedODESolution(Planes[i], sols[i]) for i in 1:length(sols)], Dirs)
+    ConfidenceBoundarySlice([EmbeddedODESolution(Planes[i], sols[i]) for i in eachindex(sols)], Dirs)
 end
 function ConfidenceBoundarySlice(DM::AbstractDataModel, sol::AbstractODESolution, Dirs::Tuple{Int,Int,Int}=(1,2,0))
     @assert length(sol.u[1]) == 2
@@ -1292,7 +1292,7 @@ end
         marker --> :hex
         [MLE(CB)]
     end
-    for i in 1:length(Sols(CB))
+    for i in eachindex(Sols(CB))
         @series begin
             idxs := Dirs(CB)[3] == 0 ? (Dirs(CB)[1], Dirs(CB)[2]) : Dirs(CB)
             label --> ""
@@ -1327,12 +1327,12 @@ function ConfidenceBoundary(DM::AbstractDataModel, Res::AbstractVector{<:Tuple{<
     @assert all(Confnums .≈ Confnums[1]) "Confnums unequal."
     mle = (Full ? TotalLeastSquaresV(DM) : MLE(DM))
     Names = (Full ? _FullNames(DM) : pnames(DM))
-    [ConfidenceBoundarySlice(EmbeddedODESolution.(Res[i]...), Trips[i], Confnums[1], mle[[Trips[i]...]], Names[[Trips[i]...]], Full) for i in 1:length(Trips)] |> ConfidenceBoundary
+    [ConfidenceBoundarySlice(EmbeddedODESolution.(Res[i]...), Trips[i], Confnums[1], mle[[Trips[i]...]], Names[[Trips[i]...]], Full) for i in eachindex(Trips)] |> ConfidenceBoundary
 end
 
 @recipe function f(CB::ConfidenceBoundary)
     layout --> CB |> Slices |> length
-    for i in 1:length(Slices(CB))
+    for i in eachindex(Slices(CB))
         @series begin
             subplot := i
             leg --> false

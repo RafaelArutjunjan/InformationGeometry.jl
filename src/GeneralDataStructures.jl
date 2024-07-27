@@ -91,7 +91,7 @@ SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Numb
 pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
 MLE(DM::AbstractDataModel) = FindMLE(DM)
 LogLikeMLE(DM::AbstractDataModel) = loglikelihood(DM, MLE(DM))
-LogPrior(DM::AbstractDataModel) = x->0.0
+LogPrior(DM::AbstractDataModel) = x::AbstractVector->zero(eltype(x))
 
 
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
@@ -99,6 +99,7 @@ xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
     F = FisherMetric(DM, mle)
     try
+        # sqrt∘Diagonal Larger than Diagonal∘cholesky entries
         mle .± sqrt.(Diagonal(inv(F)).diag)
     catch y;
         if y isa SingularException
@@ -108,6 +109,7 @@ function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::
         else
             rethrow(y)
         end
+        # Larger than Diagonal∘pinv
         mle .± sqrt.(inv.(Diagonal(F).diag))
     end
 end
@@ -296,7 +298,7 @@ Given a tuple `Tup = (x,y,σ)`, with `σ` the standard deviation(s), this data p
 function AddDataPoint(DS::AbstractDataSet, Tup::Tuple{<:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}, <:Union{Number,AbstractVector{<:Number}}}; kwargs...)
     @assert !(DS isa CompositeDataSet) "Cannot handle CompositeDataSets."
     @assert length(Tup[1]) == xdim(DS) && length(Tup[2]) == ydim(DS) && length(Tup[3]) == ydim(DS)
-    remake(DS; x=[xdata(DS);Tup[1]], y=[ydata(DS);Tup[2]], InvCov=BlockMatrix(yInvCov(DS), Diagonal([Tup[3][i]^(-2) for i in 1:length(Tup[3])])),
+    remake(DS; x=[xdata(DS);Tup[1]], y=[ydata(DS);Tup[2]], InvCov=BlockMatrix(yInvCov(DS), Diagonal([Tup[3][i]^(-2) for i in eachindex(Tup[3])])),
                 dims=(Npoints(DS)+1, xdim(DS), ydim(DS)), kwargs...)
 end
 
