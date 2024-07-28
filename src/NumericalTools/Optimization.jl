@@ -163,11 +163,15 @@ end
 
 
 # Force use of custom function instead of using OptimizationOptimJL.jl as intermediate layer
-minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; kwargs...) = minimizeOptimJL(Fs, Start, meth; kwargs...)
+minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; OptimJL::Bool=true, kwargs...) = (OptimJL ? minimizeOptimJL : minimizeOptimizationJL)(Fs, Start, meth; kwargs...)
+minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; kwargs...) = minimizeOptimizationJL(Fs, Start, meth; kwargs...)
 
 # Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
 function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
-                Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime, 
+                Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime,
+                # catch for now:
+                cons=nothing, lcons=nothing, ucons=nothing, 
+                lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
                 g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
                 store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, kwargs...) where T <: Number
@@ -185,13 +189,14 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
         start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
         if length(Fs) == 1
-            Optim.optimize(Fs[1], convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; kwargs...)
+            @assert !isnothing(lb) && !isnothing(ub)
+            Optim.optimize(Fs[1], lb, ub, floatify(start), Cmeth, options; kwargs...)
         else
             if Cmeth isa Fminbox
                 # Optim.optimize only accepts inplace kwarg for Fminbox
-                Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
+                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
             else
-                Optim.optimize(Fs..., convert(Vector{T},Domain.L), convert(Vector{T},Domain.U), floatify(start), Cmeth, options; kwargs...)
+                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; kwargs...)
             end
         end
     else
@@ -214,7 +219,8 @@ ADtypeConverter(V::Val{:FiniteDiff}) = Optimization.AutoFiniteDiff()
 ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
 ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
-function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, kwargs...)
+# Extend with constraint Functions
+function minimizeOptimizationJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, kwargs...)
     @assert 1 ≤ length(Fs) ≤ 3
     
     optf = if length(Fs) == 1
@@ -238,15 +244,15 @@ function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, 
     #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
     #     end
     end
-    minimize(optf, Start, meth; kwargs...)
+    minimizeOptimizationJL(optf, Start, meth; kwargs...)
 end
 
 # For Optimizers from the Optimization.jl ecosystem
-function minimize(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
-                    tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, lcons=nothing, ucons=nothing, kwargs...)
+function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
+                    tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, 
+                    lb=(!isnothing(Domain) ? Domain.L : nothing), ub=(!isnothing(Domain) ? Domain.U : nothing), lcons=nothing, ucons=nothing, kwargs...)
 
-    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, sense=MinSense,
-                                lb=(!isnothing(Domain) ? Domain.L : nothing), ub=(!isnothing(Domain) ? Domain.U : nothing))
+    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb, ub, sense=MinSense)
 
     sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, kwargs...) # callback
     verbose && sol.retcode !== ReturnCode.Success && @warn "minimize(): Optimization appears to not have converged."
