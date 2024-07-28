@@ -258,7 +258,7 @@ GetDomain(DM::AbstractDataModel) = GetDomain(Predictor(DM))
 GetDomain(M::ModelMap) = Domain(M)
 GetDomain(F::Function) = nothing
 
-GetConstraintFunc(DM::AbstractDataModel, startp::AbstractVector{<:Number}=MLE(DM); kwargs...) = GetDomain(Predictor(DM), startp; kwargs...)
+GetConstraintFunc(DM::AbstractDataModel, startp::AbstractVector{<:Number}=MLE(DM); kwargs...) = GetConstraintFunc(Predictor(DM), startp; kwargs...)
 GetConstraintFunc(F::Function, startp::AbstractVector{<:Number} = rand(1); kwargs...) = (nothing, nothing, nothing)
 function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStartP(M); inplace::Bool=true)
     if isnothing(InDomain(M))
@@ -273,17 +273,17 @@ function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStar
     end
 end
 
-function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
+function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(DM), kwargs...)
     F = HasXerror(DM) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)
     # Get constraint function and Hypercube from ModelMap if available?
-    Lcons, Ucons, Cons = GetConstraintFunc(DM, startp; inplace=true) # isinplacemodel(DM)
+    Lcons, Ucons, Cons = GetConstraintFunc(DM, start; inplace=true) # isinplacemodel(DM)
     isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
 end
 
 # If DM not constructed yet
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), kwargs...)
     F = HasXerror(DS) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
-    Lcons, Ucons, Cons = GetConstraintFunc(Model, startp; inplace=true) # isinplacemodel(DM)
+    Lcons, Ucons, Cons = GetConstraintFunc(Model, start; inplace=true) # isinplacemodel(DM)
     isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
 end
 
