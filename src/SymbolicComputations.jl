@@ -35,9 +35,20 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
 end
 
 SymbolicModelExpr(DM::Union{AbstractDataModel,ModelMap}) = @suppress_err ToExpr(DM)
-function SymbolicModel(DM::Union{AbstractDataModel,ModelMap})
+function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
     expr = SymbolicModelExpr(DM)
-    isnothing(expr) ? "Unable to represent given model symbolically." : "y(x,θ) = $expr"
+    isnothing(expr) && return "Unable to represent given model symbolically."
+    # substitute symbol names with xnames, ynames and pnames?
+    if sub && DM isa AbstractDataModel
+        xnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam))
+        ynew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+        pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
+
+        xold, yold, pold = SymbolicArguments(DM)
+        Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
+        expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
+    end
+    "y(x,θ) = $expr"
 end
 
 function SymbolicdModelExpr(DM::AbstractDataModel)
@@ -53,9 +64,20 @@ function SymbolicdModelExpr(M::ModelMap)
     X, Y, θ = SymbolicArguments(M)
     M(X, θ)
 end
-function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap})
+function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
     expr = SymbolicdModelExpr(DM)
-    isnothing(expr) ? "Unable to represent given model symbolically." : "(∂y/∂θ)(x,θ) = $expr"
+    isnothing(expr) && return "Unable to represent given model symbolically."
+    # substitute symbol names with xnames, ynames and pnames?
+    if sub && DM isa AbstractDataModel
+        xnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam))
+        ynew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+        pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
+
+        xold, yold, pold = SymbolicArguments(DM)
+        Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
+        expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
+    end
+    "(∂y/∂θ)(x,θ) = $expr"
 end
 
 # mixing inplace (outcome) with isinplace (input) here. Disambiguate!

@@ -124,14 +124,14 @@ xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist
 
 
-GetMean(P::Product) = [(try location(P.v[i]) catch; mean(P.v[i]) end) for i in 1:length(P)]
+GetMean(P::Product) = [(try location(P.v[i]) catch; mean(P.v[i]) end) for i in eachindex(P.v)]
 GetMean(P::Distribution) = mean(P)
 # GetMean(P::Distribution) = P.μ
 
 xdata(DSE::DataSetExact) = GetMean(xdist(DSE))
 ydata(DSE::DataSetExact) = GetMean(ydist(DSE))
 
-Sigma(P::Product) = [(try P.v[i].σ^2 catch; cov(P.v[i]) end) for i in 1:length(P)] |> Diagonal
+Sigma(P::Product) = [(try P.v[i].σ^2 catch; cov(P.v[i]) end) for i in eachindex(P.v)] |> Diagonal
 # I thought this was faster but it occasionally causes type problems with PDDiagMat etc.
 # Sigma(P::Distribution) = P.Σ
 Sigma(P::Distribution) = cov(P)
@@ -154,7 +154,7 @@ name(DSE::DataSetExact) = DSE.name |> string
 # end
 
 
-InvCov(P::Product) = [(try P.v[i].σ^(-2) catch; invcov(P.v[i]) end) for i in 1:length(P)] |> Diagonal
+InvCov(P::Product) = [(try P.v[i].σ^(-2) catch; invcov(P.v[i]) end) for i in eachindex(P.v)] |> Diagonal
 function InvCov(P::Distributions.GenericMvTDist)
     if P.df < 3
         return inv(P.Σ).mat
@@ -179,7 +179,7 @@ end
 isCauchy(P::Distribution{Distributions.Univariate,Distributions.Continuous}) = false;    isCauchy(P::Distributions.Cauchy) = true
 function DataMetric(P::Distributions.Product)
     icov = InvCov(P).diag
-    [isCauchy(P.v[i]) ? 0.5 : 1. for i in 1:length(P)] .* icov |> Diagonal
+    [isCauchy(P.v[i]) ? 0.5 : 1. for i in eachindex(P.v)] .* icov |> Diagonal
 end
 
 LogLike(DM::AbstractDataSet, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = LogLike(Data(DM), x, y)

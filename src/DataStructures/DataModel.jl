@@ -80,6 +80,7 @@ struct DataModel <: AbstractDataModel
     # Block kwargs here.
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false;
                                             name::Union{Symbol,String}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
+        MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)

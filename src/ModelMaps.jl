@@ -68,7 +68,7 @@ struct ModelMap{Inplace, Custom}
     end
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:String}=String[], name::Union{String,Symbol}=Symbol(), Meta=nothing, 
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
-        pnames = length(pnames) == 0 ? CreateSymbolNames(xyp[3],"θ") : pnames
+        pnames = length(pnames) == 0 ? GetParameterNames(startp) : pnames
         # startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         # testout = _TestOut(model, startp, xyp[1])
         # StaticOutput = testout isa SVector
@@ -180,6 +180,44 @@ function CreateSymbolNames(n::Int, base::String="θ")
     D = Dict(string.(0:9) .=> ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"])
     base .* [prod(get(D,"$x","Q") for x in string(digit)) for digit in 1:n]
 end
+
+## Read names from ComponentArrays
+function GetNamesSymb(@nospecialize p::ComponentArray)
+    GetVal(X::Val{T}) where T = T
+    GetVal.(collect(valkeys(p)))
+end
+GetNamesSymb(p::Array{<:Number}) = length(p) > 1 ? Symbol.(1:length(p)) : [Symbol("")]
+# No error for ReshapedArray{...,...,SubArray}
+GetNamesSymb(@nospecialize p::Base.ReshapedArray) = length(p) > 1 ? Symbol.(1:length(p)) : [Symbol("")]
+function GetNamesSymb(p::AbstractArray{<:Number})
+    @warn "Do not know how to read parameter names of $(typeof(p)), treating as type 'Array'."
+    GetNamesSymb(convert(Array,p))
+end
+
+# Always output String.
+GetNamesRecursive(p) = string.(GetNamesSymb(p))
+function GetNamesRecursive(@nospecialize p_NN::ComponentVector)
+    S = GetNamesSymb(p_NN)
+    InnerS = map(s->GetNamesRecursive(getproperty(p_NN,s)), S)
+    OuterNames = string.(S)
+    InnerNames = [string.(s) for s in InnerS]
+    Res = String[]
+    for i in eachindex(OuterNames)
+        if length(InnerNames[i]) > 1
+            for j in eachindex(InnerNames[i])
+                push!(Res, OuterNames[i] * "_" * InnerNames[i][j])
+                # push!(Res, OuterNames[i] * "(" * InnerNames[i][j] * ")")
+            end
+        else
+            push!(Res, OuterNames[i] * InnerNames[i][1])
+        end
+    end;    Res
+end
+
+# Functions to be called for construction
+GetParameterNames(p::ComponentVector) = GetNamesRecursive(p)
+GetParameterNames(p::AbstractVector) = CreateSymbolNames(length(p), "θ")
+
 
 function _FullNames(DM::AbstractDataModel)
     if xdim(DM) == 1
