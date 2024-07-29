@@ -357,4 +357,4 @@ Base.firstindex(DS::AbstractDataSet) = 1
 Base.lastindex(DS::AbstractDataSet) = Npoints(DS)
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
-Sparsify(DM::AbstractDataModel) = SubDataSet(DS, rand(Bool,Npoints(DS)))
+Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))

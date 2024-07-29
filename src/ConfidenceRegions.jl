@@ -891,18 +891,18 @@ Check whether two Jacobian matrices have any columns in common which are not com
 CompareCols(A::AbstractMatrix, B::AbstractMatrix) = (@assert size(A) == size(B);    BitArray(@views A[:,i] == B[:,i] && any(x->x!=0., A[:,i]) for i in axes(A,2)))
 
 """
-    IsLinearParameter(DM::DataModel) -> BitVector
+    IsLinearParameter(DM::DataModel, MLE::AbstractVector) -> BitVector
 Checks with respect to which parameters the model function `model(x,θ)` is linear and returns vector of booleans where `true` indicates linearity.
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
-IsLinearParameter(DM::AbstractDataModel; factor::Real=0.1, kwargs...) = CompareCols(EmbeddingMatrix(DM, MLE(DM)+factor*rand(pdim(DM)); kwargs...), EmbeddingMatrix(DM,MLE(DM)+factor*rand(pdim(DM)); kwargs...))
+IsLinearParameter(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), args...; factor::Real=0.1, kwargs...) = CompareCols(EmbeddingMatrix(DM, mle+factor*rand(pdim(DM)), args...; kwargs...), EmbeddingMatrix(DM, mle+factor*rand(pdim(DM)), args...; kwargs...))
 
 """
-    IsLinear(DM::DataModel) -> Bool
+    IsLinear(DM::DataModel, MLE::AbstractVector) -> Bool
 Checks whether the `model(x,θ)` function is linear with respect to all of its parameters ``\\theta \\in \\mathcal{M}``.
 A componentwise check can be attained via the method `IsLinearParameter(DM)`.
 """
-IsLinear(DM::AbstractDataModel; kwargs...) = all(IsLinearParameter(DM; kwargs...))
+IsLinear(DM::AbstractDataModel, args...; kwargs...) = all(IsLinearParameter(DM, args...; kwargs...))
 
 """
     LeastInformativeDirection(DM::DataModel,θ::AbstractVector{<:Number}=MLE(DM)) -> Vector{Float64}
@@ -910,7 +910,7 @@ Returns a vector which points in the direction in which the likelihood decreases
 """
 function LeastInformativeDirection(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
     M = eigen(FisherMetric(DM,θ; kwargs...));  i = findmin(M.values)[2]
-    M.vectors[:,i] / sqrt(M.values[i])
+    M.vectors[:,i] ./ sqrt(M.values[i])
 end
 
 
