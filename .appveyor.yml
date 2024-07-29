@@ -1,10 +1,11 @@
 # Documentation: https://github.com/JuliaCI/Appveyor.jl
 environment:
   matrix:
+  - julia_version: 1.8
   - julia_version: 1.9
+  - julia_version: 1.10
   - julia_version: nightly
 platform:
-  - x86
   - x64
 matrix:
   allow_failures:

@@ -20,6 +20,7 @@ makedocs(
                 "List of useful methods" => "methodlist.md",
                 "Contributing" => "todo.md",
             ],
+    warnonly=true # Do not throw error for docstrings which are not included in the documentation
 )
 
 
