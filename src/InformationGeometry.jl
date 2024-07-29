@@ -170,6 +170,10 @@ include("DataStructures/DataSetUncertain.jl")
 export DataSetUncertain
 
 
+include("DataStructures/UnknownVarianceDataSet.jl")
+export UnknownVarianceDataSet
+
+
 include("DataStructures/DataModel.jl")
 export DataModel
 
