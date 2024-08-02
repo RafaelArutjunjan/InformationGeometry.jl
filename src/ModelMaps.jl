@@ -469,18 +469,18 @@ function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(
 end
 
 """
-    Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
+    ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
 """
-function Embedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
+function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
     if isnothing(LogPrior(DM))
         DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start; kwargs...)
     else
         DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, F∘LogPrior(DM); kwargs...)
     end
 end
-
+@deprecate Embedding ModelEmbedding
 
 ## Transform dependent and independent variables of model
 

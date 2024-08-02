@@ -129,7 +129,7 @@ export ModelMap, ModelOrFunction, InformNames, IsInDomain
 # Parameter Space transforms
 export Transform, LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
-export EmbedModelVia, Embedding
+export EmbedModelVia, ModelEmbedding
 # Input and Output Transforms
 export TransformXdata, TransformYdata
 # Predefined Models

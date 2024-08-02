@@ -60,7 +60,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     seriescolor --> COL
                     linestyle   --> :dash
                     linealpha   --> 0.75
-                    label       --> "$(Confnum)σ Prediction Variance"
+                    label       --> "Lin. $(Confnum)σ Prediction Uncert."
                     X, Y .+ SqrtVar
                 end
                 @series begin
@@ -77,7 +77,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                         seriescolor := palette(:default)[i]
                         linestyle   --> :dash
                         linealpha   --> 0.75
-                        label       --> "$(Confnum)σ Prediction Variance"
+                        label       --> "Lin. $(Confnum)σ Prediction Uncert."
                         X, view(Y,:,i) .+ getindex.(SqrtVar, i)
                     end
                     @series begin
