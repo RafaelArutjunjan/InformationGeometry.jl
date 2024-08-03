@@ -121,7 +121,7 @@ function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values), ProfileDPredictor(DM, Components, Values), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)))
 end
 
-function PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
+function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString, Number})
     Comps = Int[];  Vals = []
     for i in 1:pdim(DM)
         pnames(DM)[i] ∈ keys(ParamDict) && push!(Comps, i) && push!(Vals, ParamDict[pnames(DM)[i]])
@@ -157,9 +157,9 @@ function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainInd::In
     EmbedModelVia(F, GetLinkEmbedding(Linked, MainInd); kwargs...)
 end
 LinkParameters(DM, Linked::AbstractVector{<:Int}, args...; kwargs...) = LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...)
-LinkParameters(DM, S::String, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
+LinkParameters(DM, S::AbstractString, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
 
-function LinkParameters(DM, S::String, T::String, args...; kwargs...)
+function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwargs...)
     Sparam = occursin.(S, pnames(DM));    Tparam = occursin.(T, pnames(DM))
     @assert (sum(Sparam) == sum(Tparam) == 1 && Sparam != Tparam) "Unable to link two distinct parameters uniquely: $S occurs in $(pnames(DM)[Sparam]) and $T occurs in $(pnames(DM)[Tparam])."
     LinkParameters(DM, Sparam .|| Tparam, args...; kwargs...)
@@ -337,7 +337,7 @@ HasTrajectories(M::Tuple) = true
 HasTrajectories(M::AbstractMatrix) = false
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
-    Pnames::AbstractVector{<:String}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
+    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
@@ -428,7 +428,7 @@ abstract type AbstractProfiles end
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
-    Names::AbstractVector{<:String}
+    Names::AbstractVector{<:AbstractString}
     mle::Union{Nothing,<:AbstractVector{<:Number}}
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
@@ -446,13 +446,13 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=pnames(DM); IsCost::Bool=false)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=false)
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), IsCost)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:String}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=false)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=false)
         ParameterProfiles(Profiles, Trajectories, Names, nothing, IsCost)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:String}, mle, IsCost::Bool)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, IsCost::Bool)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
         new(Profiles, Trajectories, Names, mle, IsCost)
     end

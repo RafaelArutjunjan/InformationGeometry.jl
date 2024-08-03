@@ -34,20 +34,12 @@ end
 
 function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::AbstractVector{<:Int}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
     X = df[:, xcols];    Xerr = df[:, xerrs];   Y = df[:, ycols];    Yerr = df[:, yerrs]
-    DSs = Array{AbstractDataSet}(undef, size(Y,2))
-    for (i,Col) in enumerate(eachcol(Y))
-        inds = DitchMissingRows(X, Col)
-        DSs[i] = DataSetExact(ToDataVec(X[inds,:]), ToArray(Xerr[inds,:]), ToArray(Y[inds,:]), ToArray(Yerr[inds,:]), (sum(inds), size(X,2), 1))
-    end;    DSs
+    [(inds = DitchMissingRows(X, Col);    DataSetExact(ToDataVec(X[inds,:]), ToArray(Xerr[inds,:]), ToArray(Y[inds,:]), ToArray(Yerr[inds,:]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
 end
 
 function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::Val{false}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
     X = df[:, xcols];    Y = df[:, ycols];    Yerr = df[:, yerrs]
-    DSs = Array{AbstractDataSet}(undef, size(Y,2))
-    for (i,Col) in enumerate(eachcol(Y))
-        inds = DitchMissingRows(X, Col)
-        DSs[i] = DataSet(ToDataVec(X[inds,:]), ToArray(Y[inds,i]), ToArray(Yerr[inds,i]), (sum(inds), size(X,2), 1))
-    end;    DSs
+    [(inds = DitchMissingRows(X, Col);      DataSet(ToDataVec(X[inds,:]), ToArray(Y[inds,i]), ToArray(Yerr[inds,i]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
 end
 
 
@@ -104,17 +96,17 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     logdetInvCov::Real
     WoundX::AbstractVector
     SharedYdim::Val
-    name::Union{String,Symbol}
+    name::Union{<:AbstractString,Symbol}
     function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet}; kwargs...)
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
         InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
         CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)); kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{String,Symbol}=Symbol(), kwargs...)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
         CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{String,Symbol})
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{<:AbstractString,Symbol})
         new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
     end
 end
@@ -145,7 +137,7 @@ InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
 SharedYdim::Val=Val(true),
-name::Union{String,Symbol}=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
+name::Union{<:AbstractString,Symbol}=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs
@@ -175,10 +167,10 @@ ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 name(CDS::CompositeDataSet) = CDS.name |> string
 
 
-function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
+function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
     CompositeDataSet(InformNames(Data(CDS), xnames, ynames))
 end
-function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{String}, ynames::AbstractVector{String})
+function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
     # Use InformNames for single DataSet recursively
     @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
     Res = Vector{AbstractDataSet}(undef, length(DSs))

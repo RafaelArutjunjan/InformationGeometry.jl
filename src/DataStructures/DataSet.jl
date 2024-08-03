@@ -42,9 +42,9 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
     WoundX::Union{AbstractVector,Nothing}
-    xnames::AbstractVector{String}
-    ynames::AbstractVector{String}
-    name::Union{String,Symbol}
+    xnames::AbstractVector{<:AbstractString}
+    ynames::AbstractVector{<:AbstractString}
+    name::Union{<:AbstractString,Symbol}
     DataSet(df::DataFrame; kwargs...) = DataSet(Matrix(df); xnames=[names(df)[1]], ynames=[names(df)[1]], kwargs...)
     DataSet(df::AbstractMatrix; kwargs...) = size(df, 2) ≤ 3 ? DataSet(ToCols(df)...; kwargs...) : throw("Unclear dimensions of input $df.")
     function DataSet(Xdf::DataFrame, Ydf::DataFrame, sigma::Union{Real,DataFrame}=1.0, args...; kwargs...)
@@ -82,12 +82,12 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         end
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int}, logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing};
-                        xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"), name::Union{String,Symbol}=Symbol(), kwargs...)
+                        xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"), name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
-                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{String}, ynames::AbstractVector{String}, name::Union{String,Symbol}=Symbol())
+                            logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol())
         new(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
     end
 end
@@ -106,9 +106,9 @@ InvCov::AbstractMatrix=Diagonal([1.]),
 dims::Tuple{Int,Int,Int}=(1,1,1),
 logdetInvCov::Real=-Inf,
 WoundX::Union{AbstractVector,Nothing}=nothing,
-xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}=Symbol()) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
+xnames::AbstractVector{<:AbstractString}=["x"],
+ynames::AbstractVector{<:AbstractString}=["y"],
+name::Union{<:AbstractString,Symbol}=Symbol()) = DataSet(x, y, InvCov, dims, logdetInvCov, WoundX, xnames, ynames, name)
 
 # Specialized methods for DataSet
 dims(DS::DataSet) = DS.dims
@@ -137,7 +137,7 @@ ynames(DS::DataSet) = DS.ynames
 name(DS::DataSet) = DS.name |> string
 
 
-# function InformNames(DS::DataSet, xnames::AbstractVector{String}, ynames::AbstractVector{String})
+# function InformNames(DS::DataSet, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSet(xdata(DS), ydata(DS), yInvCov(DS), (Npoints(DS),xdim(DS),ydim(DS)), logdetInvCov(DS), WoundX(DS), xnames, ynames)
 # end

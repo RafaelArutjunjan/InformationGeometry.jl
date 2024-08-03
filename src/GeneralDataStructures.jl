@@ -78,7 +78,7 @@ _WoundX(DS::AbstractDataSet, WoundX::Nothing) = xdata(DS)
 _WoundX(DS::AbstractDataSet, WoundX::AbstractVector) = WoundX
 
 # Can eliminate specialized methods
-function InformNames(DS::T, Xnames::AbstractVector{String}, Ynames::AbstractVector{String}) where T <: AbstractDataSet
+function InformNames(DS::T, Xnames::AbstractVector{<:AbstractString}, Ynames::AbstractVector{<:AbstractString}) where T <: AbstractDataSet
     @assert length(Xnames) == xdim(DS) && length(Ynames) == ydim(DS)
     remake(DS; xnames=Xnames, ynames=Ynames)
 end
@@ -158,10 +158,10 @@ name(DS::Union{AbstractDataSet, AbstractVector{<:AbstractDataSet}}) = ""
 # Prioritise Predictor name, if empty use Dataset name
 name(DM::AbstractDataModel) = length(name(Predictor(DM))) == 0 ? name(Data(DM)) : name(Predictor(DM))
 
-Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,String}) = remake(DS; name=Symbol(name))
-Christen(F::Function, name::Union{Symbol,String}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))
+Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,<:AbstractString}) = remake(DS; name=Symbol(name))
+Christen(F::Function, name::Union{Symbol,<:AbstractString}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))
 # Christens ModelMaps
-Christen(DM::AbstractDataModel, name::Union{Symbol,String}) = remake(DM; model=Christen(Predictor(DM); name=name), dmodel=Christen(dPredictor(DM); name=name))
+Christen(DM::AbstractDataModel, name::Union{Symbol,<:AbstractString}) = remake(DM; model=Christen(Predictor(DM); name=name), dmodel=Christen(dPredictor(DM); name=name))
 
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)

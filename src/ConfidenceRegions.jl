@@ -1227,7 +1227,7 @@ struct ConfidenceBoundarySlice <: AbstractBoundarySlice
     Dirs::Tuple{Int,Int,Int}
     Confnum::Real
     mle::AbstractVector{<:Number}
-    pnames::AbstractVector{<:String}
+    pnames::AbstractVector{<:AbstractString}
     Full::Bool
 end
 Sols(CB::ConfidenceBoundarySlice) = CB.sols
@@ -1346,8 +1346,8 @@ struct ConfidenceInterval <: AbstractBoundarySlice
     Interval::Tuple{<:Number,<:Number}
     Confnum::Real
     mle::AbstractVector{<:Number}
-    pnames::AbstractVector{<:String}
-    function ConfidenceInterval(Interval::Tuple{<:Number,<:Number}, Confnum::Real, mle::AbstractVector{<:Number}, pnames::AbstractVector{<:String})
+    pnames::AbstractVector{<:AbstractString}
+    function ConfidenceInterval(Interval::Tuple{<:Number,<:Number}, Confnum::Real, mle::AbstractVector{<:Number}, pnames::AbstractVector{<:AbstractString})
         @assert Interval[1] ≤ mle[1] ≤ Interval[2]
         @assert length(mle) == length(pnames) == 1
         new(Interval, Confnum, mle, pnames)

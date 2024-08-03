@@ -79,7 +79,7 @@ struct DataModel <: AbstractDataModel
     end
     # Block kwargs here.
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false;
-                                            name::Union{Symbol,String}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
+                                            name::Union{Symbol,<:AbstractString}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
@@ -159,7 +159,7 @@ function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
 end
 
 
-InformNames(DM::AbstractDataModel, xnames::AbstractVector{String}, ynames::AbstractVector{String}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
+InformNames(DM::AbstractDataModel, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 
 
 # Dot not create Prior object when there is no prior.

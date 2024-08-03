@@ -51,13 +51,13 @@ struct UnknownVarianceDataSet <: AbstractUnknownUncertaintyDataSet
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invXvariancemodel::Function, invYvariancemodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function;
-            xnames::AbstractVector{<:String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:String}=CreateSymbolNames(ydim(dims),"y"),
-            name::Union{String,Symbol}=Symbol(), kwargs...)
+            xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
+            name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
             UnknownVarianceDataSet(x, y, dims, invXvariancemodel, invYvariancemodel, testpx, testpy, errorparamsplitter, xnames, ynames, name; kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
         invXvariancemodel::Function, invYvariancemodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
-        xnames::AbstractVector{<:String}, ynames::AbstractVector{<:String}, name::Union{String,Symbol}=Symbol())
+        xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol())
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -87,9 +87,9 @@ invYvariancemodel::Function=identity,
 testpx::AbstractVector{<:Number}=[0.],
 testpy::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
-xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}=Symbol()) = UnknownVarianceDataSet(x, y, dims, invXvariancemodel, invYvariancemodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
+xnames::AbstractVector{<:AbstractString}=["x"],
+ynames::AbstractVector{<:AbstractString}=["y"],
+name::Union{<:AbstractString,Symbol}=Symbol()) = UnknownVarianceDataSet(x, y, dims, invXvariancemodel, invYvariancemodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
 
 
 DefaultErrorModel(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))

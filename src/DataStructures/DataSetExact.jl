@@ -33,9 +33,9 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix{<:Number}
     WoundX::Union{AbstractVector,Nothing}
-    xnames::AbstractVector{String}
-    ynames::AbstractVector{String}
-    name::Union{String,Symbol}
+    xnames::AbstractVector{<:AbstractString}
+    ynames::AbstractVector{<:AbstractString}
+    name::Union{<:AbstractString,Symbol}
     DataSetExact(DM::AbstractDataModel; kwargs...) = DataSetExact(Data(DM); kwargs...)
     DataSetExact(DS::DataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
@@ -77,12 +77,12 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
-                            xnames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{String}=CreateSymbolNames(xdim(dims),"y"), name::Union{String,Symbol}=Symbol(), kwargs...)
+                            xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"y"), name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames, name; kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                            xnames::AbstractVector{String}, ynames::AbstractVector{String}, Name::Union{String,Symbol}=Symbol())
+                            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, Name::Union{<:AbstractString,Symbol}=Symbol())
         new{typeof(xd), typeof(yd)}(xd, yd, dims, InvCov, WoundX, xnames, ynames, Name)
     end
 end
@@ -102,9 +102,9 @@ ydist::Distribution=Normal(0,1),
 dims::Tuple{Int,Int,Int}=(1,1,1),
 InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
 WoundX::Union{AbstractVector,Nothing}=nothing,
-xnames::AbstractVector{String}=["x"],
-ynames::AbstractVector{String}=["y"],
-name::Union{String,Symbol}=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
+xnames::AbstractVector{<:AbstractString}=["x"],
+ynames::AbstractVector{<:AbstractString}=["y"],
+name::Union{<:AbstractString,Symbol}=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
 
 
 # Conversion to DataSet
@@ -148,7 +148,7 @@ name(DSE::DataSetExact) = DSE.name |> string
 
 
 
-# function InformNames(DS::DataSetExact, xnames::AbstractVector{String}, ynames::AbstractVector{String})
+# function InformNames(DS::DataSetExact, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
 #     @assert length(xnames) == xdim(DS) && length(ynames) == ydim(DS)
 #     DataSetExact(xdist(DS), ydist(DS), (Npoints(DS),xdim(DS),ydim(DS)), yInvCov(DS), WoundX(DS), xnames, ynames)
 # end
