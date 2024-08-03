@@ -10,11 +10,11 @@ function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Numbe
 end
 
 LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number
-    _curve_fit(DS, M, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
+function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
+    _curve_fit(DS, M, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), verbose, kwargs...)
 end
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; kwargs...) where T<:Number
-    _curve_fit(DS, M, dM, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), kwargs...)
+function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
+    _curve_fit(DS, M, dM, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), verbose, kwargs...)
 end
 
 
@@ -157,7 +157,7 @@ minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args..
 
 
 function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
-                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? Optim.LBFGS() : Optim.Newton())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
+                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? Optim.LBFGS(;linesearch=LineSearches.BackTracking()) : Optim.NewtonTrustRegion())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
     minimize(Fs, Start, meth; Domain, maxtime, kwargs...)
 end
 

@@ -9,7 +9,8 @@ using Distributed, StaticArrays, SparseArrays, ForwardDiff
 using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
 using ModelingToolkit, Symbolics, DataInterpolations
 using DerivableFunctionsBase
-using BenchmarkTools, LsqFit, Optim, Optimization, Measurements, HCubature
+using LsqFit, Optim, LineSearches, Optimization
+using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using LibGEOS, Sobol, ProgressMeter, Suppressor
 using RecipesBase, PlotUtils
