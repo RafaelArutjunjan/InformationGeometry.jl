@@ -4,6 +4,7 @@
 Getxyp(DM::AbstractDataModel) = (xdim(DM), ydim(DM), pdim(DM))
 Getxyp(DS::AbstractDataSet, model::Function) = (xdim(DS),ydim(DS),pdim(DS,model))
 Getxyp(DS::AbstractDataSet, M::ModelMap) = M.xyp
+Getxyp(M::ModelMap) = M.xyp
 
 SymbolicArguments(args...) = SymbolicArguments(Getxyp(args...))
 function SymbolicArguments(xyp::Tuple{Int,Int,Int})
@@ -39,12 +40,17 @@ function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
     expr = SymbolicModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
-    if sub && DM isa AbstractDataModel
-        xnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam))
-        ynew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+    if sub
+        xold, yold, pold = SymbolicArguments(DM)
+
+        xnew, ynew = if DM isa AbstractDataModel
+            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam)),
+            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+        else
+            xold, yold
+        end
         pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
 
-        xold, yold, pold = SymbolicArguments(DM)
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
@@ -68,12 +74,17 @@ function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
     expr = SymbolicdModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
-    if sub && DM isa AbstractDataModel
-        xnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam))
-        ynew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+    if sub
+        xold, yold, pold = SymbolicArguments(DM)
+
+        xnew, ynew = if DM isa AbstractDataModel
+            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam)),
+            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+        else
+            xold, yold
+        end
         pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
 
-        xold, yold, pold = SymbolicArguments(DM)
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
