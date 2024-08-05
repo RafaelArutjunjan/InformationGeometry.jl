@@ -189,6 +189,7 @@ end
 GetNamesSymb(p::Array{<:Number}) = length(p) > 1 ? Symbol.(1:length(p)) : [Symbol("")]
 # No error for ReshapedArray{...,...,SubArray}
 GetNamesSymb(@nospecialize p::Base.ReshapedArray) = length(p) > 1 ? Symbol.(1:length(p)) : [Symbol("")]
+GetNamesSymb(p::Base.SubArray{A, B, Vector{C}}) where A where B where C = length(p) > 1 ? Symbol.(1:length(p)) : [Symbol("")]
 function GetNamesSymb(p::AbstractArray{<:Number})
     @warn "Do not know how to read parameter names of $(typeof(p)), treating as type 'Array'."
     GetNamesSymb(convert(Array,p))
@@ -697,3 +698,10 @@ end
 IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))
 IsDEbased(F::ModelMap) = IsDEbased(F.Map)
 IsDEbased(DM::AbstractDataModel) = IsDEbased(Predictor(DM))
+
+
+function GetComponentVectorEmbedding(P::ComponentVector)
+    Ax = typeof(getaxes(P))
+    ConvertToComponentVector(X::ComponentVector{T}) where T<:Number = X
+    ConvertToComponentVector(X::AbstractVector{T}) where T<:Number  = convert(ComponentVector{T, Vector{T}, Ax}, X)
+end
