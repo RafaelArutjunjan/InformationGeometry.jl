@@ -291,21 +291,29 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
 end
 
 
-_Apply(x::AbstractVector, Componentwise::Function, idxs::BoolVector) = [(idxs[i] ? Componentwise(x[i]) : x[i]) for i in eachindex(idxs)]
+_Apply(x::AbstractVector, ComponentwiseF::Function, idxs::BoolVector) = (@assert length(x) == length(idxs); [@inbounds (idxs[i] ? ComponentwiseF(x[i]) : x[i]) for i in eachindex(idxs)])
 
-MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :increasing
-MonotoneDecreasing(F::Function, Interval::Tuple{Number,Number})::Bool = Monotonicity(F, Interval) == :decreasing
-function Monotonicity(F::Function, Interval::Tuple{Number,Number})
-    derivs = map(GetDeriv(Val(:ForwardDiff),F), range(Interval[1], Interval[2]; length=200))
+MonotoneIncreasing(F::Function, Interval::Tuple{Number,Number}; kwargs...) = Monotonicity(F, Interval; kwargs...) === :increasing
+MonotoneDecreasing(F::Function, Interval::Tuple{Number,Number}; kwargs...) = Monotonicity(F, Interval; kwargs...) === :decreasing
+function Monotonicity(F::Function, Interval::Tuple{Number,Number}; length::Int=100)
+    derivs = map(GetDeriv(Val(:ForwardDiff),F), range(Interval[1], Interval[2]; length=length))
     all(x-> x≥0., derivs) && return :increasing
     all(x-> x≤0., derivs) && return :decreasing
     :neither
 end
 
-Transform(model::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x)) = _Transform(model, idxs, Transform, InverseTransform)
+# Check if anonymous function
+GetFunctionName(F::Function, Fallback::AbstractString) = (S = string(nameof(F));    !contains(S, "#") ? S : Fallback)
+GetTrafoName(F::Function) = GetFunctionName(F, "Trafo")
+
+ComponentwiseModelTransform(model::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x); pnames::AbstractVector{<:AbstractString}=String[]) = _Transform(model, idxs, Transform, InverseTransform)
 
 # Try to do a bit of inference for the new domain here!
-function Transform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+# Aim for user convenience and generality rather than performance
+function ComponentwiseModelTransform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x); 
+                        InverseTransformName::AbstractString=GetTrafoName(InverseTransform),
+                        pnames::AbstractVector{<:AbstractString}=_Apply(pnames(M), (p->"$InverseTransformName("*p*")"), idxs))
+    @assert !isinplacemodel(M)
     TransformedDomain = InDomain(M) isa Function ? (θ::AbstractVector{<:Number} -> InDomain(M)(_Apply(θ, Transform, idxs))) : nothing
     mono = Monotonicity(Transform, (1e-12,50.))
     NewCube = if mono == :increasing
@@ -318,11 +326,12 @@ function Transform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTr
         FullDomain(length(idxs))
     end
     ModelMap(_Transform(M.Map, idxs, Transform, InverseTransform), TransformedDomain, NewCube,
-                        M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
+                        M.xyp, pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
 end
-# function Transform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
-#     Transform(M, trues(M.xyp[3]), Transform, InverseTransform)
+# function ComponentwiseModelTransform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
+#     ComponentwiseModelTransform(M, trues(M.xyp[3]), Transform, InverseTransform)
 # end
+@deprecate Transform(M::ModelOrFunction, args...; kwargs...) ComponentwiseModelTransform(M, args...; kwargs...)
 
 
 function _Transform(F::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function)
@@ -333,42 +342,44 @@ end
 
 
 """
-    Transform(DM::AbstractDataModel, F::Function, idxs=trues(pdim(DM))) -> DataModel
-    Transform(model::Function, idxs, F::Function) -> Function
+    ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs=trues(pdim(DM))) -> DataModel
+    ComponentwiseModelTransform(model::Function, idxs, F::Function) -> Function
 Transforms the parameters of the model by the given scalar function `F` such that `newmodel(x, θ) = oldmodel(x, F.(θ))`.
-By providing `idxs`, one may restrict the application of the function `F` to specific parameter components.
+By providing `idxs`, one may restrict the application of the function `F` to broadcast only to specific parameter components.
+
+For vector-valued transformations, see [`ModelEmbedding`](@ref).
 """
-function Transform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
+function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), Transform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs); kwargs...)
+    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs); kwargs...)
 end
-function Transform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
+function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), Transform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs); kwargs...)
+    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs); kwargs...)
 end
 
 
-LogTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log, exp)
-LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, log, exp, idxs; kwargs...)
+LogTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, log, exp)
+LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, log, exp, idxs; kwargs...)
 
-ExpTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp, log)
-ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, exp, log, idxs; kwargs...)
+ExpTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, exp, log)
+ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, exp, log, idxs; kwargs...)
 
-Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, log10, exp10)
-Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, log10, exp10, idxs; kwargs...)
+Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, log10, exp10)
+Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, log10, exp10, idxs; kwargs...)
 
-Exp10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, exp10, log10)
-Exp10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, exp10, log10, idxs; kwargs...)
+Exp10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, exp10, log10)
+Exp10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, exp10, log10, idxs; kwargs...)
 
 @deprecate Power10Transform(args...; kwargs...) Exp10Transform(args...; kwargs...)
 
-ReflectionTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x-> -x, x-> -x)
-ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x-> -x, x-> -x, idxs; kwargs...)
+ReflectionTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, x-> -x, x-> -x)
+ReflectionTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, x-> -x, x-> -x, idxs; kwargs...)
 
-ScaleTransform(M::ModelOrFunction, factor::Number, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = Transform(M, idxs, x->factor*x, x->x/factor)
-ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM)); kwargs...) = Transform(DM, x->factor*x, x->x/factor, idxs; kwargs...)
+ScaleTransform(M::ModelOrFunction, factor::Number, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, x->factor*x, x->x/factor)
+ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, x->factor*x, x->x/factor, idxs; kwargs...)
 
 
 function TranslationTransform(F::Function, v::AbstractVector{<:Number})
@@ -428,7 +439,8 @@ function DecorrelationTransforms(DM::AbstractDataModel)
     ForwardTransform, InvTransform
 end
 
-
+# Unlike "ComponentwiseModelTransform" EmbedModelVia should be mainly performant for use e.g. in ProfileLikelihood
+# Also only vector-valued transformations
 """
     EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F))) -> Union{Function,ModelMap}
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
@@ -472,6 +484,8 @@ end
     ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
+
+For component-wise transformations see [`ComponentwiseModelTransform`](@ref).
 """
 function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
     if isnothing(LogPrior(DM))
@@ -497,16 +511,16 @@ EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedMod
 EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """
-    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::String="Transform") -> AbstractDataModel
-    TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform") -> AbstractDataSet
+    TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::String="Trafo") -> AbstractDataModel
+    TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Trafo") -> AbstractDataSet
 Returns a modified `DataModel` where the x-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 `iEmb` denotes the inverse of `Emb`.
 """
-function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString="Transform"; kwargs...)
+function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
     DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
 end
-function TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString="Transform"; xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
     if !HasXerror(DS)
         DataSetType(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
@@ -564,14 +578,14 @@ EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
 
 # Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
 """
-    TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::String="Transform") -> AbstractDataModel
-    TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Transform") -> AbstractDataSet
+    TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::String="Trafo") -> AbstractDataModel
+    TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Trafo") -> AbstractDataSet
 Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
 """
-function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString="Transform"; kwargs...)
+function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
     DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
 end
-function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString="Transform"; ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     @assert ysigma(DS) isa AbstractVector
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
     NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction

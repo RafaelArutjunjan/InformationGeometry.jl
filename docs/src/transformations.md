@@ -18,7 +18,7 @@ SymbolicModel(logDM), SymbolicModel(ExpDM)
 
 It is also possible to provide other differentiable functions for parameter transformations by hand using the following method:
 ```@docs
-Transform
+ComponentwiseModelTransform
 ```
 The provided scalar function `F` should be strictly monotonic to avoid problems when differentiating the model.
 
@@ -28,5 +28,5 @@ Lastly, the method `LinearDecorrelation` is a special case of `AffineTransform` 
 
 For general (differentiable) multivariable transformations on the parameter space, one can use:
 ```@docs
-Embedding
+ModelEmbedding
 ```

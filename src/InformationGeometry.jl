@@ -128,11 +128,14 @@ export PositiveDomain, NegativeDomain, FullDomain, rand, EmbeddedODESolution
 include("ModelMaps.jl")
 export ModelMap, ModelOrFunction, InformNames, IsInDomain
 # Parameter Space transforms
-export Transform, LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
+export ComponentwiseModelTransform
+export LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
 export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export EmbedModelVia, ModelEmbedding
 # Input and Output Transforms
 export TransformXdata, TransformYdata
+export LogXdata, Log10Xdata, ExpXdata, Exp10Xdata, SqrtXdata
+export LogYdata, Log10Ydata, ExpYdata, Exp10Ydata, SqrtYdata
 # Predefined Models
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel, GetLinearModel, GetGeneralLinearModel
 

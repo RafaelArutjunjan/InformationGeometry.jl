@@ -36,7 +36,14 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
 end
 
 SymbolicModelExpr(DM::Union{AbstractDataModel,ModelMap}) = @suppress_err ToExpr(DM)
-function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
+"""
+    SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
+Produces `String` of symbolic expression for the model map if possible.
+
+Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
+or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
+"""
+function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)))
     expr = SymbolicModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
@@ -54,7 +61,7 @@ function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
-    "y(x,θ) = $expr"
+    "y(x,θ) = " * string(expr)
 end
 
 function SymbolicdModelExpr(DM::AbstractDataModel)
@@ -70,7 +77,14 @@ function SymbolicdModelExpr(M::ModelMap)
     X, Y, θ = SymbolicArguments(M)
     M(X, θ)
 end
-function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
+"""
+    SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
+Produces `String` of symbolic expression for the model map if possible.
+
+Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
+or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
+"""
+function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)))
     expr = SymbolicdModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
@@ -88,7 +102,7 @@ function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
-    "(∂y/∂θ)(x,θ) = $expr"
+    "(∂y/∂θ)(x,θ) = " * string(expr)
 end
 
 # mixing inplace (outcome) with isinplace (input) here. Disambiguate!
