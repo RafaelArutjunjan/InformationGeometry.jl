@@ -43,7 +43,7 @@ In many applied settings, one often does not have a dataset of sufficient size f
 A slightly more robust alternative to using geodesics is given by the so-called profile likelihood method. Essentially, it consists of pinning one of the parameters at particular values on a grid, while optimizing the remaining parameters to maximize the likelihood function at every step. Ultimately, one ends up with one-dimensional slices of the parameter manifold along which the likelihood decays most slowly.
 
 ```@docs
-ProfileLikelihood(::DataModel,::Int64)
+ParameterProfiles(::DataModel,::Int64)
 InterpolatedProfiles
 ProfileBox
 ```

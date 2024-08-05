@@ -1068,7 +1068,7 @@ function ToObj(Vertices::AbstractMatrix, Faces::AbstractMatrix)
         text *= '\n'
     end;    text
 end
-function WriteObj(Vertices::AbstractMatrix, Faces::AbstractMatrix, path::String="D:/Boundary.obj")
+function WriteObj(Vertices::AbstractMatrix, Faces::AbstractMatrix, path::AbstractString="D:/Boundary.obj")
     open(path,"w") do f
         write(f,ToObj(Vertices,Faces))
     end;    return nothing

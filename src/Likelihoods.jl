@@ -178,7 +178,7 @@ end
 
 """
     GetRemainderFunction(DM::AbstractDataModel)
-Returns remaineder function ``R(θ) = ℓ(θ) - QuadraticApprox(θ)``.
+Returns remainder function ``R(θ) = ℓ(θ) - QuadraticApprox(θ)``.
 """
 function GetRemainderFunction(DM::AbstractDataModel)
     F = FisherMetric(DM, MLE(DM))

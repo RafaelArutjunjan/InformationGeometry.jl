@@ -10,7 +10,7 @@ A prerequisite for parallel computation is that every process has access to the 
 Alternatively, it is also possible to share data between processes using packages such as [ParallelDataTransfer.jl](https://github.com/ChrisRackauckas/ParallelDataTransfer.jl). Here, only the final `DataModel` needs to be sent to other workers instead of having to perform all intermediate steps (such as the maximum likelihood estimation involved in the `DataModel` construction) on each worker.
 
 
-Both the functions `ConfidenceRegion()` and `ConfidenceRegions()` accept the optional keyword `parallel=true` to enable parallel computations of confidence boundaries. Other methods which also accept the keyword `parallel=true` include `PlotScalar()`, `ProfileLikelihood()` and `RadialGeodesics()`.
+Both the functions `ConfidenceRegion()` and `ConfidenceRegions()` accept the optional keyword `parallel=true` to enable parallel computations of confidence boundaries. Other methods which also accept the keyword `parallel=true` include `PlotScalar()`, `ParameterProfiles()` and `RadialGeodesics()`.
 
 Example:
 ```julia

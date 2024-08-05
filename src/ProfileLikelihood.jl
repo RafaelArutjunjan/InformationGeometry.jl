@@ -208,14 +208,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     GetProfile(DM, Comp, ps; kwargs...)
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; AllowNewMLE::Bool=false, general::Bool=true, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
-    FitFunc = if !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet || !(meth isa NewtonTrustRegion)
-        ((args...; kwargs...)->InformationGeometry.minimize(args...; meth=meth, kwargs...))
+    FitFunc = if !isnothing(meth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
+        Meth = isnothing(meth) ? NewtonTrustRegion() : meth
+        ((args...; Kwargs...)->InformationGeometry.minimize(args...; Full=false, tol=tol, meth=Meth, Kwargs...))
     else 
-        ((args...; kwargs...)->curve_fit(args...; kwargs...).param)
+        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Kwargs...).param)
     end
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
@@ -223,9 +224,11 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in eachindex(ps)] : nothing
     path = SaveTrajectories ? Vector{eltype(MLE(DM))}[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
+    Converged = BitVector()
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         visitedps = ps
         Res = map(loglikelihood(DM), [[x] for x in ps])
+        Converged = trues(length(Res))
     else
         MLEstash = Drop(MLE(DM), Comp)
         if ApproximatePaths
@@ -237,30 +240,38 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 θ = muladd(p-pmle, dir, MLE(DM))
                 push!(Res, loglikelihood(DM, θ))
                 push!(visitedps, p)
+                push!(Converged, true)
             
                 SaveTrajectories && push!(path, θ)
                 SavePriors && push!(priors, EvalLogPrior(LogPrior(DM), θ))
             end
-        else
-            for p in ps
-                if Data(DM) isa AbstractUnknownUncertaintyDataSet
-                    L = (args...; Kwargs...)->(loglikelihood(DM)∘ValInserter(Comp,p))(args...; Kwargs...)
-                    MLEstash = FitFunc(L, MLEstash; tol=tol, kwargs...)
-                    push!(Res, L(MLEstash))
-                else
+        else-
+            PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
+                function PerformStepGeneral!(Res, MLEstash, Converged, p)
+                    L = Negloglikelihood(DM)∘ValInserter(Comp,p)
+                    # R = FitFunc(L, MLEstash; kwargs...)
+                    copyto!(MLEstash, FitFunc(L, MLEstash; kwargs...))
+                    push!(Res, -L(MLEstash))
+                end
+            else
+                function PerformStepManual!(Res, MLEstash, Converged, p)
                     NewModel = ProfilePredictor(DM, Comp, p)
                     DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
-                    MLEstash = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; tol=tol, kwargs...)
+                    copyto!(MLEstash, FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...))
                     push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
                 end
+            end
+            # Adaptive instead of ps grid here?
+            for p in ps
+                PerformStep!!!(Res, MLEstash, Converged, p)
+
                 push!(visitedps, p)
-            
                 SaveTrajectories && push!(path, insert!(copy(MLEstash), Comp, p))
                 SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
             end
         end
     end
-    Logmax = max(maximum(Res), LogLikeMLE(DM))
+    Logmax = AllowNewMLE ? max(maximum(Res), LogLikeMLE(DM)) : LogLikeMLE(DM)
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
