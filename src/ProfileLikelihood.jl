@@ -6,6 +6,7 @@ SafeCopy(X::AbstractRange) = collect(X)
 SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
 Drop(X::AbstractVector, i::Int) = (Z=SafeCopy(X);   splice!(Z,i);   Z)
+Drop(X::ComponentVector, i::Int) = Drop(convert(Vector,X), i)
 
 _Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
 Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=SafeCopy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
@@ -26,27 +27,39 @@ function Consecutive(X::AbstractVector{T})::Bool where T <: Number
     end;    true
 end
 
+# https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
+function _SortTogether(A::AbstractVector, B::AbstractVector, args...; rev::Bool=false, kwargs...)
+    issorted(A; rev=rev) ? (A, B, args...) : getindex.((A, B, args...), (sortperm(A; rev=rev, kwargs...),))
+end
+
+
+# Insert value and convert to ComponentVector of prescribed type after
+function ValInserter(Component::Int, Value::AbstractFloat, Z::T) where T <: ComponentVector{<:Number}
+    # GetRanges(X::ComponentVector) = (A = only(getaxes(X)); [A[p].idx for p in propertynames(X)])
+    # Ranges = GetRanges(X)
+    # DropInd = (1:length(X))[BasisVector(Component, length(X))]
+    
+    # Inserter = ValInserter(Component, Value)
+    # ValInsertionComponentVector(X::AbstractVector{<:Number}) = convert(T, Inserter(convert(Vector,X)))
+    (x::Vector->convert(T,x))∘ValInserter(Component, Value, eltype(Z)[])∘(z::AbstractVector->convert(Vector,z))
+end
 
 """
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
 Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
 In effect, this allows one to pin an input component at a specific value.
 """
-function ValInserter(Component::Int, Value::AbstractFloat)
+function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]) where T <: AbstractVector{<:Number}
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
     ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
 end
 
-# https://discourse.julialang.org/t/how-to-sort-two-or-more-lists-at-once/12073/13
-function _SortTogether(A::AbstractVector, B::AbstractVector, args...; rev::Bool=false, kwargs...)
-    issorted(A; rev=rev) ? (A, B, args...) : getindex.((A, B, args...), (sortperm(A; rev=rev, kwargs...),))
-end
 """
     ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}) -> Function
 Returns an embedding function which inserts `Values` in the specified `Components`.
 In effect, this allows one to pin multiple input components at a specific values.
 """
-function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number})
+function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]) where T <: AbstractVector{<:Number}
     @assert length(Components) == length(Values)
     length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
     if length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
@@ -68,11 +81,11 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
         end
     end
 end
-function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number})
+function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number}, X::T=Float64[]) where T <: AbstractVector{<:Number}
     @assert length(Components) == length(Values)
     ValInserter((1:length(Components))[Components], Values[Components])
 end
-function ValInserter(Components::AbstractVector{<:Int}, Value::Number)
+function ValInserter(Components::AbstractVector{<:Int}, Value::Number, Z::T=Float64[]) where T <: AbstractVector{<:Number}
     length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
     components = sort(Components)
     function ValInsertionEmbedding(P::AbstractVector)
@@ -134,8 +147,8 @@ end
 _WithoutFirst(X::AbstractVector{<:Bool}) = (Z=copy(X);  Z[findfirst(X)]=false;  Z)
 function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked))
     @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainInd=$MainInd."
-    LinkedInds = (1:length(Linked))[Linked]
-    LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainInd])(θ)
+    inserter = ValInserter((1:length(Linked))[Linked], θ[MainInd])
+    LinkEmbedding(θ::AbstractVector{<:Number}) = inserter(θ)
 end
 """
     LinkParameters(DM::AbstractDataModel, Linked::Union{AbstractVector{<:Bool},AbstractVector{<:Int}}, MainInd::Int=findfirst(Linked); kwargs...)
@@ -228,7 +241,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         visitedps = ps
         Res = map(loglikelihood(DM), [[x] for x in ps])
-        Converged = trues(length(Res))
+        Converged = !isnan.(Res) .&& !isinf.(Res)
     else
         MLEstash = Drop(MLE(DM), Comp)
         if ApproximatePaths
@@ -248,7 +261,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else-
             PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
                 function PerformStepGeneral!(Res, MLEstash, Converged, p)
-                    L = Negloglikelihood(DM)∘ValInserter(Comp,p)
+                    L = Negloglikelihood(DM)∘ValInserter(Comp, p, MLE(DM))
                     # R = FitFunc(L, MLEstash; kwargs...)
                     copyto!(MLEstash, FitFunc(L, MLEstash; kwargs...))
                     push!(Res, -L(MLEstash))
@@ -256,7 +269,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             else
                 function PerformStepManual!(Res, MLEstash, Converged, p)
                     NewModel = ProfilePredictor(DM, Comp, p)
-                    DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp,p))
+                    DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp, p, MLE(DM)))
                     copyto!(MLEstash, FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...))
                     push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
                 end
