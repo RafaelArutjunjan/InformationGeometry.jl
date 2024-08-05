@@ -96,6 +96,11 @@ LogPrior(DM::AbstractDataModel) = x::AbstractVector->zero(eltype(x))
 
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 
+"""
+    MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+Returns vector of type `Measurements.Measurement` where the parameter uncertainties are approximated via the diagonal of the inverse Fisher metric.
+That is, the stated uncertainties are a linearized symmetric approximation of the true parameter uncertainties around the MLE.
+"""
 function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
     F = FisherMetric(DM, mle)
     try

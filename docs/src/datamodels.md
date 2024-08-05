@@ -17,6 +17,8 @@ DataModel
 
 "Simple" `DataSet`s and `DataModel`s can be visualized directly via `plot(DM)` using pre-written recipes for the [**Plots.jl**](https://github.com/JuliaPlots/Plots.jl) package.
 
+
+A more structured container for models is `ModelMap`, which additionally stores information about custom parameter bounds, parameter names, arbitrary nonlinear constraints, etc.:
 ```@docs
 ModelMap
 ```
