@@ -226,3 +226,21 @@ function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, Lo
     ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
 FullLiftedNegLogLikelihood(args...; kwargs...) = (L=FullLiftedLogLikelihood(args...; kwargs...); Xθ::AbstractVector{<:Number}->-L(Xθ))
+
+
+"""
+    GeneralizedDOF(DM::AbstractDataModel)
+Computes the generalized degrees of freedom for a given `DataModel` which can take non-integer values and is defined in:
+https://doi.org/10.1093/biomet/asv019
+https://doi.org/10.2307/2669609
+Its definition is based on the fact that the expected prediction error (EPE) is overestimated by the residual squared sum (RSS) by an amount `2σ^2 * dof`.
+It can be computed as ``\\sum_{i=1}^{n} \\partial \\hat{y}_i / \\partial {y_\\text{data}}_i``.
+"""
+function GeneralizedDOF(DM::AbstractDataModel; meth=Newton(;linesearch=LineSearches.BackTracking()), ADmode::Union{Symbol,Val}=Val(:FiniteDifferences), kwargs...)
+    NewData(DS::Union{DataSet,DataSetUncertain}, y_data) = remake(DS; y=y_data)
+    # NewData(DS::DataSetExact, y_data) = remake(DS; ydist=typeof(ydist(DS))(y_data, ))
+    NewData(DS::AbstractDataSet, y_data) = throw("GDF not programmed for $(typeof(DS)) yet.")
+    MLEgivenData(y_data) = InformationGeometry.minimize(Negloglikelihood(remake(DM; Data=NewData(Data(DM), y_data), SkipTests=true)), MLE(DM), meth; kwargs...)
+    MLEjac = GetJac(ADmode, MLEgivenData, length(ydata(DM)))
+    EmbeddingMatrix(DM, MLE(DM)) * MLEjac(ydata(DM)) |> LinearAlgebra.tr
+end

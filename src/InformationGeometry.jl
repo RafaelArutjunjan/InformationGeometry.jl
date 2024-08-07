@@ -196,7 +196,7 @@ export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 
 
 include("Likelihoods.jl")
-export likelihood, loglikelihood, Score, GetRemainderFunction
+export likelihood, loglikelihood, Score, GetRemainderFunction, GeneralizedDOF
 
 
 include("ModelPredictions.jl")

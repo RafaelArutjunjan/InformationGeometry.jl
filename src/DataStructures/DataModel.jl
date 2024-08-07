@@ -78,7 +78,7 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, MLE, LogLikeMLE, nothing, SkipTests; kwargs...)
     end
     # Block kwargs here.
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false;
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}, skipTests::Bool=false; SkipTests::Bool=skipTests, 
                                             name::Union{Symbol,<:AbstractString}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
@@ -117,9 +117,10 @@ dmodel::ModelOrFunction=(x,p)->[-Inf],
 MLE::AbstractVector{<:Number}=[-Inf],
 LogLikeMLE::Real=-Inf,
 LogPrior::Union{Function,Nothing}=nothing,
+SkipTests::Bool=false,
 # LogLikelihoodFn::Function=p->0.0,
 # ScoreFn::Function=p->ones(length(p))
-) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior) #, LogLikelihoodFn, ScoreFn)
+) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior, SkipTests) #, LogLikelihoodFn, ScoreFn)
 
 
 # Specialized methods for DataModel
