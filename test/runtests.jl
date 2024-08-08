@@ -77,7 +77,7 @@ end
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
-    Mats = ProfileLikelihood(ToyDME, 2; plot=false)
+    Mats = ParameterProfiles(ToyDME, 2; plot=false)
     ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats), 1)
     ExactBox = ConstructCube(sol)
     @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
@@ -250,7 +250,7 @@ end
     @test norm(Score(GDM, P) - Score(CDM, P)) < 2e-4
     @test norm(FisherMetric(GDM, P) - FisherMetric(CDM, P)) < 2e-4
 
-    UDS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/abs(p[1]), [0.4])
+    UDS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/exp(p[1]), [log(0.4)])
     UDM = DataModel(UDS, (x,p)->p[1]*x + p[2], [1, 1, 1.])
     
     # Test Type conversions for Datasets
@@ -294,9 +294,9 @@ end
 
     DS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/abs(p[1]), [0.4]; xnames=["Time"], ynames=["Signal"])
     tester(
-        DataModel(DS, (x,p)->p[1]*x + p[2], [1, 1, 1.]; meth=Newton()),
-        DataModel(DataSet(xdata(DS), ydata(DS), 0.4; xnames=["Time"], ynames=["Signal"]), (x,p)->p[1].*x .+ p[2], [1, 1.]; meth=Newton()),
-        DataModel(DataSetExact(xdata(DS), ydata(DS), 0.4), (x,p)->p[1]*x + p[2], [1, 1.]; meth=Newton()),
+        DataModel(DS, (x,p)->p[1]*x + p[2], [1, 1, 1.]; meth=Optim.Newton()),
+        DataModel(DataSet(xdata(DS), ydata(DS), 0.4; xnames=["Time"], ynames=["Signal"]), (x,p)->p[1].*x .+ p[2], [1, 1.]; meth=Optim.Newton()),
+        DataModel(DataSetExact(xdata(DS), ydata(DS), 0.4), (x,p)->p[1]*x + p[2], [1, 1.]; meth=Optim.Newton()),
         [1,1,0.4]
     )
 
@@ -341,15 +341,15 @@ end
     rSTAT5A_rel = [14.72316822,33.76234229,36.79985129,49.71760229,46.9281201,47.83657456,46.92872725,40.59775294,43.78366389,44.45738765,41.32715926,41.06273321,39.23583003,36.61946054,34.8937144,32.21107716]
 
     BöhmDS = DataSet(BöhmT, [pSTAT5A_rel pSTAT5B_rel rSTAT5A_rel], [[4.12, 7.04, 3.37] for i in eachindex(BöhmT)]; xnames=["Time"], ynames=["pSTAT5A_rel", "pSTAT5B_rel", "rSTAT5A_rel"])
-    BöhmModel = GetModel(Exp10Transform(BöhmSys), BöhmInitial, BöhmObservation; meth=AutoTsit5(Rodas5()), tol=1e-6, Domain=HyperCube(-6ones(6), 6ones(6)))
-    BöhmDM = DataModel(BöhmDS, BöhmModel, [-1.5690, 4.1978, 4.99, -1.7859, -2.2, -5.], meth=LBFGS())
+    BöhmModel = GetModel(Exp10Transform(BöhmSys), BöhmInitial, BöhmObservation; tol=1e-4, Domain=HyperCube(-6ones(6), 6ones(6)))
+    BöhmDM = DataModel(BöhmDS, BöhmModel, [-1.5690, 4.1978, 4.99, -1.7859, -2.2, -5.]; tol=1e-6)
 
     Böhmds = DataSetUncertain(BöhmT, [pSTAT5A_rel pSTAT5B_rel rSTAT5A_rel], (x,y,c)->Diagonal(1 ./ abs.(c)), [4.12, 7.04, 3.37]; xnames=["Time"], ynames=["pSTAT5A_rel", "pSTAT5B_rel", "rSTAT5A_rel"])
-    Böhmdm = DataModel(Böhmds, GetModel(Exp10Transform(BöhmSys), BöhmInitial, BöhmObservation; meth=AutoTsit5(Rodas5()), tol=1e-6, Domain=vcat(HyperCube(-6ones(6), 6ones(6)), HyperCube(1e-2ones(3), 20ones(3)))),
-                            vcat([-1.5690, 4.1978, 4.99, -1.7859, -2.2, -5.], [4.12, 7.04, 3.37]), meth=NewtonTrustRegion())
+    Böhmdm = DataModel(Böhmds, GetModel(Exp10Transform(BöhmSys), BöhmInitial, BöhmObservation; tol=1e-4, Domain=vcat(HyperCube(-6ones(6), 6ones(6)), HyperCube(1e-2ones(3), 20ones(3)))),
+                            vcat([-1.5690, 4.1978, 4.99, -1.7859, -2.2, -5.], [4.12, 7.04, 3.37]); tol=1e-6)
     tester(
         Böhmdm, BöhmDM,
-        DataModel(DataSetExact(BöhmDS), Predictor(BöhmDM), MLE(BöhmDM)),
+        DataModel(DataSetExact(BöhmDS), Predictor(BöhmDM), MLE(BöhmDM); tol=1e-6),
         vcat(MLE(BöhmDM), [4.12, 7.04, 3.37])
     )
 end
@@ -481,11 +481,11 @@ end
 
     @test norm(minimize(F, initial, Cube; tol=1e-5, meth=NelderMead())) < 5e-1
     @test norm(minimize(F, initial, Cube; tol=1e-5, meth=LBFGS())) < 5e-2
-    @test norm(minimize(F, initial, Cube; tol=1e-5, meth=Newton())) < 5e-2
+    @test norm(minimize(F, initial, Cube; tol=1e-5, meth=Optim.Newton())) < 5e-2
 
     @test norm(minimize(F, initial; tol=1e-5, meth=NelderMead())) < 5e-1
     @test norm(minimize(F, initial; tol=1e-5, meth=LBFGS())) < 5e-2
-    @test norm(minimize(F, initial; tol=1e-5, meth=Newton())) < 5e-2
+    @test norm(minimize(F, initial; tol=1e-5, meth=Optim.Newton())) < 5e-2
 
     # Check optimization with non-linear constraints and box constraints
 
@@ -493,7 +493,7 @@ end
 
     # Check type stability of optimization
     using ComponentArrays
-    @test minimize(X->X.A[1]^2 + 0.5X.B[1]^4, ComponentVector(A=[initial[1]], B=[initial[1]]); tol=1e-5, meth=Newton()) isa ComponentVector
+    @test minimize(X->X.A[1]^2 + 0.5X.B[1]^4, ComponentVector(A=[initial[1]], B=[initial[1]]); tol=1e-5, meth=Optim.Newton()) isa ComponentVector
 end
 
 

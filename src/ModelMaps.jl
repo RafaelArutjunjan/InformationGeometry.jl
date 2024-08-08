@@ -637,7 +637,7 @@ Log10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(paramet
     SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys)))) -> ODESystem
 Transforms the parameters of a `ODESystem` according to `F`.
 """
-function SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))))
+function SystemTransform(Sys::AbstractODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))))
     SubstDict = Dict(parameters(Sys) .=> [(idxs[i] ? F(x) : x) for (i,x) in enumerate(parameters(Sys))])
     NewEqs = [(equations(Sys)[i].lhs ~ substitute(equations(Sys)[i].rhs, SubstDict)) for i in eachindex(equations(Sys))]
     # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432

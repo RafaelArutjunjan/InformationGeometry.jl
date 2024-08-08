@@ -2,6 +2,7 @@
 
 # Returns a copy of type `Vector`, i.e. is not typesafe!
 SafeCopy(X::AbstractVector) = copy(X)
+SafeCopy(X::AbstractVector{<:Num}) = X
 SafeCopy(X::AbstractRange) = collect(X)
 SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
@@ -210,6 +211,15 @@ end
 
 # USE NelderMead for ODEmodels!!!!!
 
+GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
+GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = L(GetMinimizer(Res))
+HasConverged(Res::LsqFit.LsqFitResult) = Res.converged
+GetMinimizer(Res::Optim.OptimizationResults) = Optim.minimizer(Res)
+GetMinimum(Res::Optim.OptimizationResults, L::Function) = Res.minimum
+HasConverged(Res::Optim.OptimizationResults) = Optim.converged(Res)
+GetMinimizer(Res::SciMLBase.OptimizationSolution) = Res.u
+GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
+HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.Success
 
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
@@ -227,9 +237,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     FitFunc = if !isnothing(meth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
         Meth = isnothing(meth) ? NewtonTrustRegion() : meth
-        ((args...; Kwargs...)->InformationGeometry.minimize(args...; Full=false, tol=tol, meth=Meth, Kwargs...))
+        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, Kwargs..., Full=true))
     else 
-        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Kwargs...).param)
+        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Kwargs...))
     end
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
@@ -238,6 +248,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     path = SaveTrajectories ? Vector{eltype(MLE(DM))}[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     Converged = BitVector()
+
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         visitedps = ps
         Res = map(loglikelihood(DM), [[x] for x in ps])
@@ -262,16 +273,19 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
                 function PerformStepGeneral!(Res, MLEstash, Converged, p)
                     L = Negloglikelihood(DM)∘ValInserter(Comp, p, MLE(DM))
-                    # R = FitFunc(L, MLEstash; kwargs...)
-                    copyto!(MLEstash, FitFunc(L, MLEstash; kwargs...))
-                    push!(Res, -L(MLEstash))
+                    R = FitFunc(L, MLEstash; kwargs...)
+                    copyto!(MLEstash, GetMinimizer(R))
+                    push!(Res, -GetMinimum(R,L))
+                    push!(Converged, HasConverged(R))
                 end
             else
                 function PerformStepManual!(Res, MLEstash, Converged, p)
                     NewModel = ProfilePredictor(DM, Comp, p)
                     DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp, p, MLE(DM)))
-                    copyto!(MLEstash, FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...))
-                    push!(Res, loglikelihood(Data(DM), NewModel, MLEstash, DroppedLogPrior))
+                    R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
+                    copyto!(MLEstash, GetMinimizer(R))
+                    push!(Res, -GetMinimum(R,x->loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
+                    push!(Converged, HasConverged(R))
                 end
             end
             # Adaptive instead of ps grid here?
@@ -305,7 +319,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    ResMat = SavePriors ? [visitedps Res priors] : [visitedps Res]
+    ResMat = SavePriors ? [visitedps Res priors Converged] : [visitedps Res Converged]
     SaveTrajectories ? (ResMat, path) : ResMat
 end
 
@@ -318,7 +332,7 @@ end
 function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM))
     F = FisherMetric(DM, p)
     F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
-    isinf(logdet(F)) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
+    det(F) == 0 && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
     pinv(F)[:, Comp]
 end
 
@@ -352,13 +366,20 @@ end
 PlotSingleProfile(DM::AbstractDataModel, Prof::Tuple{<:AbstractMatrix, <:Any}, i::Int; kwargs...) = PlotSingleProfile(DM, Prof[1], i; kwargs...)
 function PlotSingleProfile(DM::AbstractDataModel, Prof::AbstractMatrix, i::Int; kwargs...)
     P = RecipesBase.plot(view(Prof, :,1), view(Prof, :,2); leg=false, label="Profile", kwargs...)
-    size(Prof,2) == 3 && RecipesBase.plot!(P, view(Prof, :,1), view(Prof, :,3); label="Prior", color=:red, line=:dash)
+    HasPriors(Prof) && RecipesBase.plot!(P, view(Prof, :,1), view(Prof, :,3); label="Prior", color=:red, line=:dash)
     P
 end
+
+
+GetConverged(M::AbstractMatrix) = @view M[:, end]
 
 HasTrajectories(M::AbstractVector) = any(HasTrajectories, M)
 HasTrajectories(M::Tuple) = true
 HasTrajectories(M::AbstractMatrix) = false
+
+HasPriors(M::AbstractVector) = any(HasPriors, M)
+HasPriors(M::Tuple) = HasPriors(M[1])
+HasPriors(M::AbstractMatrix) = size(M,2) > 3
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
@@ -463,7 +484,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
         Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(Profs))
         if !(inds == 1:pdim(DM))
             for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
-                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));    SaveTrajectories ? insert!(Trajs, i, fill(NaN, pdim(DM))) : insert!(Trajs, i, nothing))
+                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  fill!(Profs[i][:,end], 0.);    SaveTrajectories ? insert!(Trajs, i, fill(NaN, pdim(DM))) : insert!(Trajs, i, nothing))
             end
         end
         P = ParameterProfiles(DM, Profs, Trajs; IsCost=IsCost)
@@ -560,7 +581,7 @@ end
             # P(i)
         end
         # Draw prior contribution
-        if size(Profiles(P)[i],2) == 3
+        if HasPriors(Profiles(P)[i])
             @series begin
                 label --> "Prior contribution"
                 color --> :red

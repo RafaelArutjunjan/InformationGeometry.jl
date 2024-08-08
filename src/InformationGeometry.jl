@@ -18,6 +18,7 @@ using TreeViews, PrettyTables
 
 import DataInterpolations: AbstractInterpolation
 import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm, AbstractADType
+import ModelingToolkit: AbstractODESystem
 
 import SciMLBase: remake
 export remake

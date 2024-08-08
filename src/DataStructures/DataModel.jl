@@ -156,7 +156,7 @@ function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
         @warn "Was unable to convert $(typeof(Data(DM))) to $T due to: $err"
         Data(DM)
     end
-    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)); kwargs...)
+    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)), true; kwargs...)
 end
 
 
