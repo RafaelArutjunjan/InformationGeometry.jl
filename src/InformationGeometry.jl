@@ -256,7 +256,8 @@ export OptimizeModel, OptimizedDM, InplaceDM, SymbolicModel, SymbolicdModel
 
 
 include("Plotting.jl")
-export PlotFit, ResidualPlot, ResidualVsFittedPlot, PlotScalar, PlotLogLikelihood, Plot2DVF, ResidualStandardError, PlotEllipses
+export PlotFit, ResidualPlot, ResidualVsFittedPlot, PlotQuantiles
+export PlotScalar, PlotLogLikelihood, Plot2DVF, ResidualStandardError, PlotEllipses
 export ParameterPlot, PlotErrorModel
 export Deplanarize, VisualizeSols, VisualizeGeos, VisualizeSolPoints, ConstructAmbientSolution
 export ConfidenceBands, ApproxConfidenceBands, PlotConfidenceBands, ConfidenceBandWidth, PredictionEnsemble, PlotMatrix

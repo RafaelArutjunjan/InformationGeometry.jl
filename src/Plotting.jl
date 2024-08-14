@@ -271,6 +271,7 @@ function GetResidualDataSet(DS::DataSet, model::ModelOrFunction, mle::AbstractVe
     DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
 end
 function GetResidualDataSet(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number})
+    HasXerror(DS) && @warn "Ignoring x-uncertainties in computation of residuals."
     DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
 end
 
@@ -289,6 +290,7 @@ end
 GetResidualVsFittedDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")
 function GetResidualVsFittedDataSet(DS::AbstractKnownVarianceDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
     @assert !(DS isa CompositeDataSet)
+    HasXerror(DS) && @warn "Ignoring x-uncertainties in computation of residuals."
     Ypred = EmbeddingMap(DS,model,mle)
     woundYpred = Windup(Ypred, ydim(DS))
     woundYresid = Windup(ydata(DS)-Ypred, ydim(DS))
@@ -305,6 +307,32 @@ ResidualVsFittedPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM
 function ResidualVsFittedPlot(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
     RecipesBase.plot(GetResidualVsFittedDataSet(DS, model, mle); ylabel="Residuals", xlabel="Fitted", kwargs...)
     RecipesBase.plot!([0.0]; st=:hline, line=:dash, lw=2, color=:red, label="Fit")
+end
+
+
+"""
+    PlotQuantiles(::Type{<:Distributions.Distribution}, DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...)
+Quantile-Quantile plot of the residuals for given `DM` against given Distribution.
+"""
+PlotQuantiles(DM::AbstractDataModel, args...; kwargs...) = PlotQuantiles(Distributions.Normal, DM, args...; kwargs...)
+function PlotQuantiles(::Type{D}, DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...) where D<:Distributions.Distribution
+    resids = ydata(DM) - EmbeddingMap(DM,mle)
+    # One dist for all
+    Dist = Distributions.fit_mle(D, resids)
+    FullQ = Distributions.qqbuild(Dist, resids)
+    Bounds = [x for x in extrema(vcat(FullQ.qx, FullQ.qy))]
+    P = RecipesBase.plot(Bounds, Bounds; lw=2, linealpha=1, line=:dash, color=:red, label="", xlabel="Theoretical Quantiles", ylabel="Sample Quantiles")
+    if ydim(DM) > 1
+        woundYresid = Windup(resids, ydim(DM))
+        for i in 1:ydim(DM)
+            X = getindex.(woundYresid, i)
+            Q = Distributions.qqbuild(Dist, X)
+            RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label=ynames(DM)[i], kwargs...)
+        end
+    else
+        Q = Distributions.qqbuild(Dist, resids)
+        RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label=ynames(DM)[1], kwargs...)
+    end;    P
 end
 
 """
