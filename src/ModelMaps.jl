@@ -516,19 +516,24 @@ EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
     TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Trafo") -> AbstractDataSet
 Returns a modified `DataModel` where the x-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 `iEmb` denotes the inverse of `Emb`.
+The uncertainties are computed via linearized error propagation through the given transformation.
 """
 function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
     DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
 end
-function TransformXdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformXdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
     if !HasXerror(DS)
         DataSetType(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     else
-        @assert xsigma(DS) isa AbstractVector
         EmbJac = xdim(DS) > 1 ? GetJac(ADmode, Emb, xdim(DS)) : GetDeriv(ADmode, Emb)
-        NewXsigma = map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DS), Windup(xsigma(DS), xdim(DS))) # |> Reduction
+        NewXsigma = if xsigma(DS) isa AbstractVector
+            map((xdat, xsig)->EmbJac(xdat)*xsig, WoundX(DS), Windup(xsigma(DS), xdim(DS))) # |> Reduction
+        else
+            J = reduce(BlockMatrix, map(EmbJac, WoundX(DS)))
+            J * xsigma(DS) * transpose(J)
+        end
         DataSetType(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
     end
 end
@@ -546,6 +551,7 @@ for (Name, F, Finv, TrafoName) in [(:LogXdata, :log, :exp, :log),
             $($Name)(DM::AbstractDataModel) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet) -> AbstractDataSet
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the x-variables both in the data as well as for the model.
+        The uncertainties are computed via linearized error propagation through the given transformation.
         """
         function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
             TransformXdata(DM, x->broadcast($F,x), x->broadcast($Finv,x), "$($TrafoName)"; kwargs...)
@@ -554,6 +560,7 @@ for (Name, F, Finv, TrafoName) in [(:LogXdata, :log, :exp, :log),
             $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied to the components `i` of the x-variables for which `idxs[i]==true` both in the data as well as for the model.
+        The uncertainties are computed via linearized error propagation through the given transformation.
         """
         function $Name(DM::Union{AbstractDataModel,AbstractDataSet}, idxs::BoolVector; kwargs...)
             @assert length(idxs) == xdim(DM) && xdim(DM) > 1
@@ -582,14 +589,19 @@ EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) =
     TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::String="Trafo") -> AbstractDataModel
     TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::String="Trafo") -> AbstractDataSet
 Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
+The uncertainties are computed via linearized error propagation through the given transformation.
 """
 function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
     DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
 end
-function TransformYdata(DS::AbstractDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
-    @assert ysigma(DS) isa AbstractVector
+function TransformYdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
-    NewYsigma = map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction
+    NewYsigma = if ysigma(DS) isa AbstractVector
+        map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction
+    else
+        J = reduce(BlockMatrix, map(EmbJac, WoundY(DS)))
+        J * ysigma(DS) * transpose(J)
+    end
     if !HasXerror(DS)
         DataSetType(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
     else
@@ -608,6 +620,7 @@ for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
             $($Name)(DM::AbstractDataModel) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet) -> AbstractDataSet
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the y-variables both in the data as well as for the model.
+        The uncertainties are computed via linearized error propagation through the given transformation.
         """
         function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
             TransformYdata(DM, y->broadcast($F,y), "$($TrafoName)"; kwargs...)
@@ -616,6 +629,7 @@ for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
             $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied to the components `i` of the y-variables for which `idxs[i]==true` both in the data as well as for the model.
+        The uncertainties are computed via linearized error propagation through the given transformation.
         """
         function $Name(DM::Union{AbstractDataModel,AbstractDataSet}, idxs::BoolVector; kwargs...)
             @assert length(idxs) == ydim(DM) && ydim(DM) > 1
