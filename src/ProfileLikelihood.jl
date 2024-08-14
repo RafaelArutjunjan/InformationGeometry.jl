@@ -231,7 +231,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
     GetProfile(DM, Comp, ps; kwargs...)
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; AllowNewMLE::Bool=false, general::Bool=true, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
                         SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 

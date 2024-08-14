@@ -266,23 +266,60 @@ end
 TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}) = norm(ResidualStandardError(DS, model, MLE))
 
 
-@deprecate FittedPlot(args...) RecipesBase.plot(args...)
-
-ResidualPlot(DM::AbstractDataModel; kwargs...) = ResidualPlot(Data(DM), Predictor(DM), MLE(DM); kwargs...)
-function ResidualPlot(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    RecipesBase.plot(DataModel(DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
-                ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
-                (x,p)->zeros(ydim(DS), length(mle)),
-                mle, _loglikelihood(DS, model, mle), true); kwargs...)
+GetResidualDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")
+function GetResidualDataSet(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
+    DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
 end
-function ResidualPlot(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    RecipesBase.plot(DataModel(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS)),
-                ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
-                (x,p)->zeros(ydim(DS), length(mle)),
-                mle, _loglikelihood(DS, model, mle), true); kwargs...)
+function GetResidualDataSet(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number})
+    DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
 end
 
+"""
+    ResidualPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...)
+Plot residuals of given fit.
+"""
+ResidualPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...) = ResidualPlot(Data(DM), Predictor(DM), mle; kwargs...)
+function ResidualPlot(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
+    RecipesBase.plot(DataModel(GetResidualDataSet(DS, model, mle), ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
+                (x,p)->zeros(ydim(DS), length(mle)), mle, _loglikelihood(DS, model, mle), true); kwargs...)
+end
 
+
+"""
+    ParameterPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLEuncert(DM), Names::AbstractVector{<:AbstractString}=pnames(DM); kwargs...)
+    ParameterPlot(DM::AbstractDataModel, DM2::AbstractDataModel; kwargs...)
+    ParameterPlot(X::AbstractVector{T}, Y::AbstractVector{T}, Names::AbstractVector{<:AbstractString}; kwargs...)
+Scatter plot comparing the values of parameter configurations.
+"""
+function ParameterPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLEuncert(DM), Names::AbstractVector{<:AbstractString}=pnames(DM); kwargs...)
+    RecipesBase.plot(mle; seriestype=:scatter, xrotation=80, ylabel="Value", xticks=(1:length(Names), Names), label="", kwargs...)
+end
+ParameterPlot(DM::AbstractDataModel, DM2::AbstractDataModel, Names::AbstractVector{<:AbstractString}=pnames(DM); kwargs...) = ParameterPlot(MLEuncert(DM), MLEuncert(DM2), Names; kwargs...)
+
+function ParameterPlot(X::AbstractVector{T}, Y::AbstractVector{T}, Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(X)); noise::Real=0.05, kwargs...) where T<:Number
+    @assert length(X) == length(Y) == length(Names)
+    Dat = transpose(hcat(X,Y))
+    noisefac = any(x->Measurements.uncertainty(x)>0, Dat) ? noise .* (rand(length(X)) .- 0.5) : zeros(length(X))
+    RecipesBase.plot(Dat, transpose(hcat(zeros(length(X))+noisefac,ones(length(X))+noisefac)); label=reshape(Names, 1, :), lw=1.5, msw=1.5, msc=:auto, yticks=([0,1],["OldParams","NewParams"]), kwargs...)
+end
+
+
+"""
+    PlotErrorModel(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); N::Int=300, kwargs...)
+Plot error moodel as band around given prediction.
+"""
+function PlotErrorModel(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); color=:green, linewidth=1.5, line=:dash, N::Int=300, kwargs...)
+    @assert Data(DM) isa DataSetUncertain
+    p = RecipesBase.plot(Data(DM); yerror=nothing)
+    p = PlotFit(DM; color=:red)
+    xran = range(extrema(xdata(DM))...; length=N)
+    Ypred = EmbeddingMap(DM, mle, xran)
+    errorpars = InformationGeometry.SplitErrorParams(DM)(MLE(DM))[2]
+    errmod = (x,y)->inv(Data(DM).inverrormodel(x,y,errorpars))
+    Bandwidth = map(errmod, xran, Ypred)
+    RecipesBase.plot!(p, xran, Ypred .+ Bandwidth; linewidth, line, color, label=nothing)
+    RecipesBase.plot!(p, xran, Ypred .- Bandwidth; linewidth, line, color, label="Error Model", kwargs...)
+end
 
 
 function _PrepareEllipsePlot(pos::AbstractVector{<:Number}, cov::AbstractMatrix{<:Number}; N::Int=100)
