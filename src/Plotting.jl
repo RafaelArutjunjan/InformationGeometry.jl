@@ -288,7 +288,7 @@ end
 
 
 GetResidualVsFittedDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")
-function GetResidualVsFittedDataSet(DS::AbstractKnownVarianceDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
+function GetResidualVsFittedDataSet(DS::AbstractFixedUncertaintyDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
     @assert !(DS isa CompositeDataSet)
     HasXerror(DS) && @warn "Ignoring x-uncertainties in computation of residuals."
     Ypred = EmbeddingMap(DS,model,mle)

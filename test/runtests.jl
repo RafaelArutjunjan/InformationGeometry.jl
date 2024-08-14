@@ -133,6 +133,11 @@ end
 
     # Backwards in time integration (GetModelRobust)
     @test all(EmbeddingMap(SIRDM, MLE(SIRDM), [-10, 3, -0.5, 15]) .> 0)
+
+    # Check AutoDiff in time
+    using ForwardDiff
+    @assert 0 < ForwardDiff.derivative(t->Predictor(SIRDM)(t, MLE(SIRDM))[1], 1.)
+    @assert isposdef(ForwardDiff.jacobian(x->EmbeddingMap(SIRDM, MLE(SIRDM), x), [1,2,3.]))
 end
 
 
