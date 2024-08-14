@@ -108,19 +108,19 @@ InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVecto
 
 
 ProfilePredictor(DM::AbstractDataModel, args...; kwargs...) = ProfilePredictor(Predictor(DM), args...; kwargs...)
-ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
-ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
+ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
+ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
 
-ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue); kwargs...)
-ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues); kwargs...)
+ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
+ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
 
 
 ProfileDPredictor(DM::AbstractDataModel, args...; kwargs...) = ProfileDPredictor(dPredictor(DM), args...; kwargs...)
-ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
-ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
+ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
 
-ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue); kwargs...)
-ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues); kwargs...)
+ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
+ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
 
 
 """
@@ -245,7 +245,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
     # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in eachindex(ps)] : nothing
-    path = SaveTrajectories ? Vector{eltype(MLE(DM))}[] : nothing
+    path = SaveTrajectories ? typeof(MLE(DM))[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
     Converged = BitVector()
 
@@ -280,7 +280,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 end
             else
                 function PerformStepManual!(Res, MLEstash, Converged, p)
-                    NewModel = ProfilePredictor(DM, Comp, p)
+                    NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
                     DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp, p, MLE(DM)))
                     R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
                     copyto!(MLEstash, GetMinimizer(R))
