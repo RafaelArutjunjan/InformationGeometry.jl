@@ -251,7 +251,7 @@ RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector
             @series begin
                 label --> "Data: " * ynames(DS)[1]
                 # requires ydim(CDS) ≤ 16
-                markercolor --> palette(:default)[i]
+                color --> palette(:default)[i]
                 DS
             end
         end

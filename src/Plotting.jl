@@ -280,10 +280,32 @@ Plot residuals of given fit.
 """
 ResidualPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...) = ResidualPlot(Data(DM), Predictor(DM), mle; kwargs...)
 function ResidualPlot(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
-    RecipesBase.plot(DataModel(GetResidualDataSet(DS, model, mle), ((x,p)->(ydim(DS) == 1 ? 0.0 : zeros(ydim(DS)))),
-                (x,p)->zeros(ydim(DS), length(mle)), mle, _loglikelihood(DS, model, mle), true); kwargs...)
+    RecipesBase.plot(GetResidualDataSet(DS, model, mle); ylabel="Residuals", kwargs...)
+    RecipesBase.plot!([0.0]; st=:hline, line=:dash, lw=2, color=:red, label="Fit")
 end
 
+
+
+GetResidualVsFittedDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")
+function GetResidualVsFittedDataSet(DS::AbstractKnownVarianceDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
+    @assert !(DS isa CompositeDataSet)
+    Ypred = EmbeddingMap(DS,model,mle)
+    woundYpred = Windup(Ypred, ydim(DS))
+    woundYresid = Windup(ydata(DS)-Ypred, ydim(DS))
+    woundYsig = Windup(ysigma(DS) isa AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag), ydim(DS))
+    CompositeDataSet([DataSetExact(getindex.(woundYpred, i), getindex.(woundYsig, i), getindex.(woundYresid, i), getindex.(woundYsig, i), (length(woundYpred),1,1);
+        xnames=["Fitted "* ynames(DS)[i]], ynames=["Residuals "* ynames(DS)[i]]) for i in 1:ydim(DS)])
+end
+
+"""
+    ResidualVsFittedPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...)
+Plot residuals against fitted values.
+"""
+ResidualVsFittedPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...) = ResidualVsFittedPlot(Data(DM), Predictor(DM), mle; kwargs...)
+function ResidualVsFittedPlot(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}; kwargs...)
+    RecipesBase.plot(GetResidualVsFittedDataSet(DS, model, mle); ylabel="Residuals", xlabel="Fitted", kwargs...)
+    RecipesBase.plot!([0.0]; st=:hline, line=:dash, lw=2, color=:red, label="Fit")
+end
 
 """
     ParameterPlot(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLEuncert(DM), Names::AbstractVector{<:AbstractString}=pnames(DM); kwargs...)
