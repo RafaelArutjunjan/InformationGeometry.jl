@@ -154,6 +154,30 @@ InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
 InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 
+# sign function which is autodiffble in zero.
+Sgn(x::T) where T<:Number = ifelse(x < 0, -one(T), one(T))
+"""
+    BiLog(x::Union{T, AbstractVector{T}}; C::Real=log(T(10)))
+Computes bi-symmetric logarithm, which can also be applied to negative numbers
+```math
+BiLog(x) = \\sgn(x) \\cdot \\log_{10}(1 + |x/C|)
+```
+as defined in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
+The constant `C` controls the slope of the bi-logarithm at zero. For the default value `C=log(10)` the slope of the bi-logarithm is unity.
+The inverse transformation is given by [BiExp](@ref).
+"""
+BiLog(x::Union{T, AbstractVector{T}}; C::Real=log(T(10))) where T<:Number = @. Sgn(x) * log10(one(T) + abs(x*C))
+"""
+    BiExp(x::Union{T, AbstractVector{T}}; C::Real=log(T(10)))
+Computes bi-symmetric exponential, which is the inverse transformation to [BiLog](@ref)
+```math
+BiExp(x) = \\sgn(x) \\cdot |1/C| \\cdot (10^{|x|} - 1)
+```
+as defined in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
+The constant `C` controls the slope of the bi-logarithm and its inverse at zero. For the default value `C=log(10)` the slope of the bi-logarithm is unity.
+"""
+BiExp(x::Union{T, AbstractVector{T}}; C::Real=log(T(10))) where T<:Number = @. Sgn(x) * abs(inv(C)) * (exp10(abs(x)) - one(T))
+
 
 
 import Base.==

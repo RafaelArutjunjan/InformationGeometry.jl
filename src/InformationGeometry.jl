@@ -184,6 +184,7 @@ export DataModel
 
 
 include("NumericalTools/Miscellaneous.jl")
+export BiLog, BiExp
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
