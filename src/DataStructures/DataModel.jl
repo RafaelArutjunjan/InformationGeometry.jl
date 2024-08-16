@@ -62,16 +62,17 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-12, meth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
-        SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true; kwargs...) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel; tol=tol, meth=meth); kwargs...)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
+        SkipTests ? DataModel(DS, model, dmodel, [-Inf,-Inf], true; kwargs...) : DataModel(DS, model, dmodel, FindMLE(DS,model,dmodel; tol=OptimTol, meth=OptimMeth); kwargs...)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},SkipTests::Bool=false; kwargs...)
         DataModel(DS, model, dmodel, mle, nothing, SkipTests; kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false; tol::Real=1e-12, meth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,mle::AbstractVector{<:Number},logPriorFn::Union{Function,Nothing},SkipTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, 
+                        meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
         LogPriorFn = Prior(logPriorFn, mle)
         SkipTests && return DataModel(DS, model, dmodel, mle, (try loglikelihood(DS, model, mle, LogPriorFn) catch; -Inf end), true; kwargs...)
-        MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=tol, meth=meth);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
+        MLE = FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=OptimTol, meth=OptimMeth);        LogLikeMLE = loglikelihood(DS, model, MLE, LogPriorFn)
         DataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, SkipTests; kwargs...)
     end
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,SkipTests::Bool=false; kwargs...)

@@ -28,9 +28,9 @@ end
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
 # Extend for other DEFunctions in the future
 function DataModel(DS::AbstractDataSet, sys::Union{ModelingToolkit.AbstractSystem,SciMLBase.AbstractDiffEqFunction}, u0::Union{Number,AbstractArray{<:Number},Function},
-                        observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
+                        observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, OptimTol::Real=tol*1e-2, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
     newDS = (observables isa Union{Int,AbstractVector{<:Int}} && sys isa ModelingToolkit.AbstractSystem) ? InformNames(DS, sys, observables) : DS
-    DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, kwargs...), args...)
+    DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, kwargs...), args...; OptimMeth, OptimTol)
 end
 
 
@@ -45,7 +45,7 @@ end
 
 
 
-function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0);
+function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
                 Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:AbstractString}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::Union{<:AbstractString,Symbol}=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
@@ -67,7 +67,9 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     else
         observables isa BoolArray ? sum(observables) : length(observables)
     end
-    plen = if Domain isa HyperCube
+    plen = if !isnothing(startp)
+        length(startp)
+    elseif Domain isa HyperCube
         length(Domain)
     elseif u0 isa Union{Number,AbstractArray}     # Vector / Matrix
         # initial conditions given as array means the parameters are only the ps in sys
