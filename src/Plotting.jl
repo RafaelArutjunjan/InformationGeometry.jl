@@ -9,10 +9,10 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
             if Data(DM) isa DataSetUncertain
-                yerror := Unpack(Windup(ysigma(Data(DM), yerrorparams(Data(DM), mle)), ydim(DM)))
+                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
             elseif Data(DM) isa UnknownVarianceDataSet
-                xerror := Unpack(Windup(xsigma(Data(DM), xerrorparams(Data(DM), mle)), xdim(DM)))
-                yerror := Unpack(Windup(ysigma(Data(DM), yerrorparams(Data(DM), mle)), ydim(DM)))
+                xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
+                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
             else
                 @warn "Not programmed for plotting $(typeof(Data(DM))) yet"
             end

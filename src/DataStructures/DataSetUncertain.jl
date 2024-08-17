@@ -115,15 +115,17 @@ _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.Bl
 _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M
 _TryVectorizeNoSqrt(D::Diagonal) = D.diag
 
+BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
+
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
+    @assert length(c) == length(DS.testp) "ysigma: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
     c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-
-BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
-function yInvCov(DS::DataSetUncertain, c::AbstractVector=DS.testp)
+function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
+    @assert length(c) == length(DS.testp) "yInvCov: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
     c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end

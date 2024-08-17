@@ -55,7 +55,7 @@ _WoundMatrix(M::AbstractMatrix, Yd::Int) = throw("WoundInvCov can only be used w
 # logdetInvCov(DS::AbstractDataSet) = logdet(InvCov(DS))
 DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 #sigma(DS::AbstractDataSet) = ysigma(DS)
-@deprecate sigma(x) ysigma(x) true
+@deprecate sigma ysigma
 
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
@@ -126,7 +126,7 @@ Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
 
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
-for F in [  :xdata, :ydata, :xsigma, :ysigma, :xInvCov, :yInvCov,
+for F in [  :xdata, :ydata,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
             :xnames, :ynames, :xdist, :ydist, :dist, :HasXerror,
@@ -143,14 +143,37 @@ pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
 Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
 
-
-xsigma(DM::AbstractDataModel, p::AbstractVector) = xsigma(Data(DM), p)
-ysigma(DM::AbstractDataModel, p::AbstractVector) = ysigma(Data(DM), p)
-xInvCov(DM::AbstractDataModel, p::AbstractVector) = xInvCov(Data(DM), p)
-yInvCov(DM::AbstractDataModel, p::AbstractVector) = yInvCov(Data(DM), p)
-
 xerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xerrorparams(Data(DM), mle)
 yerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yerrorparams(Data(DM), mle)
+
+xerrorparams(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = nothing
+yerrorparams(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = nothing
+
+
+# For first arg DM, expect full MLE, for first arg DS, expect error params only
+xsigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xsigmadecide(Data(DM), mle)
+ysigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = ysigmadecide(Data(DM), mle)
+xInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xInvCovdecide(Data(DM), mle)
+yInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yInvCovdecide(Data(DM), mle)
+
+# Reduce from full MLE to error params
+xsigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = xsigma(DS, xerrorparams(DS, mle))
+ysigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = ysigma(DS, yerrorparams(DS, mle))
+xInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS, xerrorparams(DS, mle))
+yInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS, yerrorparams(DS, mle))
+
+# Pass params unaffected since dropped in next step
+xsigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xsigma(DS, mle)
+ysigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = ysigma(DS, mle)
+xInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS, mle)
+yInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS, mle)
+
+# Drop params since uncertainty fixed
+xsigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xsigma(DS)
+ysigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = ysigma(DS)
+xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS)
+yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS)
+
 
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted

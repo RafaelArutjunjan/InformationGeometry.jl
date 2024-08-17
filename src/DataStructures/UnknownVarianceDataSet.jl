@@ -45,7 +45,7 @@ struct UnknownVarianceDataSet <: AbstractUnknownUncertaintyDataSet
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invXvariancemodel::Function, invYvariancemodel::Function,
         testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
-        @info "Assuming error parameters always given by last ($(length(testpx)),$(length(testpy))) parameters."
+        @info "Assuming error parameters always given by last ($(length(testpx)),$(length(testpy))) parameters respectively."
         # Error param splitter
         UnknownVarianceDataSet(Unwind(x), Unwind(y), dims, invXvariancemodel, invYvariancemodel, testpx, testpy, DefaultErrorModel(length(testpx),length(testpy)); kwargs...)
     end
@@ -119,22 +119,26 @@ yerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParam
 
 # Uncertainty must be constructed around prediction!
 function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx)
+    @assert length(c) == length(DS.testpx) "xsigma: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
     c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(xinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector=DS.testpx)
+function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx)
+    @assert length(c) == length(DS.testpx) "xInvCov: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
     c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=xinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy)
+    @assert length(c) == length(DS.testpy) "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
     c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector=DS.testpy)
+function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy)
+    @assert length(c) == length(DS.testpy) "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
     c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
