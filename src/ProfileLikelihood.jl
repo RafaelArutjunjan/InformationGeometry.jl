@@ -349,7 +349,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::Abstrac
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs=nothing, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
     Profiles = if verbose
@@ -382,7 +382,7 @@ HasPriors(M::Tuple) = HasPriors(M[1])
 HasPriors(M::AbstractMatrix) = size(M,2) > 3
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
-    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs=nothing, kwargs...)
+    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
@@ -393,14 +393,16 @@ end
 """
     PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; idxs::Tuple=(1,2,3), OverWrite=true, kwargs...)
 """
-function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite::Bool=true, idxs=nothing, kwargs...)
+function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite::Bool=true, idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert HasTrajectories(Profiles)
-    @assert isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
+    @assert (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in eachindex(Profiles)
-        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, (isnothing(idxs) ? Profiles[i][2] : map(x->getindex(x,idxs),Profiles[i][2])); marker=:circle, label="Comp: $i", kwargs...)
+        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, map(x->getindex(x,collect(idxs)),Profiles[i][2]); marker=:circle, label="Comp: $i", kwargs...)
     end
-    RecipesBase.plot!(P, [isnothing(idxs) ? MLE(DM) : MLE(DM)[idxs]]; linealpha=0, marker=:hex, markersize=3, label="MLE", kwargs...)
+    axislabels = (; xlabel=pnames(DM)[idxs[1]], ylabel=pnames(DM)[idxs[2]])
+    length(idxs) == 3 && (axislabels = (; axislabels..., zlabel=pnames(DM)[idxs[3]]))
+    RecipesBase.plot!(P, [MLE(DM)[collect(idxs)]]; linealpha=0, marker=:hex, markersize=3, label="MLE", axislabels..., kwargs...)
 end
 
 
@@ -409,12 +411,12 @@ end
     InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}) -> Vector{Function}
 Interpolates the `Vector{Matrix}` output of ProfileLikelihood() with cubic splines.
 """
-function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix})
-    [QuadraticInterpolation(view(profile,:,2), view(profile,:,1)) for profile in Mats]
+function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation)
+    [Interp(view(profile,:,2), view(profile,:,1)) for profile in Mats]
 end
 
 """
-    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:DataInterpolations.AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
+    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
@@ -504,13 +506,14 @@ mutable struct ParameterProfiles <: AbstractProfiles
 end
 (P::ParameterProfiles)(t::Real, i::Int) = InterpolatedProfiles(P,i)(t)
 (P::ParameterProfiles)(i::Int) = InterpolatedProfiles(P,i)
-InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp=QuadraticInterpolation) = Interp(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
-InterpolatedProfiles(P::ParameterProfiles, Interp=QuadraticInterpolation) = [Interp(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
+InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = Interp(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
+InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = [Interp(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
 
 Profiles(P::ParameterProfiles) = P.Profiles
 Trajectories(P::ParameterProfiles) = P.Trajectories
 pnames(P::ParameterProfiles) = P.Names
 MLE(P::ParameterProfiles) = P.mle
+pdim(P::ParameterProfiles) = length(MLE(P))
 IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = !(Trajectories(P) isa AbstractVector{<:Nothing})
 
@@ -546,27 +549,27 @@ end
     @series P, Val(false)
     label --> reshape(["Comp $i" for i in eachindex(pnames(P))], 1, :)
 
-    idxs = get(plotattributes, :idxs, nothing)
-    if !(isnothing(idxs) || (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM))))
+    idxs = get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
+    if !((2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(P))))
         @warn "Ignoring given idxs=$idxs because unsuitable."
-        idxs = nothing
+        idxs = length(MLE(P))≥3 ? (1,2,3) : (1,2)
     end
 
     for i in eachindex(pnames(P))
         @series begin
             subplot := length(pnames(P)) + 1
-            isnothing(idxs) ? Trajectories(P)[i] : map(x->getindex(x, idxs), Trajectories(P)[i])
+            map(x->getindex(x, collect(idxs)), Trajectories(P)[i])
         end
     end
     @series begin
         label := "MLE"
-        xguide --> isnothing(idxs) ? pnames(P)[1] : pnames(P)[idxs[1]]
-        yguide --> isnothing(idxs) ? pnames(P)[2] : pnames(P)[idxs[2]]
-        if (!isnothing(idxs) && length(idxs) == 3) || length(pnames(P)) > 2
-            zguide --> isnothing(idxs) ? pnames(P)[3] : pnames(P)[idxs[3]]
+        xlabel --> pnames(P)[idxs[1]]
+        ylabel --> pnames(P)[idxs[2]]
+        if length(idxs) == 3
+            zlabel --> pnames(P)[idxs[3]]
         end
         subplot := length(pnames(P)) + 1
-        [isnothing(idxs) ? MLE(P) : MLE(P)[idxs]]
+        [MLE(P)[collect(idxs)]]
     end
 end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
