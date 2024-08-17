@@ -1,7 +1,7 @@
 
 
 function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=100)
-    if MaximalNumberOfArguments(model) == 2
+    if !isinplacemodel(model)
         model((xlen < 2 ? rand() : rand(xlen)), startp)
     else
         Res = fill(-Inf, max)
@@ -17,6 +17,11 @@ function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, Is
         Res = fill(-Inf, 2xyp[2])
         try   model(Res, woundX, startp);   !any(isinf, Res)    catch; false  end
     end
+end
+
+function ConstructModelxyp(model::Function)
+    xp = GetArgSize(model)
+    (xp[1], length(_TestOut(model, GetStartP(xp[2]), xp[1])), xp[2])
 end
 
 # Callback triggers when Boundaries is `true`.
@@ -54,7 +59,7 @@ struct ModelMap{Inplace, Custom}
     end
     # Given: xyp
     function ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...)
-        ModelMap(model, nothing, FullDomain(xyp[3]), xyp; kwargs...)
+        ModelMap(model, nothing, nothing, xyp; kwargs...)
     end
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; 
@@ -62,7 +67,7 @@ struct ModelMap{Inplace, Custom}
         ModelMap(model, startp, InDomain, Domain; kwargs...)
     end
     function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
-        xlen = MaximalNumberOfArguments(model) > 2 ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
+        xlen = isinplacemodel(model) ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
         testout = _TestOut(model, startp, xlen)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
     end
@@ -72,7 +77,7 @@ struct ModelMap{Inplace, Custom}
         # startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
         # testout = _TestOut(model, startp, xyp[1])
         # StaticOutput = testout isa SVector
-        Inplace = MaximalNumberOfArguments(model) > 2
+        Inplace = isinplacemodel(model)
         # Given xyp, check if given model is custom, i.e. if it can output sensible values for woundX input
         IsCustom = CheckIfIsCustom(model, startp, xyp, Inplace)
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(Inplace), Val(IsCustom), name, Meta; kwargs...)
@@ -132,10 +137,10 @@ Domain(arg) = throw("$arg does not have a Domain.")
 InDomain(M::ModelMap) = M.InDomain
 InDomain(arg) = throw("$arg does not have an InDomain function.")
 
-isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
 iscustom(F::Function) = false
 
+isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
 isinplacemodel(DM::AbstractDataModel) = isinplacemodel(Predictor(DM))
 
@@ -508,8 +513,8 @@ EmbedModelXout(model::Function, Emb::Function) = XEmbeddedModel(x, θ::AbstractV
     EmbedModelX(model::Function, Emb::Function)
 Embeds the independent variables of a model function via `newmodel(x,θ) = oldmodel(Emb(x),θ)`.
 """
-EmbedModelX(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedModelXin : EmbedModelXout)(M.Map, Emb), M)
-EmbedModelX(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelXin : EmbedModelXout)(model, Emb)
+EmbedModelX(M::ModelMap, Emb::Function, Inplace::Bool=isinplacemodel(M)) = ModelMap((Inplace ? EmbedModelXin : EmbedModelXout)(M.Map, Emb), M)
+EmbedModelX(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model)) = (Inplace ? EmbedModelXin : EmbedModelXout)(model, Emb)
 
 """
     TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::String="Trafo") -> AbstractDataModel
@@ -580,8 +585,8 @@ EmbedModelYout(model::Function, Emb::Function) = YEmbeddedModel(x, θ::AbstractV
     EmbedModelY(model::Function, Emb::Function)
 Embeds the independent variables of a model function via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
 """
-EmbedModelY(M::ModelMap, Emb::Function) = ModelMap((isinplacemodel(M) ? EmbedModelYin : EmbedModelYout)(M.Map, Emb), M)
-EmbedModelY(model::Function, Emb::Function) = (MaximalNumberOfArguments(model) == 3 ? EmbedModelYin : EmbedModelYout)(model, Emb)
+EmbedModelY(M::ModelMap, Emb::Function, Inplace::Bool=isinplacemodel(M)) = ModelMap((Inplace ? EmbedModelYin : EmbedModelYout)(M.Map, Emb), M)
+EmbedModelY(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model)) = (Inplace ? EmbedModelYin : EmbedModelYout)(model, Emb)
 
 
 # Unlike X-transform, model uses same embedding function for Y instead of inverse to compensate
@@ -638,6 +643,20 @@ for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
         export $Name
     end
 end
+
+
+
+# in-place
+EmbedModelXPin(model::Function, Emb::Function) = XPEmbeddedModel(y, x, θ::AbstractVector; kwargs...) = ((X,P)=Emb(x,θ);    model(y, X, P; kwargs...))
+# out-of-place
+EmbedModelXPout(model::Function, Emb::Function) = XPEmbeddedModel(x, θ::AbstractVector; kwargs...) = ((X,P)=Emb(x,θ);    model(X, P; kwargs...))
+
+"""
+    EmbedModelXP(model::Function, Emb::Function)
+Embeds the independent variables of a model function via `newmodel(x,θ) = oldmodel(Emb(x,θ)...)`.
+"""
+EmbedModelXP(M::ModelMap, Emb::Function, Inplace::Bool=isinplacemodel(M)) = ModelMap((Inplace ? EmbedModelXPin : EmbedModelXPout)(M.Map, Emb), M)
+EmbedModelXP(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model)) = (Inplace ? EmbedModelXPin : EmbedModelXPout)(model, Emb)
 
 
 

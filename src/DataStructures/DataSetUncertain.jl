@@ -15,10 +15,15 @@ Examples:
 
 In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a `DataSet` consisting of four points can be constructed via
 ```julia
-DS = DataSetUncertain([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/abs(c[1]), [0.5])
+DS = DataSetUncertain([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/exp10(c[1]), [0.5])
 ```
+!!! note
+    It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
+
+!!! note
+    A Bessel correction `sqrt((length(ydata(DS))-length(params))/length(ydata(DS)))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
+struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int}
@@ -50,10 +55,10 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
             xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
             name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
-        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name)
+        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector,
-            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol())
+            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -61,12 +66,12 @@ struct DataSetUncertain <: AbstractUnknownUncertaintyDataSet
         M = inverrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
         ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
         
-        new(x, y, dims, inverrormodel, testp, errorparamsplitter, xnames, ynames, name)
+        new{BesselCorrection}(x, y, dims, inverrormodel, testp, errorparamsplitter, xnames, ynames, name)
     end
 end
 
-function (::Type{T})(DS::DataSetUncertain; kwargs...) where T<:Number
-	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), xnames(DS), ynames(DS), name(DS); kwargs...)
+function (::Type{T})(DS::DataSetUncertain{B}; kwargs...) where T<:Number where B
+	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), xnames(DS), ynames(DS), name(DS); BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake
@@ -108,7 +113,7 @@ yinverrormodel(DS::DataSetUncertain) = DS.inverrormodel
 xerrorparams(DS::DataSetUncertain, mle::AbstractVector) = nothing
 yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[2]
 
-
+HasBessel(DS::DataSetUncertain{T}) where T = T
 
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
 _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.BlockReduce(X) |> _TryVectorizeNoSqrt
@@ -116,6 +121,8 @@ _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M
 _TryVectorizeNoSqrt(D::Diagonal) = D.diag
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
+
+## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
@@ -131,14 +138,15 @@ function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
 end
 
 
-function _loglikelihood(DS::DataSetUncertain, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) where BesselCorrection
     normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, θ; kwargs...), ydim(DS))
-    woundInvσ = map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-length(normalparams))/(length(ydata(DS)))) : one(eltype(errorparams))
+    woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
     woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
         Res = -DataspaceDim(DS)*log(2π)
-        for i in eachindex(woundY)
+        @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
         end
@@ -148,10 +156,12 @@ end
 
 
 # Potential for optimization by specializing on Type of invcov
-function _FisherMetric(DS::DataSetUncertain, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...)
+# AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
+function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) where BesselCorrection
     normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
-    woundInvσ = map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-length(normalparams))/(length(ydata(DS)))) : one(eltype(errorparams))
+    woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
 
     SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(DS, dmodel, θ) # Using θ for correct F size
     F_m = transpose(SJ) * SJ

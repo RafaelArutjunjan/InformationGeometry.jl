@@ -15,10 +15,15 @@ Examples:
 
 In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a `DataSet` consisting of four points can be constructed via
 ```julia
-DS = UnknownVarianceDataSet([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/abs(c[1]), [0.5])
+DS = UnknownVarianceDataSet([1,2,3,4], [4,5,6.5,7.8], (x,y,cx)->1/exp10(cx[1]), (x,y,cy)->1/exp10(cy[1]), [0.25], [0.8])
 ```
+!!! note
+    It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
+
+!!! note
+    A Bessel correction `sqrt((length(xdata(DS))+length(ydata(DS))-length(params))/(length(xdata(DS))+length(ydata(DS))))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct UnknownVarianceDataSet <: AbstractUnknownUncertaintyDataSet
+struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int}
@@ -57,7 +62,7 @@ struct UnknownVarianceDataSet <: AbstractUnknownUncertaintyDataSet
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
         invXvariancemodel::Function, invYvariancemodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
-        xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol())
+        xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -67,14 +72,14 @@ struct UnknownVarianceDataSet <: AbstractUnknownUncertaintyDataSet
         M = invYvariancemodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         xdim(dims) == 1 ? (@assert Q isa Number && Q > 0) : (@assert Q isa AbstractMatrix && size(Q,1) == size(Q,2) == xdim(dims) && det(Q) > 0)
         ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
-        new(x, y, dims, invXvariancemodel, invYvariancemodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
+        new{BesselCorrection}(x, y, dims, invXvariancemodel, invYvariancemodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
     end
 end
 
 
-function (::Type{T})(DS::UnknownVarianceDataSet; kwargs...) where T<:Number
+function (::Type{T})(DS::UnknownVarianceDataSet{B}; kwargs...) where T<:Number where B
 	UnknownVarianceDataSet(T.(xdata(DS)), T.(ydata(DS)), dims(DS), xinverrormodel(DS), yinverrormodel(DS), 
-                T.(DS.testpx), T.(DS.testpy), SplitErrorParams(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+                T.(DS.testpx), T.(DS.testpy), SplitErrorParams(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake
@@ -116,6 +121,7 @@ yinverrormodel(DS::UnknownVarianceDataSet) = DS.invYvariancemodel
 xerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[2]
 yerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[3]
 
+HasBessel(DS::UnknownVarianceDataSet{T}) where T = T
 
 # Uncertainty must be constructed around prediction!
 function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx)
@@ -144,7 +150,7 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
 end
 
 
-function _loglikelihood(DS::UnknownVarianceDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) where BesselCorrection
     normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
     # Emb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS)))
 
@@ -156,8 +162,9 @@ function _loglikelihood(DS::UnknownVarianceDataSet, model::ModelOrFunction, θ::
     XY = LiftedEmb(normalparams)
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-    woundInvXσ = map((x,y)->xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
-    woundInvYσ = map((x,y)->yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-length(normalparams))/(length(xdata(DS))+length(ydata(DS)))) : one(eltype(yerrorparams))
+    woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
+    woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
     woundX = WoundX(DS);    woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvYσ, woundY, woundXpred, woundInvXσ, woundX)
         Res = -(length(ydata(DS)) + length(xdata(DS)))*log(2π)
@@ -177,7 +184,8 @@ end
 # Can get parameter indices by SplitErrorParams(DS)(1:length(θ))
 
 # Potential for optimization by specializing on Type of invcov
-function _FisherMetric(DS::UnknownVarianceDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...)
+function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; 
+                        ADmode::Val=Val(:ForwardDiff), kwargs...) where BesselCorrection
     normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
     # normalinds, xerrorinds, yerrorinds = SplitErrorParams(DS)(1:length(θ))
 
@@ -189,8 +197,9 @@ function _FisherMetric(DS::UnknownVarianceDataSet, model::ModelOrFunction, dmode
     XY = LiftedEmb(normalparams)
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-    woundInvXσ = map((x,y)->xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
-    woundInvYσ = map((x,y)->yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-length(normalparams))/(length(xdata(DS))+length(ydata(DS)))) : one(eltype(yerrorparams))
+    woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
+    woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
 
     J = BlockMatrix(BlockReduce(woundInvXσ), BlockReduce(woundInvYσ)) * GetJac(ADmode, LiftedEmb, length(θ))(θ)
     F_m = transpose(J) * J
@@ -201,7 +210,7 @@ function _FisherMetric(DS::UnknownVarianceDataSet, model::ModelOrFunction, dmode
         XY = LiftedEmb(normalparams)
         woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
         woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-        BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred))
+        BlockReduce(map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred))
     end
     yΣneghalfJac = GetMatrixJac(ADmode, InvSqrtyCovFromFull, length(θ), size(yΣposhalf))(θ)
     @tullio F_ey[i,j] := 2 * yΣposhalf[a,b] * yΣneghalfJac[b,c,i] * yΣposhalf[c,d] * yΣneghalfJac[d,a,j]
@@ -212,7 +221,7 @@ function _FisherMetric(DS::UnknownVarianceDataSet, model::ModelOrFunction, dmode
         XY = LiftedEmb(normalparams)
         woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
         woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-        BlockReduce(map((x,y)->xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred))
+        BlockReduce(map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred))
     end
     xΣneghalfJac = GetMatrixJac(ADmode, InvSqrtxCovFromFull, length(θ), size(xΣposhalf))(θ)
     @tullio F_ex[i,j] := 2 * xΣposhalf[a,b] * xΣneghalfJac[b,c,i] * xΣposhalf[c,d] * xΣneghalfJac[d,a,j]

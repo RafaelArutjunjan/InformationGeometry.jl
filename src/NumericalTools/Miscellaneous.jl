@@ -209,7 +209,7 @@ end
     GetArgSize(model::ModelOrFunction; max::Int=100)
 Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
 """
-GetArgSize(model::Function; max::Int=100) = GetArgSize(model, Val(MaximalNumberOfArguments(model) > 2); max=max)
+GetArgSize(model::Function; max::Int=100) = GetArgSize(model, Val(isinplacemodel(model)); max=max)
 function GetArgSize(model::Function, inplace::Val{false}; max::Int=100)
     try return (1, GetArgLength(p->model(rand(),p); max=max)) catch; end
     for i in 2:max

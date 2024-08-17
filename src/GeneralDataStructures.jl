@@ -97,12 +97,14 @@ LogPrior(DM::AbstractDataModel) = x::AbstractVector->zero(eltype(x))
 xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 
 """
-    MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+    MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle))
 Returns vector of type `Measurements.Measurement` where the parameter uncertainties are approximated via the diagonal of the inverse Fisher metric.
 That is, the stated uncertainties are a linearized symmetric approximation of the true parameter uncertainties around the MLE.
 """
-function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
-    F = FisherMetric(DM, mle)
+function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=AutoMetric(DM, mle); verbose::Bool=true)
+    @assert size(F,1) == size(F,2)
+    # Use AutoMetric instead of FisherMetric since significantly more performant for large datasets due to reduced allocations
+    # Also, diagonal basically unaffected in terms of precision
     try
         # sqrt∘Diagonal Larger than Diagonal∘cholesky entries
         mle .± sqrt.(Diagonal(inv(F)).diag)
@@ -294,7 +296,7 @@ end
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
 function pdim(DS::AbstractDataSet, model::ModelOrFunction)
-    if MaximalNumberOfArguments(model) == 2
+    if !isinplacemodel(model)
         GetArgLength(p->model(WoundX(DS)[1],p))
     else #inplace model
         GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))

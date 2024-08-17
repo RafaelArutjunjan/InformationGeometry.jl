@@ -25,6 +25,11 @@ Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
                                         NO_COLOR, (length(name(DS)) > 0 ? " '" *STRING_COLOR*string(name(DS)) *NO_COLOR*"'" : ""),
                                         " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
+Base.summary(DS::AbstractUnknownUncertaintyDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
+                                        ORANGE_COLOR, HasBessel(DS) ? " Bessel-corrected" : " not Bessel-corrected",
+                                        NO_COLOR, (length(name(DS)) > 0 ? " '" *STRING_COLOR*string(name(DS)) *NO_COLOR*"'" : ""),
+                                        " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
+
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
@@ -80,10 +85,10 @@ function ParamSummary(DM::AbstractDataModel)
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 function ParamSummary(io::IO, DM::AbstractDataModel)
@@ -98,10 +103,10 @@ function ParamSummary(io::IO, DM::AbstractDataModel)
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM;verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 
