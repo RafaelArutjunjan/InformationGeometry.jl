@@ -349,7 +349,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::Abstrac
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
     Profiles = if verbose
@@ -382,7 +382,7 @@ HasPriors(M::Tuple) = HasPriors(M[1])
 HasPriors(M::AbstractMatrix) = size(M,2) > 3
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
-    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert length(Profiles) == length(Pnames)
     Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
@@ -393,7 +393,7 @@ end
 """
     PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector{Tuple{AbstractMatrix,AbstractVector}}; idxs::Tuple=(1,2,3), OverWrite=true, kwargs...)
 """
-function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite::Bool=true, idxs::Tuple{Vararg{<:Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector; OverWrite::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert HasTrajectories(Profiles)
     @assert (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()

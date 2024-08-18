@@ -150,11 +150,11 @@ end
 function OptimizedDM(DM::AbstractDataModel; kwargs...)
     model, dmodel = OptimizeModel(DM; kwargs...)
     # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
-    !isnothing(dmodel) ? DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM)) : DM
+    !isnothing(dmodel) ? DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM), LogPrior(DM)) : DM
 end
 
 function InplaceDM(DM::AbstractDataModel; inplace::Bool=true, kwargs...)
     model!, dmodel! = OptimizeModel(ModelMappize(DM); inplace=inplace, kwargs...)
     @assert !isnothing(model!) && !isnothing(dmodel!) "Could not create inplace version of given DataModel."
-    DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM), true)
+    DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 end

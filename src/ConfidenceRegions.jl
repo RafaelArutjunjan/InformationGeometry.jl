@@ -1207,7 +1207,7 @@ Leave-one-out cross validation by default. Alternatively, combinations which are
 """
 CrossValidation(DM::AbstractDataModel) = CrossValidation(DM, [(x->x!=i).(1:Npoints(DM)) for i in 1:Npoints(DM)])
 function CrossValidation(DM::AbstractDataModel, keeps::AbstractVector{<:AbstractVector})
-    DMs = [DataModel(Data(DM)[keeper], Predictor(DM), dPredictor(DM), MLE(DM)) for keeper in keeps]
+    DMs = [DataModel(Data(DM)[keeper], Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM)) for keeper in keeps]
     Res = Float64[]
     for (i, keeper) in enumerate(keeps)
         newpoints = map(!, keeper)

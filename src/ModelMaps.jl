@@ -137,8 +137,8 @@ Domain(arg) = throw("$arg does not have a Domain.")
 InDomain(M::ModelMap) = M.InDomain
 InDomain(arg) = throw("$arg does not have an InDomain function.")
 
-iscustom(M::ModelMap) = ValToBool(M.CustomEmbedding)
-iscustom(F::Function) = false
+iscustommodel(M::ModelMap) = ValToBool(M.CustomEmbedding)
+iscustommodel(F::Function) = false
 
 isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
@@ -159,7 +159,7 @@ _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 MakeCustom(F::Function, Domain::Union{Bool,Nothing}=nothing; kwargs...) = MakeCustom(ModelMap(F); kwargs...)
 MakeCustom(F::Function, Domain::Cuboid; kwargs...) = MakeCustom(ModelMap(F, Domain); kwargs...)
 function MakeCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
-    if iscustom(M)
+    if iscustommodel(M)
         verbose && @warn "MakeCustom: Given Map already uses custom embedding."
         return remake(M; Meta)
     else
@@ -167,7 +167,7 @@ function MakeCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     end
 end
 function MakeNonCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
-    if !iscustom(M)
+    if !iscustommodel(M)
         verbose && @warn "MakeNonCustom: Given Map already using non-custom embedding."
         return remake(M; Meta)
     else
@@ -246,7 +246,7 @@ pdim(M::ModelMap)::Int = M.xyp[3]
 function ModelMappize(DM::AbstractDataModel; pnames::AbstractVector{<:AbstractString}=String[])
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
-    DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM))
+    DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 end
 
 
@@ -262,7 +262,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
         EbdMap(model::Function, θ::AbstractVector, woundX::AbstractVector,custom::Val{false}; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
         EbdMap(model::Function, θ::AbstractVector, woundX::AbstractVector,custom::Val{true}; kwargs...) = model(woundX, θ; kwargs...)
         function ConcatenatedModel(X::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
-            if any(iscustom, Mods)
+            if any(iscustommodel, Mods)
                 Res = if any(m->m.xyp[2]>1, Mods)
                     map(m->Windup(EbdMap(m.Map, θ, X, m.CustomEmbedding; kwargs...), m.xyp[2]), Mods)
                     # map(m->Windup(EmbeddingMap(DS, m, θ, X), m.xyp[2]), Mods)
@@ -281,7 +281,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
             map(model->model(x, θ; kwargs...), Mods) |> Reduction
         end
         function NConcatenatedModel(X::AbstractVector{<:AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; kwargs...)
-            if any(iscustom, Mods)
+            if any(iscustommodel, Mods)
                 Res = if any(m->m.xyp[2]>1, Mods)
                     map(m->Windup(EmbeddingMap(DS, m, θ, X), m.xyp[2]), Mods)
                 else
@@ -356,14 +356,12 @@ By providing `idxs`, one may restrict the application of the function `F` to bro
 For vector-valued transformations, see [`ModelEmbedding`](@ref).
 """
 function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
-    @assert length(idxs) == pdim(DM)
-    sum(idxs) == 0 && return DM
-    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F), _Apply(MLE(DM), x->invert(F,x), idxs); kwargs...)
+    ComponentwiseModelTransform(DM, F, x->invert(F,x), idxs; kwargs...)
 end
 function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     @assert length(idxs) == pdim(DM)
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs); kwargs...)
+    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); kwargs...)
 end
 
 
@@ -388,50 +386,28 @@ ScaleTransform(M::ModelOrFunction, factor::Number, idxs::BoolVector=(M isa Model
 ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, x->factor*x, x->x/factor, idxs; kwargs...)
 
 
-function TranslationTransform(F::Function, v::AbstractVector{<:Number})
-    TranslatedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, θ + v; kwargs...)
+function TranslationTransform(F::Union{ModelOrFunction, AbstractDataModel}, v::AbstractVector{T}; kwargs...) where T<:Number
+    AffineTransform(F, Diagonal(ones(T,length(v))), v; kwargs...)
 end
-function TranslationTransform(M::ModelMap, v::AbstractVector{<:Number})
-    @assert length(Domain(M)) == length(v)
-    ModelMap(TranslationTransform(M.Map, v), (InDomain(M) isa Function ? (θ->InDomain(M)(θ + v)) : nothing), TranslateCube(Domain(M), -v), M.xyp, M.pnames,
-                                    M.inplace, M.CustomEmbedding, name(M), M.Meta)
+function LinearTransform(F::Union{ModelOrFunction, AbstractDataModel}, A::AbstractMatrix{T}; kwargs...) where T<:Number
+    AffineTransform(F, A, zeros(T, size(A,1)); kwargs...)
 end
-function TranslationTransform(DM::AbstractDataModel, v::AbstractVector{<:Number}; kwargs...)
-    @assert pdim(DM) == length(v)
-    DataModel(Data(DM), TranslationTransform(Predictor(DM), v), MLE(DM)-v; kwargs...)
-end
-
-
-function LinearTransform(F::Function, A::AbstractMatrix{<:Number})
-    TransformedModel(x, θ::AbstractVector{<:Number}; kwargs...) = F(x, A*θ; kwargs...)
-end
-function LinearTransform(M::ModelMap, A::AbstractMatrix{<:Number})
-    @assert length(Domain(M)) == size(A,1) == size(A,2)
-    Ainv = inv(A)
-    ModelMap(LinearTransform(M.Map, A), (InDomain(M) isa Function ? (θ->InDomain(M)(A*θ)) : nothing), HyperCube(Ainv * Domain(M).L, Ainv * Domain(M).U),
-                    M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
-end
-function LinearTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}; kwargs...)
-    @assert pdim(DM) == size(A,1) == size(A,2)
-    DataModel(Data(DM), LinearTransform(Predictor(DM), A), inv(A)*MLE(DM); kwargs...)
-end
-
 
 function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=nothing)
     @assert size(A,1) == size(A,2) == length(v)
-    TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, A*θ + v; Kwargs...)
+    TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, muladd(A,θ,v); Kwargs...)
 end
 function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=Domain(M))
     @assert isnothing(Domain) || (length(Domain) == size(A,1) == size(A,2) == length(v))
-    Ainv = inv(A)
+    Ainv = pinv(A)
     NewDomain = isnothing(Domain) ? HyperCube(Ainv*(Domain.L-v), Ainv*(Domain.U-v)) : nothing
-    ModelMap(AffineTransform(M.Map, A, v), (InDomain(M) isa Function ? (θ->InDomain(M)(A*θ+v)) : nothing), NewDomain,
+    ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘(θ->muladd(A,θ,v))) : nothing), NewDomain,
                     M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
 end
 function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
-    Ainv = inv(A)
-    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; kwargs...), Ainv*(MLE(DM)-v))
+    Ainv = pinv(A)
+    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; kwargs...), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)))
 end
 
 _GetDecorrelationTransform(DM::AbstractDataModel) = (_GetDecorrelationTransform(FisherMetric(DM, MLE(DM))), MLE(DM))
@@ -481,7 +457,7 @@ end
 function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)), pnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing, name::Union{<:AbstractString,Symbol}=name(dM), Meta=dM.Meta, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     Pnames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
-    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (InDomain(dM) isa Function ? (InDomain(dM)∘F) : nothing),
+    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
             Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), Pnames,
             dM.inplace, dM.CustomEmbedding, name, Meta)
 end
@@ -494,11 +470,7 @@ An initial parameter configuration `start` as well as a `Domain` can optionally 
 For component-wise transformations see [`ComponentwiseModelTransform`](@ref).
 """
 function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
-    if isnothing(LogPrior(DM))
-        DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start; kwargs...)
-    else
-        DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, F∘LogPrior(DM); kwargs...)
-    end
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, EmbedLogPrior(DM, F); kwargs...)
 end
 @deprecate Embedding ModelEmbedding
 
@@ -525,7 +497,7 @@ The uncertainties are computed via linearized error propagation through the give
 """
 function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
-    DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM))
+    DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM), LogPrior(DM))
 end
 function TransformXdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
@@ -597,7 +569,7 @@ Returns a modified `DataModel` where the y-variables have been transformed by a 
 The uncertainties are computed via linearized error propagation through the given transformation.
 """
 function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
-    DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM))
+    DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM), LogPrior(DM))
 end
 function TransformYdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)

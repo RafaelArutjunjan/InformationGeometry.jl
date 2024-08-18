@@ -53,13 +53,13 @@ struct DataModel <: AbstractDataModel
     # LogLikelihoodFn::Function
     # ScoreFn::Function
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,SkipTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
         DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,SkipTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode),mle,SkipTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=iscustom(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,mle::AbstractVector,LogPriorFn::Union{Function,Nothing},SkipTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipTests; ADmode=ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
@@ -157,7 +157,7 @@ function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
         @warn "Was unable to convert $(typeof(Data(DM))) to $T due to: $err"
         Data(DM)
     end
-    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)), true; kwargs...)
+    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)), LogPrior(DM), true; kwargs...)
 end
 
 
