@@ -180,7 +180,7 @@ export UnknownVarianceDataSet
 
 
 include("DataStructures/DataModel.jl")
-export DataModel
+export DataModel, AddLogPrior
 
 
 include("NumericalTools/Miscellaneous.jl")

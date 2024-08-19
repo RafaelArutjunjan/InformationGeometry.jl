@@ -179,8 +179,12 @@ yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS)
 
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted
+"""
+    DOF(DM::AbstractDataModel)
+Parameter degrees of freedom of given model not counting error parameters.
+"""
 DOF(DM::AbstractDataModel) = DOF(Data(DM), MLE(DM))
-DOF(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = length((SplitErrorParams(DS)(mle))[1])
+DOF(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = length(mle) - sum(length, (SplitErrorParams(DS)(mle))[2:end])
 DOF(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = length(mle)
 
 

@@ -35,6 +35,10 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
     isinplacemodel(M) ? (Res=Vector{Num}(undef,length(Y));  KillAfter(M.Map, Res, X, θ; timeout=timeout); Res) : KillAfter(M.Map, X, θ; timeout=timeout)
 end
 
+
+MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+
+
 SymbolicModelExpr(DM::Union{AbstractDataModel,ModelMap}) = @suppress_err ToExpr(DM)
 """
     SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
@@ -43,7 +47,7 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)))
+function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)) && (DM isa ModelMap || Data(DM) isa AbstractFixedUncertaintyDataSet))
     expr = SymbolicModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
@@ -51,12 +55,11 @@ function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(con
         xold, yold, pold = SymbolicArguments(DM)
 
         xnew, ynew = if DM isa AbstractDataModel
-            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam)),
-            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+            MakeSymbolicPars(Symbol.(xnames(DM))), MakeSymbolicPars(Symbol.(ynames(DM)))
         else
             xold, yold
         end
-        pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
+        pnew = MakeSymbolicPars(Symbol.(pnames(DM)))
 
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
@@ -77,6 +80,7 @@ function SymbolicdModelExpr(M::ModelMap)
     X, Y, θ = SymbolicArguments(M)
     M(X, θ)
 end
+
 """
     SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=true)
 Produces `String` of symbolic expression for the model map if possible.
@@ -84,7 +88,7 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)))
+function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)) && (DM isa ModelMap || Data(DM) isa AbstractFixedUncertaintyDataSet))
     expr = SymbolicdModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
@@ -92,12 +96,11 @@ function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(co
         xold, yold, pold = SymbolicArguments(DM)
 
         xnew, ynew = if DM isa AbstractDataModel
-            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(xnames(DM)), ModelingToolkit.toparam)),
-            eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(ynames(DM)), ModelingToolkit.toparam))
+            MakeSymbolicPars(Symbol.(xnames(DM))), MakeSymbolicPars(Symbol.(ynames(DM)))
         else
             xold, yold
         end
-        pnew = eval(ModelingToolkit._parse_vars(:parameters, Real, Symbol.(pnames(DM)), ModelingToolkit.toparam))
+        pnew = MakeSymbolicPars(Symbol.(pnames(DM)))
 
         Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
         expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)

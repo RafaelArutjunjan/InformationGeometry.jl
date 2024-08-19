@@ -138,14 +138,14 @@ function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp)
 end
 
 
-function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) where BesselCorrection
+function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
     normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, θ; kwargs...), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-length(normalparams))/(length(ydata(DS)))) : one(eltype(errorparams))
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
     woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
-        Res = -DataspaceDim(DS)*log(2π)
+        Res::T = -DataspaceDim(DS)*log(2π)
         @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
@@ -157,10 +157,10 @@ end
 
 # Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
-function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) where BesselCorrection
+function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
     normalparams, errorparams = SplitErrorParams(DS)(θ)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-length(normalparams))/(length(ydata(DS)))) : one(eltype(errorparams))
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
 
     SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(DS, dmodel, θ) # Using θ for correct F size

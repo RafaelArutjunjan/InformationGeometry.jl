@@ -150,7 +150,7 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
 end
 
 
-function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) where BesselCorrection
+function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
     normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
     # Emb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS)))
 
@@ -162,7 +162,7 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     XY = LiftedEmb(normalparams)
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-length(normalparams))/(length(xdata(DS))+length(ydata(DS)))) : one(eltype(yerrorparams))
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
     woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
     woundX = WoundX(DS);    woundY = WoundY(DS)
@@ -184,8 +184,8 @@ end
 # Can get parameter indices by SplitErrorParams(DS)(1:length(θ))
 
 # Potential for optimization by specializing on Type of invcov
-function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; 
-                        ADmode::Val=Val(:ForwardDiff), kwargs...) where BesselCorrection
+function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; 
+                        ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
     normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
     # normalinds, xerrorinds, yerrorinds = SplitErrorParams(DS)(1:length(θ))
 
@@ -197,7 +197,7 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
     XY = LiftedEmb(normalparams)
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-length(normalparams))/(length(xdata(DS))+length(ydata(DS)))) : one(eltype(yerrorparams))
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
     woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
 

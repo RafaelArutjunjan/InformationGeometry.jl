@@ -179,3 +179,15 @@ EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = GetHess(P; kwargs
 EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zero(T)
 EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x))
 EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x), length(x))
+
+
+"""
+   AddLogPrior(DM::AbstractDataModel, NewLogPrior::Function; kwargs...)
+Add `NewLogPrior` to `DM`, potentially on top of already existing log-prior.
+"""
+function AddLogPrior(DM::AbstractDataModel, NewLogPrior::Union{Function,Nothing}; kwargs...)
+    DataModel(Data(DM), Predictor(DM), dPredictor(DM), MLE(DM), _AddLogPrior(LogPrior(DM), NewLogPrior); kwargs...)
+end
+function _AddLogPrior(LogPriorFn::Union{Function,Nothing}, NewLogPrior::Union{Function,Nothing})
+    CombinedLogPrior(θ::AbstractVector{<:Number}) = EvalLogPrior(LogPriorFn,θ) + EvalLogPrior(NewLogPrior,θ)
+end
