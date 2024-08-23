@@ -148,7 +148,7 @@ export GeneralProduct
 include("GeneralDataStructures.jl")
 # export HealthyData, HealthyCovariance, CheckModelHealth
 export xdata, ydata, xsigma, ysigma, xInvCov, yInvCov, Npoints, xdim, ydim, pdim, xpdim, DataspaceDim, Data, MLE, MLEuncert, LogLikeMLE, WoundX
-export xdist, ydist, dist, Residuals
+export xdist, ydist, dist, ScaledResiduals
 export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length, AddDataPoint

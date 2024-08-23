@@ -288,12 +288,26 @@ xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? Inf
 yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 
-
-function Residuals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true)
-    verbose && HasXerror(DM) && @warn "Ignoring x-uncertainties in computatation of Residuals."
-    cholesky(yInvCov(DM)).U * (ydata(DM) - EmbeddingMap(DM, mle))
+"""
+    ScaledResiduals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+Computes residuals with additional scaling by the cholesky decomposition of the inverse ``y``-covariance matrix.
+"""
+function ScaledResiduals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); xerrors::Bool=false, verbose::Bool=true, kwargs...)
+    Ypred = if xerrors && HasXerror(DM)
+        try
+            Xsig = xsigma(DM, mle) isa AbstractVector ? xsigma(DM, mle) : sqrt.(Diagonal(xsigma(DM, mle)).diag)
+            EmbeddingMap(DM, mle, Measurement.(collect(xdata(DM)), Xsig))
+        catch;
+            verbose && @warn "Ignoring x-uncertainties in computatation of Residuals."
+            EmbeddingMap(DM, mle)
+        end
+    else
+        EmbeddingMap(DM, mle)
+    end
+    cholesky(yInvCov(DM, mle)).U * (ydata(DM) - Ypred)
 end
 
+@deprecate Residuals ScaledResiduals
 
 """
     pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int

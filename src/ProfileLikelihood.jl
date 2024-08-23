@@ -269,9 +269,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 SaveTrajectories && push!(path, θ)
                 SavePriors && push!(priors, EvalLogPrior(LogPrior(DM), θ))
             end
-        else-
+        else
             PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
-                function PerformStepGeneral!(Res, MLEstash, Converged, p)
+                @inline function PerformStepGeneral!(Res, MLEstash, Converged, p)
                     L = Negloglikelihood(DM)∘ValInserter(Comp, p, MLE(DM))
                     R = FitFunc(L, MLEstash; kwargs...)
                     copyto!(MLEstash, GetMinimizer(R))
@@ -279,7 +279,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                     push!(Converged, HasConverged(R))
                 end
             else
-                function PerformStepManual!(Res, MLEstash, Converged, p)
+                @inline function PerformStepManual!(Res, MLEstash, Converged, p)
                     NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
                     DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp, p, MLE(DM)))
                     R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
