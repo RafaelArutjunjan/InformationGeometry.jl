@@ -144,9 +144,15 @@ isinplacemodel(M::ModelMap) = ValToBool(M.inplace)
 isinplacemodel(F::Function) = MaximalNumberOfArguments(F) == 3
 isinplacemodel(DM::AbstractDataModel) = isinplacemodel(Predictor(DM))
 
+IsInDomain(DM::AbstractDataModel) = IsInDomain(Predictor(DM))
+IsInDomain(F::Function) = θ::AbstractVector -> true
+
+IsInDomain(DM::AbstractDataModel, θ::AbstractVector) = IsInDomain(Predictor(DM), θ)
+IsInDomain(F::Function, θ::AbstractVector) = true
+
 IsInDomain(M::ModelMap) = θ::AbstractVector -> IsInDomain(M, θ)
-IsInDomain(M::ModelMap, θ::AbstractVector) = IsInDomain(InDomain(M), Domain(M), θ)
-IsInDomain(InDomain::Union{Nothing,Function}, Domain::Union{Nothing,Cuboid}, θ::AbstractVector) = (_TestInDomain(InDomain, θ) && _TestDomain(Domain, θ))
+IsInDomain(M::ModelMap, θ::AbstractVector) = _IsInDomain(InDomain(M), Domain(M), θ)
+_IsInDomain(InDomain::Union{Nothing,Function}, Domain::Union{Nothing,Cuboid}, θ::AbstractVector) = (_TestInDomain(InDomain, θ) && _TestDomain(Domain, θ))
 
 # Eval InDomain function
 _TestInDomain(::Nothing, θ::AbstractVector) = true

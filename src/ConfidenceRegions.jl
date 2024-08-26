@@ -210,7 +210,7 @@ GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(Domain(M), InDomain(M); maxiters=maxiters)
 function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     naivetry = GetStartP(length(C))
-    IsInDomain(InDom, C, naivetry) ? naivetry : SobolStartP(C, InDom; maxiters=maxiters)
+    _IsInDomain(InDom, C, naivetry) ? naivetry : SobolStartP(C, InDom; maxiters=maxiters)
 end
 function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     X = rand(length(C));    i = 0
@@ -228,22 +228,23 @@ function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVe
                                     verbose::Bool=true, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
                                     tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
                                     verbose::Bool=true, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(convert(Vector,start)), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
 end
 
 
 function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...)
     FindMLE(Data(DM), Predictor(DM), dPredictor(DM), start, LogPriorFn; kwargs...)
 end
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false,
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false,
                 ADmode::Union{Val,Symbol}=Val(:ForwardDiff), tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+    start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
@@ -259,8 +260,9 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, start::AbstractVec
 end
 
 
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing;
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing;
                 ADmode::Union{Val,Symbol}=Val(:ForwardDiff), Big::Bool=false, tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+    start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
@@ -485,13 +487,13 @@ function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-
 end
 
 
-IsStructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiable(DM, sol; kwargs...)) == 0
+IsStructurallyIdentifiableAlong(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiableAlong(DM, sol; kwargs...)) == 0
 
-function StructurallyIdentifiable(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
+function StructurallyIdentifiableAlong(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
     find_zeros(t->GeometricDensity(DM, sol(t); kwargs...), sol.t[1], sol.t[end])
 end
-function StructurallyIdentifiable(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
-    (parallel ? pmap : map)(x->StructurallyIdentifiable(DM, x; kwargs...), sols)
+function StructurallyIdentifiableAlong(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
+    (parallel ? pmap : map)(x->StructurallyIdentifiableAlong(DM, x; kwargs...), sols)
 end
 
 """
@@ -511,6 +513,8 @@ function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:N
         end
     end;    S, Vt
 end
+
+IsStructurallyIdentifiable(DM::AbstractDataModel, args...; kwargs...) = all(x->x>0, StructurallyIdentifiable(DM, args...; kwargs...)[1])
 
 
 """
@@ -545,7 +549,7 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
         if tests
             NotTerminated = map(x->!(x.retcode === SciMLBase.ReturnCode.Terminated), sols)
             verbose && sum(NotTerminated) != 0 && @warn "Solutions $((1:length(sols))[NotTerminated]) did not exit properly."
-            roots = StructurallyIdentifiable(DM, sols; parallel=parallel)
+            roots = StructurallyIdentifiableAlong(DM, sols; parallel=parallel)
             Unidentifiables = map(x->(length(x) != 0), roots)
             for i in eachindex(roots)
                 length(roots[i]) != 0 && verbose && @warn "Solution $i hits chart boundary at t = $(roots[i]) and should therefore be considered invalid."

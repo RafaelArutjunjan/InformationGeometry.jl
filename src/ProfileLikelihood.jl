@@ -148,8 +148,8 @@ end
 _WithoutFirst(X::AbstractVector{<:Bool}) = (Z=copy(X);  Z[findfirst(X)]=false;  Z)
 function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked))
     @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainInd=$MainInd."
-    inserter = ValInserter((1:length(Linked))[Linked], θ[MainInd])
-    LinkEmbedding(θ::AbstractVector{<:Number}) = inserter(θ)
+    LinkedInds = [i for i in 1:length(Linked) if Linked[i]]
+    LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainInd], θ)
 end
 """
     LinkParameters(DM::AbstractDataModel, Linked::Union{AbstractVector{<:Bool},AbstractVector{<:Int}}, MainInd::Int=findfirst(Linked); kwargs...)
@@ -232,15 +232,17 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=NewtonTrustRegion(), ApproximatePaths::Bool=false, kwargs...)
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
-    FitFunc = if !isnothing(meth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
-        Meth = isnothing(meth) ? NewtonTrustRegion() : meth
+    FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
+        Meth = isnothing(OptimMeth) ? NewtonTrustRegion() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, Kwargs..., Full=true))
     else 
         ((args...; Kwargs...)->curve_fit(args...; tol=tol, Kwargs...))
     end
+    # Does not check proximity to boundary!
+    InBounds = IsInDomain(DM)
 
     # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
@@ -272,20 +274,22 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else
             PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
                 @inline function PerformStepGeneral!(Res, MLEstash, Converged, p)
-                    L = Negloglikelihood(DM)∘ValInserter(Comp, p, MLE(DM))
+                    Ins = ValInserter(Comp, p, MLE(DM))
+                    L = Negloglikelihood(DM)∘Ins
                     R = FitFunc(L, MLEstash; kwargs...)
                     copyto!(MLEstash, GetMinimizer(R))
                     push!(Res, -GetMinimum(R,L))
-                    push!(Converged, HasConverged(R))
+                    push!(Converged, HasConverged(R) && InBounds(Ins((copy(MLEstash)))))
                 end
             else
                 @inline function PerformStepManual!(Res, MLEstash, Converged, p)
                     NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
-                    DroppedLogPrior = EmbedLogPrior(DM, ValInserter(Comp, p, MLE(DM)))
+                    Ins = ValInserter(Comp, p, MLE(DM))
+                    DroppedLogPrior = EmbedLogPrior(DM, Ins)
                     R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
                     copyto!(MLEstash, GetMinimizer(R))
-                    push!(Res, -GetMinimum(R,x->loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
-                    push!(Converged, HasConverged(R))
+                    push!(Res, -GetMinimum(R,x->-loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
+                    push!(Converged, HasConverged(R) && InBounds(Ins((copy(MLEstash)))))
                 end
             end
             # Adaptive instead of ps grid here?
@@ -293,7 +297,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 PerformStep!!!(Res, MLEstash, Converged, p)
 
                 push!(visitedps, p)
-                SaveTrajectories && push!(path, insert!(copy(MLEstash), Comp, p))
+                SaveTrajectories && push!(path, ValInserter(Comp, p, MLE(DM))(copy(MLEstash)))
                 SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
             end
         end
@@ -365,13 +369,26 @@ end
 # x and y labels must be passed as kwargs
 PlotSingleProfile(DM::AbstractDataModel, Prof::Tuple{<:AbstractMatrix, <:Any}, i::Int; kwargs...) = PlotSingleProfile(DM, Prof[1], i; kwargs...)
 function PlotSingleProfile(DM::AbstractDataModel, Prof::AbstractMatrix, i::Int; kwargs...)
-    P = RecipesBase.plot(view(Prof, :,1), view(Prof, :,2); leg=false, label="Profile", kwargs...)
-    HasPriors(Prof) && RecipesBase.plot!(P, view(Prof, :,1), view(Prof, :,3); label="Prior", color=:red, line=:dash)
+    P = RecipesBase.plot(view(Prof, :,1), Convergify(view(Prof, :,2), GetConverged(Prof)); leg=false, label=["Profile" nothing], kwargs...)
+    HasPriors(Prof) && RecipesBase.plot!(P, view(Prof, :,1), Convergify(view(Prof, :,3), GetConverged(Prof)); label=["Prior" nothing], color=[:red :brown], line=:dash)
     P
 end
 
 
-GetConverged(M::AbstractMatrix) = @view M[:, end]
+GetConverged(M::AbstractMatrix) = BitVector(@view M[:, end])
+Convergify(Values::AbstractVector{<:Number}, Converged::BoolVector) = [Values .+ (NaN .* .!Converged)  Values .+ (NaN .* ShrinkTruesByOne(Converged))]
+
+
+# Grow Falses to their next neighbors to avoid holes in plot
+function ShrinkTruesByOne(X::BoolVector)
+    Res = copy(X)
+    X[1] && !X[2] && (Res[1] = false)
+    X[end] && !X[end-1] && (Res[end] = false)
+    for i in 2:length(Res)-1
+        X[i] && (!X[i-1] || !X[i+1]) && (Res[i] = false)
+    end;    Res
+end
+
 
 HasTrajectories(M::AbstractVector) = any(HasTrajectories, M)
 HasTrajectories(M::Tuple) = true
@@ -380,6 +397,8 @@ HasTrajectories(M::AbstractMatrix) = false
 HasPriors(M::AbstractVector) = any(HasPriors, M)
 HasPriors(M::Tuple) = HasPriors(M[1])
 HasPriors(M::AbstractMatrix) = size(M,2) > 3
+
+
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
@@ -576,21 +595,23 @@ end
     layout := length(pnames(P))
     for i in eachindex(pnames(P))
         @series begin
-            label --> "Profile Likelihood"
+            label --> ["Profile Likelihood" nothing]
             xguide --> pnames(P)[i]
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
+            lw --> 1.5
             subplot := i
-            view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,2)
+            view(Profiles(P)[i],:,1), Convergify(view(Profiles(P)[i],:,2), GetConverged(Profiles(P)[i]))
             # P(i)
         end
         # Draw prior contribution
         if HasPriors(Profiles(P)[i])
             @series begin
-                label --> "Prior contribution"
-                color --> :red
+                label --> ["Prior contribution" nothing]
+                color --> [:red :brown]
                 line --> :dash
+                lw --> 1.5
                 subplot := i
-                view(Profiles(P)[i],:,1), view(Profiles(P)[i],:,3)
+                view(Profiles(P)[i],:,1), Convergify(view(Profiles(P)[i],:,3), GetConverged(Profiles(P)[i]))
                 # P(i)
             end
         end
@@ -602,7 +623,7 @@ end
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             seriescolor --> :red
             marker --> :hex
-            markersize --> 3
+            markersize --> 2.5
             markerstrokewidth --> 0
             [MLE(P)[i]], [P(MLE(P)[1],1)]
         end
