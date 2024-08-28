@@ -244,62 +244,75 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # Does not check proximity to boundary!
     InBounds = IsInDomain(DM)
 
-    # Could use variable size array instead to cut off computation once Confnum+0.1 is reached?
+    ConditionalPush!(N::Nothing, args...) = N
+    ConditionalPush!(X::AbstractArray, args...) = push!(X, args...)
+
     Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
-    # path = SaveTrajectories ? [fill(NaN, length(MLE(DM))) for i in eachindex(ps)] : nothing
+    Converged = BitVector()
     path = SaveTrajectories ? typeof(MLE(DM))[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
-    Converged = BitVector()
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
+        Xs = [[x] for x in ps]
+        Res = map(loglikelihood(DM), Xs)
+        Converged = !isnan.(Res) .&& !isinf.(Res) .&& map(x->InBounds([x]), ps)
         visitedps = ps
-        Res = map(loglikelihood(DM), [[x] for x in ps])
-        Converged = !isnan.(Res) .&& !isinf.(Res)
+        SaveTrajectories && (path = Xs)
+        SavePriors && map(x->EvalLogPrior(LogPrior(DM), x), Xs)
     else
         MLEstash = Drop(MLE(DM), Comp)
-        if ApproximatePaths
+        
+        PerformStep!!! = if ApproximatePaths
+            # Perform steps based on profile direction at MLE
             dir = GetLocalProfileDir(DM, Comp, MLE(DM))
             dir ./= dir[Comp]
             pmle = MLE(DM)[Comp]
-            
-            for p in ps
+            @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, p)
                 θ = muladd(p-pmle, dir, MLE(DM))
+
                 push!(Res, loglikelihood(DM, θ))
+                # Ignore MLEstash
+                push!(Converged, !isnan(Res[end]) && InBounds(θ))
                 push!(visitedps, p)
-                push!(Converged, true)
-            
-                SaveTrajectories && push!(path, θ)
-                SavePriors && push!(priors, EvalLogPrior(LogPrior(DM), θ))
+                ConditionalPush!(path, θ)
+                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), θ))
+            end
+        elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
+            # Build objective function based on Neglikelihood only without touching internals
+            @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, p)
+                Ins = ValInserter(Comp, p, MLE(DM))
+                L = Negloglikelihood(DM)∘Ins
+                R = FitFunc(L, MLEstash; kwargs...)
+                
+                push!(Res, -GetMinimum(R,L))
+                copyto!(MLEstash, GetMinimizer(R))
+                FullP = Ins(copy(MLEstash))
+                push!(Converged, HasConverged(R) && InBounds(FullP))
+                push!(visitedps, p)
+                ConditionalPush!(path, FullP)
+                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), FullP))
             end
         else
-            PerformStep!!! = if general || Data(DM) isa AbstractUnknownUncertaintyDataSet
-                @inline function PerformStepGeneral!(Res, MLEstash, Converged, p)
-                    Ins = ValInserter(Comp, p, MLE(DM))
-                    L = Negloglikelihood(DM)∘Ins
-                    R = FitFunc(L, MLEstash; kwargs...)
-                    copyto!(MLEstash, GetMinimizer(R))
-                    push!(Res, -GetMinimum(R,L))
-                    push!(Converged, HasConverged(R) && InBounds(Ins((copy(MLEstash)))))
-                end
-            else
-                @inline function PerformStepManual!(Res, MLEstash, Converged, p)
-                    NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
-                    Ins = ValInserter(Comp, p, MLE(DM))
-                    DroppedLogPrior = EmbedLogPrior(DM, Ins)
-                    R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
-                    copyto!(MLEstash, GetMinimizer(R))
-                    push!(Res, -GetMinimum(R,x->-loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
-                    push!(Converged, HasConverged(R) && InBounds(Ins((copy(MLEstash)))))
-                end
-            end
-            # Adaptive instead of ps grid here?
-            for p in ps
-                PerformStep!!!(Res, MLEstash, Converged, p)
+            # Build objective function manually by embedding model and LogPrior separately
+            # Does not work combined with variance estimation, i.e. error models
+            @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, p)
+                NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
+                Ins = ValInserter(Comp, p, MLE(DM))
+                DroppedLogPrior = EmbedLogPrior(DM, Ins)
+                R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
 
+                push!(Res, -GetMinimum(R,x->-loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
+                copyto!(MLEstash, GetMinimizer(R))
+                FullP = Ins(copy(MLEstash))
+                push!(Converged, HasConverged(R) && InBounds(FullP))
                 push!(visitedps, p)
-                SaveTrajectories && push!(path, ValInserter(Comp, p, MLE(DM))(copy(MLEstash)))
-                SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [p]))
+                ConditionalPush!(path, FullP)
+                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), FullP))
             end
+        end
+        # Adaptive instead of ps grid here?
+        for p in ps
+            PerformStep!!!(Res, MLEstash, Converged, visitedps, p)
         end
     end
     Logmax = AllowNewMLE ? max(maximum(Res), LogLikeMLE(DM)) : LogLikeMLE(DM)

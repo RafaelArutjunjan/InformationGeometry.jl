@@ -34,7 +34,7 @@ end
     DME = DataModel(DataSetExact([0,0.5,1,1.5],0.1ones(4),[1.,3.,7.,8.1],[1.2,2.,0.6,1.]), LinearModel)
 
     sols = ConfidenceRegions(DM,1:2; tol=1e-6)
-    @test IsStructurallyIdentifiable(DM,sols[1]) == true
+    @test InformationGeometry.IsStructurallyIdentifiableAlong(DM, sols[1]) == true
     @test size(SaveConfidence(sols,50)) == (50,4)
     @test size(SaveGeodesics(sols,50)) == (50,2)
     @test size(SaveDataSet(DM)) == (4,3)
