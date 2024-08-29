@@ -55,20 +55,12 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         if PlotVariance || det(F) > 0
             if ydim(DM) == 1
                 SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM)))
-                COL = get(plotattributes, :seriescolor, :orange)
                 @series begin
-                    seriescolor --> COL
+                    seriescolor --> get(plotattributes, :seriescolor, :orange)
                     linestyle   --> :dash
                     linealpha   --> 0.75
-                    label       --> "Lin. $(Confnum)σ Prediction Uncert."
-                    X, Y .+ SqrtVar
-                end
-                @series begin
-                    seriescolor --> COL
-                    linestyle   --> :dash
-                    linealpha   --> 0.75
-                    label       --> ""
-                    X, Y .- SqrtVar
+                    label       --> ["Lin. $(Confnum)σ Prediction Uncert." nothing]
+                    X, [Y .+ SqrtVar Y .- SqrtVar]
                 end
             else
                 SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
@@ -77,15 +69,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                         seriescolor := palette(:default)[i]
                         linestyle   --> :dash
                         linealpha   --> 0.75
-                        label       --> "Lin. $(Confnum)σ Prediction Uncert."
-                        X, view(Y,:,i) .+ getindex.(SqrtVar, i)
-                    end
-                    @series begin
-                        seriescolor := palette(:default)[i]
-                        linestyle   --> :dash
-                        linealpha   --> 0.75
-                        label       --> ""
-                        X, view(Y,:,i) .- getindex.(SqrtVar, i)
+                        label       --> ["Lin. $(Confnum)σ Prediction Uncert." nothing]
+                        X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
                     end
                 end
             end
@@ -171,7 +156,6 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     RSEs = ResidualStandardError(DM, mle)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
-    leg --> false
     xguide --> xnames(DM)[1]
     F = Confnum > 0 ? FisherMetric(DM, mle) : Diagonal(zeros(length(mle)))
     for i in 1:ydim(DM)
@@ -189,25 +173,14 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     if PlotVariance || det(F) > 0
         SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
         for i in 1:ydim(DM)
-            for i in 1:ydim(DM)
-                @series begin
-                    subplot := i
-                    seriescolor --> get(plotattributes, :seriescolor, :orange)
-                    linestyle   --> :dash
-                    linealpha   --> 0.75
-                    yguide      :=  ynames(DM)[i]
-                    label       := ""
-                    X, view(Ypred, :, i) .+ getindex.(SqrtVar, i)
-                end
-                @series begin
-                    subplot := i
-                    seriescolor --> get(plotattributes, :seriescolor, :orange)
-                    linestyle   --> :dash
-                    linealpha   --> 0.75
-                    yguide      :=  ynames(DM)[i]
-                    label       := ""
-                    X, view(Ypred, :, i) .- getindex.(SqrtVar, i)
-                end
+            @series begin
+                subplot := i
+                seriescolor --> get(plotattributes, :seriescolor, :orange)
+                linestyle   --> :dash
+                linealpha   --> 0.75
+                yguide      :=  ynames(DM)[i]
+                label       := ["Lin. $(Confnum)σ Prediction Uncert." nothing]
+                X, [view(Ypred, :, i) .+ getindex.(SqrtVar, i) view(Ypred, :, i) .- getindex.(SqrtVar, i)]
             end
         end
     end

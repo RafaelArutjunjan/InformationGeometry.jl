@@ -178,6 +178,12 @@ The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exp
 """
 BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * abs(inv(C)) * (exp(abs(x)) - one(T))
 
+"""
+    SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number
+Computes differentiable approximation of absolute value function `abs` as `sqrt(abs2(x) + eps)`.
+"""
+SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. sqrt(abs2(x) + eps)
+
 
 
 import Base.==

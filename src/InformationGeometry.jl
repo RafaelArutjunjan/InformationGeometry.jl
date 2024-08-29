@@ -184,7 +184,7 @@ export DataModel, AddLogPrior
 
 
 include("NumericalTools/Miscellaneous.jl")
-export BiLog, BiExp
+export BiLog, BiExp, SoftAbs
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
