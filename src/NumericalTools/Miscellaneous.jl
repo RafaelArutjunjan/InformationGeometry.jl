@@ -183,6 +183,11 @@ BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x
 Computes differentiable approximation of absolute value function `abs` as `sqrt(abs2(x) + eps)`.
 """
 SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. sqrt(abs2(x) + eps)
+"""
+    SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number
+Computes `log(x + eps)` to avoid `NaN` errors in differentiation.
+"""
+SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. log(x + eps)
 
 
 
