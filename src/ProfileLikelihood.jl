@@ -225,15 +225,19 @@ HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.S
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=25, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=31, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
-    GetProfile(DM, Comp, ps; kwargs...)
+    GetProfile(DM, Comp, ps; N=N, kwargs...)
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; Confnum::Real=1.0, N::Int=length(ps), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-12, IsCost::Bool=false, dof::Int=DOF(DM),
                         SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
+
+    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05
+    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3
+    # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
         Meth = isnothing(OptimMeth) ? NewtonTrustRegion() : OptimMeth
@@ -252,6 +256,12 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     path = SaveTrajectories ? typeof(MLE(DM))[] : nothing
     priors = SavePriors ? eltype(MLE(DM))[] : nothing
 
+    sizehint!(Res, N)
+    sizehint!(visitedps, N)
+    sizehint!(Converged, N)
+    SaveTrajectories && sizehint!(paths, N)
+    SavePriors && sizehint!(priors, N)
+
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
         Res = map(loglikelihood(DM), Xs)
@@ -265,7 +275,6 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         PerformStep!!! = if ApproximatePaths
             # Perform steps based on profile direction at MLE
             dir = GetLocalProfileDir(DM, Comp, MLE(DM))
-            dir ./= dir[Comp]
             pmle = MLE(DM)[Comp]
             @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, p)
                 θ = muladd(p-pmle, dir, MLE(DM))
@@ -311,8 +320,16 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         end
         # Adaptive instead of ps grid here?
-        for p in ps
+        startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
+        for p in sort(ps[startind:end])
             PerformStep!!!(Res, MLEstash, Converged, visitedps, p)
+            ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+        end
+        len = length(visitedps)
+        copyto!(MLEstash, Drop(MLE(DM), Comp))
+        for p in sort(ps[startind:-1:1]; rev=true)
+            PerformStep!!!(Res, MLEstash, Converged, visitedps, p)
+            ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
         end
     end
     Logmax = AllowNewMLE ? max(maximum(Res), LogLikeMLE(DM)) : LogLikeMLE(DM)
@@ -336,12 +353,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    ResMat = SavePriors ? [visitedps Res priors Converged] : [visitedps Res Converged]
-    SaveTrajectories ? (ResMat, path) : ResMat
+    perm = sortperm(visitedps)
+    ResMat = SavePriors ? [visitedps[perm] Res[perm] priors[perm] Converged[perm]] : [visitedps[perm] Res[perm] Converged[perm]]
+    SaveTrajectories ? (ResMat, path[perm]) : ResMat
 end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false, kwargs...)
-    GetProfile(DM, Comp, (C=GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); (C.L[Comp], C.U[Comp])); kwargs...)
+    GetProfile(DM, Comp, (C=GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); (C.L[Comp], C.U[Comp])); Confnum=Confnum, kwargs...)
 end
 
 
@@ -350,7 +368,8 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
     F = FisherMetric(DM, p)
     F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
     det(F) == 0 && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
-    pinv(F)[:, Comp]
+    dir = pinv(F)[:, Comp];    dir ./= dir[Comp]
+    dir
 end
 
 
