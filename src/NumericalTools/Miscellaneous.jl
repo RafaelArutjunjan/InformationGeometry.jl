@@ -146,11 +146,13 @@ ConfVol(n::BigFloat; kwargs...) = erf(n / sqrt(BigFloat(2)))
 InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
-ChisqCDF(k::Int, x::Real) = gamma_inc(k/2., x/2., 0)[1]
+ChisqCDF(k::Int, x::Int) = ChisqCDF(k, floatify(x))
+ChisqCDF(k::Int, x::T) where T<:Number = gamma_inc(T(k)/2, x/2, 0)[1]
 # ChisqCDF(k::Int, x::Real) = cdf(Chisq(k), x)
-ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
+# ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 
-InvChisqCDF(k::Int, p::Real; kwargs...) = 2gamma_inc_inv(k/2., p, 1-p)
+InvChisqCDF(k::Int, p::Int; kwargs...) = InvChisqCDF(k, floatify(p))
+InvChisqCDF(k::Int, p::T; kwargs...) where T<:Number = 2gamma_inc_inv(T(k)/2, p, 1-p)
 InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
 
 

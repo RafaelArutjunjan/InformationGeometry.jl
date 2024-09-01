@@ -206,7 +206,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
             Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
         end
     end
-    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization appears to not have converged."
+    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization may not have converged."
     Full ? Res : Optim.minimizer(Res)
 end
 
@@ -220,14 +220,18 @@ ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
 ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 # Extend with constraint Functions
-function minimizeOptimizationJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, kwargs...)
+function minimizeOptimizationJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, lcons=nothing, ucons=nothing, kwargs...)
     @assert 1 ≤ length(Fs) ≤ 3
     
+    if !SciMLBase.allowsconstraints(meth)
+        cons, lcons, ucons = nothing, nothing, nothing
+    end
+
     optf = if length(Fs) == 1
-        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons)
+        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
     else
         @warn "minimize(): Currently ignoring manually given derivatives and using adtype=$adtype instead."
-        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons)
+        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
     # elseif length(Fs) == 2
     #     numarg = MaximalNumberOfArguments(Fs[2])
     #     if numarg == 1
@@ -244,18 +248,22 @@ function minimizeOptimizationJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVect
     #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
     #     end
     end
-    minimizeOptimizationJL(optf, Start, meth; kwargs...)
+    minimizeOptimizationJL(optf, Start, meth; lcons=lcons, ucons=ucons, kwargs...)
 end
 
 # For Optimizers from the Optimization.jl ecosystem
 function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
                     tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, 
-                    lb=(!isnothing(Domain) ? Domain.L : nothing), ub=(!isnothing(Domain) ? Domain.U : nothing), lcons=nothing, ucons=nothing, kwargs...)
+                    lb=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.L : nothing), ub=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.U : nothing), lcons=nothing, ucons=nothing, 
+                    Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), kwargs...)
 
-    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb, ub, sense=MinSense)
+    SciMLBase.requiresbounds(meth) && isnothing(lb) && (lb = fill(-Inf, length(Start)))
+    SciMLBase.requiresbounds(meth) && isnothing(ub) && (ub = fill(Inf, length(Start)))
+    
+    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
-    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, kwargs...) # callback
-    verbose && sol.retcode !== ReturnCode.Success && @warn "minimize(): Optimization appears to not have converged."
+    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
+    verbose && sol.retcode !== ReturnCode.Success && @warn "minimize(): Optimization may not have converged."
     Full ? sol : sol.u
 end
 
