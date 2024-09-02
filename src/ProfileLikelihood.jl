@@ -259,7 +259,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     sizehint!(Res, N)
     sizehint!(visitedps, N)
     sizehint!(Converged, N)
-    SaveTrajectories && sizehint!(paths, N)
+    SaveTrajectories && sizehint!(path, N)
     SavePriors && sizehint!(priors, N)
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
@@ -276,7 +276,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             # Perform steps based on profile direction at MLE
             dir = GetLocalProfileDir(DM, Comp, MLE(DM))
             pmle = MLE(DM)[Comp]
-            @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, p)
+            @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 θ = muladd(p-pmle, dir, MLE(DM))
 
                 push!(Res, loglikelihood(DM, θ))
@@ -288,7 +288,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
             # Build objective function based on Neglikelihood only without touching internals
-            @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, p)
+            @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 Ins = ValInserter(Comp, p, MLE(DM))
                 L = Negloglikelihood(DM)∘Ins
                 R = FitFunc(L, MLEstash; kwargs...)
@@ -304,7 +304,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else
             # Build objective function manually by embedding model and LogPrior separately
             # Does not work combined with variance estimation, i.e. error models
-            @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, p)
+            @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
                 Ins = ValInserter(Comp, p, MLE(DM))
                 DroppedLogPrior = EmbedLogPrior(DM, Ins)
@@ -322,13 +322,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         # Adaptive instead of ps grid here?
         startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
         for p in sort(ps[startind:end])
-            PerformStep!!!(Res, MLEstash, Converged, visitedps, p)
+            PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
             ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
         end
         len = length(visitedps)
         copyto!(MLEstash, Drop(MLE(DM), Comp))
         for p in sort(ps[startind:-1:1]; rev=true)
-            PerformStep!!!(Res, MLEstash, Converged, visitedps, p)
+            PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
             ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
         end
     end
@@ -390,9 +390,9 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::Abstr
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
     Profiles = if verbose
         Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
-        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), inds; progress=Prog)
+        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, verbose, kwargs...), inds; progress=Prog)
     else
-        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, kwargs...), inds)
+        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, verbose, kwargs...), inds)
     end
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
@@ -467,10 +467,10 @@ function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Ty
 end
 
 """
-    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
+    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
+function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.; kwargs...)
     ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
 end
 function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10, meth::Roots.AbstractUnivariateZeroMethod=Roots.Bisection())
@@ -606,6 +606,12 @@ end
         idxs = length(MLE(P))≥3 ? (1,2,3) : (1,2)
     end
 
+    xlabel --> pnames(P)[idxs[1]]
+    ylabel --> pnames(P)[idxs[2]]
+    if length(idxs) == 3
+        zlabel --> pnames(P)[idxs[3]]
+    end
+    
     for i in eachindex(pnames(P))
         @series begin
             subplot := length(pnames(P)) + 1
@@ -614,11 +620,6 @@ end
     end
     @series begin
         label := "MLE"
-        xlabel --> pnames(P)[idxs[1]]
-        ylabel --> pnames(P)[idxs[2]]
-        if length(idxs) == 3
-            zlabel --> pnames(P)[idxs[3]]
-        end
         subplot := length(pnames(P)) + 1
         [MLE(P)[collect(idxs)]]
     end
@@ -650,6 +651,7 @@ end
         ## Mark MLE in profiles
         @series begin
             subplot := i
+            label --> nothing
             legend --> nothing
             xguide --> pnames(P)[i]
             yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
