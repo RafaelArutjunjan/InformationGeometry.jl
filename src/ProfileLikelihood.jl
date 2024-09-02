@@ -225,25 +225,38 @@ HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.S
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=31, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=(adaptive ? 15 : 31), kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
-    GetProfile(DM, Comp, ps; N=N, kwargs...)
+    GetProfile(DM, Comp, ps; adaptive, N, kwargs...)
 end
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; Confnum::Real=1.0, N::Int=length(ps), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-12, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, kwargs...)
-    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
 
-    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05
-    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3
+function approx_PL_curvature(xs::AbstractVector{<:Number}, ys::AbstractVector{<:Number})
+    @assert length(xs) == 3 && length(ys) == 3;
+
+    (a1, a2, a3), (PL1, PL2, PL3) = xs, ys
+
+    return 2 * (PL1 * (a2 - a3) + PL2 * (a3 - a1) + PL3 * (a1 - a2)) / 
+               ((a1 - a2) * (a2 - a3) * (a3 - a1))
+end
+
+
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-12, IsCost::Bool=false, dof::Int=DOF(DM),
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
+    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
+    
+    @assert Confnum > 0
+
+    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05 |> Float64
+    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3 |> Float64
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
         Meth = isnothing(OptimMeth) ? NewtonTrustRegion() : OptimMeth
-        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, Kwargs..., Full=true))
+        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, verbose, Kwargs..., Full=true))
     else 
-        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Kwargs...))
+        ((args...; Kwargs...)->curve_fit(args...; tol=tol, verbose, Kwargs...))
     end
     # Does not check proximity to boundary!
     InBounds = IsInDomain(DM)
@@ -261,6 +274,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     sizehint!(Converged, N)
     SaveTrajectories && sizehint!(path, N)
     SavePriors && sizehint!(priors, N)
+
+    ParamBounds = isnothing(Domain(DM)) ? (-Inf, Inf) : Domain(DM)[Comp]
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
@@ -320,18 +335,91 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         end
         # Adaptive instead of ps grid here?
-        startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
-        for p in sort(ps[startind:end])
+        if adaptive
+            IC = InvChisqCDF(dof, ConfVol(Confnum)) |> Float64
+            
+            maxstepnumber = N
+            Fi = FisherMetric(DM, MLE(DM)) |> x->x[Comp,Comp];
+            # Calculate initial stepsize based on curvature from fisher information
+            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-10, 1);
+
+            δ = initialδ
+            minstep = 1e-10 * initialδ
+            maxstep = 1e10 * initialδ
+
+            # Second left point
+            p = MLE(DM)[Comp] - δ
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
-            ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
-        end
-        len = length(visitedps)
-        copyto!(MLEstash, Drop(MLE(DM), Comp))
-        for p in sort(ps[startind:-1:1]; rev=true)
+
+            # Input MLE
+            push!(Res, -Negloglikelihood(DM)(MLE(DM)))
+            push!(Converged, InBounds(MLE(DM)))
+            push!(visitedps, MLE(DM)[Comp])
+            SaveTrajectories && push!(path, MLE(DM))
+            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [MLE(DM)[Comp]]))
+
+            # Second right point
+            p = MLE(DM)[Comp] + δ
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
-            ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+
+            visitedps2 = deepcopy(visitedps) |> reverse!
+            Res2 = deepcopy(Res) |> reverse!
+            path2 = SaveTrajectories ? reverse!(deepcopy(path)) : nothing
+            priors2 = SavePriors ? reverse!(deepcopy(priors)) : nothing
+            Converged2 = deepcopy(Converged) |> reverse!
+            len = 0
+            
+            @inline function DoAdaptive(visitedps, Res, path, priors, Converged)
+                while Res[end] > CostThreshold
+                    approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]));
+
+                    δ = clamp(0.5 * δ + 0.5 * (5 * sqrt(IC)/ (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))), minstep, maxstep);
+                    
+                    p = right ? visitedps[end] + δ : visitedps[end] - δ
+
+                    # Do the actual profile point calculation using the value p
+                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
+
+                    ## Early termination if profile flat or already wide enough
+                    if right
+                        (length(visitedps) - len > maxstepnumber/2 || p > ParamBounds[2] || p > MLE(DM)[Comp] + 5*maxstepnumber*initialδ) && break
+                    else
+                        (length(visitedps) - len > maxstepnumber/2 || p < ParamBounds[1] || p < MLE(DM)[Comp] - 5*maxstepnumber*initialδ) && break
+                    end
+                end
+            end
+            
+            # Do right branch of profile
+            right = true
+            DoAdaptive(visitedps, Res, path, priors, Converged)
+            
+            # Do left branch of profile
+            right = false
+            δ = initialδ;
+            len = length(visitedps)
+            copyto!(MLEstash, Drop(MLE(DM), Comp))
+            DoAdaptive(visitedps2, Res2, path2, priors2, Converged2)
+
+            visitedps = [(@view reverse!(visitedps2)[1:end-3]); visitedps]
+            Res = [(@view reverse!(Res2)[1:end-3]); Res]
+            path = SaveTrajectories ? [(@view reverse!(path2)[1:end-3]); path] : nothing
+            priors = SavePriors ? [(@view reverse!(priors2)[1:end-3]); priors] : nothing
+            Converged = [(@view reverse!(Converged2)[1:end-3]); Converged]
+        else
+            startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
+            for p in sort(ps[startind:end])
+                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
+                ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+            end
+            len = length(visitedps)
+            copyto!(MLEstash, Drop(MLE(DM), Comp))
+            for p in sort(ps[startind:-1:1]; rev=true)
+                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
+                ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+            end
         end
     end
+
     Logmax = AllowNewMLE ? max(maximum(Res), LogLikeMLE(DM)) : LogLikeMLE(DM)
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
@@ -385,15 +473,13 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::Abstrac
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); N::Int=25, plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
-    Profiles = if verbose
-        Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
-        (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, verbose, kwargs...), inds; progress=Prog)
-    else
-        (parallel ? pmap : map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); N=N, verbose, kwargs...), inds)
-    end
+
+    Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
+    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, kwargs...), inds; progress=Prog)
+
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
 end
