@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM))
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -49,28 +49,30 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         end
     end
     # Plot symmetric 1σ variance propagation from pseudo-inverse of Fisher Metric
-    if Confnum > 0
+    if any(Confnum .> 0)
         F = FisherMetric(DM, mle)
         # Use PlotVariance kwarg to force VariancePlot
         if PlotVariance || det(F) > 0
-            if ydim(DM) == 1
-                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM)))
-                @series begin
-                    seriescolor --> get(plotattributes, :seriescolor, :orange)
-                    linestyle   --> :dash
-                    linealpha   --> 0.75
-                    label       --> ["Lin. $(Confnum)σ Prediction Uncert." nothing]
-                    X, [Y .+ SqrtVar Y .- SqrtVar]
-                end
-            else
-                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
-                for i in 1:ydim(DM)
+            for (j,Conf) in enumerate(Confnum[Confnum .> 0])
+                if ydim(DM) == 1
+                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM)))
                     @series begin
-                        seriescolor := palette(:default)[i]
+                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
                         linestyle   --> :dash
                         linealpha   --> 0.75
-                        label       --> ["Lin. $(Confnum)σ Prediction Uncert." nothing]
-                        X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
+                        label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                        X, [Y .+ SqrtVar Y .- SqrtVar]
+                    end
+                else
+                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                    for i in 1:ydim(DM)
+                        @series begin
+                            seriescolor := palette(:default)[i*ydim(DM)+j]
+                            linestyle   --> :dash
+                            linealpha   --> 0.75
+                            label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                            X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
+                        end
                     end
                 end
             end
@@ -157,7 +159,6 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
     xguide --> xnames(DM)[1]
-    F = Confnum > 0 ? FisherMetric(DM, mle) : Diagonal(zeros(length(mle)))
     for i in 1:ydim(DM)
         @series begin
             subplot := i
@@ -170,17 +171,22 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
             X, view(Ypred, :, i)
         end
     end
-    if PlotVariance || det(F) > 0
-        SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
-        for i in 1:ydim(DM)
-            @series begin
-                subplot := i
-                seriescolor --> get(plotattributes, :seriescolor, :orange)
-                linestyle   --> :dash
-                linealpha   --> 0.75
-                yguide      :=  ynames(DM)[i]
-                label       := ["Lin. $(Confnum)σ Prediction Uncert." nothing]
-                X, [view(Ypred, :, i) .+ getindex.(SqrtVar, i) view(Ypred, :, i) .- getindex.(SqrtVar, i)]
+    if any(Confnum .> 0)
+        F = FisherMetric(DM, mle)
+        if PlotVariance || det(F) > 0
+            for (j,Conf) in enumerate(Confnum[Confnum .> 0])
+                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                for i in 1:ydim(DM)
+                    @series begin
+                        subplot := i
+                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
+                        linestyle   --> :dash
+                        linealpha   --> 0.75
+                        yguide      :=  ynames(DM)[i]
+                        label       := ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                        X, [view(Ypred, :, i) .+ getindex.(SqrtVar, i) view(Ypred, :, i) .- getindex.(SqrtVar, i)]
+                    end
+                end
             end
         end
     end
