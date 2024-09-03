@@ -824,17 +824,19 @@ end
     end
 end
 
-@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; RelChange::Bool=true)
+@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; RelChange=true)
     @assert HasTrajectories(PV)
+    @assert RelChange isa Bool
     i = PV.i
     xguide --> pnames(PV)[i]
-    yguide --> (RelChange && !any(MLE(PV) == 0) ? "Rel. change p_i/p_MLE" : "Parameter change p_i - p_MLE")
+    yguide --> ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i - p_MLE")
     # Apply log10 for log relative change?
     for j in (1:pdim(PV))[1:pdim(PV) .!= i]
         @series begin
+            color --> palette(:default)[2+j]
             label --> "Comp $j"
             lw --> 1.5
-            if MLE(PV)[j] != 0
+            if RelChange && !any(MLE(PV) == 0)
                 getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
             else
                 getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) .- MLE(PV)[j]
@@ -848,7 +850,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(PV)[i]], (RelChange && !any(MLE(PV) == 0) ? [1.0] : [0.0])
+        [MLE(PV)[i]], ((RelChange && !any(MLE(PV) == 0)) ? [1.0] : [0.0])
     end
 end
 
