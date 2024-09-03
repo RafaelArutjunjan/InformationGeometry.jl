@@ -740,9 +740,12 @@ end
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout --> length(pnames(P))
+    tol = 0.05
+    maxy = max(tol, maximum([maximum(view(T, :, 2)) for T in Profiles(P)]))
     for i in eachindex(pnames(P))
         @series begin
             subplot := i
+            ylims --> (-tol, maxy)
             ParameterProfilesView(P, i), Val(false)
         end
     end
@@ -824,8 +827,31 @@ end
     end
 end
 
-@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; idxs=1:pdim(PV), RelChange=true)
+@recipe function f(P::ParameterProfiles, V::Val{:PlotRelativeParamTrajectories})
+    @assert HasTrajectories(P)
+    RelChange = get(plotattributes, :RelChange, true)
+    idxs = get(plotattributes, :idxs, 1:pdim(P))
+    @assert RelChange isa Bool
+    @assert all(1 .≤ idxs .≤ pdim(P)) && allunique(idxs)
+
+    ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && !isnothing(Trajectories(P)[i])]
+
+    layout --> length(ToPlotInds)
+
+    for (plotnum, i) in enumerate(ToPlotInds)
+        @series begin
+            subplot := plotnum
+            RelChange --> RelChange
+            idxs --> ToPlotInds
+            P[i], V
+        end
+    end
+end
+
+@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories})
     @assert HasTrajectories(PV)
+    RelChange = get(plotattributes, :RelChange, true)
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
     @assert RelChange isa Bool
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
@@ -857,4 +883,4 @@ end
     end
 end
 
-PlotRelativeParameterTrajectory(PV::ParameterProfilesView; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
+PlotRelativeParameterTrajectories(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
