@@ -367,7 +367,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             path2 = SaveTrajectories ? reverse!(deepcopy(path)) : nothing
             priors2 = SavePriors ? reverse!(deepcopy(priors)) : nothing
             Converged2 = deepcopy(Converged) |> reverse!
-            len = 0
+            len = 3
             
             @inline function DoAdaptive(visitedps, Res, path, priors, Converged)
                 while Res[end] > CostThreshold
@@ -824,22 +824,25 @@ end
     end
 end
 
-@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; RelChange=true)
+@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; idxs=1:pdim(PV), RelChange=true)
     @assert HasTrajectories(PV)
     @assert RelChange isa Bool
+    @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
     xguide --> pnames(PV)[i]
-    yguide --> ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i - p_MLE")
+    yguide --> ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i-p_MLE")
     # Apply log10 for log relative change?
-    for j in (1:pdim(PV))[1:pdim(PV) .!= i]
-        @series begin
-            color --> palette(:default)[2+j]
-            label --> "Comp $j"
-            lw --> 1.5
-            if RelChange && !any(MLE(PV) == 0)
-                getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
-            else
-                getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) .- MLE(PV)[j]
+    for j in 1:pdim(PV)
+        if j ∈ idxs && j .!= i
+            @series begin
+                color --> palette(:default)[2+j]
+                label --> "Comp $j"
+                lw --> 1.5
+                if RelChange && !any(MLE(PV) == 0)
+                    getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
+                else
+                    getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) .- MLE(PV)[j]
+                end
             end
         end
     end
