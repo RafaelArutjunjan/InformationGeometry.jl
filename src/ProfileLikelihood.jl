@@ -243,7 +243,7 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
+                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth=nothing, OptimMeth=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     
     @assert Confnum > 0
@@ -253,7 +253,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
-        Meth = isnothing(OptimMeth) ? NewtonTrustRegion() : OptimMeth
+        Meth = isnothing(OptimMeth) ? Optim.NewtonTrustRegion() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, verbose, Kwargs..., Full=true))
     else 
         ((args...; Kwargs...)->curve_fit(args...; tol=tol, verbose, Kwargs...))
@@ -500,11 +500,11 @@ function ShrinkTruesByOne(X::BoolVector)
 end
 
 
-HasTrajectories(M::AbstractVector) = any(HasTrajectories, M)
+HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = any(HasTrajectories, M)
 HasTrajectories(M::Tuple) = true
 HasTrajectories(M::AbstractMatrix) = false
 
-HasPriors(M::AbstractVector) = any(HasPriors, M)
+HasPriors(M::AbstractVector{<:AbstractMatrix}) = any(HasPriors, M)
 HasPriors(M::Tuple) = HasPriors(M[1])
 HasPriors(M::AbstractMatrix) = size(M,2) > 3
 
@@ -549,7 +549,7 @@ end
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.; kwargs...)
-    ProfileBox(Fs, MLE(DM), Confnum; kwargs...)
+    ProfileBox(Fs, MLE(DM), Confnum; dof=DOF(DM), kwargs...)
 end
 function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10, meth::Roots.AbstractUnivariateZeroMethod=Roots.Bisection())
     crossings = [find_zeros(x->(Fs[i](x)-Confnum), Fs[i].t[1], Fs[i].t[end]) for i in eachindex(Fs)]
@@ -599,6 +599,7 @@ function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}
     minimum([Minimax(M) for M in Mats])
 end
 
+
 abstract type AbstractProfiles end
 
 """
@@ -615,7 +616,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{<:AbstractString}
-    mle::Union{Nothing,<:AbstractVector{<:Number}}
+    mle::AbstractVector{<:Number}
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
     function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
@@ -636,7 +637,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), IsCost)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=false)
-        ParameterProfiles(Profiles, Trajectories, Names, nothing, IsCost)
+        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), IsCost)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, IsCost::Bool)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
@@ -659,13 +660,50 @@ HasTrajectories(P::ParameterProfiles) = !(Trajectories(P) isa AbstractVector{<:N
 Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
 Base.lastindex(P::ParameterProfiles) = Profiles(P) |> lastindex
-Base.getindex(P::ParameterProfiles, ind) = getindex(Profiles(P), ind)
+Base.getindex(P::ParameterProfiles, ind::Int) = ParameterProfilesView(P, ind)
 
 
-ProfileBox(P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; kwargs...)
 ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
+ProfileBox(P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; IsCost=IsCost(P), kwargs...)
 
 PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles(P))
+
+
+
+"""
+    ParameterProfilesView(P::ParameterProfiles, i::Int)
+Views `ParameterProfiles` object for the `i`th parameter.
+"""
+mutable struct ParameterProfilesView
+    P::ParameterProfiles
+    i::Int
+    ParameterProfilesView(P::ParameterProfiles, i::Int) = (@assert 1 ≤ i ≤ pdim(P);     new(P,i))
+end
+(PV::ParameterProfilesView)(t::Real, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = PV.P(t, PV.i, Interp)
+InterpolatedProfiles(PV::ParameterProfilesView, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(PV.P, PV.i, Interp)
+
+# Specialized
+Profiles(PV::ParameterProfilesView) = getindex(Profiles(PV.P), PV.i)
+Trajectories(PV::ParameterProfilesView) = getindex(Trajectories(PV.P), PV.i)
+# Passthrough
+pnames(PV::ParameterProfilesView) = pnames(PV.P)
+MLE(PV::ParameterProfilesView) = MLE(PV.P)
+pdim(PV::ParameterProfilesView) = pdim(PV.P)
+IsCost(PV::ParameterProfilesView) = IsCost(PV.P)
+HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV))
+
+# AbstractMatrix to the outside
+Base.length(PV::ParameterProfilesView) = Profiles(PV) |> length
+Base.size(PV::ParameterProfilesView) = Profiles(PV) |> size
+Base.firstindex(PV::ParameterProfilesView) = Profiles(PV) |> firstindex
+Base.lastindex(PV::ParameterProfilesView) = Profiles(PV) |> lastindex
+Base.getindex(PV::ParameterProfilesView, ind) = getindex(Profiles(PV), ind)
+
+
+ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
+ProfileBox(PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox([InterpolatedProfiles(PV)], MLE(PV), Confnum; IsCost=IsCost(PV), kwargs...)
+
+PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable([Profiles(PV)])
 
 
 function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfiles; kwargs...)
@@ -681,11 +719,39 @@ end
 @deprecate AbstractProfile AbstractProfiles
 @deprecate ParameterProfile ParameterProfiles
 
+# Plot trajectories by default
+@recipe f(P::ParameterProfiles) = P, Val(HasTrajectories(P))
 
-@recipe f(P::ParameterProfiles) = P, Val(all(!isnothing, Trajectories(P)))
+
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
     layout := length(pnames(P)) + 1
-    @series P, Val(false)
+
+    @series begin
+        layout := length(pnames(P)) + 1
+        P, Val(false)
+    end
+
+    @series begin
+        subplot := length(pnames(P)) + 1
+        idxs := get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
+        P, Val(:PlotParameterTrajectories)
+    end
+end
+
+@recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
+    layout --> length(pnames(P))
+    for i in eachindex(pnames(P))
+        @series begin
+            subplot := i
+            ParameterProfilesView(P, i), Val(false)
+        end
+    end
+end
+
+PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, Val(:PlotParameterTrajectories); kwargs...)
+
+@recipe function f(P::ParameterProfiles, ::Val{:PlotParameterTrajectories})
+    @assert HasTrajectories(P)
     label --> reshape(["Comp $i" for i in eachindex(pnames(P))], 1, :)
 
     idxs = get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
@@ -702,70 +768,88 @@ end
     
     for i in eachindex(pnames(P))
         @series begin
-            subplot := length(pnames(P)) + 1
             map(x->getindex(x, collect(idxs)), Trajectories(P)[i])
         end
     end
     @series begin
         label := "MLE"
-        subplot := length(pnames(P)) + 1
         [MLE(P)[collect(idxs)]]
     end
 end
-@recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
-    layout := length(pnames(P))
-    for i in eachindex(pnames(P))
+
+
+@recipe f(PV::ParameterProfilesView) = PV, Val(HasTrajectories(PV))
+@recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
+    i = PV.i
+    legend --> nothing
+    xguide --> pnames(PV)[i]
+    yguide --> (IsCost(PV) ? "Cost Function" : "Conf. level [σ]")
+
+    @series begin
+        label --> ["Profile Likelihood" nothing]
+        lw --> 1.5
+        view(Profiles(PV),:,1), Convergify(view(Profiles(PV),:,2), GetConverged(Profiles(PV)))
+    end
+    # Draw prior contribution
+    if HasPriors(Profiles(PV))
         @series begin
-            label --> ["Profile Likelihood" nothing]
-            xguide --> pnames(P)[i]
-            yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
+            label --> ["Prior contribution" nothing]
+            color --> [:red :brown]
+            line --> :dash
             lw --> 1.5
-            subplot := i
-            view(Profiles(P)[i],:,1), Convergify(view(Profiles(P)[i],:,2), GetConverged(Profiles(P)[i]))
-            # P(i)
-        end
-        # Draw prior contribution
-        if HasPriors(Profiles(P)[i])
-            @series begin
-                label --> ["Prior contribution" nothing]
-                color --> [:red :brown]
-                line --> :dash
-                lw --> 1.5
-                subplot := i
-                view(Profiles(P)[i],:,1), Convergify(view(Profiles(P)[i],:,3), GetConverged(Profiles(P)[i]))
-                # P(i)
-            end
-        end
-        ## Mark MLE in profiles
-        @series begin
-            subplot := i
-            label --> nothing
-            legend --> nothing
-            xguide --> pnames(P)[i]
-            yguide --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
-            seriescolor --> :red
-            marker --> :hex
-            markersize --> 2.5
-            markerstrokewidth --> 0
-            [MLE(P)[i]], [P(MLE(P)[1],1)]
+            view(Profiles(PV),:,1), Convergify(view(Profiles(PV),:,3), GetConverged(Profiles(PV)))
         end
     end
-    ## Mark Integer Confidence Levels in Profile
-    ## Rootfinding errors sometimes
-    # if !IsCost(P) && length(1:Int(floor(PracticallyIdentifiable(P)))) > 0
-    #     maxlevel = Int(floor(PracticallyIdentifiable(P)))
-    #     Boxes = map(level->ProfileBox(P, level), 1:maxlevel)
-    #     for i in eachindex(pnames(P))
-    #         for level in 1:maxlevel
-    #             @series begin
-    #                 subplot := i
-    #                 legend --> nothing
-    #                 markeralpha --> 0
-    #                 line --> :dash
-    #                 seriescolor --> :red
-    #                 range(Boxes[level][i]...; length=5), level*ones(5)
-    #             end
-    #         end
-    #     end
-    # end
+    ## Mark MLE in profile
+    @series begin
+        label --> nothing
+        seriescolor --> :red
+        marker --> :hex
+        markersize --> 2.5
+        markerstrokewidth --> 0
+        [MLE(PV)[i]], [0.0]
+    end
 end
+
+@recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{true})
+    layout --> (2,1)
+
+    @series begin
+        subplot := 1
+        PV, Val(false)
+    end
+    @series begin
+        subplot := 2
+        PV, Val(:PlotRelativeParamTrajectories)
+    end
+end
+
+@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories}; RelChange::Bool=true)
+    @assert HasTrajectories(PV)
+    i = PV.i
+    xguide --> pnames(PV)[i]
+    yguide --> (RelChange && !any(MLE(PV) == 0) ? "Rel. change p_i/p_MLE" : "Parameter change p_i - p_MLE")
+    # Apply log10 for log relative change?
+    for j in (1:pdim(PV))[1:pdim(PV) .!= i]
+        @series begin
+            label --> "Comp $j"
+            lw --> 1.5
+            if MLE(PV)[j] != 0
+                getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
+            else
+                getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) .- MLE(PV)[j]
+            end
+        end
+    end
+    # Mark MLE
+    @series begin
+        label --> nothing
+        seriescolor --> :red
+        marker --> :hex
+        markersize --> 2.5
+        markerstrokewidth --> 0
+        [MLE(PV)[i]], (RelChange && !any(MLE(PV) == 0) ? [1.0] : [0.0])
+    end
+end
+
+PlotRelativeParameterTrajectory(PV::ParameterProfilesView; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)

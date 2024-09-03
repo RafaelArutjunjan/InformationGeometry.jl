@@ -231,6 +231,7 @@ include("ProfileLikelihood.jl")
 export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
 export ValInserter, InsertIntoFirst, InsertIntoLast, PinParameters, LinkParameters
 export ParameterProfiles, AbstractProfiles
+export PlotRelativeParameterTrajectory
 
 include("Divergences.jl")
 export KullbackLeibler
