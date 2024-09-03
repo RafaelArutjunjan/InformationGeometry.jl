@@ -242,7 +242,7 @@ function approx_PL_curvature(xs::AbstractVector{<:Number}, ys::AbstractVector{<:
 end
 
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-12, IsCost::Bool=false, dof::Int=DOF(DM),
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
                         SaveTrajectories::Bool=false, SavePriors::Bool=false, meth::Union{Nothing,Optim.AbstractOptimizer}=nothing, OptimMeth::Union{Nothing,Optim.AbstractOptimizer}=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     
@@ -461,14 +461,6 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
 end
 
 
-"""
-    ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2; N::Int=50, ForcePositive::Bool=false, plot::Bool=true, parallel::Bool=false, dof::Int=DOF(DM), SaveTrajectories::Bool=false) -> Vector{Matrix}
-Computes the profile likelihood for each component of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
-Returns a vector of N×2 matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
-
-The domain over which the profile likelihood is computed is not (yet) adaptively chosen. Instead the size of the domain is estimated from the inverse Fisher metric.
-Therefore, often has to pass higher value for `Confnum` to this method than the confidence level one is actually interested in, to ensure that it is still covered (if the model is even practically identifiable in the first place).
-"""
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, kwargs...)
     ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
 end
@@ -609,6 +601,16 @@ end
 
 abstract type AbstractProfiles end
 
+"""
+    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, parallel::Bool=false, dof::Int=DOF(DM))
+Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
+Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
+`Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
+
+The kwarg `IsCost=true` can be used to skip the transformation from the likelihood values to the associated confidence level such that `2(LogLikeMLE(DM) - loglikelihood(DM, θ))` is returned in the second columns of the profiles.
+The trajectories followed during the reoptimization along the profile can be saved via `SaveTrajectories=true`.
+For `adaptive=false` the size of the domain is estimated from the inverse Fisher metric and the profile is evaluated on a fixed stepsize grid.
+"""
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
@@ -641,8 +643,8 @@ mutable struct ParameterProfiles <: AbstractProfiles
         new(Profiles, Trajectories, Names, mle, IsCost)
     end
 end
-(P::ParameterProfiles)(t::Real, i::Int) = InterpolatedProfiles(P,i)(t)
-(P::ParameterProfiles)(i::Int) = InterpolatedProfiles(P,i)
+(P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(P,i,Interp)(t)
+(P::ParameterProfiles)(i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(P,i,Interp)
 InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = Interp(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
 InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = [Interp(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
 
