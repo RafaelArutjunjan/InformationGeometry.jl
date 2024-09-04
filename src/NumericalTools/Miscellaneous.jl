@@ -127,13 +127,13 @@ end
     ConfAlpha(n::Real)
 Probability volume outside of a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-ConfAlpha(n::Real; kwargs...) = 1 - ConfVol(n; kwargs...)
+ConfAlpha(n::Number; kwargs...) = 1 - ConfVol(n; kwargs...)
 
 """
     ConfVol(n::Real)
 Probability volume contained in a confidence interval of level n⋅σ where σ is the standard deviation of a normal distribution.
 """
-function ConfVol(n::Real; verbose::Bool=true, kwargs...)
+function ConfVol(n::Number; verbose::Bool=true, kwargs...)
     if abs(n) ≤ 8
         erf(n / sqrt(2))
     else
@@ -142,11 +142,12 @@ function ConfVol(n::Real; verbose::Bool=true, kwargs...)
     end
 end
 ConfVol(n::BigFloat; kwargs...) = erf(n / sqrt(BigFloat(2)))
+ConfVol(n::Int; kwargs...) = ConfVol(float(n); kwargs...)
 
-InvConfVol(q::Real; kwargs...) = sqrt(2) * erfinv(q)
+InvConfVol(q::Number; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
-ChisqCDF(k::Int, x::Int) = ChisqCDF(k, floatify(x))
+ChisqCDF(k::Int, x::Int) = ChisqCDF(k, float(x))
 ChisqCDF(k::Int, x::T) where T<:Number = gamma_inc(T(k)/2, x/2, 0)[1]
 # ChisqCDF(k::Int, x::Real) = cdf(Chisq(k), x)
 # ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
@@ -187,7 +188,7 @@ Computes differentiable approximation of absolute value function `abs` as `sqrt(
 SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. sqrt(abs2(x) + eps)
 """
     SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number
-Computes `log(x + eps)` to avoid `NaN` errors in differentiation.
+Computes `log(x + eps)` to avoid `NaN` errors in automatic differentiation.
 """
 SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. log(x + eps)
 

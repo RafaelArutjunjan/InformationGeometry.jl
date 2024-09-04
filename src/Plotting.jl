@@ -220,6 +220,20 @@ RecipesBase.@recipe function f(X::AbstractVector{<:AbstractVector{<:Number}})
     ToCols(Unpack(X))
 end
 
+RecipesBase.@recipe function f(X::AbstractVector{<:DataInterpolations.AbstractInterpolation})
+    layout --> length(X)
+    for i in eachindex(X)
+        @series begin
+            subplot := i
+            lw --> 1.5
+            markersize --> 1.5
+            markerstrokewidth --> 0
+            X[i]
+        end
+    end
+end
+
+
 """
     Rsquared(DM::DataModel) -> Real
 Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.

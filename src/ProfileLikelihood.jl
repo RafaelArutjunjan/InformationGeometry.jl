@@ -33,6 +33,7 @@ function _SortTogether(A::AbstractVector, B::AbstractVector, args...; rev::Bool=
     issorted(A; rev=rev) ? (A, B, args...) : getindex.((A, B, args...), (sortperm(A; rev=rev, kwargs...),))
 end
 
+# Use PreallocationTools for ValInserter and mutate same object?
 
 # Insert value and convert to ComponentVector of prescribed type after
 function ValInserter(Component::Int, Value::AbstractFloat, Z::T) where T <: ComponentVector{<:Number}
@@ -53,6 +54,7 @@ In effect, this allows one to pin an input component at a specific value.
 function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]) where T <: AbstractVector{<:Number}
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
     ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
+    ValInsertionEmbedding(P::AbstractVector{<:Num}) = @views [P[1:Component-1]; Value; P[Component:end]]
 end
 
 """
@@ -100,6 +102,12 @@ function ValInserter(Components::AbstractVector{<:Int}, Value::Number, Z::T=Floa
         for i in 2:length(components)
             Res = insert(Res, components[i], Value)
         end;    Res
+    end
+    function ValInsertionEmbedding(P::AbstractVector{<:Num})
+        Res = [P[1:components[1]-1]; Value]
+        for i in 2:length(components)
+            Res = @views [Res; P[components[i-1]:components[i]-1]; Value]
+        end;    [Res; @view P[components[end]:end]]
     end
 end
 
@@ -222,7 +230,7 @@ GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
 HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.Success
 
 """
-    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=false, SavePriors::Bool=false)
+    GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=(adaptive ? 15 : 31), kwargs...)
@@ -232,24 +240,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 end
 
 
-function approx_PL_curvature(xs::AbstractVector{<:Number}, ys::AbstractVector{<:Number})
-    @assert length(xs) == 3 && length(ys) == 3;
-
-    (a1, a2, a3), (PL1, PL2, PL3) = xs, ys
-
-    return 2 * (PL1 * (a2 - a3) + PL2 * (a3 - a1) + PL3 * (a1 - a2)) / 
-               ((a1 - a2) * (a2 - a3) * (a3 - a1))
-end
-
-
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=false, SavePriors::Bool=false, meth=nothing, OptimMeth=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
+                        AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
+                        SaveTrajectories::Bool=true, SavePriors::Bool=false, meth=nothing, OptimMeth=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     
     @assert Confnum > 0
 
-    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05 |> Float64
-    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3 |> Float64
+    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05 |> eltype(Confnum)
+    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3 |> eltype(Confnum)
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
@@ -336,12 +335,14 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
         # Adaptive instead of ps grid here?
         if adaptive
-            IC = InvChisqCDF(dof, ConfVol(Confnum)) |> Float64
+            approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath 2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
+
+            IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(Confnum)
             
             maxstepnumber = N
             Fi = FisherMetric(DM, MLE(DM)) |> x->x[Comp,Comp];
             # Calculate initial stepsize based on curvature from fisher information
-            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-10, 1);
+            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1);
 
             δ = initialδ
             minstep = 1e-10 * initialδ
@@ -399,7 +400,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             len = length(visitedps)
             copyto!(MLEstash, Drop(MLE(DM), Comp))
             DoAdaptive(visitedps2, Res2, path2, priors2, Converged2)
-
+            
             visitedps = [(@view reverse!(visitedps2)[1:end-3]); visitedps]
             Res = [(@view reverse!(Res2)[1:end-3]); Res]
             path = SaveTrajectories ? [(@view reverse!(path2)[1:end-3]); path] : nothing
@@ -537,8 +538,10 @@ end
 
 
 """
-    InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}) -> Vector{Function}
-Interpolates the `Vector{Matrix}` output of ProfileLikelihood() with cubic splines.
+    InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) -> Vector{Function}
+Interpolates the `Vector{Matrix}` output of `ParameterProfiles`.
+!!!note
+    Does not distinguish between converged and non-converged points in the profile.
 """
 function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation)
     [Interp(view(profile,:,2), view(profile,:,1)) for profile in Mats]
@@ -551,34 +554,35 @@ Constructs `HyperCube` which bounds the confidence region associated with the co
 function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.; kwargs...)
     ProfileBox(Fs, MLE(DM), Confnum; dof=DOF(DM), kwargs...)
 end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; Padding::Real=0., max::Real=1e10, meth::Roots.AbstractUnivariateZeroMethod=Roots.Bisection())
-    crossings = [find_zeros(x->(Fs[i](x)-Confnum), Fs[i].t[1], Fs[i].t[end]) for i in eachindex(Fs)]
-    # crossings = map(F->[F.t[1], F.t[end]], Fs)
-    # for i in eachindex(crossings)
-    #     if any(isfinite, Fs[i].u)
-    #         crossings[i][1] = find_zero(x->abs(Fs[i](x)-Confnum), (Fs[i].t[1], mle[i]), meth)
-    #         crossings[i][2] = find_zero(x->abs(Fs[i](x)-Confnum), (mle[i], Fs[i].t[end]), meth)
-    #     else
-    #         crossings[i] .= SA[-max, max]
-    #     end
-    # end
-    for i in eachindex(crossings)
-        if length(crossings[i]) == 2
-            continue
-        elseif length(crossings[i]) == 1
-            if mle[i] < crossings[i][1]     # crossing is upper bound
-                crossings[i] = [-max, crossings[i][1]]
-            else
-                crossings[i] = [crossings[i][1], max]
-            end
-        else
-            throw("Error for i = $i, got $(length(crossings[i])) crossings.")
-        end
-    end
-    HyperCube(minimum.(crossings), maximum.(crossings); Padding=Padding)
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=2.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
+    @assert length(Fs) == length(mle)
+    reduce(vcat, (parallel ? pmap : map)(i->ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
-ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=1; Padding::Real=0.) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding=Padding)
-ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=1.5, kwargs...) = ProfileBox(DM, ProfileLikelihood(DM, Confnum+add; plot=false, kwargs...), Confnum; Padding=Padding)
+function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=false, dof::Int=1, 
+                    mleval::Real=F.t[findmin(F.u)[2]], maxval::Real=Inf, tol::Real=1e-10, xrtol=tol, xatol=tol, kwargs...)
+    crossings = if !IsCost
+        Roots.find_zeros(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+    else
+        # Already 2(loglikeMLE - loglike) in Profile
+        CostThreshold = InvChisqCDF(dof, ConfVol(Confnum))
+        Roots.find_zeros(x->(F(x)-CostThreshold), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+    end
+    if length(crossings) == 0
+        crossings = [-maxval, maxval]
+    elseif length(crossings) == 1
+        if mleval < crossings[1]     # crossing is upper bound
+            crossings = [-maxval, crossings[1]]
+        else
+            crossings = [crossings[1], maxval]
+        end
+    elseif length(crossings) > 2
+        # think of cleverer way for checking slope
+        @warn "Got $(length(crossings)) crossings."
+    end
+    HyperCube([minimum(crossings)], [maximum(crossings)]; Padding=0.0)
+end
+ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=2.0; Padding::Real=0., kwargs...) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding, kwargs...)
+ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5, IsCost::Bool=false, kwargs...) = ProfileBox(DM, ParameterProfiles(DM, Confnum+add; plot=false, IsCost, kwargs...), Confnum; IsCost, Padding)
 
 
 
@@ -586,7 +590,7 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=1.5
     PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ProfileLikelihood(DM, Confnum; plot=plot, N=N, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
@@ -603,14 +607,20 @@ end
 abstract type AbstractProfiles end
 
 """
-    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, parallel::Bool=false, dof::Int=DOF(DM))
+    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=false, parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
 Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
 Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
 `Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
+Single profiles can be accessed via `P[i]`, given a profile object `P`.
 
 The kwarg `IsCost=true` can be used to skip the transformation from the likelihood values to the associated confidence level such that `2(LogLikeMLE(DM) - loglikelihood(DM, θ))` is returned in the second columns of the profiles.
 The trajectories followed during the reoptimization along the profile can be saved via `SaveTrajectories=true`.
 For `adaptive=false` the size of the domain is estimated from the inverse Fisher metric and the profile is evaluated on a fixed stepsize grid.
+Further `kwargs` can be passed to the optimization.
+
+# Extended help
+
+For visualization of the results, multiple methods are available, see e.g. [PlotProfileTrajectories](@ref), [PlotRelativeParameterTrajectories](@ref).
 """
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
@@ -619,7 +629,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     mle::AbstractVector{<:Number}
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=false, IsCost::Bool=false, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=false, kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -660,7 +670,7 @@ HasTrajectories(P::ParameterProfiles) = !(Trajectories(P) isa AbstractVector{<:N
 Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
 Base.lastindex(P::ParameterProfiles) = Profiles(P) |> lastindex
-Base.getindex(P::ParameterProfiles, ind::Int) = ParameterProfilesView(P, ind)
+Base.getindex(P::ParameterProfiles, i::Int) = ParameterProfilesView(P, i)
 
 
 ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
@@ -697,7 +707,7 @@ Base.length(PV::ParameterProfilesView) = Profiles(PV) |> length
 Base.size(PV::ParameterProfilesView) = Profiles(PV) |> size
 Base.firstindex(PV::ParameterProfilesView) = Profiles(PV) |> firstindex
 Base.lastindex(PV::ParameterProfilesView) = Profiles(PV) |> lastindex
-Base.getindex(PV::ParameterProfilesView, ind) = getindex(Profiles(PV), ind)
+Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
 
 
 ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
@@ -755,7 +765,6 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
 
 @recipe function f(P::ParameterProfiles, ::Val{:PlotParameterTrajectories})
     @assert HasTrajectories(P)
-    label --> reshape(["Comp $i" for i in eachindex(pnames(P))], 1, :)
 
     idxs = get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
     if !((2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(P))))
@@ -770,17 +779,31 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
     end
     
     for i in eachindex(pnames(P))
-        @series begin
-            map(x->getindex(x, collect(idxs)), Trajectories(P)[i])
+        if !isnothing(Trajectories(P)[i])
+            @series begin
+                label --> "Comp $i"
+                color --> palette(:default)[2+i]
+                lw --> 1.5
+                M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
+                if length(idxs) == 3
+                    view(M,:,1), view(M,:,2), view(M,:,3)
+                else
+                    view(M,:,1), view(M,:,2)
+                end
+            end
         end
     end
     @series begin
-        label := "MLE"
+        label --> nothing
+        seriescolor --> :red
+        marker --> :hex
+        markersize --> 2.5
+        markerstrokewidth --> 0
         [MLE(P)[collect(idxs)]]
     end
 end
 
-
+# Try to plot Trajectories if available
 @recipe f(PV::ParameterProfilesView) = PV, Val(HasTrajectories(PV))
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
