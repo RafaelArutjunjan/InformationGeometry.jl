@@ -9,26 +9,19 @@ function LsqFit.curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Numbe
     curve_fit(Data(DM), Predictor(DM), dPredictor(DM), initial, LogPriorFn; kwargs...)
 end
 
-LsqFit.curve_fit(DS::AbstractDataSet, model::Function, args...; kwargs...) = _curve_fit(DS, model, args...; kwargs...)
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
-    _curve_fit(DS, M, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), verbose, kwargs...)
-end
-function LsqFit.curve_fit(DS::AbstractDataSet, M::ModelMap, dM::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,M), args...; verbose::Bool=true, kwargs...) where T<:Number
-    _curve_fit(DS, M, dM, ConstrainStart(initial,Domain(M); verbose), args...; lower=convert(Vector{T},Domain(M).L), upper=convert(Vector{T},Domain(M).U), verbose, kwargs...)
-end
-
-
-function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-14, kwargs...)
+function curve_fit(DS::AbstractDataSet, model::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-12, 
+                Domain::Union{Nothing, HyperCube}=GetDomain(model), lb=(!isnothing(Domain) ? Domain.L : T[]), ub=(!isnothing(Domain) ? Domain.U : T[]), kwargs...) where T<:Number
     verbose && !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     LsqFit.check_data_health(xdata(DS), ydata(DS))
     u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
     F(θ::AbstractVector) = muladd(u, EmbeddingMap(DS, model, θ), Ydat)
     iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
     R = LsqFit.OnceDifferentiable(iF, initial, copy(F(initial)); inplace = true, autodiff = :forward)
-    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, lower=convert(Vector{T},lb), upper=convert(Vector{T},ub), kwargs...)
 end
 
-function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-14, kwargs...)
+function curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, initial::AbstractVector{T}=GetStartP(DS,model), LogPriorFn::Union{Nothing,Function}=nothing; verbose::Bool=true, tol::Real=1e-12, 
+                Domain::Union{Nothing, HyperCube}=GetDomain(model), lb=(!isnothing(Domain) ? Domain.L : T[]), ub=(!isnothing(Domain) ? Domain.U : T[]), kwargs...) where T<:Number
     verbose && !isnothing(LogPriorFn) && @warn "curve_fit() cannot account for priors. Throwing away given prior and continuing anyway."
     LsqFit.check_data_health(xdata(DS), ydata(DS))
     u = cholesky(yInvCov(DS)).U;    Ydat = - u * ydata(DS)
@@ -37,7 +30,7 @@ function _curve_fit(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
     iF(Yres::AbstractVector, θ::AbstractVector) = muladd!(Yres, u, EmbeddingMap(DS, model, θ), Ydat)
     idF(Jac::AbstractMatrix, θ::AbstractVector) = mul!(Jac, u, EmbeddingMatrix(DS, dmodel, θ))
     R = LsqFit.OnceDifferentiable(iF, idF, initial, copy(F(initial)); inplace = true)
-    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, kwargs...)
+    LsqFit.lmfit(R, initial, yInvCov(DS); x_tol=tol, g_tol=tol, lower=convert(Vector{T},lb), upper=convert(Vector{T},ub), kwargs...)
 end
 
 function rescaledjac(M::AbstractMatrix{T}, xlen::Int) where T<:Number

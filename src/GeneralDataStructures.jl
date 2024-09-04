@@ -143,7 +143,7 @@ pnames(DM::AbstractDataModel) = pnames(DM, Predictor(DM))
 pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
-Domain(DM::AbstractDataModel) = Predictor(DM) isa ModelMap ? Domain(Predictor(DM)) : FullDomain(pdim(DM))
+@deprecate Domain(DM::AbstractDataModel) GetDomain(DM)
 
 xerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xerrorparams(Data(DM), mle)
 yerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yerrorparams(Data(DM), mle)
