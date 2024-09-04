@@ -307,7 +307,7 @@ Base.keys(Cube::HyperCube) = Base.OneTo(length(Cube.L))
     in(p::AbstractVector{<:Number}, Cube::HyperCube) -> Bool
 Checks whether a point `p` lies inside `Cube`.
 """
-Base.in(p::AbstractVector{<:Number}, Cube::HyperCube) = all(Cube.L .≤ p) && all(p .≤ Cube.U)
+Base.in(p::AbstractVector{<:Number}, Cube::HyperCube) = all(Cube.L .≤ p .≤ Cube.U)
 
 """
     ConstructCube(M::Matrix{<:Number}; Padding::Number=1/50) -> HyperCube

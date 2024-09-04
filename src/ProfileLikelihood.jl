@@ -258,8 +258,11 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     else 
         ((args...; Kwargs...)->curve_fit(args...; tol=tol, Domain=Drop(Domain, Comp), verbose, Kwargs...))
     end
-    # Does not check proximity to boundary!
-    InBounds = IsInDomain(DM)
+    
+    # Does not check proximity to boundary! Also does not check nonlinear constraints!
+    InBounds = θ::AbstractVector{<:Number} -> _TestDomain(Domain, θ)
+    # InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(InDomain, Domain, θ)
+
 
     ConditionalPush!(N::Nothing, args...) = N
     ConditionalPush!(X::AbstractArray, args...) = push!(X, args...)
@@ -378,16 +381,16 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                     newδ = 5 * sqrt(IC)/ (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))
                     δ = clamp(newδ > δ ? 0.5δ + 0.5newδ : 0.2δ + 0.8newδ, minstep, maxstep);
                     
-                    p = right ? visitedps[end] + δ : visitedps[end] - δ
+                    p = clamp(right ? visitedps[end] + δ : visitedps[end] - δ, ParamBounds...)
 
                     # Do the actual profile point calculation using the value p
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
 
                     ## Early termination if profile flat or already wide enough
                     if right
-                        (length(visitedps) - len > maxstepnumber/2 || p > ParamBounds[2] || p > MLE(DM)[Comp] + 5*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > MLE(DM)[Comp] + 5*maxstepnumber*initialδ) && break
                     else
-                        (length(visitedps) - len > maxstepnumber/2 || p < ParamBounds[1] || p < MLE(DM)[Comp] - 5*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < MLE(DM)[Comp] - 5*maxstepnumber*initialδ) && break
                     end
                 end
             end
@@ -411,14 +414,14 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else
             startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
             for p in sort(ps[startind:end])
-                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
+                ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
             end
             len = length(visitedps)
             copyto!(MLEstash, Drop(MLE(DM), Comp))
             for p in sort(ps[startind:-1:1]; rev=true)
-                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
+                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
+                ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
             end
         end
     end
