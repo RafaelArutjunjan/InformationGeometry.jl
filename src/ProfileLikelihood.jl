@@ -8,6 +8,8 @@ SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
 Drop(X::AbstractVector, i::Int) = (Z=SafeCopy(X);   splice!(Z,i);   Z)
 Drop(X::ComponentVector, i::Int) = Drop(convert(Vector,X), i)
+Drop(N::Nothing, i::Int) = nothing
+Drop(C::HyperCube, i::Int) = (inds = 1:length(C) .!= i; HyperCube(view(C.L, inds), view(C.U, inds)))
 
 _Presort(Components::AbstractVector{<:Int}; rev::Bool=false) = issorted(Components; rev=rev) ? Components : sort(Components; rev=rev)
 Drop(X::AbstractVector, Components::AbstractVector{<:Int}) = (Z=SafeCopy(X); for i in _Presort(Components; rev=true) splice!(Z,i) end;    Z)
@@ -241,10 +243,9 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=false, tol::Real=1e-9, IsCost::Bool=false, dof::Int=DOF(DM),
-                        SaveTrajectories::Bool=true, SavePriors::Bool=false, meth=nothing, OptimMeth=meth, ApproximatePaths::Bool=false, verbose::Bool=false, kwargs...)
+                        AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=false, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
+                        verbose::Bool=false, Domain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
-    
     @assert Confnum > 0
 
     CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05 |> eltype(Confnum)
@@ -253,9 +254,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
         Meth = isnothing(OptimMeth) ? Optim.NewtonTrustRegion() : OptimMeth
-        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, verbose, Kwargs..., Full=true))
+        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, Domain=Drop(Domain, Comp), verbose, Kwargs..., Full=true))
     else 
-        ((args...; Kwargs...)->curve_fit(args...; tol=tol, verbose, Kwargs...))
+        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Domain=Drop(Domain, Comp), verbose, Kwargs...))
     end
     # Does not check proximity to boundary!
     InBounds = IsInDomain(DM)
@@ -274,7 +275,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     SaveTrajectories && sizehint!(path, N)
     SavePriors && sizehint!(priors, N)
 
-    ParamBounds = isnothing(Domain(DM)) ? (-Inf, Inf) : Domain(DM)[Comp]
+    ParamBounds = isnothing(Domain) ? (-Inf, Inf) : Domain[Comp]
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
@@ -345,8 +346,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1);
 
             δ = initialδ
-            minstep = 1e-10 * initialδ
-            maxstep = 1e10 * initialδ
+            minstep = 1e-5 * initialδ
+            maxstep = 1e5 * initialδ
 
             # Second left point
             p = MLE(DM)[Comp] - δ
@@ -374,7 +375,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 while Res[end] > CostThreshold
                     approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]));
 
-                    δ = clamp(0.5 * δ + 0.5 * (5 * sqrt(IC)/ (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))), minstep, maxstep);
+                    newδ = 5 * sqrt(IC)/ (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))
+                    δ = clamp(newδ > δ ? 0.5δ + 0.5newδ : 0.2δ + 0.8newδ, minstep, maxstep);
                     
                     p = right ? visitedps[end] + δ : visitedps[end] - δ
 
@@ -421,7 +423,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    Logmax = AllowNewMLE ? max(maximum(Res), LogLikeMLE(DM)) : LogLikeMLE(DM)
+    Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, LogLikeMLE(DM)) : LogLikeMLE(DM)
     !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
@@ -432,7 +434,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     else
         @inbounds for i in eachindex(Res)
-            Res[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i])))
+            Res[i] = Res[i] ≤ Logmax ? InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i]))) : NaN
         end
         if SavePriors
             throw("Not programmed for this case yet, please use kwarg IsCost=true with SavePriors=true.")
@@ -744,6 +746,7 @@ end
     @series begin
         subplot := length(pnames(P)) + 1
         idxs := get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
+        legend --> nothing
         P, Val(:PlotParameterTrajectories)
     end
 end
@@ -751,7 +754,8 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout --> length(pnames(P))
     tol = 0.05
-    maxy = max(tol, maximum([maximum(view(T, :, 2)) for T in Profiles(P)]))
+    maxy = maximum([sum(GetConverged(T)) > 0 ? maximum(view(T, GetConverged(T), 2)) : 0.0 for T in Profiles(P)])
+    maxy = max(tol, maxy == 0 ? Inf : maxy)
     for i in eachindex(pnames(P))
         @series begin
             subplot := i
