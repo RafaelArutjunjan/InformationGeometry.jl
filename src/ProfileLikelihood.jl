@@ -242,15 +242,16 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}
 end
 
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=1.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=false, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        verbose::Bool=false, Domain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
+                        AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, 
+                        Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
 
-    CostThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 1.05 |> eltype(Confnum)
-    MaxThreshold = LogLikeMLE(DM) - 0.5InvChisqCDF(dof, ConfVol(Confnum)) * 3 |> eltype(Confnum)
+    IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(MLE(DM))
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
+    CostThreshold, MaxThreshold = LogLikeMLE(DM) .- 0.5 .* (IC*1.05, IC*3.0)
 
     FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
         Meth = isnothing(OptimMeth) ? Optim.NewtonTrustRegion() : OptimMeth
@@ -260,7 +261,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     end
     
     # Does not check proximity to boundary! Also does not check nonlinear constraints!
-    InBounds = θ::AbstractVector{<:Number} -> _TestDomain(Domain, θ)
+    InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(nothing, Domain, θ)
     # InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(InDomain, Domain, θ)
 
 
@@ -340,16 +341,14 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         # Adaptive instead of ps grid here?
         if adaptive
             approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath 2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
-
-            IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(Confnum)
             
             maxstepnumber = N
-            Fi = FisherMetric(DM, MLE(DM)) |> x->x[Comp,Comp];
+            Fi = isnothing(Fisher) ? AutoMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
-            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1);
+            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1)
 
             δ = initialδ
-            minstep = 1e-5 * initialδ
+            minstep = 1e-2 * initialδ
             maxstep = 1e5 * initialδ
 
             # Second left point
@@ -467,8 +466,9 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
 end
 
 
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, kwargs...)
-    ProfileLikelihood(DM, GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive), inds; kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, kwargs...)
+    F = AutoMetric(DM, MLE(DM))
+    ProfileLikelihood(DM, GetProfileDomainCube(F, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher=F, kwargs...)
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
@@ -563,7 +563,7 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
     @assert length(Fs) == length(mle)
     reduce(vcat, (parallel ? pmap : map)(i->ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
-function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=false, dof::Int=1, 
+function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, 
                     mleval::Real=F.t[findmin(F.u)[2]], maxval::Real=Inf, tol::Real=1e-10, xrtol=tol, xatol=tol, kwargs...)
     crossings = if !IsCost
         Roots.find_zeros(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
@@ -587,7 +587,7 @@ function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=fa
     HyperCube([minimum(crossings)], [maximum(crossings)]; Padding=0.0)
 end
 ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=2.0; Padding::Real=0., kwargs...) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding, kwargs...)
-ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5, IsCost::Bool=false, kwargs...) = ProfileBox(DM, ParameterProfiles(DM, Confnum+add; plot=false, IsCost, kwargs...), Confnum; IsCost, Padding)
+ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5, IsCost::Bool=true, kwargs...) = ProfileBox(DM, ParameterProfiles(DM, Confnum+add; plot=false, IsCost, kwargs...), Confnum; IsCost, Padding)
 
 
 
@@ -612,7 +612,7 @@ end
 abstract type AbstractProfiles end
 
 """
-    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=false, parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
+    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
 Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
 Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
 `Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
@@ -634,7 +634,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     mle::AbstractVector{<:Number}
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=false, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -648,10 +648,10 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=false)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true)
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), IsCost)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=false)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true)
         ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), IsCost)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, IsCost::Bool)
@@ -757,8 +757,8 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout --> length(pnames(P))
     tol = 0.05
-    maxy = maximum([sum(GetConverged(T)) > 0 ? maximum(view(T, GetConverged(T), 2)) : 0.0 for T in Profiles(P)])
-    maxy = max(tol, maxy == 0 ? Inf : maxy)
+    maxy = median([sum(GetConverged(T)) > 0 ? maximum(view(T, GetConverged(T), 2)) : 0.0 for T in Profiles(P)])
+    maxy = maxy < tol ? Inf : maxy
     for i in eachindex(pnames(P))
         @series begin
             subplot := i
