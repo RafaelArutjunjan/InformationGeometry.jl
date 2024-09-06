@@ -595,13 +595,13 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5
     PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
         finitevals = isfinite.(view(M,:,2))
         sum(finitevals) == 0 && return Inf
-        V = M[finitevals, 2]
+        V = @view M[finitevals, 2]
         split = findmin(V)[2]
         min(maximum(view(V,1:split)), maximum(view(V,split:length(V))))
     end
@@ -670,7 +670,8 @@ pnames(P::ParameterProfiles) = P.Names
 MLE(P::ParameterProfiles) = P.mle
 pdim(P::ParameterProfiles) = length(MLE(P))
 IsCost(P::ParameterProfiles) = P.IsCost
-HasTrajectories(P::ParameterProfiles) = !(Trajectories(P) isa AbstractVector{<:Nothing})
+HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
+IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
 
 Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
@@ -705,7 +706,11 @@ pnames(PV::ParameterProfilesView) = pnames(PV.P)
 MLE(PV::ParameterProfilesView) = MLE(PV.P)
 pdim(PV::ParameterProfilesView) = pdim(PV.P)
 IsCost(PV::ParameterProfilesView) = IsCost(PV.P)
-HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV))
+HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV)) && !all(x->all(isnan,x), Trajectories(PV))
+HasProfiles(PV::ParameterProfilesView) = !all(isnan, Profiles(PV))
+IsPopulated(PV::ParameterProfilesView) = HasProfiles(PV)
+
+
 
 # AbstractMatrix to the outside
 Base.length(PV::ParameterProfilesView) = Profiles(PV) |> length
@@ -779,10 +784,12 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
         idxs = length(MLE(P))≥3 ? (1,2,3) : (1,2)
     end
 
-    xlabel --> pnames(P)[idxs[1]]
-    ylabel --> pnames(P)[idxs[2]]
+    # Should do rescaling with diagonal sqrt inv Fisher instead of BiLog
+    DoBiLog = get(plotattributes, :BiLog, true)
+    xlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[1]] * ")" : pnames(P)[idxs[1]])
+    ylabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[2]] * ")" : pnames(P)[idxs[2]])
     if length(idxs) == 3
-        zlabel --> pnames(P)[idxs[3]]
+        zlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[3]] * ")" : pnames(P)[idxs[3]])
     end
     
     for i in eachindex(pnames(P))
@@ -793,9 +800,17 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
                 lw --> 1.5
                 M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
                 if length(idxs) == 3
-                    view(M,:,1), view(M,:,2), view(M,:,3)
+                    if DoBiLog
+                        BiLog(view(M,:,1)), BiLog(view(M,:,2)), BiLog(view(M,:,3))
+                    else
+                        view(M,:,1), view(M,:,2), view(M,:,3)
+                    end
                 else
-                    view(M,:,1), view(M,:,2)
+                    if DoBiLog
+                        BiLog(view(M,:,1)), BiLog(view(M,:,2))
+                    else
+                        view(M,:,1), view(M,:,2)
+                    end
                 end
             end
         end
@@ -812,6 +827,8 @@ end
 
 # Try to plot Trajectories if available
 @recipe f(PV::ParameterProfilesView) = PV, Val(HasTrajectories(PV))
+
+
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
     legend --> nothing
@@ -841,6 +858,23 @@ end
         markersize --> 2.5
         markerstrokewidth --> 0
         [MLE(PV)[i]], [0.0]
+    end
+    # Mark threshold if not already rescaled to Confnum
+    if IsCost(PV)
+        dof = get(plotattributes, :dof, pdim(PV))
+        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2)))
+        for (j,Thresh) in Iterators.zip(5:-1:1, convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(5:-1:1))))
+            if Thresh < MaxLevel
+                @series begin
+                    st := :hline
+                    line --> :dash
+                    lw --> 1.5
+                    color --> palette(:viridis, 5; rev=true)[j]
+                    label --> "$(j)σ level, dof=$dof"
+                    [Thresh]
+                end
+            end
+        end
     end
 end
 
