@@ -289,3 +289,31 @@ BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
 
 BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
+
+
+
+"""
+    FindExtremalNeighboring(X::AbstractVector; Diff::Function=(x,y)->(y-x), Comparison=Base.:>)
+Finds extremal changes between neighboring elements of array.
+`Diff` is used to measure the change between two neighboring elements `x` and `y`.
+`Comparison(NewDiff, OldDiff)` is used to establish an ordering and should return `true` if `NewDiff` is preferential to `OldDiff`.
+
+# Examples
+findmax(diff(X))[2] == FindExtremalNeighboring(X::AbstractVector; Comparison=Base.:>)[2]
+findmin(diff(X))[2] == FindExtremalNeighboring(X::AbstractVector; Comparison=Base.:<)[2]
+"""
+function FindExtremalNeighboring(X::AbstractArray{T}; Diff::Function=(x::T,y::T)->(y-x), Comparison=Base.:>) where T<:Number
+    maxchange = Diff(X[1],X[2])
+    testchange = zero(T)
+    ind = 1
+    @inbounds for i in 2:length(X)-1
+        testchange = Diff(X[i], X[i+1])
+        if Comparison(testchange, maxchange)
+            ind = i
+            maxchange = testchange
+        end
+    end;    (maxchange, ind)
+end
+
+FindMinDiff(X::AbstractArray{<:Number}) = FindExtremalNeighboring(X; Comparison=Base.:<)
+FindMaxDiff(X::AbstractArray{<:Number}) = FindExtremalNeighboring(X; Comparison=Base.:>)

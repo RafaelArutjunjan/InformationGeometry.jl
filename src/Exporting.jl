@@ -23,7 +23,7 @@ Homogenize(sol::AbstractODESolution, N::Int=500) = Homogenize(sol.t, N)
 function Homogenize(V::AbstractVector, N::Int=500)
     Ts = unique(V)
     for i in 1:(N-length(Ts))
-        s = findmax(diff(Ts))[2]
+        s = FindMaxDiff(Ts)[2]
         insert!(Ts,s+1,Ts[s] + (Ts[s+1]-Ts[s])/2)
     end;    Ts
 end
@@ -32,7 +32,7 @@ Dehomogenize(sol::AbstractODESolution, N::Int=500) = Dehomogenize(sol.t, N)
 function Dehomogenize(V::AbstractVector, N::Int=500)
     Ts = unique(V)
     for i in 1:(length(Ts)-N)
-        s = findmin(diff(Ts))[2]
+        s = FindMinDiff(Ts)[2]
         deleteat!(Ts,s+1)
     end;    Ts
 end

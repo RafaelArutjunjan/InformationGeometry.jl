@@ -59,7 +59,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     @series begin
                         seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
                         linestyle   --> :dash
-                        linealpha   --> 0.75
+                        linealpha   --> 0.85
                         label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
                         X, [Y .+ SqrtVar Y .- SqrtVar]
                     end
@@ -69,7 +69,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                         @series begin
                             seriescolor := palette(:default)[i*ydim(DM)+j]
                             linestyle   --> :dash
-                            linealpha   --> 0.75
+                            linealpha   --> 0.85
                             label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
                             X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
                         end
@@ -181,7 +181,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
                         subplot := i
                         seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
                         linestyle   --> :dash
-                        linealpha   --> 0.75
+                        linealpha   --> 0.85
                         yguide      :=  ynames(DM)[i]
                         label       := ["Lin. $(Conf)σ Prediction Uncert." nothing]
                         X, [view(Ypred, :, i) .+ getindex.(SqrtVar, i) view(Ypred, :, i) .- getindex.(SqrtVar, i)]
