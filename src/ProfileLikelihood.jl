@@ -718,7 +718,7 @@ Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
 ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
 ProfileBox(PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox([InterpolatedProfiles(PV)], MLE(PV), Confnum; IsCost=IsCost(PV), kwargs...)
 
-PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable([Profiles(PV)])
+PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 
 
 function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfiles; kwargs...)
@@ -878,6 +878,9 @@ end
     end
 end
 
+# Kwarg BiLog=true for BiLog scale
+# Kwarg RelChange=false for parameter difference instead of ratio to MLE
+# Kwarg idxs for trajectories to plot
 @recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, true)
@@ -886,20 +889,28 @@ end
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
     xguide --> pnames(PV)[i]
-    yguide --> ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i-p_MLE")
-    # Apply log10 for log relative change?
-    for j in 1:pdim(PV)
-        if j ∈ idxs && j .!= i
-            @series begin
-                color --> palette(:default)[2+j]
-                label --> "Comp $j"
-                lw --> 1.5
-                if RelChange && !any(MLE(PV) == 0)
-                    getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
-                else
-                    getindex.(Trajectories(PV), i), getindex.(Trajectories(PV), j) .- MLE(PV)[j]
-                end
+
+    DoBiLog = get(plotattributes, :BiLog, false)
+    ystring = if DoBiLog
+        ((RelChange && !any(MLE(PV) == 0)) ? "BiLog(p_i/p_MLE)" : "BiLog(p_i-p_MLE)")
+    else
+        ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i-p_MLE")
+    end
+    yguide --> ystring
+    # Also filter out 
+    ToPlotInds = idxs[idxs .!= i]
+    # Colorize only parameters with 5 strongest changes
+    for j in ToPlotInds
+        @series begin
+            color --> palette(:default)[2+j]
+            label --> "Comp $j"
+            lw --> 1.5
+            Change = if RelChange && !any(MLE(PV) == 0)
+                getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
+            else
+                getindex.(Trajectories(PV), j) .- MLE(PV)[j]
             end
+            getindex.(Trajectories(PV), i), (DoBiLog ? BiLog(Change) : Change)
         end
     end
     # Mark MLE
@@ -909,7 +920,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(PV)[i]], ((RelChange && !any(MLE(PV) == 0)) ? [1.0] : [0.0])
+        [MLE(PV)[i]], ((RelChange && !any(MLE(PV) == 0)) ? (DoBiLog ? [BiLog(1)] : [1.0]) : [0.0])
     end
 end
 
