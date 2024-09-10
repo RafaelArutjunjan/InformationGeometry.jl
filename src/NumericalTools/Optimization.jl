@@ -167,7 +167,8 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
                 g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
-                store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, kwargs...) where T <: Number
+                store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, 
+                retry::Bool=false, retrymeth=Optim.NelderMead(), kwargs...) where T <: Number
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose=verbose)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
@@ -199,7 +200,14 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
             Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace=MaximalNumberOfArguments(Fs[2])>1, kwargs...)
         end
     end
-    verbose && !Optim.converged(Res) && @warn "minimize(): Optimization may not have converged."
+    if !Optim.converged(Res) 
+        verbose && @warn "minimize(): Optimization appears to not have converged."
+        if retry
+            Res = InformationGeometry.minimize(Fs, Optim.minimizer(Res), retrymeth; Domain, Fthresh, tol, Full=true, verbose, maxtime, time_limit,
+                cons, lcons, ucons, lb, ub, g_tol, x_tol, f_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, g_reltol, maxiters, iterations, callback, f_calls_limit, allow_f_increases, 
+                store_trace, show_trace, extended_trace, show_every, retry=false, kwargs...)
+        end
+    end
     Full ? Res : Optim.minimizer(Res)
 end
 
@@ -248,7 +256,8 @@ end
 function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
                     tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, 
                     lb=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.L : nothing), ub=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.U : nothing), lcons=nothing, ucons=nothing, 
-                    Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), kwargs...)
+                    Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), 
+                    retry::Bool=false, retrymeth=Optim.NelderMead(), kwargs...)
 
     SciMLBase.requiresbounds(meth) && isnothing(lb) && (lb = fill(-Inf, length(Start)))
     SciMLBase.requiresbounds(meth) && isnothing(ub) && (ub = fill(Inf, length(Start)))
@@ -256,7 +265,17 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
     prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
     sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
-    verbose && sol.retcode !== ReturnCode.Success && @warn "minimize(): Optimization may not have converged."
+    if sol.retcode !== ReturnCode.Success 
+        verbose && @warn "minimize(): Optimization appears to not have converged."
+        if retry
+            verbose && @warn "minimize(): Try to continue with NelderMead()."
+            prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
+            sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
+            if sol.retcode !== ReturnCode.Success
+                verbose && @warn "minimize(): Repeated Optimization with NelderMead() appears to not have converged, too."
+            end
+        end
+    end
     Full ? sol : sol.u
 end
 
