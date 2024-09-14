@@ -137,6 +137,9 @@ export EmbedModelVia, ModelEmbedding
 export TransformXdata, TransformYdata
 export LogXdata, Log10Xdata, ExpXdata, Exp10Xdata, SqrtXdata
 export LogYdata, Log10Ydata, ExpYdata, Exp10Ydata, SqrtYdata
+
+
+include("PredefinedModels.jl")
 # Predefined Models
 export LinearModel, QuadraticModel, ExponentialModel, SumExponentialsModel, PolynomialModel, GetLinearModel, GetGeneralLinearModel
 

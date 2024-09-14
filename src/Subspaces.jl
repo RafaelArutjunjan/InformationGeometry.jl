@@ -10,11 +10,11 @@ struct Plane
     Vx::AbstractVector
     Vy::AbstractVector
     Projector::AbstractMatrix
-    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; Make2ndOrthogonal::Bool=true)
+    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; MakeOrthogonal::Bool=true)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         !(length(stütz) == length(Vx) == length(Vy)) && throw("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))")
 
-        (Make2ndOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
+        (MakeOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
 
         if length(stütz) < 20
             stütz = SVector{length(Vx)}(floatify(stütz));     Vx = SVector{length(Vx)}(floatify(Vx))
