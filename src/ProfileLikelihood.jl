@@ -740,7 +740,7 @@ end
 @deprecate ParameterProfile ParameterProfiles
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles) = P, Val(HasTrajectories(P))
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P)) = P, Val(PlotTrajectories)
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
@@ -775,6 +775,8 @@ end
 
 PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, Val(:PlotParameterTrajectories); kwargs...)
 
+
+# BiLog kwarg for rescaling plotted trajectories
 @recipe function f(P::ParameterProfiles, ::Val{:PlotParameterTrajectories})
     @assert HasTrajectories(P)
 
@@ -821,14 +823,16 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(P)[collect(idxs)]]
+        [(DoBiLog ? BiLog : identity)(MLE(P)[collect(idxs)])]
     end
 end
 
 # Try to plot Trajectories if available
-@recipe f(PV::ParameterProfilesView) = PV, Val(HasTrajectories(PV))
+@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV)) = PV, Val(PlotTrajectories)
 
 
+# MaxLevel kwarg for checking which is the highest profile value which is still converged
+# dof kwarg for plotting Confidence Levels
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
     legend --> nothing

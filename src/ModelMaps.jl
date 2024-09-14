@@ -186,10 +186,11 @@ function ModelMap(F::Nothing, M::ModelMap)
     @warn "ModelMap: Got Nothing instead of Function to build new ModelMap."
     nothing
 end
+
+const subscriptnumberdict = Dict(string.(0:9) .=> ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"])
 function CreateSymbolNames(n::Int, base::AbstractString="θ")
     n == 1 && return [base]
-    D = Dict(string.(0:9) .=> ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"])
-    base .* [prod(get(D,"$x","Q") for x in string(digit)) for digit in 1:n]
+    base .* [prod(get(subscriptnumberdict, string(x), "Q") for x in string(digit)) for digit in 1:n]
 end
 
 ## Read names from ComponentArrays
@@ -536,9 +537,7 @@ for (Name, F, Finv, TrafoName) in [(:LogXdata, :log, :exp, :log),
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the x-variables both in the data as well as for the model.
         The uncertainties are computed via linearized error propagation through the given transformation.
         """
-        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
-            TransformXdata(DM, x->broadcast($F,x), x->broadcast($Finv,x), "$($TrafoName)"; kwargs...)
-        end
+        $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformXdata(DM, x->broadcast($F,x), x->broadcast($Finv,x), "$($TrafoName)"; kwargs...)
         """
             $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
@@ -605,9 +604,7 @@ for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
         Returns a modified `DataModel` or dataset object where $($TrafoName) has been applied component-wise to the y-variables both in the data as well as for the model.
         The uncertainties are computed via linearized error propagation through the given transformation.
         """
-        function $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...)
-            TransformYdata(DM, y->broadcast($F,y), "$($TrafoName)"; kwargs...)
-        end
+        $Name(DM::Union{AbstractDataModel,AbstractDataSet}; kwargs...) = TransformYdata(DM, y->broadcast($F,y), "$($TrafoName)"; kwargs...)
         """
             $($Name)(DM::AbstractDataModel, idxs::BoolVector) -> AbstractDataModel
             $($Name)(DS::AbstractDataSet, idxs::BoolVector) -> AbstractDataSet
