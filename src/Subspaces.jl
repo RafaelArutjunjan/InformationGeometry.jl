@@ -10,11 +10,16 @@ struct Plane
     Vx::AbstractVector
     Vy::AbstractVector
     Projector::AbstractMatrix
-    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; MakeOrthogonal::Bool=true)
+    function Plane(stütz::AbstractVector{<:Number}, Vx::AbstractVector{<:Number}, Vy::AbstractVector{<:Number}; MakeOrthogonal::Bool=false, Normalize::Bool=false)
         if length(stütz) == 2 stütz = [stütz[1],stütz[2],0] end
         !(length(stütz) == length(Vx) == length(Vy)) && throw("Dimension mismatch. length(stütz) = $(length(stütz)), length(Vx) = $(length(Vx)), length(Vy) = $(length(Vy))")
 
-        (MakeOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy))
+        (MakeOrthogonal && abs(dot(Vx,Vy)) > 4e-15) && return Plane(stütz, Vx, Make2ndOrthogonal(Vx,Vy); MakeOrthogonal, Normalize)
+
+        if Normalize
+            norm(Vx) != 1.0 && (Vx = normalize(Vx))
+            norm(Vy) != 1.0 && (Vy = normalize(Vy))
+        end
 
         if length(stütz) < 20
             stütz = SVector{length(Vx)}(floatify(stütz));     Vx = SVector{length(Vx)}(floatify(Vx))
@@ -128,6 +133,8 @@ end
 """
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
+That is, `PlanarCoordinates` provides an embedding of the plane parameters into the ambient space.
+The inverse function is given by [DecomposeWRTPlane](@ref).
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector, Proj::AbstractMatrix=Projector(PL)) = muladd(Proj, v, PL.stütz)
 function PlaneCoordinates(PL::Plane, Proj::AbstractMatrix=Projector(PL))
@@ -137,7 +144,7 @@ end
 
 ShiftTo(PlaneBegin::Plane, PlaneEnd::Plane) = TranslatePlane(PlaneEnd, PlaneEnd.stütz - PlaneBegin.stütz)
 
-IsOnPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL))::Bool = DistanceToPlane(PL, x, ProjectionOp) < 4e-15
+IsOnPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL))::Bool = DistanceToPlane(PL, x, ProjectionOp) < 1e-14
 TranslatePlane(PL::Plane, v::AbstractVector) = Plane(PL.stütz + v, PL.Vx, PL.Vy, Projector(PL))
 RotatePlane(PL::Plane, rads::Real=π/2) = ((S,C) = sincos(rads);   Plane(PL.stütz, C*PL.Vx + S*PL.Vy, C*PL.Vy - S*PL.Vx))
 function RotationMatrix(PL::Plane, rads::Real)
@@ -153,10 +160,15 @@ function RotatedVector(α::Real, n1::Int, n2::Int, tot::Int)
 end
 
 
+"""
+    DecomposeWRTPlane(PL::Plane, x::AbstractVector)
+Takes vector from ambient space which is also element of the given plane and returns its coordinates with respect to the plane basis.
+That is, `DecomposeWRTPlane` is the inverse of the plane embedding function [PlanarCoordinates](@ref).
+"""
 function DecomposeWRTPlane(PL::Plane, x::AbstractVector)
     @assert IsOnPlane(PL,x)
     V = x - PL.stütz
-    SA[dot(V, PL.Vx), dot(V, PL.Vy)]
+    SA[dot(V, PL.Vx)/dot(PL.Vx, PL.Vx), dot(V, PL.Vy)/dot(PL.Vy, PL.Vy)]
 end
 
 DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm

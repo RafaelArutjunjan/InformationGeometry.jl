@@ -126,14 +126,15 @@ end
 
 
 function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true) where T <: Number
-    if Start ∈ Dom
+    start = if Start ∈ Dom
         Start
     else
         verbose && @warn "Initial guess $Start not within given bounds. Clamping to bounds and continuing."
         clamp(Start, HyperCube(Dom; Padding=-1e-3))
     end
+    StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 end
-ConstrainStart(Start::AbstractVector{<:Number}, Dom::Nothing; kwargs...) = Start
+ConstrainStart(start::AbstractVector{<:Number}, Dom::Nothing; kwargs...) = StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 
 
 """

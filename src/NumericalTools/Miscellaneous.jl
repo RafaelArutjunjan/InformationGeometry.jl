@@ -239,7 +239,8 @@ end
 GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
 
 
-normalize(x::AbstractVector{<:Number}, scaling::Float64=1.0) = (scaling / norm(x)) * x
+# overload non-static out-of-place method
+normalize(x::AbstractVector{<:Number}) = x ./ norm(x)
 function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, scaling::Float64=1.0)
     newu = u;    newv = v
     for i in eachindex(u)
