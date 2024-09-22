@@ -244,7 +244,7 @@ end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, 
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
@@ -412,15 +412,21 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             Converged = [(@view reverse!(Converged2)[1:end-3]); Converged]
         else
             startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
-            for p in sort(ps[startind:end])
-                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
-                ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
-            end
-            len = length(visitedps)
-            copyto!(MLEstash, Drop(MLE(DM), Comp))
-            for p in sort(ps[startind:-1:1]; rev=true)
-                PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
-                ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
+            if resort && startind > 1
+                for p in sort(ps[startind:end])
+                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
+                    ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
+                end
+                len = length(visitedps)
+                copyto!(MLEstash, Drop(MLE(DM), Comp))
+                for p in sort(ps[startind:-1:1]; rev=true)
+                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
+                    ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
+                end
+            else # No early break, no clamping, just evaluate on given ps
+                for p in ps
+                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
+                end
             end
         end
     end
@@ -508,6 +514,7 @@ end
 
 HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = any(HasTrajectories, M)
 HasTrajectories(M::Tuple) = true
+HasTrajectories(M::AbstractVector{<:Tuple}) = true
 HasTrajectories(M::AbstractMatrix) = false
 
 HasPriors(M::AbstractVector{<:AbstractMatrix}) = any(HasPriors, M)
@@ -721,7 +728,7 @@ Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
 
 
 ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
-ProfileBox(PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox([InterpolatedProfiles(PV)], MLE(PV), Confnum; IsCost=IsCost(PV), kwargs...)
+ProfileBox(PV::ParameterProfilesView, Confnum::Real; IsCost::Bool=IsCost(PV), dof::Int=pdim(PV), kwargs...) = ProfileBox([InterpolatedProfiles(PV)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 

@@ -134,7 +134,7 @@ function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=
     end
     StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 end
-ConstrainStart(start::AbstractVector{<:Number}, Dom::Nothing; kwargs...) = StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
+ConstrainStart(start::AbstractVector{T}, Dom::Nothing; kwargs...) where T<:Number = StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 
 
 """
