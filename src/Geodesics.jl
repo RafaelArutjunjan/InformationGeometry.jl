@@ -192,8 +192,8 @@ function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::Abstr
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
-        resid[1:dim] .= u[1][1:dim] .- P
-        resid[(dim+1):2dim] .= u[end][1:dim] .- Q
+        resid[1:dim] .= u[1:dim,1] .- P
+        resid[(dim+1):2dim] .= u[1:dim,end] .- Q
     end
     # Slightly perturb initial direction:
     initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
@@ -234,7 +234,7 @@ function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tange
     if FullSol
         ComputeGeodesic(Metric, point, tangent, 1.0; kwargs...)
     else
-        ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[end][1:end÷2]
+        ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[1:end÷2,end]
     end
 end
 ExponentialMap(DM::AbstractDataModel, args...; kwargs...) = ExponentialMap(FisherMetric(DM), args...; kwargs...)
@@ -247,7 +247,7 @@ function LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::Abstra
     if FullSol
         GeodesicBetween(Metric, P, Q, 1.0; kwargs...)
     else
-        GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[1][((end÷2)+1):end]
+        GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[((end÷2)+1):end,1]
     end
 end
 LogarithmicMap(DM::AbstractDataModel, args...; kwargs...) = LogarithmicMap(FisherMetric(DM), args...; kwargs...)

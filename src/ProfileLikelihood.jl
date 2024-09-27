@@ -511,11 +511,12 @@ function ShrinkTruesByOne(X::BoolVector)
     end;    Res
 end
 
-
-HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = any(HasTrajectories, M)
-HasTrajectories(M::Tuple) = true
-HasTrajectories(M::AbstractVector{<:Tuple}) = true
+# What if trajectories NaN?
+HasTrajectories(M::Tuple{AbstractMatrix, Nothing}) = false
+HasTrajectories(M::Tuple{AbstractMatrix, AbstractVector}) = !all(x->all(isnan,x), M[2])
+HasTrajectories(M::AbstractVector{<:Tuple}) = any(HasTrajectories, M)
 HasTrajectories(M::AbstractMatrix) = false
+HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = false
 
 HasPriors(M::AbstractVector{<:AbstractMatrix}) = any(HasPriors, M)
 HasPriors(M::Tuple) = HasPriors(M[1])
@@ -929,6 +930,8 @@ end
 @recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, true)
+    Fisher = get(plotattributes, :Fisher, Diagonal(ones(pdim(PV))))
+    U = cholesky(Fisher).U
     idxs = get(plotattributes, :idxs, 1:pdim(PV))
     @assert RelChange isa Bool
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
@@ -937,9 +940,9 @@ end
 
     DoBiLog = get(plotattributes, :BiLog, false)
     ystring = if DoBiLog
-        ((RelChange && !any(MLE(PV) == 0)) ? "BiLog(p_i/p_MLE)" : "BiLog(p_i-p_MLE)")
+        ((RelChange && !any(MLE(PV) .== 0)) ? "BiLog(p_i/p_MLE)" : "BiLog(p_i-p_MLE)")
     else
-        ((RelChange && !any(MLE(PV) == 0)) ? "Rel. change p_i/p_MLE" : "Parameter change p_i-p_MLE")
+        ((RelChange && !any(MLE(PV) .== 0)) ? "Rel. change p_i/p_MLE" : (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * (p_i-p_MLE)" : "Parameter change p_i-p_MLE"))
     end
     yguide --> ystring
     # Also filter out 
@@ -950,10 +953,10 @@ end
             color --> palette(:default)[2+j]
             label --> "Comp $j"
             lw --> 1.5
-            Change = if RelChange && !any(MLE(PV) == 0)
+            Change = if RelChange && !any(MLE(PV) .== 0)
                 getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
             else
-                getindex.(Trajectories(PV), j) .- MLE(PV)[j]
+                U[j,j] .* (getindex.(Trajectories(PV), j) .- MLE(PV)[j])
             end
             getindex.(Trajectories(PV), i), (DoBiLog ? BiLog(Change) : Change)
         end

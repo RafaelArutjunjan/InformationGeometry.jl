@@ -77,11 +77,17 @@ end
     @test ApproxInRegion(sol, MLE(ToyDME)) && !ApproxInRegion(sol, sol.u[1] + 1e-5BasisVector(1,2))
 
     #Check that bounding box from ProfileLikelihood coincides roughly with exact box.
-    Mats = ParameterProfiles(ToyDME, 2; plot=false)
-    ProfBox = ProfileBox(ToyDME, InterpolatedProfiles(Mats), 1)
+    Mats = ParameterProfiles(ToyDME, 2; IsCost=false, N=60, plot=false)
+    Mats2 = ParameterProfiles(ToyDME, 2; IsCost=true, N=60, plot=false)
+    Mats3 = ParameterProfiles(ToyDME, 2; adaptive=false, IsCost=true, N=60, plot=false)
+    ProfBox = ProfileBox(Mats, 1)
+    ProfBox2 = ProfileBox(Mats2, 1)
+    ProfBox3 = ProfileBox(Mats3, 1)
     ExactBox = ConstructCube(sol)
     @test norm(Center(ProfBox) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox) - CubeWidths(ExactBox)) < 3e-4
-    @test 0 < PracticallyIdentifiable(Mats) < 2
+    @test norm(Center(ProfBox2) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox2) - CubeWidths(ExactBox)) < 3e-4
+    @test norm(Center(ProfBox3) - Center(ExactBox)) < 3e-5 && norm(CubeWidths(ProfBox3) - CubeWidths(ExactBox)) < 3e-4
+    @test 0 < PracticallyIdentifiable(Mats) < PracticallyIdentifiable(Mats2) < 10
 
     # Test rescaling method for confidence boundary generation
     sol2b = InformationGeometry.GenerateBoundary2(ToyDME, sol.u[1]; tol=1e-4, Embedded=false)
@@ -220,7 +226,7 @@ end
     Gen(t) = float.([t,0.5t^2]);    Xdata = Gen.(0.5:0.1:3)
     Ydata = [model(x,ptrue) + rand(ErrorDistTrue) for x in Xdata]
     Sig = BlockMatrix(ycovtrue,length(Ydata));    DS = DataSet(Xdata,Ydata,Sig)
-    DM = DataModel(DS,model)
+    DM = DataModel(DS, model, [1,3,-5.])
     @test norm(MLE(DM) - ptrue) < 5e-2
     DME = DataModel(DataSetExact(DS), model)
     P = MLE(DM) + 0.5rand(length(MLE(DM)))
