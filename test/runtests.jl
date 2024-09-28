@@ -236,6 +236,13 @@ end
     Planes, sols = ConfidenceRegion(DM,1)
     @test typeof(VisualizeSols(Planes,sols)) <: Plots.Plot
 
+    # Planetests:
+    PL = Plane(rand(3), rand(3), rand(3))
+    x = rand(2)
+    @test PlaneCoordinates(PL, x) ≈ x[1] .* PL.Vx .+ x[2] .* PL.Vy .+ PL.stütz
+    @test DecomposeWRTPlane(PL, PlaneCoordinates(PL, x)) ≈ x
+    
+
     ODM = OptimizedDM(DME)
     @test norm(EmbeddingMatrix(DME,MLE(DME)) .- EmbeddingMatrix(ODM,MLE(DME)), 1) < 1e-9
 

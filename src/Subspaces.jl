@@ -38,20 +38,13 @@ end
 Projector(PL::Plane) = PL.Projector
 Base.length(PL::Plane) = length(PL.stütz)
 
-function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=0.0001rand(2); tol::Real=1e-8)
-    length(start) != 2 && throw("Dimensional Mismatch.")
-    PlanarLogPrior = EmbedLogPrior(DM, PL)
-    planarmod(x, θ::AbstractVector{<:Number}; kwargs...) = Predictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...)
-    return try
-        # faster but sometimes problems with ForwardDiff-generated gradients in LsqFit
-        curve_fit(Data(DM), planarmod, start, PlanarLogPrior; tol=tol).param
-    catch;
-        planardmod(x, θ::AbstractVector{<:Number}; kwargs...) = dPredictor(DM)(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
-        curve_fit(Data(DM), planarmod, planardmod, start, PlanarLogPrior; tol=tol).param
-    end
+function MLEinPlane(DM::AbstractDataModel, PL::Plane, start::AbstractVector{<:Number}=DecomposeWRTPlane(PL, ProjectOntoPlane(PL, MLE(DM))); tol::Real=1e-8, kwargs...)
+    @assert length(start) == 2
+    PLDM = PlanarDataModel(DM, PL, start)
+    InformationGeometry.minimize(PLDM; Full=false, tol, kwargs...)
 end
 
-function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}=ProjectOntoPlane(PL, MLE(DM)))
+function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}=DecomposeWRTPlane(PL, ProjectOntoPlane(PL, MLE(DM))))
     @assert DM isa DataModel
     model = Predictor(DM);      dmodel = dPredictor(DM)
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
@@ -165,10 +158,12 @@ end
 Takes vector from ambient space which is also element of the given plane and returns its coordinates with respect to the plane basis.
 That is, `DecomposeWRTPlane` is the inverse of the plane embedding function [PlanarCoordinates](@ref).
 """
-function DecomposeWRTPlane(PL::Plane, x::AbstractVector)
-    @assert IsOnPlane(PL,x)
-    V = x - PL.stütz
-    SA[dot(V, PL.Vx)/dot(PL.Vx, PL.Vx), dot(V, PL.Vy)/dot(PL.Vy, PL.Vy)]
+function DecomposeWRTPlane(PL::Plane, X::AbstractVector)
+    @assert IsOnPlane(PL, X)
+    P = X - PL.stütz
+    xs = dot(PL.Vx, PL.Vx);    ys = dot(PL.Vy, PL.Vy);    xy = dot(PL.Vx, PL.Vy)
+    Px = dot(P, PL.Vx);     Py = dot(P, PL.Vy)
+    [(ys/(xs*ys - xy^2)) * (Px - xy*Py/ys), (xs/(xs*ys - xy^2)) * (Py - xy*Px/xs)]
 end
 
 DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm
