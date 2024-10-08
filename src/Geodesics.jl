@@ -2,18 +2,18 @@
 
 GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Bool=false; kwargs...) = GetGeodesicODE(Metric, InitialPos, Val(approx); kwargs...)
 function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{false}; kwargs...)
+    n = length(InitialPos)
     function GeodesicODE!(du,u,p,t)
-        n = length(u)÷2
-        du[1:n] = u[(n+1):end]
-        du[(n+1):end] = ChristoffelTerm(ChristoffelSymbol(Metric,u[1:n]; kwargs...),du[1:n])
+        du[1:n] .= @view u[(n+1):end]
+        ChristoffelTerm!((@view du[(n+1):end]), ChristoffelSymbol(Metric, (@view u[1:n]); kwargs...), (@view du[1:n]))
     end
 end
 function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{true}; kwargs...)
     Γ = ChristoffelSymbol(Metric, InitialPos; kwargs...)
+    n = length(InitialPos)
     function ApproxGeodesicODE!(du,u,p,t)
-        n = length(u)÷2
-        du[1:n] = u[(n+1):end]
-        du[(n+1):end] = ChristoffelTerm(Γ, du[1:n])
+        du[1:n] .= @view u[(n+1):end]
+        ChristoffelTerm!((@view du[(n+1):end]), Γ, @view du[1:n])
     end
 end
 
@@ -132,7 +132,7 @@ end
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
                                     Confnum::Real=1, Endtime::Real=500.0; dof::Int=DOF(DM), kwargs...)
     WilksCond = (1/2)*quantile(Chisq(dof),ConfVol(Confnum))
-    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, u[1:end÷2]) > WilksCond
+    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > WilksCond
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
 
@@ -159,7 +159,7 @@ end
 GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
 function GeodesicBoundaryFunction(M::ModelMap)
     function ModelMapBoundaries(u,p,t)
-        S = !IsInDomain(M, u[1:end÷2])
+        S = !IsInDomain(M, @view u[1:end÷2])
         S && @warn "Geodesic ran into boundaries specified by ModelMap at $(u[1:end÷2])."
         return S
     end
@@ -188,7 +188,8 @@ Computes a geodesic between two given points on the parameter manifold and an ex
 By setting the keyword `approx=true`, the ChristoffelSymbols are assumed to be constant and only computed once at the initial position. This simplifies the computation immensely but may also constitute an inaccurate approximation depending on the magnitude of the Ricci curvature.
 """
 GeodesicBetween(DM::AbstractDataModel, args...; kwargs...) = GeodesicBetween(FisherMetric(DM), args...; kwargs...)
-function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::AbstractODEAlgorithm=Tsit5(), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
+function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::AbstractODEAlgorithm=Tsit5(), approx::Bool=false,
+                                BVPmeth::SciMLBase.AbstractBVPAlgorithm=Shooting(meth), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), kwargs...)
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
     dim = length(P)
     function bc!(resid, u, p, t)
@@ -199,7 +200,7 @@ function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::Abstr
     initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
     promote && (initial = PromoteStatic(initial, true))
     BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, initial, (0.0, Endtime))
-    solve(BVP, Shooting(meth); reltol=tol, abstol=tol, kwargs...)
+    solve(BVP, BVPmeth; reltol=tol, abstol=tol, kwargs...)
 end
 
 """
@@ -219,7 +220,7 @@ function GeodesicEnergy(Metric::Function,sol::AbstractODESolution,Endrange=sol.t
     n = length(sol.u[1])÷2
     function Integrand(t)
         FullGamma = sol(t)
-        InnerProduct(Metric(FullGamma[1:n]), FullGamma[(n+1):end])
+        InnerProduct(Metric(@view FullGamma[1:n]), @view FullGamma[(n+1):end])
     end
     Integrate1D(Integrand, [sol.t[1],Endrange]; FullSol=FullSol, tol=tol)
 end

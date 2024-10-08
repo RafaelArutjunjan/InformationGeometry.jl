@@ -95,6 +95,7 @@ function PDV2Christoffel2!(Γ::AbstractArray{<:Number,3}, InvMetric::AbstractMat
 end
 
 ChristoffelTerm(Γ::AbstractArray{<:Number,3}, v::AbstractVector{<:Number}) = @tullio Res[a] := (-1*Γ)[a,b,c] * v[b] * v[c]
+ChristoffelTerm!(Res::AbstractVector{T}, Γ::AbstractArray{<:Number,3}, v::AbstractVector{<:Number}) where T<:Number = (@tullio Res[a] = Γ[a,b,c] * v[b] * v[c];   Res .*= -one(T))
 
 
 # function ChristoffelPartials(Metric::Function, θ::AbstractVector{<:Number}; BigCalc::Bool=false)
