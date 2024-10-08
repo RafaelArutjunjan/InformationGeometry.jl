@@ -6,7 +6,9 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=1
     else
         Res = fill(-Inf, max)
         model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
-        Res[1:(findfirst(isinf, Res) - 1)]
+        ind = findfirst(isinf, Res)
+        isnothing(ind) && throw("Could not determine model output size. Consider providing tuple (xdim, ydim, pdim).")
+        Res[1:(ind-1)]
     end
 end
 function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, IsInplace::Bool)
@@ -50,17 +52,13 @@ struct ModelMap{Inplace, Custom}
     name::Symbol
     Meta
     # Given: Bool-valued domain function
-    function ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; kwargs...)
-        ModelMap(model, InDomain, nothing, xyp; kwargs...)
-    end
+    ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = ModelMap(model, InDomain, nothing, xyp; kwargs...)
     # Given: HyperCube
     function ModelMap(model::Function, Domain::Cuboid, xyp::Union{Tuple{Int,Int,Int},Bool}=false; kwargs...)
         xyp isa Bool ? ModelMap(model, nothing, Domain; kwargs...) : ModelMap(model, nothing, Domain, xyp; kwargs...)
     end
     # Given: xyp
-    function ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...)
-        ModelMap(model, nothing, nothing, xyp; kwargs...)
-    end
+    ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = ModelMap(model, nothing, nothing, xyp; kwargs...)
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; 
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
@@ -71,16 +69,10 @@ struct ModelMap{Inplace, Custom}
         testout = _TestOut(model, startp, xlen)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
     end
-    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; pnames::AbstractVector{<:AbstractString}=String[], name::Union{<:AbstractString,Symbol}=Symbol(), Meta=nothing, 
-                            startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
-        pnames = length(pnames) == 0 ? GetParameterNames(startp) : pnames
-        # startp = isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain)
-        # testout = _TestOut(model, startp, xyp[1])
-        # StaticOutput = testout isa SVector
-        Inplace = isinplacemodel(model)
-        # Given xyp, check if given model is custom, i.e. if it can output sensible values for woundX input
-        IsCustom = CheckIfIsCustom(model, startp, xyp, Inplace)
-        ModelMap(model, InDomain, Domain, xyp, pnames, Val(Inplace), Val(IsCustom), name, Meta; kwargs...)
+    function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; name::Union{<:AbstractString,Symbol}=Symbol(), Meta=nothing, 
+                            startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), pnames::AbstractVector{<:AbstractString}=GetParameterNames(startp),
+                            inplace::Bool=isinplacemodel(model), IsCustom::Bool=CheckIfIsCustom(model, startp, xyp, inplace), kwargs...)
+        ModelMap(model, InDomain, Domain, xyp, pnames, Val(inplace), Val(IsCustom), name, Meta; kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
     ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, InDomain(M), Domain(M), M.xyp, M.pnames, Val(inplace), M.CustomEmbedding, name(M), M.Meta)

@@ -235,14 +235,14 @@ HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.S
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=(adaptive ? 15 : 31), kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=31, kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
     ps = DomainSamples(dom; N=N)
     GetProfile(DM, Comp, ps; adaptive, N, kwargs...)
 end
 
 
-function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 15 : length(ps)), min_steps::Int=Int(round(2N/5)), 
+function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)

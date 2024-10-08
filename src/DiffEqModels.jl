@@ -382,7 +382,7 @@ Does the parameter enter the ODEFunction? Initial value parameters do not count.
 """
 function IsODEParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...)
     Jac = GetJac(ADmode, θ->SplitterFunc(θ)[2])
-    CompareCols(Jac(MLE(DM) + factor*rand(pdim(DM))), Jac(MLE(DM) + factor*rand(pdim(DM))))
+    CompareCols(Jac(muladd(factor, rand(pdim(DM)), MLE(DM))), Jac(muladd(factor, rand(pdim(DM)), MLE(DM))))
 end
 """
     IsInitialParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...) -> BitVector
@@ -390,5 +390,5 @@ Is the parameter an initial value parameter for the ODE model?
 """
 function IsInitialParameter(DM::AbstractDataModel, SplitterFunc::Function; factor::Real=0.1, ADmode::Val=Val(:ForwardDiff), kwargs...)
     Jac = GetJac(ADmode, θ->SplitterFunc(θ)[1])
-    CompareCols(Jac(MLE(DM) + factor*rand(pdim(DM))), Jac(MLE(DM) + factor*rand(pdim(DM))))
+    CompareCols(Jac(muladd(factor, rand(pdim(DM)), MLE(DM))), Jac(muladd(factor, rand(pdim(DM)), MLE(DM))))
 end
