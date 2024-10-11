@@ -63,7 +63,7 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         #Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
         DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
-    DataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Measurement}, args...; kwargs...) = DataSet(x,[y[i].val for i in eachindex(y)],[y[i].err for i in eachindex(y)], args...; kwargs...)
+    DataSet(x::AbstractArray{<:Number}, y::AbstractArray{<:Measurement}, args...; kwargs...) = DataSet(x, Measurements.value.(y), Measurements.uncertainty.(y), args...; kwargs...)
     ####### Only looking at sigma from here on out
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
         Sigma = Unwind(sigma)

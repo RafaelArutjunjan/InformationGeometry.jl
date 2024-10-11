@@ -41,10 +41,7 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...; kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
-    DataSetExact(x::AbstractVector{<:Number},y::AbstractVector{<:Measurement}; kwargs...) = DataSetExact(x,[y[i].val for i in eachindex(y)],[y[i].err for i in eachindex(y)]; kwargs...)
-    function DataSetExact(x::AbstractVector{<:Measurement}, y::AbstractVector{<:Measurement}; kwargs...)
-        DataSetExact([x[i].val for i in eachindex(x)],[x[i].err for i in eachindex(x)],[y[i].val for i in eachindex(y)],[y[i].err for i in eachindex(y)]; kwargs...)
-    end
+    DataSetExact(x::AbstractArray{<:Number},y::AbstractArray{<:Measurement}; kwargs...) = DataSetExact(Measurements.value.(x), Measurements.uncertainty.(x), Measurements.value.(y), Measurements.uncertainty.(y); kwargs...)
     ###### No Unwinding above here.
     # Offload most of the checking to DataSet
     function DataSetExact(x::AbstractArray, Σ_x::AbstractArray, y::AbstractArray, Σ_y::AbstractArray, Dims::Union{Tuple{Int,Int,Int},Nothing}=nothing; kwargs...)
