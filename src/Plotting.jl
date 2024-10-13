@@ -234,6 +234,23 @@ RecipesBase.@recipe function f(X::AbstractVector{<:DataInterpolations.AbstractIn
 end
 
 
+TracePlot(Pars::AbstractVector{<:AbstractVector{<:Number}}; kwargs...) = RecipesBase.plot(Pars, Val(:TracePlot); kwargs...)
+RecipesBase.@recipe function f(Pars::AbstractVector{<:AbstractVector{<:Number}}, ::Val{:TracePlot})
+    layout --> length(Pars[1])
+    label --> reshape(CreateSymbolNames(length(Pars[1])), 1, :)
+    for i in eachindex(Pars[1])
+        @series begin
+            subplot := i
+            lw --> 1.5
+            xlabel --> "Iteration"
+            ylabel --> "Parameter Value"
+            getindex.(Pars,i)
+        end
+    end
+end
+
+
+
 """
     Rsquared(DM::DataModel) -> Real
 Calculates the R² value associated with the maximum likelihood estimate of a `DataModel`. It should be noted that the R² value is only a valid measure for the goodness of a fit for linear relationships.
