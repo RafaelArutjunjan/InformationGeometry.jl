@@ -267,13 +267,13 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
     
     prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
-    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
+    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
         verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             verbose && @warn "minimize(): Try to continue with NelderMead()."
             prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
-            sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
+            sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
                 verbose && @warn "minimize(): Repeated Optimization with NelderMead() appears to not have converged, too."
             end
@@ -320,6 +320,20 @@ function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVe
     isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
 end
 
+
+"""
+    ParameterSavingCallback(start::AbstractVector) -> (Vector{typeof(start)}, Function)
+Produces tuple where first entry constitutes empty `Vector{typeof(start)}` array into which the parameter trajectory will be saved.
+Second entry is the callback function itself, which is to be added to the optimization method via the `callback` keyword argument.
+"""
+function ParameterSavingCallback(X::AbstractVector{<:Number})
+    SavedParams = typeof(X)[]
+    GetCurPar(S::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
+    GetCurPar(S::Optimization.OptimizationState) = S.u
+    GetCurPar(S) = throw("Got $S instead of OptimizationState.")
+    SaveOptimizationpath(State, args...) = (push!(SavedParams, GetCurPar(State));   false)
+    SavedParams, SaveOptimizationpath
+end
 
 
 """
