@@ -39,16 +39,16 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     ynames::AbstractVector{<:AbstractString}
     name::Union{<:AbstractString,<:Symbol}
 
-    function UnknownVarianceDataSet(x::AbstractArray, y::AbstractArray, Testpx::AbstractVector, Testpy::AbstractVector; kwargs...)
-        UnknownVarianceDataSet(x, y; testpx=Testpx, testpy=Testpy, kwargs...)
-    end
+    UnknownVarianceDataSet(DS::AbstractDataSet; kwargs...) = UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function UnknownVarianceDataSet(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); 
-                        testpx::AbstractVector=zeros(xdim(dims)), testpy::AbstractVector=zeros(ydim(dims)), kwargs...)
-        size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
+                        testpx::AbstractVector=0.1ones(xdim(dims)), testpy::AbstractVector=0.1ones(ydim(dims)), kwargs...)
         @info "Assuming error models σ(x,y,c) = exp10.(c)"
         xerrmod = xdim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
         yerrmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; kwargs...)
+    end
+    function UnknownVarianceDataSet(DS::AbstractDataSet, invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector=0.1ones(xdim(DS)), testpy::AbstractVector=0.1ones(ydim(DS)); kwargs...)
+        UnknownVarianceDataSet(xdata(DS), ydata(DS), invxerrormodel, invyerrormodel, testpx, testpy, dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invXvariancemodel::Function, invYvariancemodel::Function,
         testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)

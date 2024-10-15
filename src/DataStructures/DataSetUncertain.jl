@@ -37,6 +37,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     ynames::AbstractVector{<:AbstractString}
     name::Union{<:AbstractString,<:Symbol}
 
+    DataSetUncertain(DS::AbstractDataSet; kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
         @info "Assuming error model σ(x,y,c) = exp10.(c)"
         errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
@@ -50,6 +51,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testp, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
+    DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=0.1ones(ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
         @info "Assuming error parameters always given by last $(length(testp)) parameters."
         DataSetUncertain(x, y, inverrormodel, DefaultErrorModel(length(testp)), testp, dims; kwargs...)
