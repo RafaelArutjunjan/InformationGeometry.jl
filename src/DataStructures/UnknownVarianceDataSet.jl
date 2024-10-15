@@ -3,15 +3,20 @@
 # Use general bitvector mask to implement missing values
 
 """
-    UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, σ⁻¹::Function, c::AbstractVector)
+    UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, σ_x⁻¹::Function, σ_y⁻¹::Function, cx::AbstractVector, cy::AbstractVector; BesselCorrection::Bool=false)
+    UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, σ_x⁻¹::Function, σ_y⁻¹::Function, cx::AbstractVector, cy::AbstractVector, errorparamsplitter::Function; BesselCorrection::Bool=false)
 The `UnknownVarianceDataSet` type encodes data for which the size of the variance is unknown a-priori but whose error is specified via an error model of the form `σ(x, y_pred, c)` where `c` is a vector of error parameters.
 This parametrized error model is subsequently used to estimate the standard deviations in the observations `y`.
 !!! note
     To enhance performance, the implementation actually requires the specification of a *reciprocal* error model, i.e. a function `σ⁻¹(x, y_pred, c)`.
+    If `ydim` is larger than one, the reciprocal error model should output a matrix, i.e. the cholesky decomposition `S` of the covariance `Σ` such that `Σ == S' * S`.
 
-To construct a `UnknownVarianceDataSet`, one has to specify a vector of independent variables `x`, a vector of dependent variables `y`, a reciprocal error model `σ⁻¹(x, y_pred, c)` and an initial guess for the vector of error parameters `c`.
+To construct a `UnknownVarianceDataSet`, one has to specify a vector of independent variables `x`, a vector of dependent variables `y`, reciprocal error models `σ⁻¹(x, y_pred, c)` and an initial guess for the vector of error parameters `c`.
+Optionally, an explicit `errorparamsplitter` function of the form `θ -> (modelparams, xerrorparams, yerrorparams)` may be specified, which splits the parameters into a tuple of model parameters, which are subsequently forwarded into the model, and error parameters, which are only passed to the reciprocal error models `σ⁻¹`.
+!!! warn
+    The parameters which are visible to the outside are processed by `errorparamsplitter` FIRST, before forwarding into the model, where `modelparams` might be further modified by embedding transformations.
 
-Examples:
+# Examples:
 
 In the simplest case, where all data points are mutually independent and have a single ``x``-component and a single ``y``-component each, a `DataSet` consisting of four points can be constructed via
 ```julia
@@ -19,16 +24,14 @@ DS = UnknownVarianceDataSet([1,2,3,4], [4,5,6.5,7.8], (x,y,cx)->1/exp10(cx[1]), 
 ```
 !!! note
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
-
-!!! note
     A Bessel correction `sqrt((length(xdata(DS))+length(ydata(DS))-length(params))/(length(xdata(DS))+length(ydata(DS))))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
 struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int}
-    invXvariancemodel::Function # σₓ⁻²
-    invYvariancemodel::Function # σ_y⁻²
+    invXvariancemodel::Function # σ_x⁻¹
+    invYvariancemodel::Function # σ_y⁻¹
     testpx::AbstractVector{<:Number}
     testpy::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, xERRORMODEL), view(θ, yERRORMODEL))
@@ -36,7 +39,6 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     ynames::AbstractVector{<:AbstractString}
     name::Union{<:AbstractString,<:Symbol}
 
-    
     function UnknownVarianceDataSet(x::AbstractArray, y::AbstractArray, Testpx::AbstractVector, Testpy::AbstractVector; kwargs...)
         UnknownVarianceDataSet(x, y; testpx=Testpx, testpy=Testpy, kwargs...)
     end
@@ -44,8 +46,8 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
                         testpx::AbstractVector=zeros(xdim(dims)), testpy::AbstractVector=zeros(ydim(dims)), kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         @info "Assuming error models σ(x,y,c) = exp10.(c)"
-        xerrmod = xdim(dims) == 1 ? ((x,y,c)->inv(exp10(c[1]))) : (x,y,c)->inv.(exp10.(c))
-        yerrmod = ydim(dims) == 1 ? ((x,y,c)->inv(exp10(c[1]))) : (x,y,c)->inv.(exp10.(c))
+        xerrmod = xdim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
+        yerrmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invXvariancemodel::Function, invYvariancemodel::Function,
@@ -124,28 +126,28 @@ yerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParam
 HasBessel(DS::UnknownVarianceDataSet{T}) where T = T
 
 # Uncertainty must be constructed around prediction!
-function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx)
+function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx; verbose::Bool=true)
     @assert length(c) == length(DS.testpx) "xsigma: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
-    c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
+    verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(xinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx)
+function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx; verbose::Bool=true)
     @assert length(c) == length(DS.testpx) "xInvCov: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
-    c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
+    verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=xinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 # Uncertainty must be constructed around prediction!
-function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy)
+function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
     @assert length(c) == length(DS.testpy) "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
-    c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
+    verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
     map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy)
+function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
     @assert length(c) == length(DS.testpy) "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
-    c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
+    verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
     map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 

@@ -153,28 +153,28 @@ yerrorparams(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = nothing
 
 
 # For first arg DM, expect full MLE, for first arg DS, expect error params only
-xsigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xsigmadecide(Data(DM), mle)
-ysigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = ysigmadecide(Data(DM), mle)
-xInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xInvCovdecide(Data(DM), mle)
-yInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yInvCovdecide(Data(DM), mle)
+xsigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...) = xsigmadecide(Data(DM), mle; kwargs...)
+ysigma(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...) = ysigmadecide(Data(DM), mle; kwargs...)
+xInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...) = xInvCovdecide(Data(DM), mle; kwargs...)
+yInvCov(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...) = yInvCovdecide(Data(DM), mle; kwargs...)
 
 # Reduce from full MLE to error params
-xsigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = xsigma(DS, xerrorparams(DS, mle))
-ysigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = ysigma(DS, yerrorparams(DS, mle))
-xInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS, xerrorparams(DS, mle))
-yInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS, yerrorparams(DS, mle))
+xsigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector; kwargs...) = xsigma(DS, xerrorparams(DS, mle); kwargs...)
+ysigmadecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector; kwargs...) = ysigma(DS, yerrorparams(DS, mle); kwargs...)
+xInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector; kwargs...) = xInvCov(DS, xerrorparams(DS, mle); kwargs...)
+yInvCovdecide(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector; kwargs...) = yInvCov(DS, yerrorparams(DS, mle); kwargs...)
 
 # Pass params unaffected since dropped in next step
-xsigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xsigma(DS, mle)
-ysigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = ysigma(DS, mle)
-xInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS, mle)
-yInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS, mle)
+xsigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; kwargs...) = xsigma(DS, mle; kwargs...)
+ysigmadecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; kwargs...) = ysigma(DS, mle; kwargs...)
+xInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; kwargs...) = xInvCov(DS, mle; kwargs...)
+yInvCovdecide(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; kwargs...) = yInvCov(DS, mle; kwargs...)
 
 # Drop params since uncertainty fixed
-xsigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xsigma(DS)
-ysigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = ysigma(DS)
-xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = xInvCov(DS)
-yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = yInvCov(DS)
+xsigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = xsigma(DS)
+ysigma(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = ysigma(DS)
+xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = xInvCov(DS)
+yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = yInvCov(DS)
 
 
 # How many degrees of freedom does the model have?

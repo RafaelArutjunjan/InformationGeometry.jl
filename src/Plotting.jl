@@ -96,8 +96,10 @@ end
 # xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
     xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
-    Σ_y = ysigma(DS) isa AbstractVector ? ysigma(DS) : sqrt.(Diagonal(ysigma(DS)).diag)
-    Σ_x = HasXerror(DS) ? (xsigma(DS) isa AbstractVector ? xsigma(DS) : sqrt.(Diagonal(xsigma(DS)).diag)) : nothing
+    ysig = ysigma(DS)
+    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    xsig = xsigma(DS)
+    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
@@ -152,7 +154,19 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
 end
 
 RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM))
-    @series begin Data(DM), V, xpositions end
+    @series begin
+        if Data(DM) isa AbstractUnknownUncertaintyDataSet
+            if Data(DM) isa DataSetUncertain
+                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+            elseif Data(DM) isa UnknownVarianceDataSet
+                xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
+                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+            else
+                @warn "Not programmed for plotting $(typeof(Data(DM))) yet"
+            end
+        end
+        Data(DM), V, xpositions
+    end
     X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
     Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))
     RSEs = ResidualStandardError(DM, mle)
@@ -233,11 +247,13 @@ RecipesBase.@recipe function f(X::AbstractVector{<:DataInterpolations.AbstractIn
     end
 end
 
-
+# kwarg pnames
 TracePlot(Pars::AbstractVector{<:AbstractVector{<:Number}}; kwargs...) = RecipesBase.plot(Pars, Val(:TracePlot); kwargs...)
 RecipesBase.@recipe function f(Pars::AbstractVector{<:AbstractVector{<:Number}}, ::Val{:TracePlot})
     layout --> length(Pars[1])
-    label --> reshape(CreateSymbolNames(length(Pars[1])), 1, :)
+    pnames = get(plotattributes, :pnames, CreateSymbolNames(length(Pars[1])))
+    @assert length(pnames) == length(Pars[1])
+    label --> reshape(pnames, 1, :)
     for i in eachindex(Pars[1])
         @series begin
             subplot := i

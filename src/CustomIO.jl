@@ -59,7 +59,7 @@ TreeViews.numberofnodes(x::AbstractDataModel) = 4
 TreeViews.numberofnodes(x::ModelMap) = 4
 TreeViews.numberofnodes(x::CompositeDataSet) = 1
 TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
-TreeViews.numberofnodes(DS::DataSetUncertain) = 5
+TreeViews.numberofnodes(x::DataSetUncertain) = 5
 
 
 # function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
@@ -119,25 +119,17 @@ function Base.show(io::IO, DS::AbstractDataSet)
     print(io, "x-data" * xnameinsert * ": ")
     show(io, xdata(DS));    print(io, "\n")
     if HasXerror(DS)
-        if xsigma(DS) isa AbstractVector
-            println(io, "Standard deviation associated with x-data:")
-            show(io, xsigma(DS))
-        else
-            println(io, "Covariance matrix associated with x-data:")
-            show(io, xsigma(DS))
-        end
+        xsig = xsigma(DS)
+        println(io, (xsig isa AbstractVector ? "Standard deviation " : "Covariance matrix ") * "associated with x-data:")
+        show(io, xsig)
         print(io, "\n")
     end
     ynameinsert = any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y")) ? (" [" * join(ynames(DS), ", ") * "] ") : ""
     print(io, "y-data" * ynameinsert * ": ")
     show(io, ydata(DS));    print(io, "\n")
-    if ysigma(DS) isa AbstractVector
-        println(io, "Standard deviation associated with y-data:")
-        show(io, ysigma(DS))
-    else
-        println(io, "Covariance matrix associated with y-data:")
-        show(io, ysigma(DS))
-    end
+    ysig = ysigma(DS)
+    println(io, (ysig isa AbstractVector ? "Standard deviation " : "Covariance matrix ") * "associated with y-data:")
+    show(io, ysig)
 end
 
 function Base.show(io::IO, GDS::GeneralizedDataSet)
