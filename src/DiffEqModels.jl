@@ -274,12 +274,13 @@ end
 """
 Switch between possibly slightly faster method which does not allow for time autodifferentiation vs 'robust' method which additionally includes backward integration.
 """
-function GetModelFastOrRobust(func::AbstractODEFunction{T}, Splitter, ObservationFunc; robust::Bool=true, kwargs...) where T
-    if robust
+function GetModelFastOrRobust(func::AbstractODEFunction{T}, Splitter, ObservationFunc; robust::Bool=true, pnames=nothing, kwargs...) where T
+    Mod = if robust
         GetModelRobust(func, Splitter, ObservationFunc; kwargs...)
     else
         GetModelFast(func, Splitter, ObservationFunc; kwargs...)
     end
+    !isnothing(pnames) ? InformNames(Mod, pnames) : Mod
 end
 
 GetModelRobust(func::ODESystem, A, B; kwargs...) = GetModelRobust(ODEFunction(func), A, B; kwargs...)
