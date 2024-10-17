@@ -245,9 +245,10 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
-                        Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, kwargs...)
+                        Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, stepfactor::Real=5, stepmemory::Real=0.5, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
+    @assert stepfactor > 0 && 0 ≤ stepmemory < 1
 
     IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(MLE(DM))
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
@@ -345,7 +346,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             maxstepnumber = N
             Fi = isnothing(Fisher) ? AutoMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
-            initialδ = clamp(5 * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1)
+            initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1e2)
 
             δ = initialδ
             minstep = 1e-2 * initialδ
@@ -375,10 +376,10 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             
             @inline function DoAdaptive(visitedps, Res, path, priors, Converged)
                 while Res[end] > CostThreshold
-                    approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]));
 
-                    newδ = 5 * sqrt(IC)/ (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))
-                    δ = clamp(newδ > δ ? 0.5δ + 0.5newδ : 0.2δ + 0.8newδ, minstep, maxstep);
+                    approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]))
+                    newδ = stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))
+                    δ = clamp(newδ > δ ? stepmemory*δ + (1-stepmemory)*newδ : newδ, minstep, maxstep)
                     
                     p = clamp(right ? visitedps[end] + δ : visitedps[end] - δ, ParamBounds...)
 
@@ -400,7 +401,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             
             # Do left branch of profile
             right = false
-            δ = initialδ;
+            δ = initialδ
+            newδ = initialδ
             len = length(visitedps)
             copyto!(MLEstash, Drop(MLE(DM), Comp))
             DoAdaptive(visitedps2, Res2, path2, priors2, Converged2)
@@ -685,6 +687,7 @@ Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
 Base.lastindex(P::ParameterProfiles) = Profiles(P) |> lastindex
 Base.getindex(P::ParameterProfiles, i::Int) = ParameterProfilesView(P, i)
+Base.getindex(P::ParameterProfiles, inds::AbstractVector{<:Int}) = [P[i] for i in inds]
 
 
 ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
@@ -838,6 +841,15 @@ end
 # Try to plot Trajectories if available
 @recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV)) = PV, Val(PlotTrajectories)
 
+@recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
+    layout --> length(PVs)
+    for i in eachindex(PVs)
+        @series begin
+            subplot := i
+            PVs[i], V
+        end
+    end
+end
 
 # MaxLevel kwarg for checking which is the highest profile value which is still converged
 # dof kwarg for plotting Confidence Levels
