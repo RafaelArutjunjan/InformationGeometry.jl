@@ -245,10 +245,11 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
-                        Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, stepfactor::Real=5, stepmemory::Real=0.5, kwargs...)
+                        Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, 
+                        stepfactor::Real=5, stepmemory::Real=0.5, terminatefactor::Real=10, curvaturesensitivity::Real=1, gradientsensitivity::Real=0, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
-    @assert stepfactor > 0 && 0 ≤ stepmemory < 1
+    @assert stepfactor > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
 
     IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(MLE(DM))
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
@@ -346,7 +347,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             maxstepnumber = N
             Fi = isnothing(Fisher) ? AutoMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
-            initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(Fi))) , 1e-12, 1e2)
+            initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
             δ = initialδ
             minstep = 1e-2 * initialδ
@@ -378,7 +379,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 while Res[end] > CostThreshold
 
                     approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]))
-                    newδ = stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + sqrt(abs(approx_curv))))
+                    approx_grad = (Res[end]-Res[end-1]) / (visitedps[end]-visitedps[end-1])
+                    newδ = stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + curvaturesensitivity*sqrt(abs(approx_curv)) + gradientsensitivity*abs(approx_grad)))
                     δ = clamp(newδ > δ ? stepmemory*δ + (1-stepmemory)*newδ : newδ, minstep, maxstep)
                     
                     p = clamp(right ? visitedps[end] + δ : visitedps[end] - δ, ParamBounds...)
@@ -388,9 +390,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
                     ## Early termination if profile flat or already wide enough
                     if right
-                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > MLE(DM)[Comp] + 5*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > MLE(DM)[Comp] + terminatefactor*maxstepnumber*initialδ) && break
                     else
-                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < MLE(DM)[Comp] - 5*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < MLE(DM)[Comp] - terminatefactor*maxstepnumber*initialδ) && break
                     end
                 end
             end
@@ -853,6 +855,7 @@ end
 
 # MaxLevel kwarg for checking which is the highest profile value which is still converged
 # dof kwarg for plotting Confidence Levels
+# Confnum kwarg for plotting specific levels
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
     legend --> nothing
@@ -883,17 +886,18 @@ end
         markerstrokewidth --> 0
         [MLE(PV)[i]], [0.0]
     end
-    # Mark threshold if not already rescaled to Confnum
-    if IsCost(PV)
+    # Mark threshold if not already rescaled to confidence scale
+    Confnum = get(plotattributes, :Confnum, 1:5)
+    if IsCost(PV) && all(Confnum .> 0)
         dof = get(plotattributes, :dof, pdim(PV))
         MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2)))
-        for (j,Thresh) in Iterators.zip(5:-1:1, convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(5:-1:1))))
+        for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
             if Thresh < MaxLevel
                 @series begin
                     st := :hline
                     line --> :dash
                     lw --> 1.5
-                    color --> palette(:viridis, 5; rev=true)[j]
+                    color --> palette(:viridis, length(Confnum); rev=true)[j]
                     label --> "$(j)σ level, dof=$dof"
                     [Thresh]
                 end
