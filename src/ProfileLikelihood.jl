@@ -246,10 +246,16 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), tol::Real=1e-9, meth=nothing, OptimMeth=meth, 
-                        stepfactor::Real=5, stepmemory::Real=0.5, terminatefactor::Real=10, curvaturesensitivity::Real=1, gradientsensitivity::Real=0, kwargs...)
+                        stepfactor::Real=3, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
-    @assert stepfactor > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
+    # stepfactor: overall multiplicative factor for step length
+    # stepmemory: linear interpolation of new with previous step size
+    # terminatefactor: terminate profile if distance from original MLE too large
+    # curvaturesensitivity: step length dependence on current profile curvature
+    # gradientsensitivity: step length dependence on profile slope
+    # flatstepconst: mainly controls step size when profile exactly flat
+    @assert stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
 
     IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(MLE(DM))
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
@@ -342,15 +348,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
         # Adaptive instead of ps grid here?
         if adaptive
-            approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath 2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
+            approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath -2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
             
             maxstepnumber = N
             Fi = isnothing(Fisher) ? AutoMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
-            initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
+            initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi/5))) , 1e-12, 1e2)
 
             δ = initialδ
-            minstep = 1e-2 * initialδ
+            minstep = 1e-1 * initialδ
             maxstep = 1e5 * initialδ
 
             # Second left point
@@ -380,7 +386,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
                     approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]))
                     approx_grad = (Res[end]-Res[end-1]) / (visitedps[end]-visitedps[end-1])
-                    newδ = stepfactor * sqrt(IC) / (maxstepnumber * (0.1 + curvaturesensitivity*sqrt(abs(approx_curv)) + gradientsensitivity*abs(approx_grad)))
+                    newδ = stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(abs(approx_curv)) + gradientsensitivity*abs(approx_grad)))
                     δ = clamp(newδ > δ ? stepmemory*δ + (1-stepmemory)*newδ : newδ, minstep, maxstep)
                     
                     p = clamp(right ? visitedps[end] + δ : visitedps[end] - δ, ParamBounds...)
@@ -657,7 +663,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
             end
         end
         P = ParameterProfiles(DM, Profs, Trajs; IsCost=IsCost)
-        plot && display(RecipesBase.plot(P))
+        plot && display(RecipesBase.plot(P, false))
         P
     end
     function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true)

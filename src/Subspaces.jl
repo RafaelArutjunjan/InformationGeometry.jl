@@ -425,6 +425,7 @@ function Corners(Res::AbstractVector{<:AbstractVector}, C::AbstractVector{<:Tupl
 end
 
 Base.vcat(C1::HyperCube, C2::HyperCube) = HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0)
+Base.vcat(C1::HyperCube, C2::HyperCube, args...) = vcat(HyperCube(vcat(C1.L,C2.L), vcat(C1.U,C2.U); Padding=0.0), args...)
 Base.vcat(C::HyperCube, Tup::Tuple{Number,Number}) = HyperCube(vcat(C.L, Tup[1]), vcat(C.U, Tup[2]))
 Base.vcat(Tup::Tuple{Number,Number}, C::HyperCube) = HyperCube(vcat(Tup[1], C.L), vcat(Tup[2], C.U))
 
