@@ -286,6 +286,7 @@ using SnoopPrecompile
 
 SnoopPrecompile.@precompile_all_calls begin
     ParameterProfiles(DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), LinearModel); plot=false)
+    ParameterProfiles(DataModel(DataSetUncertain([1,2,3,4], [4,5,6.5,9]; verbose=false), (x,p)->p[1].*x .+ p[2], [1.5,2,-0.4]); plot=false, verbose=false)
     DataModel(DataSetExact([1,2,3,4], 0.5*[0.5,0.45,0.6,1], [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->p[1]*x + p[2], [1.48,2.27], true)
 
     function SIR!(du,u,p,t)

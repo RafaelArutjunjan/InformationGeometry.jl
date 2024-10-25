@@ -206,6 +206,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     end
 end
 
+# Forward to other methods
+RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, args...) = (DM, Val(S))
+
 
 ## Bad form but works
 # RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; leg=false, kwargs...) for DS in DSs]...; layout=length(DSs))

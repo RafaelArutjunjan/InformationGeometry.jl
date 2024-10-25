@@ -38,10 +38,10 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     name::Union{<:AbstractString,<:Symbol}
 
     DataSetUncertain(DS::AbstractDataSet; kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
-    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
-        @info "Assuming error model σ(x,y,c) = exp10.(c)"
+    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
+        verbose && @info "Assuming error model σ(x,y,c) = exp10.(c)"
         errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
-        DataSetUncertain(Unwind(X), Unwind(Y), errmod, 0.1ones(ydim(dims)), dims; kwargs...)
+        DataSetUncertain(Unwind(X), Unwind(Y), errmod, 0.1ones(ydim(dims)), dims; verbose, kwargs...)
     end
     function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testp::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
@@ -52,9 +52,9 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testp, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
     DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=0.1ones(ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)
-        @info "Assuming error parameters always given by last $(length(testp)) parameters."
-        DataSetUncertain(x, y, inverrormodel, DefaultErrorModel(length(testp)), testp, dims; kwargs...)
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; verbose::Bool=true, kwargs...)
+        verbose && @info "Assuming error parameters always given by last $(length(testp)) parameters."
+        DataSetUncertain(x, y, inverrormodel, DefaultErrorModel(length(testp)), testp, dims; verbose, kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
             xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
@@ -62,7 +62,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector,
-            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false)
+            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -88,7 +88,8 @@ testp::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
 xnames::AbstractVector{<:AbstractString}=["x"],
 ynames::AbstractVector{<:AbstractString}=["y"],
-name::Union{<:AbstractString,Symbol}=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name)
+BesselCorrection::Bool=false,
+name::Union{<:AbstractString,Symbol}=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; BesselCorrection)
 
 DefaultErrorModel(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 
