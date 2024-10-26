@@ -657,10 +657,10 @@ mutable struct ParameterProfiles <: AbstractProfiles
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
-        Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(Profs))
+        Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(inds))
         if !(inds == 1:pdim(DM))
             for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
-                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  fill!(Profs[i][:,end], 0.);    SaveTrajectories ? insert!(Trajs, i, fill(NaN, pdim(DM))) : insert!(Trajs, i, nothing))
+                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  Profs[i][:,end] .= 0;    SaveTrajectories ? insert!(Trajs, i, [fill(NaN, pdim(DM))]) : insert!(Trajs, i, nothing))
             end
         end
         P = ParameterProfiles(DM, Profs, Trajs; IsCost=IsCost)
@@ -897,7 +897,7 @@ end
     Confnum = get(plotattributes, :Confnum, 1:5)
     if IsCost(PV) && all(Confnum .> 0)
         dof = get(plotattributes, :dof, pdim(PV))
-        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2)))
+        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2); init=-Inf))
         for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
             if Thresh < MaxLevel
                 @series begin
