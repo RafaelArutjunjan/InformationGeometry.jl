@@ -50,6 +50,9 @@ function Base.summary(M::ModelMap)
         NO_COLOR, " with xdim="*string(xdim(M))*", ydim="*string(ydim(M))*", pdim="*string(pdim(M)))
 end
 
+Base.summary(P::ParameterProfiles) = string(TYPE_COLOR, "ParameterProfiles", NO_COLOR, " with pdim="* string(pdim(P)), !HasTrajectories(P) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
+Base.summary(PV::ParameterProfilesView) = string(TYPE_COLOR, "ParameterProfile", NO_COLOR, " for index "* string(PV.i) *"/"* string(pdim(PV)), !HasTrajectories(PV) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
+
 
 # http://docs.junolab.org/stable/man/info_developer/#
 # hastreeview, numberofnodes, treelabel, treenode
@@ -173,3 +176,15 @@ function Base.show(io::IO, M::ModelMap)
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
 end
+
+
+
+# Multi-line display when used on its own in REPL
+function Base.show(io::IO, ::MIME"text/plain", P::ParameterProfiles)
+    HasProf = [i for i in eachindex(P) if HasProfiles(P[i])]
+    println(io, Base.summary(P))
+    1:pdim(P) != HasProf && println(io, "Computed Profiles: ", string(HasProf))
+end
+
+# Single line display
+Base.show(io::IO, P::Union{ParameterProfiles,ParameterProfilesView}) = print(io, Base.summary(P))

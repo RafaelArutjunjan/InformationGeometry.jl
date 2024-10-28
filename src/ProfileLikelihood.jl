@@ -357,7 +357,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
             δ = initialδ
-            minstep = 1e-1 * initialδ
+            minstep = 1e-2 * initialδ
             maxstep = 1e5 * initialδ
 
             # Second left point
@@ -380,7 +380,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             path2 = SaveTrajectories ? reverse!(deepcopy(path)) : nothing
             priors2 = SavePriors ? reverse!(deepcopy(priors)) : nothing
             Converged2 = deepcopy(Converged) |> reverse!
-            len = 3
+            len = length(visitedps) -1
             
             @inline function DoAdaptive(visitedps, Res, path, priors, Converged)
                 while Res[end] > CostThreshold
@@ -412,7 +412,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             right = false
             δ = initialδ
             newδ = initialδ
-            len = length(visitedps)
+            len = length(visitedps2) -1
             copyto!(MLEstash, Drop(MLE(DM), Comp))
             DoAdaptive(visitedps2, Res2, path2, priors2, Converged2)
             
@@ -492,7 +492,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::Abstr
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
 
-    Prog = Progress(pdim(DM); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
+    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
     Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
@@ -697,7 +697,7 @@ Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
 Base.lastindex(P::ParameterProfiles) = Profiles(P) |> lastindex
 Base.getindex(P::ParameterProfiles, i::Int) = ParameterProfilesView(P, i)
 Base.getindex(P::ParameterProfiles, inds::AbstractVector{<:Int}) = [P[i] for i in inds]
-
+Base.keys(P::ParameterProfiles) = 1:length(P)
 
 ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
 ProfileBox(P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; IsCost=IsCost(P), kwargs...)
@@ -727,7 +727,7 @@ MLE(PV::ParameterProfilesView) = MLE(PV.P)
 pdim(PV::ParameterProfilesView) = pdim(PV.P)
 IsCost(PV::ParameterProfilesView) = IsCost(PV.P)
 HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV)) && !all(x->all(isnan,x), Trajectories(PV))
-HasProfiles(PV::ParameterProfilesView) = !all(isnan, Profiles(PV))
+HasProfiles(PV::ParameterProfilesView) = !all(isnan, view(Profiles(PV), :, 1))
 IsPopulated(PV::ParameterProfilesView) = HasProfiles(PV)
 
 
@@ -782,8 +782,8 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout --> length(pnames(P))
     tol = 0.05
-    maxy = median([sum(GetConverged(T)) > 0 ? maximum(view(T, GetConverged(T), 2)) : 0.0 for T in Profiles(P)])
-    maxy = maxy < tol ? Inf : maxy
+    maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
+    maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
     for i in eachindex(pnames(P))
         @series begin
             subplot := i
@@ -818,7 +818,7 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
         if !isnothing(Trajectories(P)[i])
             @series begin
                 label --> "Comp $i"
-                color --> palette(:default)[2+i]
+                color --> palette(:default)[(((2+i) % 15) +1)]
                 lw --> 1.5
                 M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
                 if length(idxs) == 3
@@ -973,7 +973,7 @@ end
     # Colorize only parameters with 5 strongest changes
     for j in ToPlotInds
         @series begin
-            color --> palette(:default)[2+j]
+            color --> palette(:default)[(((2+i) % 15) +1)]
             label --> "Comp $j"
             lw --> 1.5
             Change = if RelChange && !any(MLE(PV) .== 0)
