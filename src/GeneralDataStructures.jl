@@ -64,7 +64,6 @@ HasXerror(DS::AbstractDataSet) = any(x->x>0.0, xsigma(DS))
 
 dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
 
-@deprecate Ndata Npoints
 
 Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
 xdim(DS::AbstractDataSet) = xdim(dims(DS))
@@ -143,7 +142,6 @@ pnames(DM::AbstractDataModel) = pnames(DM, Predictor(DM))
 pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
 
-@deprecate Domain(DM::AbstractDataModel) GetDomain(DM)
 
 xerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xerrorparams(Data(DM), mle)
 yerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = yerrorparams(Data(DM), mle)
@@ -307,7 +305,6 @@ function ScaledResiduals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); xer
     cholesky(yInvCov(DM, mle)).U * (ydata(DM) - Ypred)
 end
 
-@deprecate Residuals ScaledResiduals
 
 """
     pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int

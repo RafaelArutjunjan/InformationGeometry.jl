@@ -756,8 +756,6 @@ function ExtendProfiles(P::ParameterProfiles)
 end
 
 
-@deprecate AbstractProfile AbstractProfiles
-@deprecate ParameterProfile ParameterProfiles
 
 # Plot trajectories by default
 @recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P)) = P, Val(PlotTrajectories)

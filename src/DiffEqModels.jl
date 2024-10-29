@@ -344,7 +344,6 @@ function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function
     MakeCustom(ODEmodel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback), verbose=false)
 end
 
-@deprecate GetModelNaive(func, split, obs; kwargs...) GetModelRobust(func, split, obs; kwargs...) false
 
 """
     ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) -> ModelMap
