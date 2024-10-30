@@ -651,9 +651,10 @@ mutable struct ParameterProfiles <: AbstractProfiles
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{<:AbstractString}
     mle::AbstractVector{<:Number}
+    dof::Int
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -663,19 +664,20 @@ mutable struct ParameterProfiles <: AbstractProfiles
                 i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  Profs[i][:,end] .= 0;    SaveTrajectories ? insert!(Trajs, i, [fill(NaN, pdim(DM))]) : insert!(Trajs, i, nothing))
             end
         end
-        P = ParameterProfiles(DM, Profs, Trajs; IsCost=IsCost)
+        P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof)
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true)
-        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), IsCost)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM))
+        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true)
-        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), IsCost)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names))
+        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, IsCost::Bool)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
-        new(Profiles, Trajectories, Names, mle, IsCost)
+        @assert 1 ≤ dof ≤ length(mle)
+        new(Profiles, Trajectories, Names, mle, dof, IsCost)
     end
 end
 (P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(P,i,Interp)(t)
@@ -688,6 +690,7 @@ Trajectories(P::ParameterProfiles) = P.Trajectories
 pnames(P::ParameterProfiles) = P.Names
 MLE(P::ParameterProfiles) = P.mle
 pdim(P::ParameterProfiles) = length(MLE(P))
+DOF(P::ParameterProfiles) = P.dof
 IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
 IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
@@ -725,6 +728,7 @@ Trajectories(PV::ParameterProfilesView) = getindex(Trajectories(PV.P), PV.i)
 pnames(PV::ParameterProfilesView) = pnames(PV.P)
 MLE(PV::ParameterProfilesView) = MLE(PV.P)
 pdim(PV::ParameterProfilesView) = pdim(PV.P)
+DOF(PV::ParameterProfilesView) = DOF(PV.P)
 IsCost(PV::ParameterProfilesView) = IsCost(PV.P)
 HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV)) && !all(x->all(isnan,x), Trajectories(PV))
 HasProfiles(PV::ParameterProfilesView) = !all(isnan, view(Profiles(PV), :, 1))
@@ -741,7 +745,7 @@ Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
 
 
 ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
-ProfileBox(PV::ParameterProfilesView, Confnum::Real; IsCost::Bool=IsCost(PV), dof::Int=pdim(PV), kwargs...) = ProfileBox([InterpolatedProfiles(PV)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
+ProfileBox(PV::ParameterProfilesView, Confnum::Real; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), kwargs...) = ProfileBox([InterpolatedProfiles(PV)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 
@@ -894,7 +898,7 @@ end
     # Mark threshold if not already rescaled to confidence scale
     Confnum = get(plotattributes, :Confnum, 1:5)
     if IsCost(PV) && all(Confnum .> 0)
-        dof = get(plotattributes, :dof, pdim(PV))
+        dof = get(plotattributes, :dof, DOF(PV))
         MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2); init=-Inf))
         for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
             if Thresh < MaxLevel

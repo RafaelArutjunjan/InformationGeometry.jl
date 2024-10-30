@@ -212,7 +212,7 @@ export EmbeddingMap, EmbeddingMatrix, EmbeddingMap!, EmbeddingMatrix!
 include("ConfidenceRegions.jl")
 export WilksCriterion, WilksTest, OrthVF, OrthVF!, FindMLE
 export AutoScore, AutoMetric
-export FindConfBoundary, FCriterion, FTest, FindFBoundary
+export FindConfBoundary, FCriterion, FTest, FindFBoundary, ChisquaredReduced
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable

@@ -105,7 +105,8 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - DataspaceDim(DM)*log(2π) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM)) = InnerProduct(yInvCov(DM), ydata(DM) - EmbeddingMap(DM,θ))
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = InnerProduct(yInvCov(DM, θ), ydata(DM) - EmbeddingMap(DM, θ; kwargs...))
+ChisquaredReduced(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); dof::Int=DOF(DM), kwargs...) = ResidualSquares(DM, θ; kwargs...) / (DataspaceDim(DM) - dof)
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)
     n = length(ydata(DM));  p = length(θ)
     ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p), Confvol)

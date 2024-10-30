@@ -156,7 +156,7 @@ end
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = SymbolicModel(DM)
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
+    print(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
@@ -164,26 +164,31 @@ end
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", M::ModelMap)
     Expr = string(SymbolicModel(M))
-    println(io, Base.summary(M))
-    Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
-    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
+    print(io, Base.summary(M))
+    Expr[1] == 'y' && print(io, "\nModel Expr:  " * Expr)
+    pnames(M) != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(pnames(M), ", ") * "]")
 end
 
 # Single line display
 function Base.show(io::IO, M::ModelMap)
     # Expr = SymbolicModel(M)
-    println(io, Base.summary(M))
+    print(io, Base.summary(M))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    pnames(M) != CreateSymbolNames(pdim(M)) && println(io, "Parameters: θ = [" * join(pnames(M), ", ") * "]")
+    pnames(M) != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(pnames(M), ", ") * "]")
 end
 
 
 
+# Which parameters ran into boundary?
+# Which indices have profiles if not all?
+# Has no trajectories?
+# Has priors?
+
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", P::ParameterProfiles)
     HasProf = [i for i in eachindex(P) if HasProfiles(P[i])]
-    println(io, Base.summary(P))
-    1:pdim(P) != HasProf && println(io, "Computed Profiles: ", string(HasProf))
+    print(io, Base.summary(P))
+    1:pdim(P) != HasProf && print(io, "\nComputed Profiles: ", string(HasProf))
 end
 
 # Single line display
