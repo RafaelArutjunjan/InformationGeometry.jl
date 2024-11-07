@@ -240,6 +240,11 @@ export ValInserter, InsertIntoFirst, InsertIntoLast, PinParameters, LinkParamete
 export ParameterProfiles, AbstractProfiles
 export PlotRelativeParameterTrajectories
 
+
+include("NumericalTools/Multistart.jl")
+export MultistartFit
+
+
 include("Divergences.jl")
 export KullbackLeibler
 
