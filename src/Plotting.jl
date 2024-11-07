@@ -57,7 +57,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                 if ydim(DM) == 1
                     SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM)))
                     @series begin
-                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
+                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
@@ -67,7 +67,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                     for i in 1:ydim(DM)
                         @series begin
-                            seriescolor := palette(:default)[i*ydim(DM)+j]
+                            seriescolor := palette(:default)[((i*ydim(DM)+j)%15 +1)]
                             linestyle   --> :dash
                             linealpha   --> 0.85
                             label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
@@ -193,7 +193,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
                 for i in 1:ydim(DM)
                     @series begin
                         subplot := i
-                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[4+j])
+                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         yguide      :=  ynames(DM)[i]

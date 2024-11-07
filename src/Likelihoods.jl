@@ -48,6 +48,7 @@ function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPrio
         LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
     end
 end
+GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; kwargs...))
 
 InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
@@ -225,7 +226,7 @@ function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, Lo
     L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; Kwargs...)
     ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
-FullLiftedNegLogLikelihood(args...; kwargs...) = (L=FullLiftedLogLikelihood(args...; kwargs...); Xθ::AbstractVector{<:Number}->-L(Xθ))
+FullLiftedNegLogLikelihood(args...; kwargs...) = Negate(FullLiftedLogLikelihood(args...; kwargs...))
 
 
 """

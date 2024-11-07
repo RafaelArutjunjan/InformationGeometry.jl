@@ -12,9 +12,12 @@ using DerivableFunctionsBase
 using LsqFit, Optim, LineSearches, Optimization
 using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
-using LibGEOS, Sobol, ProgressMeter, Suppressor
+using LibGEOS, ProgressMeter, Suppressor
 using RecipesBase, PlotUtils
 using TreeViews, PrettyTables
+
+import Sobol as SOBOL
+
 
 import DataInterpolations: AbstractInterpolation
 import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm, AbstractADType
