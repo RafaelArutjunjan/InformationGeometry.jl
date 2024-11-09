@@ -7,8 +7,8 @@ function GenerateSobolPoints(C::HyperCube, maxval::Real=1e10; N::Int=100)
 end
 
 MultistartFit(DM::AbstractDataModel, args...; CostFunction::Function=Negloglikelihood(DM), kwargs...) = MultistartFit(Data(DM), Predictor(DM), LogPrior(DM), args...; CostFunction, kwargs...)
-MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; kwargs...) = MultistartFit(DS, M, LogPriorFn; MultistartDomain=Domain(M), kwargs...)
-function MultistartFit(DS::AbstractDataSet, M::Function, LogPriorFn::Union{Nothing,Function}=nothing; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, kwargs...)
+MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, M, LogPriorFn; MultistartDomain, kwargs...)
+function MultistartFit(DS::AbstractDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, kwargs...)
     if isnothing(MultistartDomain)
         @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
         MultistartFit(DS, M, LogPriorFn, FullDomain(pdim(DS, M), maxval); kwargs...)
@@ -33,17 +33,18 @@ For `Full=false`, only the final MLE is returned, otherwise a `MultistarResults`
 function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoints::AbstractVector{<:AbstractVector{<:Number}}, LogPriorFn::Union{Nothing,Function}; CostFunction::Union{Nothing,Function}=nothing,
                                         parallel::Bool=true, Robust::Bool=false, p::Real=2, TotalLeastSquares::Bool=false, timeout::Real=120, Full::Bool=true, kwargs...)
     @assert !Robust || (p > 0 && !TotalLeastSquares)
-    RobustFunc(θ::AbstractVector{<:Number}) = try    RobustFit(DS, model, θ, LogPriorFn; p, timeout, kwargs...)    catch;  θ   end
-    Func(θ::AbstractVector{<:Number}) = try    InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, kwargs...)    catch;  θ   end
+    RobustFunc(θ::AbstractVector{<:Number}) = try    RobustFit(DS, model, θ, LogPriorFn; p, timeout, kwargs...)    catch;  fill(-Inf, length(θ))   end
+    Func(θ::AbstractVector{<:Number}) = try    InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, kwargs...)    catch;  fill(-Inf, length(θ))   end
     
     FinalPoints = (parallel ?  progress_pmap : progress_map)(Robust ? RobustFunc : Func, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... ", showspeed=true))
 
-    TryCatchWrapper(F::Function) = x -> try F(x) catch;   -Inf   end
-    FinalObjectives = (parallel ?  pmap : map)(TryCatchWrapper(isnothing(CostFunction) ? (θ->loglikelihood(DS, model, θ, LogPriorFn)) : Negate(CostFunction)), FinalPoints)
+    TryCatchWrapper(F::Function, Default=-Inf) = x -> try F(x) catch;   Default   end
+    LogLikeFunc = TryCatchWrapper(isnothing(CostFunction) ? (θ->loglikelihood(DS, model, θ, LogPriorFn)) : Negate(CostFunction))
+    FinalObjectives = (parallel ?  pmap : map)(LogLikeFunc, FinalPoints)
     
     # Some printing?
     if Full
-        InitialObjectives = (parallel ?  pmap : map)(TryCatchWrapper(isnothing(CostFunction) ? (θ->loglikelihood(DS, model, θ, LogPriorFn)) : Negate(CostFunction)), FinalPoints)
+        InitialObjectives = (parallel ?  pmap : map)(LogLikeFunc, InitialPoints)
         Perm = sortperm(FinalObjectives; rev=true)
         MaxVal, MaxInd = findmax(FinalObjectives)
         MultistartResults(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], MaxVal, MaxInd)
@@ -62,5 +63,19 @@ struct MultistartResults
     InitialObjectives::AbstractVector{<:Number}
     MaxVal::Number
     MaxInd::Int
+    function MultistartResults(
+            FinalPoints::AbstractVector{<:AbstractVector{<:Number}},
+            InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
+            FinalObjectives::AbstractVector{<:Number},
+            InitialObjectives::AbstractVector{<:Number},
+            MaxVal::Number,
+            MaxInd::Int
+        )
+        @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives)
+        @assert 1 ≤ MaxInd ≤ length(FinalPoints)
+        @assert issorted(FinalObjectives; rev=true)
+        @assert any(isfinite, FinalObjectives)
+        new(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, MaxVal, MaxInd)
+    end
 end
 
