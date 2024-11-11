@@ -53,6 +53,8 @@ end
 Base.summary(P::ParameterProfiles) = string(TYPE_COLOR, "ParameterProfiles", NO_COLOR, " with pdim="* string(pdim(P)), !HasTrajectories(P) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
 Base.summary(PV::ParameterProfilesView) = string(TYPE_COLOR, "ParameterProfile", NO_COLOR, " for index "* string(PV.i) *"/"* string(pdim(PV)), !HasTrajectories(PV) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
 
+Base.summary(R::MultistartResults) = string(TYPE_COLOR, "MultistartResults", NO_COLOR, " with "* string(findlast(isfinite, R.FinalObjectives)) *"/"* string(length(R)) *" successful starts")
+
 
 # http://docs.junolab.org/stable/man/info_developer/#
 # hastreeview, numberofnodes, treelabel, treenode
@@ -193,3 +195,18 @@ end
 
 # Single line display
 Base.show(io::IO, P::Union{ParameterProfiles,ParameterProfilesView}) = print(io, Base.summary(P))
+
+
+# Multi-line display when used on its own in REPL
+function Base.show(io::IO, ::MIME"text/plain", R::MultistartResults)
+    F = R.FinalObjectives;  StepTol=0.01
+    LastFinite = findlast(isfinite, R.FinalObjectives)
+    FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i])>StepTol, 1:length(F)-1)
+    isnothing(FirstStepInd) && (FirstStepInd = LastFinite)
+    println(io, Base.summary(R))
+    println(io, "Median number of iterations: "*string(Int(median(R.Iterations[1:LastFinite]))))
+    print(io, string(FirstStepInd) *"/"* string(LastFinite) * " ("*string(round(100*FirstStepInd/LastFinite; sigdigits=2))*" %) fits converged to same optimal value")
+end
+
+# Single line display
+Base.show(io::IO, R::MultistartResults) = print(io, Base.summary(R))
