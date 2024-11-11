@@ -173,7 +173,7 @@ similar to the definition in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-lo
 The constant `C` controls the slope of the bi-logarithm at zero.
 The inverse transformation is given by [BiExp](@ref).
 """
-BiLog(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * log(one(T) + abs(C*x))
+BiLog(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * log(one(T) + abs(C*x))
 """
     BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number
 Computes bi-symmetric exponential, which is the inverse transformation to [BiLog](@ref)
@@ -183,18 +183,18 @@ BiExp(x) = \\sgn(x) \\cdot |1/C| \\cdot (\\exp(|x|) - 1)
 similar to the definition in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
 The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exponential has slope `1/C`.
 """
-BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * abs(inv(C)) * (exp(abs(x)) - one(T))
+BiExp(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * abs(inv(C)) * (exp(abs(x)) - one(T))
 
 """
     SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number
 Computes differentiable approximation of absolute value function `abs` as `sqrt(abs2(x) + eps)`.
 """
-SoftAbs(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. sqrt(abs2(x) + eps)
+SoftAbs(x::Union{T, AbstractArray{T}}; eps::Real=1e-20) where T<:Number = @. sqrt(abs2(x) + eps)
 """
     SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number
 Computes `log(x + eps)` to avoid `NaN` errors in automatic differentiation.
 """
-SoftLog(x::Union{T, AbstractVector{T}}; eps::Real=1e-20) where T<:Number = @. log(x + eps)
+SoftLog(x::Union{T, AbstractArray{T}}; eps::Real=1e-20) where T<:Number = @. log(x + eps)
 
 
 
