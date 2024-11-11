@@ -155,33 +155,33 @@ function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString, 
 end
 
 
-_WithoutFirst(X::AbstractVector{<:Bool}) = (Z=copy(X);  Z[findfirst(X)]=false;  Z)
-function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked))
-    @assert MainInd ∈ 1:length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainInd=$MainInd."
-    LinkedInds = [i for i in 1:length(Linked) if Linked[i]]
-    LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainInd], θ)
+_WithoutInd(X::AbstractVector{<:Bool}, ind::Int=findfirst(X)) = (Z=copy(X);  Z[ind]=false;  Z)
+function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked))
+    @assert 1 ≤ MainIndBefore ≤ length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainIndBefore=$MainIndBefore."
+    LinkedInds = [i for i in eachindex(Linked) if Linked[i] && i != MainIndBefore]
+    LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainIndBefore], θ)
 end
 """
-    LinkParameters(DM::AbstractDataModel, Linked::Union{AbstractVector{<:Bool},AbstractVector{<:Int}}, MainInd::Int=findfirst(Linked); kwargs...)
-Embeds the model such that all components `i` for which `Linked[i] == true` are linked to the parameter corresponding to component `MainInd`.
+    LinkParameters(DM::AbstractDataModel, Linked::Union{AbstractVector{<:Bool},AbstractVector{<:Int}}, MainIndBefore::Int=findfirst(Linked); kwargs...)
+Embeds the model such that all components `i` for which `Linked[i] == true` are linked to the parameter corresponding to component `MainIndBefore`.
 `Linked` can also be a `String`: this creates a `BitVector` whose components are `true` whenever the corresponding parameter name contains `Linked`.
 """
-function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked), args...; kwargs...)
-    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainInd, args...; kwargs...), Drop(MLE(DM), _WithoutFirst(Linked)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainInd)))
+function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; kwargs...)
+    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; kwargs...), Drop(MLE(DM), _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore)))
 end
-function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
+function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
     @assert length(Linked) == pdim(M)
-    WoFirst = _WithoutFirst(Linked)
+    WoFirst = _WithoutInd(Linked, MainIndBefore)
     Pnames = copy(pnames(M))
-    Pnames[MainInd] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
+    Pnames[MainIndBefore] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
     Pnames = Pnames[.!WoFirst]
-    EmbedModelVia(M, GetLinkEmbedding(Linked, MainInd); Domain=DropCubeDims(Domain(M), WoFirst), pnames=Pnames, kwargs...)
+    EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore); Domain=DropCubeDims(Domain(M), WoFirst), pnames=Pnames, kwargs...)
 end
-function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainInd::Int=findfirst(Linked); kwargs...)
-    EmbedModelVia(F, GetLinkEmbedding(Linked, MainInd); kwargs...)
+function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
+    EmbedModelVia(F, GetLinkEmbedding(Linked, MainIndBefore); kwargs...)
 end
-LinkParameters(DM, Linked::AbstractVector{<:Int}, args...; kwargs...) = LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...)
-LinkParameters(DM, S::AbstractString, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
+LinkParameters(DM::Union{ModelOrFunction, AbstractDataModel}, Linked::AbstractVector{<:Int}, args...; kwargs...) = (@assert all(1 .≤ Linked .≤ pdim(DM)) && allunique(Linked);   LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...))
+LinkParameters(DM::Union{ModelOrFunction, AbstractDataModel}, S::AbstractString, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
 
 function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwargs...)
     Sparam = occursin.(S, pnames(DM));    Tparam = occursin.(T, pnames(DM))
@@ -224,13 +224,15 @@ end
 GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
 GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = L(GetMinimizer(Res))
 HasConverged(Res::LsqFit.LsqFitResult) = Res.converged
+GetIterations(Res::LsqFit.LsqFitResult) = try Res.trace[end].iteration catch; -Inf end # needs kwarg store_trace=true to be available
 GetMinimizer(Res::Optim.OptimizationResults) = Optim.minimizer(Res)
 GetMinimum(Res::Optim.OptimizationResults, L::Function) = Res.minimum
 HasConverged(Res::Optim.OptimizationResults) = Optim.converged(Res)
+GetIterations(Res::Optim.OptimizationResults) = Res.iterations
 GetMinimizer(Res::SciMLBase.OptimizationSolution) = Res.u
 GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
 HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.Success
-
+GetIterations(Res::SciMLBase.OptimizationSolution) = Res.stats.iterations
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
