@@ -222,17 +222,32 @@ end
 # USE NelderMead for ODEmodels!!!!!
 
 GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
-GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = L(GetMinimizer(Res))
+GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = GetMinimum(GetMinimizer(Res), L)
 HasConverged(Res::LsqFit.LsqFitResult) = Res.converged
 GetIterations(Res::LsqFit.LsqFitResult) = try Res.trace[end].iteration catch; -Inf end # needs kwarg store_trace=true to be available
+
 GetMinimizer(Res::Optim.OptimizationResults) = Optim.minimizer(Res)
 GetMinimum(Res::Optim.OptimizationResults, L::Function) = Res.minimum
 HasConverged(Res::Optim.OptimizationResults) = Optim.converged(Res)
 GetIterations(Res::Optim.OptimizationResults) = Res.iterations
+
 GetMinimizer(Res::SciMLBase.OptimizationSolution) = Res.u
 GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
 HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.Success
 GetIterations(Res::SciMLBase.OptimizationSolution) = Res.stats.iterations
+
+# For Multistart fit
+GetMinimizer(X::AbstractVector{<:Number}) = X
+GetMinimum(X::AbstractVector{<:Number}, L::Function) = L(X)
+HasConverged(X::AbstractVector{<:Number}) = ((@warn "HasConverged: Cannot infer convergence from vector, returning true"); true)
+GetIterations(X::AbstractVector{<:Number}) = 0
+
+# For Multistart fit
+GetMinimizer(R::AbstractMultiStartResults) = MLE(R)
+GetMinimum(R::AbstractMultiStartResults, L::Function) = L(MLE(R))
+HasConverged(R::AbstractMultiStartResults; StepTol::Real=0.01) = 1 < GetFirstStepInd(R; StepTol)
+GetIterations(R::AbstractMultiStartResults) = R.Iterations[1]
+
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
@@ -246,7 +261,7 @@ end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true,
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9, meth=nothing, OptimMeth=meth, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
@@ -263,11 +278,17 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
     CostThreshold, MaxThreshold = LogLikeMLE(DM) .- 0.5 .* (IC*1.05, IC*3.0)
 
-    FitFunc = if !isnothing(OptimMeth) || general || !isnothing(LogPrior(DM)) || Data(DM) isa AbstractUnknownUncertaintyDataSet
-        Meth = isnothing(OptimMeth) ? Optim.NewtonTrustRegion() : OptimMeth
-        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol=tol, meth=Meth, Domain=Drop(Domain, Comp), verbose, Kwargs..., Full=true))
-    else 
-        ((args...; Kwargs...)->curve_fit(args...; tol=tol, Domain=Drop(Domain, Comp), verbose, Kwargs...))
+    OptimDomain = Drop(Domain, Comp)
+
+    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPrior(DM)) && Data(DM) isa AbstractFixedUncertaintyDataSet
+        ((args...; Kwargs...)->curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
+    elseif Multistart > 0
+        Meth = (!isnothing(LogPrior(DM)) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
+        ((DS::AbstractDataSet, M::ModelOrFunction, P, LogPriorFn; Kwargs...)->MultistartFit(DS, M, LogPriorFn; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, maxval, verbose, tol, Kwargs..., Full=true))
+    else
+        Meth = (!isnothing(LogPrior(DM)) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
     end
     
     # Does not check proximity to boundary! Also does not check nonlinear constraints!
