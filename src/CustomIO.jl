@@ -199,12 +199,10 @@ Base.show(io::IO, P::Union{ParameterProfiles,ParameterProfilesView}) = print(io,
 
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", R::MultistartResults)
-    F = R.FinalObjectives;  StepTol=0.01
     LastFinite = findlast(isfinite, R.FinalObjectives)
-    FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i])>StepTol, 1:length(F)-1)
-    isnothing(FirstStepInd) && (FirstStepInd = LastFinite)
+    FirstStepInd = GetFirstStepInd(R, LastFinite)
     println(io, Base.summary(R))
-    println(io, "Median number of iterations: "*string(Int(median(R.Iterations[1:LastFinite]))))
+    println(io, "Median number of iterations: "*string(Int(round(median(@view R.Iterations[1:LastFinite])))))
     print(io, string(FirstStepInd) *"/"* string(LastFinite) * " ("*string(round(100*FirstStepInd/LastFinite; sigdigits=2))*" %) fits converged to same optimal value")
 end
 

@@ -105,6 +105,7 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
 abstract type Cuboid end
+abstract type AbstractMultiStartResults end
 export AbstractDataSet, AbstractDataModel, Cuboid
 
 abstract type AbstractUnknownUncertaintyDataSet <: AbstractDataSet end
