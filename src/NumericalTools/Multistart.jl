@@ -32,15 +32,16 @@ For `Full=false`, only the final MLE is returned, otherwise a `MultistartResults
 """
 function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Base.Generator, SOBOL.AbstractSobolSeq}, LogPriorFn::Union{Nothing,Function}; showprogress::Bool=true,
                                         CostFunction::Union{Nothing,Function}=nothing, N::Int=100, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(pdim(DS,model)),
-                                        parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, Full::Bool=true, seed::Union{Int,Nothing}=nothing, kwargs...)
+                                        parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
+                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert !Robust || (p > 0 && !TotalLeastSquares)
     @assert resampling ? (InitialPointGen isa Union{Base.Generator,SOBOL.AbstractSobolSeq}) : (InitialPointGen isa AbstractVector)
     
     # +Inf if error during optimization, should rarely happen
     # RobustFunc(θ::AbstractVector{<:Number}, InitialVal::Real) = isfinite(InitialVal) ? (try    RobustFit(DS, model, θ, LogPriorFn; p, timeout, Full, kwargs...)    catch;  fill(-Inf, length(θ))   end) : fill(-Inf, length(θ))
     # Func(θ::AbstractVector{<:Number}, InitialVal::Real) = isfinite(InitialVal) ? (try    InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, Full, kwargs...)    catch;  fill(-Inf, length(θ))   end) : fill(-Inf, length(θ))
-    RobustFunc(θ::AbstractVector{<:Number}) = RobustFit(DS, model, θ, LogPriorFn; p, timeout, verbose, Full, kwargs...)
-    Func(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, verbose, Full, kwargs...)
+    RobustFunc(θ::AbstractVector{<:Number}) = RobustFit(DS, model, θ, LogPriorFn; p, timeout, verbose, meth, Full, kwargs...)
+    Func(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, verbose, meth, Full, kwargs...)
     # Allow for disabling try catch;
     # TotalFunc(θ::AbstractVector{<:Number}) = try    InformationGeometry.TotalLeastSquaresV()    catch;  fill(-Inf, length(θ))   end
     
@@ -78,10 +79,10 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     if Full
         Iterations = GetIterations.(Res)
         Perm = sortperm(FinalObjectives; rev=true)
-        MultistartResults(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, seed)
+        MultistartResults(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, meth, seed)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
-        FinalPoints[MaxInd]
+        GetMinimizer(FinalPoints[MaxInd])
     end
 end
 
@@ -93,6 +94,7 @@ struct MultistartResults <: AbstractMultiStartResults
     InitialObjectives::AbstractVector{<:Number}
     Iterations::AbstractVector{<:Int}
     pnames::AbstractVector{<:AbstractString}
+    OptimMeth
     seed::Union{Int,Nothing}
     function MultistartResults(
             FinalPoints::AbstractVector{<:AbstractVector{<:Number}},
@@ -101,13 +103,15 @@ struct MultistartResults <: AbstractMultiStartResults
             InitialObjectives::AbstractVector{<:Number},
             Iterations::AbstractVector{<:Int},
             pnames::AbstractVector{<:AbstractString},
+            meth,
             seed::Union{Int, Nothing}=nothing
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
         @assert issorted(FinalObjectives; rev=true)
+        OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
         !any(isfinite, FinalObjectives) && @warn "No finite Multistart results! It is likely that inputs to optimizer were unsuitable and thus try-catch was triggered on every run."
-        new(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, seed)
+        new(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, OptimMeth, seed)
     end
 end
 
