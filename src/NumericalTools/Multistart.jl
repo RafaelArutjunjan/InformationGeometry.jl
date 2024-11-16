@@ -85,7 +85,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     # Some printing?
     if Full
         Iterations = GetIterations.(Res)
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, meth, seed, MultistartDomain) #, SaveFullOptimizationResults ? Res : nothing)
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
@@ -107,7 +107,7 @@ struct MultistartResults <: AbstractMultiStartResults
     OptimMeth
     seed::Union{Int,Nothing}
     MultistartDomain::Union{Nothing,HyperCube}
-    # FullOptimResults
+    FullOptimResults
     function MultistartResults(
             FinalPoints::AbstractVector{<:AbstractVector{<:Number}},
             InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
@@ -118,7 +118,7 @@ struct MultistartResults <: AbstractMultiStartResults
             meth,
             seed::Union{Int, Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
-            # FullOptimResults=nothing
+            FullOptimResults=nothing
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
@@ -126,7 +126,7 @@ struct MultistartResults <: AbstractMultiStartResults
         OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
 
         Perm = sortperm(FinalObjectives; rev=true)
-        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain) #, FullOptimResults)
+        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
     end
 end
 
@@ -138,7 +138,7 @@ function Base.vcat(R1::MultistartResults, R2::MultistartResults)
     MultistartResults(vcat(R1.FinalPoints, R2.FinalPoints), vcat(R1.InitialPoints, R2.InitialPoints),
         vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations),
         R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
-        # (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing)
+        (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing)
     )
 end
 

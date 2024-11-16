@@ -315,7 +315,6 @@ function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM)
     F = (Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)
     # Get constraint function and Hypercube from ModelMap if available?
     Lcons, Ucons, Cons = GetConstraintFunc(DM, start; inplace=true) # isinplacemodel(DM)
-    isnothing(Cons) ? minimize(F, start, Domain; kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
     !Lifted && isnothing(meth) && isnothing(LogPrior(DM)) && isnothing(Cons) && (return curve_fit(DM, start, LogPrior(DM); Domain, kwargs...))
