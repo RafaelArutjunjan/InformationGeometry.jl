@@ -480,7 +480,7 @@ function _rand(C::HyperCube, ::Val)
     map(f, C.L, C.U)
 end
 
-Base.clamp(x::AbstractVector, C::HyperCube) = Base.clamp.(x, C.L, C.U)
+Base.clamp(x::T, C::HyperCube) where T<:AbstractVector{<:Number} = convert(T,Base.clamp.(x, C.L, C.U))
 function Base.clamp!(x::AbstractVector, C::HyperCube)
     @assert length(C) == length(x)
     for i in eachindex(x)

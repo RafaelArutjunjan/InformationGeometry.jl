@@ -243,7 +243,7 @@ export PlotRelativeParameterTrajectories
 
 
 include("NumericalTools/Multistart.jl")
-export MultistartFit, MultistartResults, WaterfallPlot, ParameterPlot
+export MultistartFit, LocalMultistartFit, MultistartResults, WaterfallPlot, ParameterPlot
 
 
 include("Divergences.jl")

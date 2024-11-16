@@ -10,14 +10,18 @@ MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Functi
 function MultistartFit(DS::AbstractDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, verbose::Bool=true, kwargs...)
     if isnothing(MultistartDomain)
         verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
-        MultistartFit(DS, M, LogPriorFn, FullDomain(pdim(DS, M), maxval); maxval, verbose, kwargs...)
+        Dom = FullDomain(pdim(DS, M), maxval)
+        MultistartFit(DS, M, LogPriorFn, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
     else
-        MultistartFit(DS, M, LogPriorFn, MultistartDomain; maxval, verbose, kwargs...)
+        MultistartFit(DS, M, LogPriorFn, MultistartDomain; MultistartDomain, maxval, verbose, kwargs...)
     end
 end
-function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDomain::HyperCube; N::Int=100, seed::Int=rand(1000:15000), resampling::Bool=true, maxval::Real=1e5, kwargs...)
+function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(1000:15000), resampling::Bool=true, maxval::Real=1e5, kwargs...)
     @assert N ≥ 1
-    MultistartFit(DS, model, (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(MultistartDomain, maxval; N, seed), LogPriorFn; N, resampling, seed, kwargs...)
+    MultistartFit(DS, model, (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(MultistartDomain, maxval; N, seed), LogPriorFn; MultistartDomain, N, resampling, seed, kwargs...)
+end
+function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; kwargs...)
+    MultistartFit(DS, model, InitialPointGen, LogPriorFn; kwargs...)
 end
 
 """
@@ -30,12 +34,12 @@ For `Full=false`, only the final MLE is returned, otherwise a `MultistartResults
 !!! note
     Any further keyword arguments are passed through to the optimization procedure [InformationGeometry.minimize](@ref) such as tolerances, optimization methods, domain constraints, etc.
 """
-function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Base.Generator, SOBOL.AbstractSobolSeq}, LogPriorFn::Union{Nothing,Function}; showprogress::Bool=true,
+function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}, LogPriorFn::Union{Nothing,Function}; showprogress::Bool=true,
                                         CostFunction::Union{Nothing,Function}=nothing, N::Int=100, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(pdim(DS,model)),
-                                        parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
-                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, seed::Union{Int,Nothing}=nothing, kwargs...)
+                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
+                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=false, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert !Robust || (p > 0 && !TotalLeastSquares)
-    @assert resampling ? (InitialPointGen isa Union{Base.Generator,SOBOL.AbstractSobolSeq}) : (InitialPointGen isa AbstractVector)
+    @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     
     # +Inf if error during optimization, should rarely happen
     # RobustFunc(θ::AbstractVector{<:Number}, InitialVal::Real) = isfinite(InitialVal) ? (try    RobustFit(DS, model, θ, LogPriorFn; p, timeout, Full, kwargs...)    catch;  fill(-Inf, length(θ))   end) : fill(-Inf, length(θ))
@@ -48,8 +52,11 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     TryCatchWrapper(F::Function, Default=-Inf) = x -> try F(x) catch;   Default   end
     LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(isnothing(CostFunction) ? (θ->loglikelihood(DS, model, θ, LogPriorFn)) : Negate(CostFunction))
 
-    TakeFrom(X::Base.Generator) = iterate(X)[1]
-    TakeFrom(S::SOBOL.AbstractSobolSeq) = SOBOL.next!(S)
+    TakeFromUnclamped(X::Distributions.Distribution) = rand(X)
+    TakeFromUnclamped(X::Base.Generator) = iterate(X)[1]
+    TakeFromUnclamped(S::SOBOL.AbstractSobolSeq) = SOBOL.next!(S)
+    TakeFromClamped(X) = clamp(TakeFromUnclamped(X), MultistartDomain)
+    TakeFrom = (!isnothing(MultistartDomain) && !(InitialPointGen isa Union{AbstractVector{<:AbstractVector{<:Number}},SOBOL.AbstractSobolSeq})) ? TakeFromClamped : TakeFromUnclamped
     # count total sampling attempts when resampling
     InitialPoints, InitialObjectives = if resampling
         InitPoints = typeof(TakeFrom(InitialPointGen))[]
@@ -78,13 +85,16 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     # Some printing?
     if Full
         Iterations = GetIterations.(Res)
-        Perm = sortperm(FinalObjectives; rev=true)
-        MultistartResults(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, meth, seed)
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, meth, seed, MultistartDomain) #, SaveFullOptimizationResults ? Res : nothing)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
     end
 end
+
+LocalMultistartFit(DM::AbstractDataModel, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = LocalMultistartFit(DM, MLE(DM), scale; kwargs...)
+LocalMultistartFit(DM::AbstractDataModel, mle::AbstractVector{<:Number}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = LocalMultistartFit(DM, MLEuncert(DM, mle), scale; kwargs...)
+LocalMultistartFit(DM::AbstractDataModel, mleuncert::AbstractVector{<:Measurements.Measurement}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = MultistartFit(DM; MultistartDomain=HyperCube(mleuncert, scale), kwargs...)
 
 
 struct MultistartResults <: AbstractMultiStartResults
@@ -96,6 +106,8 @@ struct MultistartResults <: AbstractMultiStartResults
     pnames::AbstractVector{<:AbstractString}
     OptimMeth
     seed::Union{Int,Nothing}
+    MultistartDomain::Union{Nothing,HyperCube}
+    # FullOptimResults
     function MultistartResults(
             FinalPoints::AbstractVector{<:AbstractVector{<:Number}},
             InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
@@ -104,15 +116,30 @@ struct MultistartResults <: AbstractMultiStartResults
             Iterations::AbstractVector{<:Int},
             pnames::AbstractVector{<:AbstractString},
             meth,
-            seed::Union{Int, Nothing}=nothing
+            seed::Union{Int, Nothing}=nothing,
+            MultistartDomain::Union{Nothing,HyperCube}=nothing,
+            # FullOptimResults=nothing
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
-        @assert issorted(FinalObjectives; rev=true)
+        !any(isfinite, FinalObjectives) && @warn "No finite Multistart results! It is likely that inputs to optimizer were unsuitable and thus try-catch was triggered on every run or Multistart Domain chosen too large."
         OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
-        !any(isfinite, FinalObjectives) && @warn "No finite Multistart results! It is likely that inputs to optimizer were unsuitable and thus try-catch was triggered on every run."
-        new(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, OptimMeth, seed)
+
+        Perm = sortperm(FinalObjectives; rev=true)
+        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain) #, FullOptimResults)
     end
+end
+
+function Base.vcat(R1::MultistartResults, R2::MultistartResults)
+    @assert length(R1.pnames) == length(R2.pnames)
+    R1.pnames != R2.pnames && @warn "Using pnames from first MultistartResults object."
+    R1.OptimMeth != R2.OptimMeth && @warn "Combining results from different optimizers."
+
+    MultistartResults(vcat(R1.FinalPoints, R2.FinalPoints), vcat(R1.InitialPoints, R2.InitialPoints),
+        vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations),
+        R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
+        # (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing)
+    )
 end
 
 
