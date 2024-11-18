@@ -79,7 +79,7 @@ struct ModelMap{Inplace, Custom}
     # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
     # function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
     #                     pnames::AbstractVector{<:AbstractString}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false), name::Symbol=Symbol())
-    #     isnothing(Domain) && (Domain = FullDomain(xyp[3], 1e5))
+    #     isnothing(Domain) && (Domain = FullDomain(xyp[3], Inf))
     #     InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
     #     new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding, name)
     # end
@@ -90,7 +90,7 @@ struct ModelMap{Inplace, Custom}
                         pnames::AbstractVector{<:AbstractString}, inplace::Val, CustomEmbedding::Val, name::Union{<:AbstractString,Symbol}=Symbol(), Meta=nothing)
         name isa AbstractString && (name = Symbol(name))
         @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
-        isnothing(Domain) ? (Domain = FullDomain(xyp[3], 1e5)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
+        isnothing(Domain) ? (Domain = FullDomain(xyp[3], Inf)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
         new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta)
     end
@@ -252,6 +252,7 @@ end
 """
 Only works for `DataSet` and `DataSetExact` but will output wrong order of components for `CompositeDataSet`!
 """
+# ConcatenateModels(Mods::Vararg{ModelMap}) = ConcatenateModels([X for X in Mods])
 function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
     @assert ConsistentElDims((x->x.xyp[1]).(Mods)) > 0 && ConsistentElDims((x->x.xyp[3]).(Mods)) > 0
     if Mods[1].xyp[1] == 1
@@ -328,7 +329,7 @@ function ComponentwiseModelTransform(M::ModelMap, idxs::BoolVector, Transform::F
         HyperCube(_Apply(Domain(M).U, InverseTransform, idxs), _Apply(Domain(M).L, InverseTransform, idxs))
     else
         @warn "Transformation does not appear to be monotone. Unable to infer new Domain."
-        FullDomain(length(idxs))
+        FullDomain(length(idxs), Inf)
     end
     ModelMap(_Transform(M.Map, idxs, Transform, InverseTransform), TransformedDomain, NewCube,
                         M.xyp, pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
@@ -336,7 +337,6 @@ end
 # function ComponentwiseModelTransform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
 #     ComponentwiseModelTransform(M, trues(M.xyp[3]), Transform, InverseTransform)
 # end
-@deprecate Transform(M::ModelOrFunction, args...; kwargs...) ComponentwiseModelTransform(M, args...; kwargs...)
 
 
 function _Transform(F::Function, idxs::BoolVector, Transform::Function, InverseTransform::Function)
@@ -423,7 +423,7 @@ end
 # Unlike "ComponentwiseModelTransform" EmbedModelVia should be mainly performant for use e.g. in ProfileLikelihood
 # Also only vector-valued transformations
 """
-    EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F))) -> Union{Function,ModelMap}
+    EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F),Inf)) -> Union{Function,ModelMap}
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
 A `Domain` for the new model can optionally be specified for `ModelMap`s.
 """
@@ -432,7 +432,7 @@ EmbedModelVia_inplace(model!::Function, F::Function; Kwargs...) = EmbeddedModel!
 
 function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube}=nothing, pnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing, name::Union{<:AbstractString,Symbol}=name(M), Meta=M.Meta, kwargs...)
     if isnothing(Domain)
-        Domain = FullDomain(GetArgLength(F))
+        Domain = FullDomain(GetArgLength(F), Inf)
         @warn "Cannot infer new Domain HyperCube for general embeddings, using $Domain."
     end
     Pnames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
@@ -453,7 +453,7 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
         mul!(y, Ycache, Jac(θ))
     end
 end
-function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F)), pnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing, name::Union{<:AbstractString,Symbol}=name(dM), Meta=dM.Meta, kwargs...)
+function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F),Inf), pnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing, name::Union{<:AbstractString,Symbol}=name(dM), Meta=dM.Meta, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     Pnames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
     ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
@@ -462,16 +462,15 @@ function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(
 end
 
 """
-    ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start))) -> DataModel
+    ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start),Inf)) -> DataModel
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))` and returns the associated `DataModel`.
 An initial parameter configuration `start` as well as a `Domain` can optionally be passed to the `DataModel` constructor.
 
 For component-wise transformations see [`ComponentwiseModelTransform`](@ref).
 """
-function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start)), kwargs...)
+function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start),Inf), kwargs...)
     DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, EmbedLogPrior(DM, F); kwargs...)
 end
-@deprecate Embedding ModelEmbedding
 
 ## Transform dependent and independent variables of model
 
