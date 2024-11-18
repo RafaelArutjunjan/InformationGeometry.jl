@@ -6,7 +6,7 @@ GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...;
 
 
 MultistartFit(DM::AbstractDataModel, args...; CostFunction::Function=Negloglikelihood(DM), kwargs...) = MultistartFit(Data(DM), Predictor(DM), LogPrior(DM), args...; CostFunction, pnames=pnames(DM), kwargs...)
-MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, M, LogPriorFn; MultistartDomain, kwargs...)
+MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, M, LogPriorFn, MultistartDomain; MultistartDomain, kwargs...)
 function MultistartFit(DS::AbstractDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, verbose::Bool=true, kwargs...)
     if isnothing(MultistartDomain)
         verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
@@ -82,7 +82,6 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
 
     FinalObjectives = (parallel ? pmap : map)(LogLikeFunc, FinalPoints)
     
-    # Some printing?
     if Full
         Iterations = GetIterations.(Res)
         MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
@@ -118,12 +117,20 @@ struct MultistartResults <: AbstractMultiStartResults
             meth,
             seed::Union{Int, Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
-            FullOptimResults=nothing
+            FullOptimResults=nothing; 
+            verbose::Bool=true
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
         !any(isfinite, FinalObjectives) && @warn "No finite Multistart results! It is likely that inputs to optimizer were unsuitable and thus try-catch was triggered on every run or Multistart Domain chosen too large."
         OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
+        
+        # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
+        nans = 0
+        for i in eachindex(FinalObjectives)
+            (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
+        end
+        verbose && nans > 0 && @info "$nans runs crashed during multistart optimization with $OptimMeth."
 
         Perm = sortperm(FinalObjectives; rev=true)
         new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
@@ -193,13 +200,13 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     # Cut off results with difference to lowest optimum greater than MaxValue
     ymaxind = (Q=findlast(x->isfinite(x) && abs(x-Fin[1]) < (DoBiLog ? BiLog(MaxValue) : MaxValue), Fin);   isnothing(Q) ? length(Fin) : Q)
     xlabel --> "Run (sorted by cost function result)"
-    ylabel --> (DoBiLog ? "BiLog(Cost function)" : "Cost function")
+    ylabel --> (DoBiLog ? "BiLog(Final Cost Value)" : "Final Cost Value")
     title --> "Waterfall plot $(ymaxind)/$(length(Fin))"
     leg --> nothing
     st --> :scatter
     
     ymin, ymax = Fin[1], Fin[ymaxind]
-    ylims --> (ydiff=ymax-ymin; (ymin-0.05*ydiff, max(ymax+0.05*ydiff, ymin+0.01)))
+    ylims --> (ydiff=ymax-ymin; (min(ymin-0.05*ydiff,ymin-0.01), max(ymax+0.05*ydiff, ymin+0.01)))
     @series begin
         label --> "Finals"
         markersize --> 20/sqrt(ymaxind)

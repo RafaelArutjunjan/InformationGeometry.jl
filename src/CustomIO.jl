@@ -203,7 +203,7 @@ function Base.show(io::IO, ::MIME"text/plain", R::MultistartResults)
     FirstStepInd = GetFirstStepInd(R, LastFinite)
     println(io, Base.summary(R))
     println(io, "Median number of iterations: "*string(Int(round(median(@view R.Iterations[1:LastFinite])))))
-    print(io, string(FirstStepInd) *"/"* string(LastFinite) * " ("*string(round(100*FirstStepInd/LastFinite; sigdigits=2))*" %) fits converged to same optimal value")
+    print(io, string(FirstStepInd) *"/"* string(LastFinite) * " ("*string(round(100*FirstStepInd/LastFinite; sigdigits=2))*" %) convergent fits had same final objective value")
 end
 
 # Single line display
