@@ -358,7 +358,7 @@ function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs::B
     ComponentwiseModelTransform(DM, F, x->invert(F,x), idxs; kwargs...)
 end
 function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
-    @assert length(idxs) == pdim(DM)
+    @assert length(idxs) == pdim(DM) || Data(DM) isa AbstractUnknownUncertaintyDataSet # Error parameters not forwarded to model map
     sum(idxs) == 0 && return DM
     DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); kwargs...)
 end
