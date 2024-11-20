@@ -53,7 +53,7 @@ end
 Base.summary(P::ParameterProfiles) = string(TYPE_COLOR, "ParameterProfiles", NO_COLOR, " with pdim="* string(pdim(P)), !HasTrajectories(P) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
 Base.summary(PV::ParameterProfilesView) = string(TYPE_COLOR, "ParameterProfile", NO_COLOR, " for index "* string(PV.i) *"/"* string(pdim(PV)), !HasTrajectories(PV) ? string(", ", ORANGE_COLOR, "no trajectories", NO_COLOR) : "")
 
-Base.summary(R::MultistartResults) = string(TYPE_COLOR, "MultistartResults", NO_COLOR, " with "* string(findlast(isfinite, R.FinalObjectives)) *"/"* string(length(R)) *" successful starts")
+Base.summary(R::MultistartResults) = string(TYPE_COLOR, "MultistartResults", NO_COLOR, " with "* string(FindLastIndSafe(R)) *"/"* string(length(R)) *" successful starts")
 
 
 # http://docs.junolab.org/stable/man/info_developer/#
@@ -199,7 +199,7 @@ Base.show(io::IO, P::Union{ParameterProfiles,ParameterProfilesView}) = print(io,
 
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", R::MultistartResults)
-    LastFinite = findlast(isfinite, R.FinalObjectives)
+    LastFinite = FindLastIndSafe(R)
     FirstStepInd = GetFirstStepInd(R, LastFinite)
     println(io, Base.summary(R))
     println(io, "Median number of iterations: "*string(Int(round(median(@view R.Iterations[1:LastFinite])))))

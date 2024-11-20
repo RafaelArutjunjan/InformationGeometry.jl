@@ -244,6 +244,7 @@ export PlotRelativeParameterTrajectories
 
 include("NumericalTools/Multistart.jl")
 export MultistartFit, LocalMultistartFit, MultistartResults, WaterfallPlot, ParameterPlot
+export DistanceMatrixWithinStep, DistanceMatrixBetweenSteps
 
 
 include("Divergences.jl")

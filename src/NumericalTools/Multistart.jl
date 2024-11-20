@@ -180,10 +180,13 @@ catch E;
     (E isa ErrorException ? throw("StatsPlots.jl needs to be loaded before using ParameterPlot.") : rethrow(E))
 end
 
-# Implement findlast in safe manner so "nothing" is never returned
-GetStepInds(R::MultistartResults, ymaxind::Int=findlast(isfinite,R.FinalObjectives); StepTol::Real=0.01) = ((@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives;  [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol])
+FindLastIndSafe(R::MultistartResults) = (LastFinite=findlast(isfinite, R.FinalObjectives);  isnothing(LastFinite) ? 0 : LastFinite)
 
-function GetFirstStepInd(R::MultistartResults, ymaxind::Int=findlast(isfinite,R.FinalObjectives); StepTol::Real=0.01)
+# GetStepInds always includes last point of lower step
+GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01) = ((@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives;  [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol])
+GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), StepInds::AbstractVector{<:Int}=GetStepInds(R,ymaxind)) = vcat([1:StepInds[1]], [StepInds[i]+1:StepInds[i+1] for i in 1:length(StepInds)-1], [StepInds[end]+1:ymaxind])
+
+function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01)
     (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
     FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol, 1:ymaxind-1)
     isnothing(FirstStepInd) ? ymaxind : FirstStepInd
@@ -249,7 +252,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
     ymaxind = (Q=findlast(x->isfinite(x) && abs(x-Fin[1]) < MaxValue, Fin);   isnothing(Q) ? length(Fin) : Q)
     @assert StepTol > 0
     StepInds = GetStepInds(R, ymaxind; StepTol=StepTol)
-    AllSteps = vcat([1:StepInds[1]], [StepInds[i]:StepInds[i+1] for i in 1:length(StepInds)-1], [StepInds[end]:ymaxind])
+    AllSteps = GetStepRanges(R, ymaxind, StepInds)
     Steps = @view AllSteps[1:min(Nsteps, length(AllSteps))]
     dfs = [(DoBiLog ? BiLog : identity)(reduce(vcat, R.FinalPoints[step])) for step in Steps]
     Xvals = 1.0:Spacer*length(dfs):Spacer*length(dfs)*length(pnames) |> collect
@@ -274,4 +277,29 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
             [Xvals[i] .+ Spacer*length(dfs).-0.5Spacer]
         end
     end
+end
+
+"""
+    DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+Returns matrix of mutual distances between optima in step `Ind` with respect to Fisher Metric of first entry in step. 
+"""
+function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+    ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
+    @assert 1 ≤ Ind ≤ length(Steps)
+    F = FisherMetric(DM, R.FinalPoints[Steps[Ind][1]]) # get first point in ProfileDomain
+    Dists = [sqrt(InnerProduct(F, R.FinalPoints[i] - R.FinalPoints[j])) for i in Steps[Ind], j in Steps[Ind]]
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), margin=2Plots.mm, kwargs...))
+    Dists
+end
+
+"""
+    DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+Returns matrix of mutual distances between first optima in steps with respect to Fisher Metric of best optimum. 
+"""
+function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+    ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
+    F = FisherMetric(DM, R.FinalPoints[1])
+    Dists = [sqrt(InnerProduct(F, R.FinalPoints[Steps[i][1]] - R.FinalPoints[Steps[j][1]])) for i in eachindex(Steps), j in eachindex(Steps)]
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), margin=2Plots.mm, kwargs...))
+    Dists
 end
