@@ -162,7 +162,7 @@ ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = va
 function GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
-    @assert T == inplace
+    # @assert T == inplace
     CB = callback
     # u0 = PromoteStatic(u0, inplace)
     # If observable only has single component, don't pass vector to getindex() in second arg
@@ -191,7 +191,7 @@ end
 function GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
-    @assert T == inplace
+    # @assert T == inplace
     CB = callback
     # u0 = PromoteStatic(u0, inplace)
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
@@ -219,7 +219,7 @@ end
 function GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1; tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
-    @assert T == inplace
+    # @assert T == inplace
     CB = callback
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
@@ -247,7 +247,7 @@ end
 function GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     @warn "This method for solving ODEs will throw errors when applying time-derivatives or trying to evaluate at t < 0! Alternatively use keyword robust=true."
-    @assert T == inplace
+    # @assert T == inplace
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
@@ -304,7 +304,7 @@ function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
 end
 function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
-    @assert T == inplace
+    # @assert T == inplace
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 

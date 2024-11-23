@@ -91,6 +91,11 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     end
 end
 
+"""
+    LocalMultistartFit(DM::AbstractDataModel, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...)
+    LocalMultistartFit(DM::AbstractDataModel, mle::AbstractVector{<:Number}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...)
+Performs a multistart search locally around a given MLE in a cube constructed from the Fisher information and multiplied with `scale`.
+"""
 LocalMultistartFit(DM::AbstractDataModel, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = LocalMultistartFit(DM, MLE(DM), scale; kwargs...)
 LocalMultistartFit(DM::AbstractDataModel, mle::AbstractVector{<:Number}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = LocalMultistartFit(DM, MLEuncert(DM, mle), scale; kwargs...)
 LocalMultistartFit(DM::AbstractDataModel, mleuncert::AbstractVector{<:Measurements.Measurement}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = MultistartFit(DM; MultistartDomain=HyperCube(mleuncert, scale), kwargs...)

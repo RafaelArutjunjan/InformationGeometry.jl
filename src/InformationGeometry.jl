@@ -202,7 +202,7 @@ export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
 export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
-export ParameterSavingCallback
+export ParameterSavingCallback, IncrementalTimeSeriesFit
 
 
 include("Likelihoods.jl")

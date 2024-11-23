@@ -146,7 +146,7 @@ ConstrainStart(start::AbstractVector{T}, Dom::Nothing; kwargs...) where T<:Numbe
     minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
     minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
     minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
-Minimizes the scalar input function using the given `start` using algorithms from `Optim.jl` specified via the keyword `meth`.
+Minimizes the scalar input function using the given `start` using any algorithms from the `Optimation.jl` ecosystem specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument (ignoring derivatives).
 """
@@ -381,6 +381,26 @@ function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction,
 end
 
 
+"""
+    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
+Fits DataModel incrementally, which can yield better results, particularly for autocorrelated time series data.
+"""
+IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, kwargs...) = IncrementalTimeSeriesFit(Method, DM, initial; kwargs...)
+
+"""
+    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, kwargs...) -> Vector
+Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`
+"""
+function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, kwargs...)
+    @assert steps ≤ Npoints(DM)
+    res = copy(initial)
+    Results = typeof(initial)[]
+    for chunk in vcat([1:i*(Npoints(DM)÷steps) for i in 1:steps-1], [1:Npoints(DM)])
+        FullRes = Method(SubDataModel(DM, chunk), res; kwargs...)
+        res = GetMinimizer(FullRes)
+        push!(Results, res)
+    end;    res
+end
 
 
 """
