@@ -9,7 +9,7 @@ makedocs(
     pages = Any["Getting Started" => "index.md",
                 "Basics of Information Geometry" => "basics.md",
                 "Tutorial" => Any[  "Providing Data and Models" => "datamodels.md",
-                                    # "Maximum Likelihood Estimation" => "optimization.md",
+                                    "Maximum Likelihood Estimation" => "optimization.md",
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Model Transformations" => "transformations.md",
                                     # "Useful Diagnostic Plots" => "plotting.md",
