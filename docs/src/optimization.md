@@ -2,7 +2,6 @@
 ### Maximum Likelihood Estimation
 
 
-Optimization.jl ecosystem
 
 
 ### Multistart Optimization
@@ -18,7 +17,7 @@ The most relevant keywords are:
 * `N::Int` for choosing the number of starts
 * `meth` for choosing the optimizer
 * `resampling=false` disables the drawing of new guesses when the objective function cannot be evaluated in some regions of the parameter space
-* `maxval::Real=1e5` if no `MultistartDomain` is specified, a cube of size `(-maxval, maxval)^(×N)` is constructed
+* `maxval::Real=1e5` if no `MultistartDomain` is specified, a cube of size `(-maxval, maxval)^(×n)` is constructed
 
 Returns a `MultistartResults` object, which saves some additional information such as the number of iterations taken per run, the initial guesses, etc. The parameter configuration is obtained with `MLE(R)`.
 
@@ -35,7 +34,7 @@ ParameterPlot(R)
 Seeing a spread in the `ParameterPlot` for the parameter configurations of the lowest "step" is already an indication that some parameter may be non-identifiable.
 
 
-```docs
+```@docs
 MultistartFit
 LocalMultistartFit
 WaterfallPlot

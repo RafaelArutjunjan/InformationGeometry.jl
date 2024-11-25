@@ -45,6 +45,5 @@ A slightly more robust alternative to using geodesics is given by the so-called 
 
 ```@docs
 ParameterProfiles(::DataModel,::Float64)
-InterpolatedProfiles
 ProfileBox
 ```

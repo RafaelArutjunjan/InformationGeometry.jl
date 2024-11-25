@@ -6,7 +6,7 @@ module InformationGeometry
 using LinearAlgebra, Random, Distributions, DistributionsAD, DataFrames, ComponentArrays
 
 using Distributed, StaticArrays, SparseArrays, ForwardDiff
-using OrdinaryDiffEq, DiffEqCallbacks, BoundaryValueDiffEq
+using OrdinaryDiffEq, DiffEqCallbacks
 using ModelingToolkit, Symbolics, DataInterpolations
 using DerivableFunctionsBase
 using LsqFit, Optim, LineSearches, Optimization
