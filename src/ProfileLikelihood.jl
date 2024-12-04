@@ -507,9 +507,8 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
 end
 
 
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, kwargs...)
-    F = AutoMetric(DM, MLE(DM))
-    ProfileLikelihood(DM, GetProfileDomainCube(F, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher=F, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, Fisher=AutoMetric(DM, MLE(DM)), kwargs...)
+    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, kwargs...)
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)

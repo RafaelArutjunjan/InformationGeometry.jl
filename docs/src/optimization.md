@@ -3,14 +3,25 @@
 
 
 
+```@setup Multistart
+using InformationGeometry, Plots; gr()
+```
+
+```@example Multistart
+DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]))
+plot(DM)
+```
+
+
 
 ### Multistart Optimization
 
 When a reasonable estimate for the initial parameter configuration is not available and optimizations starting from the approximate center of the parameter domain do not converge to a suitable optimum, a systematic search of the parameter space is needed. This can be achieved with the `MultistartFit` method, which will sample the parameter space ``\mathcal{M}`` either according to a given probability distribution (e.g. uniform / normal) on ``\mathcal{M}`` or by drawing the parameter values from a [low-discrepancy sequence](https://en.wikipedia.org/wiki/Low-discrepancy_sequence) such as the [Sobol](https://github.com/JuliaMath/Sobol.jl) sequence. Compared with uniformly drawn values, values drawn from low-discrepancy sequences achieve a more even and "equidistant" coverage, thereby slightly increasing the chances of discovering a larger number of distinct local optima overall.
 
 Just like `InformationGeometry.minimize`, the `MultistartFit` method is also compatible with the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem of optimizer methods via the `meth` keyword.
-```julia
-R = MultistartFit(DM)
+```@example Multistart
+using Optim
+R = MultistartFit(DM; N=200, maxval=500, meth=LBFGS())
 ```
 The most relevant keywords are:
 * `MultistartDomain::HyperCube` for defining the domain from which the initial guesses are drawn
@@ -23,7 +34,7 @@ Returns a `MultistartResults` object, which saves some additional information su
 
 
 The results of a multistart optimization can be visualized with a plot of the sorted final objective values, ideally showing prominent step-like features where the optimization reliably converged to the same local optima multiple times.
-```julia
+```@example Multistart
 WaterfallPlot(R)
 ```
 It can also be useful to investigate whether the parameter configurations within one "step" of the plot, where the final objective function value was the same, are actually "close" to each other, or whether there are distinct (or spread out) local optima, which nevertheless produce a fit of the same quality. This can be plotted via the `ParameterPlot` method, which can display the data either in a `:dotplot`, `:boxplot` or `:violin` plot. 
