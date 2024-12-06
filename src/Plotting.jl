@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false)
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -55,22 +55,22 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         if PlotVariance || det(F) > 0
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
                 if ydim(DM) == 1
-                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM)))
+                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
                     @series begin
                         seriescolor --> get(plotattributes, :seriescolor, palette(:default)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85
-                        label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                        label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
                         X, [Y .+ SqrtVar Y .- SqrtVar]
                     end
                 else
-                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                    SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                     for i in 1:ydim(DM)
                         @series begin
                             seriescolor := palette(:default)[((i*ydim(DM)+j)%15 +1)]
                             linestyle   --> :dash
                             linealpha   --> 0.85
-                            label       --> ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                            label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
                             X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
                         end
                     end
@@ -153,7 +153,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
     end
 end
 
-RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM))
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false)
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
             if Data(DM) isa DataSetUncertain
@@ -189,7 +189,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
         F = FisherMetric(DM, mle)
         if PlotVariance || det(F) > 0
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
-                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F))(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                 for i in 1:ydim(DM)
                     @series begin
                         subplot := i
@@ -197,7 +197,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         yguide      :=  ynames(DM)[i]
-                        label       := ["Lin. $(Conf)σ Prediction Uncert." nothing]
+                        label       := ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
                         X, [view(Ypred, :, i) .+ getindex.(SqrtVar, i) view(Ypred, :, i) .- getindex.(SqrtVar, i)]
                     end
                 end

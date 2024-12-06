@@ -642,36 +642,60 @@ FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunctio
 # Specialize this for other DataSet types
 _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
-
+# Data covariance matrix for a single data point, computed from the mean
+function AverageSingleYsigmaMatrix(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
+    @assert Data(DM) isa AbstractFixedUncertaintyDataSet
+    Ysig = yInvCov(DM, mle) |> pinv
+    mean([view(Ysig, inds, inds) for inds in Iterators.partition(1:size(Ysig,1), ydim(DM))])
+end
 
 
 """
     VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=DOF(DM), kwargs...)
     VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix=quantile(Chisq(length(mle)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
 Computes the forward propagation of the parameter covariance to the residuals.
-Matrix `C` corresponds to a covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
+Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false)
     det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
+    
+    # If Validation Band, add data uncertainty for single point to 
+    Ysig = if Validation && Data(DM) isa AbstractFixedUncertaintyDataSet
+        AverageSingleYsigmaMatrix(DM, mle)
+    else
+        Diagonal(zeros(ydim(DM)))
+    end
+    ConfScaling = quantile(Chisq(dof), ConfVol(Confnum))
+    Ysig *= ConfScaling
+    ydim(DM) == 1 && (Ysig = Ysig[1])
 
-    function CholeskyU(M::AbstractMatrix)
-        try     cholesky(Symmetric(M)).U
+    # As function of independent variable x
+    YsigmaGenerator = if Data(DM) isa AbstractFixedUncertaintyDataSet
+        x -> Ysig
+    else
+        x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,mle), (SplitErrorParams(Data(DM))(mle))[end]));   ConfScaling * (S' * S))
+    end
+
+    # Add data uncertainty here if Validation
+    function CholeskyU(M::AbstractMatrix, x)
+        try     cholesky(Symmetric(YsigmaGenerator(x) + M)).U
         catch err
             !isa(err, PosDefException) && rethrow(err)
             UpperTriangular(diagm(zeros(size(M,1))))
         end
     end
+    Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
 
-    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J)))
-    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->CholeskyU(J * C * transpose(J)), JacobianWindup(Jf, ydim(DM))))
-    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, mle);   R = sqrt((J * C * transpose(J))[1]))
-    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->sqrt((J * C * transpose(J))[1]), JacobianWindup(Jf, ydim(DM))))
+    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J),x))
+    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
+    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, mle);   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
 
-    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J)))
-    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->CholeskyU(J * C * transpose(J)), JacobianWindup(Jf, ydim(DM))))
-    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   R = sqrt((J * C * transpose(J))[1]))
-    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map(J->sqrt((J * C * transpose(J))[1]), JacobianWindup(Jf, ydim(DM))))
+    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J), x))
+    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
+    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
     if xdim(DM) == 1
         ydim(DM) > 1 ? VarCholesky1 : VarSqrt1
     else
@@ -679,8 +703,18 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     end
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), kwargs...)
-    VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
+    VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); Confnum, dof, kwargs...)
 end
+
+
+"""
+    ValidationPropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=DOF(DM), kwargs...)
+    ValidationPropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix=quantile(Chisq(length(mle)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
+Computes the linearized validation band / prediction band, which quantifies the range where new successive measurements are expected to land with given probability.
+Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
+"""
+ValidationPropagation(DM::AbstractDataModel, args...; Validation::Bool=true, kwargs...) = VariancePropagation(DM, args...; kwargs..., Validation=true)
+
 
 
 """

@@ -429,7 +429,7 @@ end
 end
 
 
-@safetestset "Differential Geometry" begin
+@safetestset "Differential Geometry - Curvature" begin
     using InformationGeometry, Test, LinearAlgebra, StaticArrays
 
     S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
@@ -469,6 +469,20 @@ end
     @test -45 > ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
     @test -20 > ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
     @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+end
+
+
+@safetestset "Differential Geometry - Geodesics" begin
+    using InformationGeometry, Test, LinearAlgebra, StaticArrays, BoundaryValueDiffEq
+
+    S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
+    function S2Christoffel((θ,ϕ))
+        Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
+        Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
+    end
+    # Calculation by hand works out such that in this special case:
+    S2Ricci(x) = S2metric(x)
+    ConstMetric(x) = Diagonal(ones(2))
 
     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
     @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-8
@@ -486,7 +500,6 @@ end
 
     # Apply logarithmic map first since it is typically multi-valued for positively curved manifolds.
     @test norm(ExponentialMap(FisherMetric(DM), MLE(DM), LogarithmicMap(FisherMetric(DM), MLE(DM), y)) - y) < 1
-
 end
 
 
