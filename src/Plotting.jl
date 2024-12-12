@@ -719,19 +719,19 @@ function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int},
     @assert size(M,2) == InOut[1] + 2InOut[2]
     lab = 0 < Confnum ? "$(round(Confnum; sigdigits=2))σ " : ""
     if size(M,2) == 3
-        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey]), kwargs...) |> display
+        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
         @assert InOut[1] == 1
         if xpositions isa Nothing
             for i in 1:(size(M,1)-1)
                 RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...) |> display
+            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...)
         elseif length(xpositions) == (size(M,2)-1) / 2
             for i in 1:(size(M,1)-1)
                 RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
             end
-            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...) |> display
+            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...)
         else
             throw("Vector of xpositions wrong length.")
         end
@@ -779,7 +779,7 @@ function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX
         _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
         ProgressMeter.next!(Prog)
     end
-    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol)))
     M
 end
 
@@ -796,7 +796,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractO
         end
         ProgressMeter.next!(Prog)
     end
-    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1]))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1])))
     M
 end
 
@@ -814,7 +814,7 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
         end
         ProgressMeter.next!(Prog)
     end
-    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1]))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1])))
     M
 end
 
@@ -833,7 +833,7 @@ function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:Abstrac
         _ConfidenceBands!(Res, Yt, DM, point, woundX)
         ProgressMeter.next!(Prog)
     end
-    plot && PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, points[1]))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, points[1])))
     M
 end
 
@@ -874,7 +874,7 @@ function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::Abstract
     @inbounds for t in range(sol.t[1], sol.t[end]; length=samples)
         _PropagateUncertainty(Res, F, woundX, sol(t), SingleOut)
     end
-    plot && PlotConfidenceBands(M, InOut; Confnum=Confnum, kwargs...)
+    plot && display(PlotConfidenceBands(M, InOut; Confnum=Confnum, kwargs...))
     M
 end
 function PropagateUncertainty(DM::AbstractDataModel, F::Function, woundX::AbstractVector, sol::AbstractODESolution; kwargs...)

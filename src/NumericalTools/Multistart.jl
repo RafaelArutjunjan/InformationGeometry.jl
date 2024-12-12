@@ -199,10 +199,11 @@ end
 
 
 RecipesBase.@recipe f(R::MultistartResults, S::Symbol=:Waterfall) = R, Val(S)
-# kwargs BiLog, StepTol, MaxValue
+# kwargs BiLog, StepTol, MaxValue, ColorIterations
 RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     DoBiLog = get(plotattributes, :BiLog, true)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
+    ColorIterations = get(plotattributes, :ColorIterations, true)
     @assert MaxValue ≥ 0
     Fin = (DoBiLog ? BiLog : identity)(-R.FinalObjectives)
     # Cut off results with difference to lowest optimum greater than MaxValue
@@ -219,8 +220,10 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
         label --> "Finals"
         markersize --> 20/sqrt(ymaxind)
         msw --> 0
-        zcolor --> map(x->isfinite(x) ? x : 0, R.Iterations)
-        color --> cgrad(:plasma; rev=true)
+        if ColorIterations
+            zcolor --> map(x->isfinite(x) ? x : 0, R.Iterations)
+            color --> cgrad(:plasma; rev=true)
+        end
         Fin[1:ymaxind]
     end
     @series begin
@@ -293,7 +296,7 @@ function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, I
     @assert 1 ≤ Ind ≤ length(Steps)
     F = FisherMetric(DM, R.FinalPoints[Steps[Ind][1]]) # get first point in ProfileDomain
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[i] - R.FinalPoints[j])) for i in Steps[Ind], j in Steps[Ind]]
-    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), margin=2Plots.mm, kwargs...))
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
 end
 
@@ -305,6 +308,6 @@ function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults;
     ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
     F = FisherMetric(DM, R.FinalPoints[1])
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[Steps[i][1]] - R.FinalPoints[Steps[j][1]])) for i in eachindex(Steps), j in eachindex(Steps)]
-    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), margin=2Plots.mm, kwargs...))
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
 end

@@ -8,11 +8,38 @@ Unless the kwarg `SkipOptim=true` is passed to the `DataModel` constructor, it a
 However, more control can be exerted over the optimization process by choosing an appropriate optimization method and corresponding options. These options may either be be passed to the `DataModel` constructor, or the optimization method `InformationGeometry.minimize` may be invoked explicitly after the `DataModel` was constructed with either unsuccessful optimization or skipping the automatic initial optimization altogether.
 
 Most importantly, `InformationGeometry.minimize` is compatible with the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem of optimizer methods via the `meth` keyword. Best support is available for optimizers from the [**Optim.jl**](https://github.com/JuliaNLSolvers/Optim.jl) via a custom wrapper. Choosing `meth=nothing` also allows for using a Levenberg-Marquardt method from the [**LsqFit.jl**](https://github.com/JuliaNLSolvers/LsqFit.jl) optimizer, which is however only possible if data with fixed Gaussian uncertainties and no priors are used.
+
 ```@example Multistart
-DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]))
-plot(DM)
+DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; SkipOptim=true)
+plot(DM; Confnum=0)
 ```
 
+The optimization can then be performed with:
+```@example Multistart
+using Optim
+mle = InformationGeometry.minimize(DM; meth=NewtonTrustRegion(), tol=1e-12, maxtime=60.0, Domain=HyperCube(zeros(2), 10ones(2)), verbose=true)
+```
+The full solution object is returned if the keyword argument `Full=true` is additionally provided.
+
+Alternatively, one might use [optimizers](https://docs.sciml.ai/Optimization) from the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem e.g. via
+```julia
+using Optimization, OptimizationOptimisers
+mle = InformationGeometry.minimize(DM, rand(2); meth=Optimisers.AdamW())
+```
+or
+```julia
+using Optimization, OptimizationNLopt
+mle = InformationGeometry.minimize(DM, rand(2); meth=NLopt.GN_DIRECT())
+```
+
+Finally, the newly found optimum can be visually inspected with
+```@example Multistart
+plot(DM, mle)
+```
+and added to the original unoptimized `DataModel` object via
+```julia
+DM = DataModel(Data(DM), Predictor(DM), mle; SkipOptim=true)
+```
 
 
 ### Multistart Optimization
@@ -34,7 +61,7 @@ The most relevant keywords are:
 This returns a `MultistartResults` object, which saves some additional information such as the number of iterations taken per run, the initial guesses, etc. The parameter configuration is obtained with `MLE(R)`.
 Alternatively, one could for example specify a distribution for the initials of the multistart optimization via
 ```julia
-MultistartFit(DDM, MvNormal([0,0], Diagonal(ones(2))), ProfileDomain=HyperCube([-1,-1],[3,4]), N=200, meth=Newton(), plot=false)
+MultistartFit(DM, MvNormal([0,0], Diagonal(ones(2))), ProfileDomain=HyperCube([-1,-1],[3,4]), N=200, meth=Newton())
 ```
 
 

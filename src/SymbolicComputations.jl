@@ -35,7 +35,8 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
     isinplacemodel(M) ? (Res=Vector{Num}(undef,length(Y));  KillAfter(M.Map, Res, X, θ; timeout=timeout); Res) : KillAfter(M.Map, X, θ; timeout=timeout)
 end
 
-
+## Alternatively:
+# MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
 MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
 
 
