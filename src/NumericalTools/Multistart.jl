@@ -135,7 +135,7 @@ struct MultistartResults <: AbstractMultiStartResults
         for i in eachindex(FinalObjectives)
             (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
         end
-        verbose && nans > 0 && @info "$nans runs crashed during multistart optimization with $OptimMeth."
+        verbose && nans > 0 && @info "$nans runs crashed during multistart optimization with $(typeof(OptimMeth))."
 
         Perm = sortperm(FinalObjectives; rev=true)
         new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])

@@ -270,7 +270,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
             diff = (0.5*Padding) * (uppers - lowers)
             lowers -= diff;     uppers += diff
         end
-        !all(lowers .≤ uppers) && throw("First argument of HyperCube must be larger than second.")
+        !all(lowers .≤ uppers) && throw("First argument of HyperCube must be smaller than second.")
         if MakeStatic && length(lowers) < 20
             A, B = SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers))
             return new{typeof(A)}(A, B)
