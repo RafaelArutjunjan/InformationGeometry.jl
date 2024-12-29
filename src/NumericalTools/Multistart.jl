@@ -8,13 +8,14 @@ GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...;
 MultistartFit(DM::AbstractDataModel, args...; CostFunction::Function=Negloglikelihood(DM), kwargs...) = MultistartFit(Data(DM), Predictor(DM), LogPrior(DM), args...; CostFunction, pnames=pnames(DM), kwargs...)
 MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, M, LogPriorFn, MultistartDomain; MultistartDomain, kwargs...)
 function MultistartFit(DS::AbstractDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, verbose::Bool=true, kwargs...)
-    if isnothing(MultistartDomain)
+    Dom = if isnothing(MultistartDomain)
         verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
-        Dom = FullDomain(pdim(DS, M), maxval)
-        MultistartFit(DS, M, LogPriorFn, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
+        FullDomain(pdim(DS, M), maxval)
     else
-        MultistartFit(DS, M, LogPriorFn, MultistartDomain; MultistartDomain, maxval, verbose, kwargs...)
+        # clamp MultistartDomain to finite size
+        intersect(MultistartDomain, FullDomain(length(MultistartDomain), maxval))
     end
+    MultistartFit(DS, M, LogPriorFn, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
 end
 function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(1000:15000), resampling::Bool=true, maxval::Real=1e5, kwargs...)
     @assert N ≥ 1
@@ -161,6 +162,7 @@ Base.lastindex(R::MultistartResults) = length(R.FinalObjectives)
 
 MLE(R::MultistartResults) = R.FinalPoints[1]
 pnames(R::MultistartResults) = R.pnames
+Domain(R::MultistartResults) = R.MultistartDomain
 
 
 """

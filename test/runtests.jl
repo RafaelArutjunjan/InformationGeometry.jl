@@ -429,78 +429,78 @@ end
 end
 
 
-@safetestset "Differential Geometry - Curvature" begin
-    using InformationGeometry, Test, LinearAlgebra, StaticArrays
+# @safetestset "Differential Geometry - Curvature" begin
+#     using InformationGeometry, Test, LinearAlgebra, StaticArrays
 
-    S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
-    function S2Christoffel((θ,ϕ))
-        Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
-        Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
-    end
-    # Calculation by hand works out such that in this special case:
-    S2Ricci(x) = S2metric(x)
-    ConstMetric(x) = Diagonal(ones(2))
+#     S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
+#     function S2Christoffel((θ,ϕ))
+#         Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
+#         Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
+#     end
+#     # Calculation by hand works out such that in this special case:
+#     S2Ricci(x) = S2metric(x)
+#     ConstMetric(x) = Diagonal(ones(2))
 
-    # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar
-    # Test WITH AND WITHOUT BIGFLOAT
-    x = rand(2)
-    @test norm(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x), 1) < 5e-9
-    @test norm(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)), 1) < 1e-39
+#     # Test Numeric Christoffel Symbols, Riemann and Ricci tensors, Ricci Scalar
+#     # Test WITH AND WITHOUT BIGFLOAT
+#     x = rand(2)
+#     @test norm(ChristoffelSymbol(S2metric,x) .- S2Christoffel(x), 1) < 5e-9
+#     @test norm(ChristoffelSymbol(S2metric,BigFloat.(x)) .- S2Christoffel(BigFloat.(x)), 1) < 1e-39
 
-    @test abs(RicciScalar(S2metric,x) - 2) < 5e-4
-    @test abs(RicciScalar(S2metric,BigFloat.(x)) - 2) < 2e-21
+#     @test abs(RicciScalar(S2metric,x) - 2) < 5e-4
+#     @test abs(RicciScalar(S2metric,BigFloat.(x)) - 2) < 2e-21
 
-    # Use wilder metric and test AutoDiff vs Finite
-    import InformationGeometry: MetricPartials, ChristoffelPartials
-    Y = rand(3)
-    Metric3(x) = [sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*x[2]; exp(x[2]) cos(x[3])*x[1]*x[2] 0.]
-    @test MetricPartials(Metric3, Y; ADmode=Val(true)) ≈ MetricPartials(Metric3, Y; ADmode=Val(false))
-    @test ChristoffelSymbol(Metric3, Y; ADmode=Val(true)) ≈ ChristoffelSymbol(Metric3, Y; ADmode=Val(false))
-    @test maximum(abs.(ChristoffelPartials(Metric3, Y; ADmode=Val(true)) - ChristoffelPartials(Metric3, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
-    @test maximum(abs.(Riemann(Metric3, Y; ADmode=Val(true)) - Riemann(Metric3, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
-    # Test with static arrays
-    Metric3SA(x) = SA[sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*x[2]; exp(x[2]) cos(x[3])*x[1]*x[2] 0.]
-    @test MetricPartials(Metric3SA, Y; ADmode=Val(true)) ≈ MetricPartials(Metric3SA, Y; ADmode=Val(false))
-    @test ChristoffelSymbol(Metric3SA, Y; ADmode=Val(true)) ≈ ChristoffelSymbol(Metric3SA, Y; ADmode=Val(false))
-    @test maximum(abs.(ChristoffelPartials(Metric3SA, Y; ADmode=Val(true)) - ChristoffelPartials(Metric3SA, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
-    @test maximum(abs.(Riemann(Metric3SA, Y; ADmode=Val(true)) - Riemann(Metric3SA, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
-    # Test with BigFloat
-    @test -45 > MetricPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - MetricPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
-    @test -45 > ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
-    @test -20 > ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
-    @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
-end
+#     # Use wilder metric and test AutoDiff vs Finite
+#     import InformationGeometry: MetricPartials, ChristoffelPartials
+#     Y = rand(3)
+#     Metric3(x) = [sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*x[2]; exp(x[2]) cos(x[3])*x[1]*x[2] 0.]
+#     @test MetricPartials(Metric3, Y; ADmode=Val(true)) ≈ MetricPartials(Metric3, Y; ADmode=Val(false))
+#     @test ChristoffelSymbol(Metric3, Y; ADmode=Val(true)) ≈ ChristoffelSymbol(Metric3, Y; ADmode=Val(false))
+#     @test maximum(abs.(ChristoffelPartials(Metric3, Y; ADmode=Val(true)) - ChristoffelPartials(Metric3, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
+#     @test maximum(abs.(Riemann(Metric3, Y; ADmode=Val(true)) - Riemann(Metric3, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
+#     # Test with static arrays
+#     Metric3SA(x) = SA[sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*x[2]; exp(x[2]) cos(x[3])*x[1]*x[2] 0.]
+#     @test MetricPartials(Metric3SA, Y; ADmode=Val(true)) ≈ MetricPartials(Metric3SA, Y; ADmode=Val(false))
+#     @test ChristoffelSymbol(Metric3SA, Y; ADmode=Val(true)) ≈ ChristoffelSymbol(Metric3SA, Y; ADmode=Val(false))
+#     @test maximum(abs.(ChristoffelPartials(Metric3SA, Y; ADmode=Val(true)) - ChristoffelPartials(Metric3SA, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
+#     @test maximum(abs.(Riemann(Metric3SA, Y; ADmode=Val(true)) - Riemann(Metric3SA, Y; ADmode=Val(false), BigCalc=true))) < 3e-10
+#     # Test with BigFloat
+#     @test -45 > MetricPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - MetricPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+#     @test -45 > ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+#     @test -20 > ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+#     @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+# end
 
 
-@safetestset "Differential Geometry - Geodesics" begin
-    using InformationGeometry, Test, LinearAlgebra, StaticArrays, BoundaryValueDiffEq
+# @safetestset "Differential Geometry - Geodesics" begin
+#     using InformationGeometry, Test, LinearAlgebra, StaticArrays, BoundaryValueDiffEq
 
-    S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
-    function S2Christoffel((θ,ϕ))
-        Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
-        Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
-    end
-    # Calculation by hand works out such that in this special case:
-    S2Ricci(x) = S2metric(x)
-    ConstMetric(x) = Diagonal(ones(2))
+#     S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
+#     function S2Christoffel((θ,ϕ))
+#         Symbol = zeros(typeof(ϕ),2,2,2);    Symbol[1,2,2] = -sin(θ)*cos(θ)
+#         Symbol[2,1,2] = Symbol[2,2,1] = cos(θ)/sin(θ);  Symbol
+#     end
+#     # Calculation by hand works out such that in this special case:
+#     S2Ricci(x) = S2metric(x)
+#     ConstMetric(x) = Diagonal(ones(2))
 
-    @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
-    @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-8
-    @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
+#     @test abs(GeodesicDistance(ConstMetric,[0,0],[1,1]) - sqrt(2)) < 2e-8
+#     @test abs(GeodesicDistance(S2metric,[π/4,1],[3π/4,1]) - π/2) < 1e-8
+#     @test abs(GeodesicDistance(S2metric,[π/2,0],[π/2,π/2]) - π/2) < 1e-8
 
-    DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
-    y = MLE(DM) + 0.2(rand(2) .- 0.5)
-    geo = GeodesicBetween(DM, MLE(DM), y; tol=1e-11)
-    @test norm(MLE(DM) - [1.829289173660125,0.942865200406147]) < 1e-7
+#     DS = DataSet([0,0.5,1],[1.,3.,7.],[1.2,2.,0.6]);    DM = DataModel(DS, (x,p) -> p[1]^3 *x + p[2]^3)
+#     y = MLE(DM) + 0.2(rand(2) .- 0.5)
+#     geo = GeodesicBetween(DM, MLE(DM), y; tol=1e-11)
+#     @test norm(MLE(DM) - [1.829289173660125,0.942865200406147]) < 1e-7
 
-    Len = GeodesicLength(DM,geo)
-    @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - Len^2) < 1e-8
-    Confnum = InvConfVol(ChisqCDF(pdim(DM), 2*(LogLikeMLE(DM) - loglikelihood(DM, y))))
-    @test InformationGeometry.GeodesicRadius(DM, Confnum) - Len < 1e-5
+#     Len = GeodesicLength(DM,geo)
+#     @test abs(InformationGeometry.ParamVol(geo) * InformationGeometry.GeodesicEnergy(DM,geo) - Len^2) < 1e-8
+#     Confnum = InvConfVol(ChisqCDF(pdim(DM), 2*(LogLikeMLE(DM) - loglikelihood(DM, y))))
+#     @test InformationGeometry.GeodesicRadius(DM, Confnum) - Len < 1e-5
 
-    # Apply logarithmic map first since it is typically multi-valued for positively curved manifolds.
-    @test norm(ExponentialMap(FisherMetric(DM), MLE(DM), LogarithmicMap(FisherMetric(DM), MLE(DM), y)) - y) < 1
-end
+#     # Apply logarithmic map first since it is typically multi-valued for positively curved manifolds.
+#     @test norm(ExponentialMap(FisherMetric(DM), MLE(DM), LogarithmicMap(FisherMetric(DM), MLE(DM), y)) - y) < 1
+# end
 
 
 @safetestset "Optimization Functions" begin

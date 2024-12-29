@@ -51,9 +51,9 @@ struct DataModel <: AbstractDataModel
     MLE::AbstractVector{<:Number}
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
-    # LogLikelihoodFn::Function
-    # ScoreFn::Function
-    # FisherInfoFn::Function
+    LogLikelihoodFn::Function
+    ScoreFn::Function
+    FisherInfoFn::Function
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
         DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipOptimAndTests; ADmode=ADmode, kwargs...)
@@ -83,23 +83,46 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, nothing, SkipOptimAndTests; kwargs...)
     end
     # Block kwargs here.
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false,
-                                            name::Union{Symbol,<:AbstractString}=Symbol(), ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real, Logprior::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; ADmode::Union{Symbol,Val}=Val(:ForwardDiff),
+                                    LogPriorFn::Union{Function,Nothing}=Prior(Logprior, MLE, (-1,length(MLE))), LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn),
+                                    ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode),
+                                    SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::Union{Symbol,<:AbstractString}=Symbol())
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
-        !SkipTests && TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn)
+        
         # Assert that LogPriorFn has MaximalNumberOfArguments == 1, otherwise DFunction will interpret it as in-place
         @assert isnothing(LogPriorFn) || MaximalNumberOfArguments(LogPriorFn) == 1
-        NewLogPriorFn = Prior(LogPriorFn, MLE, (-1, length(MLE)))
-        # LogLikelihoodFn = GetLogLikelihoodFn(DS,model,NewLogPriorFn)
-        # ScoreFn = GetScoreFn(DS,model,dmodel,NewLogPriorFn,LogLikelihoodFn; ADmode=ADmode)
-        # FisherInfoFn = GetFisherInfoFn(DS,model,dmodel,NewLogPriorFn,LogLikelihoodFn; ADmode=ADmode)
-        new(DS, model, dmodel, MLE, LogLikeMLE, NewLogPriorFn) #, LogLikelihoodFn, ScoreFn, FisherInfoFn)
+        
+        SkipTests || TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn; ADmode)
+
+        # Check given Score and FisherMetric function and overload to inplace if not yet implemented.
+        
+        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn)
     end
 end
 
-function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real,LogPriorFn::Union{Function,Nothing}=nothing,ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
+function OutOfPlaceOverload(F::Function, startp::AbstractVector)
+    if MaximalNumberOfArguments(F) == 2
+
+    else
+        @warn "Got function allowing $(MaximalNumberOfArguments(F)) arguments, expected 2."
+    end
+end
+function InplaceOverload(F::Function, startp::AbstractVector)
+    if MaximalNumberOfArguments(F) == 2
+        F
+    elseif MaximalNumberOfArguments(F) == 1
+        InplaceOverloading!(X; kwargs...) = F(X; kwargs...)
+        InplaceOverloading!(Y, X; kwargs...) = copyto!(Y, F(X; kwargs...))
+    else
+        @warn "Got function allowing $(MaximalNumberOfArguments(F)) arguments, expected 1."
+        F
+    end
+end
+
+function TestDataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, MLE::AbstractVector{<:Number}, LogLikeMLE::Real, LogPriorFn::Union{Function,Nothing},
+                                    LogLikelihoodFn::Function, ScoreFn::Function, FisherInfoFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
     CheckModelHealth(DS, model, MLE)
     if model isa ModelMap
         !IsInDomain(model, MLE) && @warn "Supposed MLE $MLE not inside valid parameter domain specified for ModelMap. Consider specifying an appropriate intial parameter configuration."
@@ -108,9 +131,10 @@ function TestDataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelO
         @assert LogPriorFn(MLE) isa Real
         !all(x->x ≤ 0.0, eigvals(EvalLogPriorHess(LogPriorFn, MLE))) && @warn "Hessian of specified LogPrior does not appear to be negative-semidefinite at MLE."
     end
-    S = Score(DS, model, dmodel, MLE, LogPriorFn; ADmode)
+    !isfinite(LogLikeMLE) && @warn "Got non-finite likelihood value at MLE $LogLikeMLE."
+    S = ScoreFn(MLE)
     norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
-    g = FisherMetric(DS, model, dmodel, MLE, LogPriorFn; ADmode)
+    g = FisherInfoFn(MLE)
     det(g) == 0 && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
     !isposdef(Symmetric(g)) && @warn "Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init)."
 end
@@ -123,11 +147,11 @@ dmodel::ModelOrFunction=(x,p)->[-Inf],
 MLE::AbstractVector{<:Number}=[-Inf],
 LogLikeMLE::Real=-Inf,
 LogPrior::Union{Function,Nothing}=nothing,
-kwargs...
-# LogLikelihoodFn::Function=p->0.0,
-# ScoreFn::Function=p->ones(length(p))
-# FisherInfoFn::Function=p->Diagonal(ones(length(p)))
-) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; kwargs...) #, LogLikelihoodFn, ScoreFn)
+LogLikelihoodFn::Function=p->0.0,
+ScoreFn::Function=p->ones(length(p)),
+FisherInfoFn::Function=p->Diagonal(ones(length(p))),
+kwargs...,
+) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipTests=true, kwargs...)
 
 
 # Specialized methods for DataModel
@@ -138,6 +162,7 @@ dPredictor(DM::DataModel) = DM.dmodel
 LogPrior(DM::DataModel) = DM.LogPrior
 # loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
 # Score(DM::DataModel) = DM.ScoreFn
+# FisherMetric(DM::DataModel) = DM.FisherInfoFn
 
 """
     MLE(DM::DataModel) -> Vector

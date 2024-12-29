@@ -176,14 +176,20 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
     end
 end
 
+function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    F, F! = GetHess(ADmode, Negate(LogLikelihoodFn)), GetHess!(ADmode, Negate(LogLikelihoodFn))
+    FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
+    FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
+end
+
 
 """
     GetRemainderFunction(DM::AbstractDataModel)
 Returns remainder function ``R(θ) = ℓ(θ) - QuadraticApprox(θ)``.
 """
-function GetRemainderFunction(DM::AbstractDataModel)
-    F = FisherMetric(DM, MLE(DM))
-    QuadraticApprox(θ::AbstractVector{<:Number}) = LogLikeMLE(DM) - 0.5 * InformationGeometry.InnerProduct(F, θ-MLE(DM))
+function GetRemainderFunction(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM))
+    F = FisherMetric(DM, mle)
+    QuadraticApprox(θ::AbstractVector{<:Number}) = LogLikeMLE(DM) - 0.5 * InformationGeometry.InnerProduct(F, θ-mle)
     Remainder(θ::AbstractVector{<:Number}) = loglikelihood(DM, θ) - QuadraticApprox(θ)
 end
 

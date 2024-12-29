@@ -47,7 +47,7 @@ ValToBool(x::Val{true}) = true
 ValToBool(x::Val{false}) = false
 
 negate!(x::Union{T, AbstractArray{T}}) where T<:Number = (x .*= -one(T))
-negate(x::Union{T, AbstractArray{T}}) where T<:Number = -one(T) .* x
+negate(x::Union{T, AbstractArray{T}}) where T<:Number = -x
 Negate(F::Function) = negate∘F
 
 
