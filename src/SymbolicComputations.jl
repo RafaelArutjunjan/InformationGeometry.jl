@@ -13,6 +13,14 @@ function SymbolicArguments(xyp::Tuple{Int,Int,Int})
     (@variables θ[1:xyp[3]])[1]
 end
 
+"""
+    SpeedifyTransform(F::Function, X::AbstractArray{<:Num}; inplace::Bool=false) -> Function
+Takes function and runs it through Symbolics toolbox for performance optimization.
+"""
+function SpeedifyTransform(F::Function, X::AbstractArray{<:DerivableFunctionsBase.SymbolicScalar}=(Symbolics.@variables x[1:GetArgLength(F)])[1], args...; inplace::Bool=false, kwargs...)
+    Symbolics.build_function(F(X, args...), X, args...; expression=Val{false}, kwargs...)[inplace ? 2 : 1]
+end
+
 
 ToExpr(DM::AbstractDataModel; timeout::Real=5) = ToExpr(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); timeout=timeout)
 ToExpr(DS::AbstractDataSet, model::Function; timeout::Real=5) = ToExpr(model, (xdim(DS),ydim(DS),pdim(DS,model)); timeout=timeout)
