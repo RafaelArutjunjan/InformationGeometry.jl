@@ -290,10 +290,10 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
 end
 
 """
-    DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+    DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=isloaded(:Plots), kwargs...)
 Returns matrix of mutual distances between optima in step `Ind` with respect to Fisher Metric of first entry in step. 
 """
-function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=isloaded(:Plots), kwargs...)
     ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
     @assert 1 ≤ Ind ≤ length(Steps)
     F = FisherMetric(DM, R.FinalPoints[Steps[Ind][1]]) # get first point in ProfileDomain
@@ -303,10 +303,10 @@ function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, I
 end
 
 """
-    DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+    DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=isloaded(:Plots), kwargs...)
 Returns matrix of mutual distances between first optima in steps with respect to Fisher Metric of best optimum. 
 """
-function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=true, kwargs...)
+function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults; logarithmic::Bool=true, plot::Bool=isloaded(:Plots), kwargs...)
     ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
     F = FisherMetric(DM, R.FinalPoints[1])
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[Steps[i][1]] - R.FinalPoints[Steps[j][1]])) for i in eachindex(Steps), j in eachindex(Steps)]

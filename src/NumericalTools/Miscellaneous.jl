@@ -11,6 +11,11 @@ floatify(x::AbstractArray{<:AbstractFloat}) = x;   floatify(x::AbstractArray) = 
 floatify(x::AbstractFloat) = x;                     floatify(x::Number) = float(x)
 floatify(x) = float.(x)
 
+"""
+    isloaded(Module::Symbol) -> Bool
+Checks if module with name `Module` was already loaded at runtime.
+"""
+isloaded(Module::Symbol) = any(S->isequal(Module, Symbol(S)), values(Base.loaded_modules))
 
 """
     Unpack(Z::AbstractVector{S}) where S <: Union{AbstractVector,Tuple} -> Matrix

@@ -738,12 +738,12 @@ function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int},
     end
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true, samples::Int=200, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), samples::Int=200, kwargs...)
     ConfidenceBands(DM, ConfidenceRegion(DM, Confnum; kwargs...), Xdomain; N=N, plot=plot, samples=samples)
 end
 
 """
-    ConfidenceBands(DM::DataModel, sol::AbstractODESolution, Xdomain::HyperCube; N::Int=300, plot::Bool=true) -> Matrix
+    ConfidenceBands(DM::DataModel, sol::AbstractODESolution, Xdomain::HyperCube; N::Int=300, plot::Bool=isloaded(:Plots)) -> Matrix
 Given a confidence interval `sol`, the pointwise confidence band around the model prediction is computed for x values in `Xdomain`
 by evaluating the model on the boundary of the confidence region.
 """
@@ -769,7 +769,7 @@ function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=100, verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=100, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
@@ -784,7 +784,7 @@ function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=max(2*length(sols),100), verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
@@ -801,7 +801,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractO
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
-                            plot::Bool=true, samples::Int=max(2*length(sols),100), verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert length(Planes) == length(sols)
     @assert !(Data(DM) isa CompositeDataSet)
@@ -824,7 +824,7 @@ function ConfidenceBands(DM::AbstractDataModel, ConfInterval::Tuple{<:Number,<:N
 end
 
 # Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
-function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=true, verbose::Bool=true)
+function ConfidenceBands(DM::AbstractDataModel, points::AbstractVector{<:AbstractVector{<:Number}}, woundX::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
@@ -855,10 +855,10 @@ end
 
 
 """
-    PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=true, kwargs...)
+    PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=isloaded(:Plots), kwargs...)
 Propagate uncertainty through function `F`.
 """
-function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=true, Confnum::Real=-1, kwargs...)
+function PropagateUncertainty(F::Function, woundX::AbstractVector, sol::AbstractODESolution, mle::AbstractVector; samples::Int=100, plot::Bool=isloaded(:Plots), Confnum::Real=-1, kwargs...)
     InOut = (length(woundX[1]), length(F(woundX[1], sol.u[1])))
     M = Matrix{Float64}(undef, length(woundX), InOut[1]+2InOut[2])
     Xmat = view(M, :, 1:InOut[1])
@@ -916,10 +916,10 @@ function UnionInto!(Res::AbstractMatrix, output::AbstractVector{<:Number})
 end
 
 """
-    ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
+    ConfidenceBandWidth(args...; plot::Bool=isloaded(:Plots), OverWrite::Bool=true, kwargs...)
 Computes width of confidence bands.
 """
-function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwargs...)
+function ConfidenceBandWidth(args...; plot::Bool=isloaded(:Plots), OverWrite::Bool=true, kwargs...)
     band = ConfidenceBands(args...; plot=false, kwargs...)
     Res = hcat(view(band,:,1), view(band,:,3)-view(band,:,2))
     F = OverWrite ? RecipesBase.plot : RecipesBase.plot!
@@ -928,9 +928,9 @@ function ConfidenceBandWidth(args...; plot::Bool=true, OverWrite::Bool=true, kwa
 end
 
 """
-ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=1.5)
+ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), add::Real=1.5)
 """
-function ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=true, add::Real=1.5)
+function ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), add::Real=1.5)
     higherConfnum = Confnum + add
     @warn "Trying to establish HyperCube which circumscribes confidence region by passing $higherConfnum to ProfileLikelihood(). If this errors, establish a suitable box manually."
     Box = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, higherConfnum; plot=false)), Confnum)
@@ -938,25 +938,25 @@ function ApproxConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain=XCu
 end
 
 """
-    ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain=XCube(DM); N::Int=300, plot::Bool=true)
+    ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots))
 Computes confidence bands associated with the face centers of the `ParameterCube`.
 If the `ParameterCube` circumscribes a given confidence region, this will typically result in a gross and asymmetric overestimation of the true pointwise confidence bands associated with this confidence level.
 """
-function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=true)
+function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots))
     length(Xdomain) != xdim(DM) && throw("Dimensionality of domain inconsistent with xdim.")
     ApproxConfidenceBands(DM, ParameterCube, DomainSamples(Xdomain; N=N); plot=plot)
 end
 
-function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, woundX::AbstractVector{<:Number}; plot::Bool=true)
+function ApproxConfidenceBands(DM::AbstractDataModel, ParameterCube::HyperCube, woundX::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots))
     ConfidenceBands(DM, FaceCenters(ParameterCube), woundX; plot=plot)
 end
 
 
 """
-    PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=true, kwargs...)
+    PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=isloaded(:Plots), kwargs...)
 Plots `N` model predictions which are randomly chosen from a confidence region of level `MaxConfnum`.
 """
-function PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=true, kwargs...)
+function PredictionEnsemble(DM::AbstractDataModel, pDomain::HyperCube, Xs::AbstractVector{<:Number}=DomainSamples(XCube(DM),300); N::Int=50, uniform::Bool=true, MaxConfnum::Real=3, plot::Bool=isloaded(:Plots), kwargs...)
     @assert xdim(DM) == 1
     function GenerateUniformPoint(DM::AbstractDataModel, pDomain::HyperCube, MaxConfnum::Real)
         p = SVector{length(pDomain)}(rand(pDomain));        Conf = GetConfnum(DM, p)
@@ -1021,7 +1021,7 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
 end
 
 """
-    PlotMatrix(Mat::AbstractMatrix, mle::AbstractVector; Confnum::Real=0., dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
+    PlotMatrix(Mat::AbstractMatrix, mle::AbstractVector; Confnum::Real=0., dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=isloaded(:Plots), OverWrite::Bool=true, kwargs...)
 Plots ellipse corresponding to a given covariance matrix which may additionally be offset by a vector `mle`.
 By providing information on the confidence level of the given matrix via the `Confnum` kwarg, a correction factor is computed to rescale the given matrix appropriately.
 
@@ -1030,7 +1030,7 @@ Example:
 PlotMatrix(inv(FisherMetric(DM,mle)),mle)
 ```
 """
-function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dof::Int=length(MLE), dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=true, OverWrite::Bool=true, kwargs...)
+function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dof::Int=length(MLE), dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=isloaded(:Plots), OverWrite::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
     corr = Confnum != 0. ? sqrt(quantile(Chisq(dof),ConfVol(Confnum))) : 1.0
     C = corr .* cholesky(Symmetric(Mat)).L
