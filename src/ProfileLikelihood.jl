@@ -511,7 +511,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::Abstr
     ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), parallel::Bool=false, verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
 
@@ -634,10 +634,10 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5
 
 
 """
-    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=true, kwargs...) -> Real
+    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=isloaded(:Plots), kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=true, N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=isloaded(:Plots), N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
@@ -654,7 +654,7 @@ end
 abstract type AbstractProfiles end
 
 """
-    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
+    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
 Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
 Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
 `Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
@@ -677,7 +677,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     dof::Int
     IsCost::Bool
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=true, SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
