@@ -74,7 +74,7 @@ struct DataModel <: AbstractDataModel
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
                         tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
-        LogPriorFn = Prior(logPriorFn, mle)
+        LogPriorFn = Prior(logPriorFn, mle, (-1,length(mle)))
         Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=OptimTol, meth=OptimMeth)
         LogLikeMLE = SkipTests ? (try loglikelihood(DS, model, Mle, LogPriorFn) catch; -Inf end) : loglikelihood(DS, model, Mle, LogPriorFn)
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
@@ -160,6 +160,7 @@ Data(DM::DataModel) = DM.Data
 Predictor(DM::DataModel) = DM.model
 dPredictor(DM::DataModel) = DM.dmodel
 LogPrior(DM::DataModel) = DM.LogPrior
+LogPrior(DM::DataModel, θ::AbstractVector{<:Number}) = EvalLogPrior(LogPrior(DM), θ)
 # loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
 # Score(DM::DataModel) = DM.ScoreFn
 # FisherMetric(DM::DataModel) = DM.FisherInfoFn

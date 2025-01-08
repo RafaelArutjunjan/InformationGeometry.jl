@@ -500,6 +500,9 @@ Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
 Base.getindex(C::HyperCube, ::Colon) = C[1:end]
 Base.getindex(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
 
+isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)
+
+
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType
     u_analytic::uType2
