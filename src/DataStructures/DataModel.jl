@@ -74,7 +74,7 @@ struct DataModel <: AbstractDataModel
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
                         tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
-        LogPriorFn = Prior(logPriorFn, mle, (-1,length(mle)))
+        LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
         Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=OptimTol, meth=OptimMeth)
         LogLikeMLE = SkipTests ? (try loglikelihood(DS, model, Mle, LogPriorFn) catch; -Inf end) : loglikelihood(DS, model, Mle, LogPriorFn)
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
@@ -84,7 +84,8 @@ struct DataModel <: AbstractDataModel
     end
     # Block kwargs here.
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real, Logprior::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; ADmode::Union{Symbol,Val}=Val(:ForwardDiff),
-                                    LogPriorFn::Union{Function,Nothing}=Prior(Logprior, MLE, (-1,length(MLE))), LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn),
+                                    LogPriorFn::Union{Function,Nothing}=Logprior, # Prior(Logprior, MLE, (-1,length(MLE))), 
+                                    LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn),
                                     ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode),
                                     SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::Union{Symbol,<:AbstractString}=Symbol())
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))

@@ -85,7 +85,9 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     
     if Full
         Iterations = GetIterations.(Res)
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
+        # By internal optimizer criterion:
+        Converged = HasConverged.(Res)
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
@@ -108,6 +110,7 @@ struct MultistartResults <: AbstractMultiStartResults
     FinalObjectives::AbstractVector{<:Number}
     InitialObjectives::AbstractVector{<:Number}
     Iterations::AbstractVector{<:Int}
+    Converged::AbstractVector{<:Bool}
     pnames::AbstractVector{<:AbstractString}
     OptimMeth
     seed::Union{Int,Nothing}
@@ -119,6 +122,7 @@ struct MultistartResults <: AbstractMultiStartResults
             FinalObjectives::AbstractVector{<:Number},
             InitialObjectives::AbstractVector{<:Number},
             Iterations::AbstractVector{<:Int},
+            Converged::AbstractVector{<:Bool},
             pnames::AbstractVector{<:AbstractString},
             meth,
             seed::Union{Int, Nothing}=nothing,
@@ -128,7 +132,6 @@ struct MultistartResults <: AbstractMultiStartResults
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
-        !any(isfinite, FinalObjectives) && @warn "No finite Multistart results! It is likely that inputs to optimizer were unsuitable and thus try-catch was triggered on every run or Multistart Domain chosen too large."
         OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
         
         # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
@@ -136,10 +139,20 @@ struct MultistartResults <: AbstractMultiStartResults
         for i in eachindex(FinalObjectives)
             (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
         end
-        verbose && nans > 0 && @info "$nans runs crashed during multistart optimization with $(typeof(OptimMeth))."
+        if verbose
+            if all(isinf, FinalObjectives)
+                if any(isfinite, InitialObjectives)
+                    @warn "ALL multistart optimizations with $(typeof(OptimMeth)) crashed! Most likely the options supplied to the optimizer were wrong. Automatic catching of optimizer errors can be disabled with kwarg TryCatchOptimizer=false."
+                else
+                    @warn "ALL multistarts failed on initial evaluation! Most likely the specified CostFunction was ill-defined and / or initial points were ill-chosen (Domain too large?) or too few. Automatic catching of CostFunction errors can be disabled with kwarg TryCatchCostFunc=false."
+                end
+            elseif nans > 0
+                @info "$nans runs crashed during multistart optimization with $(typeof(OptimMeth))."
+            end
+        end
 
         Perm = sortperm(FinalObjectives; rev=true)
-        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
+        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
     end
 end
 
@@ -149,7 +162,7 @@ function Base.vcat(R1::MultistartResults, R2::MultistartResults)
     R1.OptimMeth != R2.OptimMeth && @warn "Combining results from different optimizers."
 
     MultistartResults(vcat(R1.FinalPoints, R2.FinalPoints), vcat(R1.InitialPoints, R2.InitialPoints),
-        vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations),
+        vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations), vcat(R1.Converged, R2.Converged),
         R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
         (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing)
     )
@@ -222,6 +235,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
         label --> "Finals"
         markersize --> 20/sqrt(ymaxind)
         msw --> 0
+        markershape --> map(x->x ? :circle : :utriangle, R.Converged)
         if ColorIterations
             zcolor --> map(x->isfinite(x) ? x : 0, R.Iterations)
             color --> cgrad(:plasma; rev=true)

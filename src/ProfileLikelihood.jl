@@ -233,7 +233,8 @@ GetIterations(Res::Optim.OptimizationResults) = Res.iterations
 
 GetMinimizer(Res::SciMLBase.OptimizationSolution) = Res.u
 GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
-HasConverged(Res::SciMLBase.OptimizationSolution) = Res.retcode === ReturnCode.Success
+HasConverged(Res::SciMLBase.OptimizationSolution) = HasConverged(Res.retcode)
+HasConverged(Ret::SciMLBase.ReturnCode.T) = Ret === ReturnCode.Success
 GetIterations(Res::SciMLBase.OptimizationSolution) = Res.stats.iterations
 
 # For Multistart fit
