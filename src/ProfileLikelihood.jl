@@ -223,24 +223,24 @@ end
 
 GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
 GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = GetMinimum(GetMinimizer(Res), L)
-HasConverged(Res::LsqFit.LsqFitResult) = Res.converged
+HasConverged(Res::LsqFit.LsqFitResult; kwargs...) = Res.converged
 GetIterations(Res::LsqFit.LsqFitResult) = try Res.trace[end].iteration catch; -Inf end # needs kwarg store_trace=true to be available
 
 GetMinimizer(Res::Optim.OptimizationResults) = Optim.minimizer(Res)
 GetMinimum(Res::Optim.OptimizationResults, L::Function) = Res.minimum
-HasConverged(Res::Optim.OptimizationResults) = Optim.converged(Res)
+HasConverged(Res::Optim.OptimizationResults; kwargs...) = Optim.converged(Res)
 GetIterations(Res::Optim.OptimizationResults) = Res.iterations
 
 GetMinimizer(Res::SciMLBase.OptimizationSolution) = Res.u
 GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
-HasConverged(Res::SciMLBase.OptimizationSolution) = HasConverged(Res.retcode)
-HasConverged(Ret::SciMLBase.ReturnCode.T) = Ret === ReturnCode.Success
+HasConverged(Res::SciMLBase.OptimizationSolution; kwargs...) = HasConverged(Res.retcode; kwargs...)
+HasConverged(Ret::SciMLBase.ReturnCode.T; kwargs...) = Ret === ReturnCode.Success
 GetIterations(Res::SciMLBase.OptimizationSolution) = Res.stats.iterations
 
 # For Multistart fit
 GetMinimizer(X::AbstractVector{<:Number}) = X
 GetMinimum(X::AbstractVector{<:Number}, L::Function) = L(X)
-HasConverged(X::AbstractVector{<:Number}) = ((@warn "HasConverged: Cannot infer convergence from vector, returning true"); true)
+HasConverged(X::AbstractVector{<:Number}; verbose::Bool=true) = (verbose && (@warn "HasConverged: Cannot infer convergence from vector, returning true if all finite."); !any(isinf, X))
 GetIterations(X::AbstractVector{<:Number}) = 0
 
 # For Multistart fit

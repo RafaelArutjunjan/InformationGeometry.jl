@@ -86,7 +86,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     if Full
         Iterations = GetIterations.(Res)
         # By internal optimizer criterion:
-        Converged = HasConverged.(Res)
+        Converged = HasConverged.(Res; verbose=false)
         MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
@@ -235,12 +235,12 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
         label --> "Finals"
         markersize --> 20/sqrt(ymaxind)
         msw --> 0
-        markershape --> map(x->x ? :circle : :utriangle, R.Converged)
+        markershape --> map(x->x ? :circle : :utriangle, (@view R.Converged[1:ymaxind]))
         if ColorIterations
             zcolor --> map(x->isfinite(x) ? x : 0, R.Iterations)
             color --> cgrad(:plasma; rev=true)
         end
-        Fin[1:ymaxind]
+        @view Fin[1:ymaxind]
     end
     @series begin
         label --> "Initials"
