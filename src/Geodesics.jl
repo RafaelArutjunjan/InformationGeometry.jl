@@ -1,15 +1,15 @@
 
 
 GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Bool=false; kwargs...) = GetGeodesicODE(Metric, InitialPos, Val(approx); kwargs...)
-function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{false}; kwargs...)
+function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{false}; ADmode::Val=Val(:ForwardDiff), kwargs...)
     n = length(InitialPos)
     function GeodesicODE!(du,u,p,t)
         du[1:n] .= @view u[(n+1):end]
-        ChristoffelTerm!((@view du[(n+1):end]), ChristoffelSymbol(Metric, (@view u[1:n]); kwargs...), (@view du[1:n]))
+        ChristoffelTerm!((@view du[(n+1):end]), ChristoffelSymbol(Metric, (@view u[1:n]); ADmode, kwargs...), (@view du[1:n]))
     end
 end
-function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{true}; kwargs...)
-    Γ = ChristoffelSymbol(Metric, InitialPos; kwargs...)
+function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, approx::Val{true}; ADmode::Val=Val(:ForwardDiff), kwargs...)
+    Γ = ChristoffelSymbol(Metric, InitialPos; ADmode, kwargs...)
     n = length(InitialPos)
     function ApproxGeodesicODE!(du,u,p,t)
         du[1:n] .= @view u[(n+1):end]
@@ -64,7 +64,7 @@ end
     GeodesicCrossing(DM::DataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol=1e-15)
 Gives the parameter value of the geodesic `sol` at which the confidence level `Conf` is crossed.
 """
-function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15)
+function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, kwargs...)
     start = sol.t[end]/2
     if (tol < 1e-15)
         start *= one(BigFloat)
@@ -72,7 +72,7 @@ function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf:
     end
     A = loglikelihood(DM,sol(0.)[1:2]) - (1/2)*quantile(Chisq(Int(length(sol(0.))/2)),Conf)
     f(t) = A - loglikelihood(DM,sol(t)[1:2])
-    find_zero(f, start, Order1B(); xatol=tol)
+    find_zero(f, start, Order1B(); xatol=tol, kwargs...)
 end
 
 
@@ -80,12 +80,12 @@ end
     DistanceAlongGeodesic(Metric::Function,sol::AbstractODESolution,L::Number; tol=1e-14)
 Calculates at which parameter value of the geodesic `sol` the length `L` is reached.
 """
-function DistanceAlongGeodesic(Metric::Function, sol::AbstractODESolution, L::Number; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function DistanceAlongGeodesic(Metric::Function, sol::AbstractODESolution, L::Number; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     L ≤ 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
     # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], FullSol=true, tol=tol)
     Func(x) = L - GeoLength(x)
-    find_zero((Func,GetDeriv(ADmode, Func)),sol.t[end]/2*one(typeof(L)),Roots.Newton(),xatol=tol)
+    find_zero((Func,GetDeriv(ADmode, Func)), sol.t[end]/2*one(typeof(L)), Roots.Newton(), xatol=tol, kwargs...)
 end
 
 
@@ -95,7 +95,7 @@ function Endpoints(Geodesics::AbstractVector{<:AbstractODESolution})
     Numb = Int(length(Geodesics[1].u[1])/2)
     for Curve in Geodesics
         T = Curve.t[end]
-        push!(Endpoints,Curve(T)[1:Numb])
+        push!(Endpoints, (@view Curve(T)[1:Numb]))
     end;    Endpoints
 end
 
@@ -110,7 +110,7 @@ function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractV
     Res = Vector{Vector{Float64}}(undef,0)
     for i in eachindex(Ts)
         F = sols[i]
-        push!(Res,F(Ts[i])[1:n])
+        push!(Res, (@view F(Ts[i])[1:n]))
     end;    Res
 end
 
@@ -123,7 +123,7 @@ function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Abst
     function Constructor(Initial)
         solving += 1
         println("Computing Geodesic $(solving) / $N\t")
-        ConfidenceBoundaryViaGeodesic(DM,Metric,Initial,Conf; tol=tol)
+        ConfidenceBoundaryViaGeodesic(DM, Metric, Initial, Conf; tol=tol)
     end
     pmap(Constructor,Initials)
 end
@@ -131,7 +131,7 @@ end
 
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
                                     Confnum::Real=1, Endtime::Real=500.0; dof::Int=DOF(DM), kwargs...)
-    WilksCond = (1/2)*quantile(Chisq(dof),ConfVol(Confnum))
+    WilksCond = (1/2)*quantile(Chisq(dof), ConfVol(Confnum))
     BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > WilksCond
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
@@ -139,24 +139,23 @@ end
 ###############################################################
 
 
-function pConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Number=10.,N::Int=100;
-    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=true)
-    ConstParamGeodesics(Metric,MLE,Endtime,N;Boundaries=Boundaries, tol=tol, parallel=parallel)
+function pConstParamGeodesics(Metric::Function, MLE::AbstractVector, Endtime::Number=10., N::Int=100;
+                Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=true, kwargs...)
+    ConstParamGeodesics(Metric, MLE, Endtime, N; Boundaries=Boundaries, tol=tol, parallel=parallel, kwargs...)
 end
 
-function ConstParamGeodesics(Metric::Function,MLE::AbstractVector,Endtime::Number=10.,N::Int=100;
-    Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false)
+function ConstParamGeodesics(Metric::Function, MLE::AbstractVector, Endtime::Number=10., N::Int=100;
+                Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-13, parallel::Bool=false, kwargs...)
     Initials = [ [cos(alpha),sin(alpha)] for alpha in range(0,2π;length=N)];    solving = 0
-    Map = parallel ? pmap : map
     function Constructor(Initial)
         solving += 1
         println("Computing Geodesic $(solving) / $N")
-        ComputeGeodesic(Metric,MLE,Initial,Endtime;tol=tol,Boundaries=Boundaries)
+        ComputeGeodesic(Metric, MLE, Initial, Endtime; tol=tol, Boundaries=Boundaries, kwargs...)
     end
-    Map(Constructor,Initials)
+    (parallel ? pmap : map)(Constructor,Initials)
 end
 
-GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> u[1:end÷2] ∉ Cube
+GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> (@view u[1:end÷2]) ∉ Cube
 function GeodesicBoundaryFunction(M::ModelMap)
     function ModelMapBoundaries(u,p,t)
         S = !IsInDomain(M, @view u[1:end÷2])
@@ -214,15 +213,15 @@ function GeodesicDistance(Metric::Function, P::AbstractVector{<:Number}, Q::Abst
 end
 
 ParamVol(sol::AbstractODESolution) = sol.t[end] - sol.t[1]
-GeodesicEnergy(DM::DataModel,sol::AbstractODESolution,Endrange::Number=sol.t[end];FullSol::Bool=false,tol::Real=1e-14) = GeodesicEnergy(x->FisherMetric(DM,x),sol,Endrange;tol=tol)
-function GeodesicEnergy(Metric::Function,sol::AbstractODESolution,Endrange=sol.t[end]; FullSol::Bool=false,tol::Real=1e-14)
+GeodesicEnergy(DM::DataModel, sol::AbstractODESolution, Endrange::Number=sol.t[end]; kwargs...) = GeodesicEnergy(x->FisherMetric(DM,x), sol, Endrange; kwargs...)
+function GeodesicEnergy(Metric::Function, sol::AbstractODESolution, Endrange=sol.t[end]; FullSol::Bool=false, tol::Real=1e-14, kwargs...)
     @assert length(sol.u[1]) % 2 == 0
     n = length(sol.u[1])÷2
     function Integrand(t)
         FullGamma = sol(t)
         InnerProduct(Metric(@view FullGamma[1:n]), @view FullGamma[(n+1):end])
     end
-    Integrate1D(Integrand, [sol.t[1],Endrange]; FullSol=FullSol, tol=tol)
+    Integrate1D(Integrand, [sol.t[1],Endrange]; FullSol, tol, kwargs...)
 end
 
 
@@ -235,7 +234,7 @@ function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tange
     if FullSol
         ComputeGeodesic(Metric, point, tangent, 1.0; kwargs...)
     else
-        ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[1:end÷2,end]
+        @view ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[1:end÷2,end]
     end
 end
 ExponentialMap(DM::AbstractDataModel, args...; kwargs...) = ExponentialMap(FisherMetric(DM), args...; kwargs...)
@@ -248,7 +247,7 @@ function LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::Abstra
     if FullSol
         GeodesicBetween(Metric, P, Q, 1.0; kwargs...)
     else
-        GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[((end÷2)+1):end,1]
+        @view GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[((end÷2)+1):end,1]
     end
 end
 LogarithmicMap(DM::AbstractDataModel, args...; kwargs...) = LogarithmicMap(FisherMetric(DM), args...; kwargs...)

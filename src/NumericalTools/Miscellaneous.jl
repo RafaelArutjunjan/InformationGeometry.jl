@@ -109,6 +109,18 @@ DataSetType(DS::GeneralizedDataSet) = GeneralizedDataSet
 SplitAfter(n::Int) = X->(view(X,1:n), view(X,n+1:length(X)))
 
 
+const DiffArray{N,D} = Union{AbstractArray{<:N, D}, DiffCache{<:AbstractArray{<:N, D}}}
+const DiffVector{N<:Number} = DiffArray{N, 1}
+const DiffMatrix{N<:Number} = DiffArray{N, 2}
+
+## Extend get_tmp to three arguments and determine wether to get tmp based on second or third argument
+UnrollCache(dc, u, v::Union{T,AbstractArray{T},AbstractArray{<:AbstractArray{T}}}) where T<:ForwardDiff.Dual = UnrollCache(dc, v)
+UnrollCache(dc, u, v) = UnrollCache(dc, u)
+UnrollCache(dc, u) = PreallocationTools.get_tmp(dc, u)
+# Overload to do nothing if first arg not DiffCache
+UnrollCache(dc::AbstractArray, u) = dc
+
+
 """
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` using Roots.jl. Ideally, `F` should be monotone and there should only be one correct result.
@@ -291,8 +303,8 @@ Constructs blockdiagonal matrix from `A` and `B`.
 function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Number, S<:Number}
     # Adopt eltype of first matrix instead of union
     Res = zeros(T, size(A,1)+size(B,1), size(A,2)+size(B,2))
-    Res[1:size(A,1), 1:size(A,1)] = A
-    Res[size(A,1)+1:end, size(A,1)+1:end] = B
+    Res[1:size(A,1), 1:size(A,1)] .= A
+    Res[size(A,1)+1:end, size(A,1)+1:end] .= B
     Res
 end
 BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))

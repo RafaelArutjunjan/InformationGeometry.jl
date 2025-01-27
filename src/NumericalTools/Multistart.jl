@@ -214,7 +214,7 @@ end
 
 
 RecipesBase.@recipe f(R::MultistartResults, S::Symbol=:Waterfall) = R, Val(S)
-# kwargs BiLog, StepTol, MaxValue, ColorIterations
+# kwargs BiLog, StepTol, MaxValue, MaxInd, ColorIterations
 RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     DoBiLog = get(plotattributes, :BiLog, true)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
@@ -222,7 +222,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     @assert MaxValue ≥ 0
     Fin = (DoBiLog ? BiLog : identity)(-R.FinalObjectives)
     # Cut off results with difference to lowest optimum greater than MaxValue
-    ymaxind = (Q=findlast(x->isfinite(x) && abs(x-Fin[1]) < (DoBiLog ? BiLog(MaxValue) : MaxValue), Fin);   isnothing(Q) ? length(Fin) : Q)
+    ymaxind = get(plotattributes, :MaxInd, (Q=findlast(x->isfinite(x) && abs(x-Fin[1]) < (DoBiLog ? BiLog(MaxValue) : MaxValue), Fin);   isnothing(Q) ? length(Fin) : Q))
     xlabel --> "Run (sorted by cost function result)"
     ylabel --> (DoBiLog ? "BiLog(Final Cost Value)" : "Final Cost Value")
     title --> "Waterfall plot $(ymaxind)/$(length(Fin))"
