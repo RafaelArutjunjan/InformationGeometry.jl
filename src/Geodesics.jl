@@ -18,11 +18,11 @@ function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, 
 end
 
 # accuracy ≈ 6e-11
-function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.;
+function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
-    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, (0.0,Endtime))
+    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, tspan)
     if isnothing(Boundaries)
         solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
     else
@@ -179,26 +179,34 @@ function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol:
 end
 
 
+LazyShooting(M) = throw("Need to load BoundaryValueDiffEq.jl first.")
+@init @require BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d" begin
+    LazyShooting(M::SciMLBase.AbstractSciMLAlgorithm) = BoundaryValueDiffEq.Shooting(M)
+end
+
+
 """
-    GeodesicBetween(DM::DataModel, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
-    GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-10, meth=Tsit5())
+    GeodesicBetween(DM::DataModel, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-10)
+    GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}; tol::Real=1e-10)
 Computes a geodesic between two given points on the parameter manifold and an expression for the metric.
 
+Use keyword `BVPmeth` to pass a BVP integration algorithm from the `BoundaryValueDiffEq.jl` package.
 By setting the keyword `approx=true`, the ChristoffelSymbols are assumed to be constant and only computed once at the initial position. This simplifies the computation immensely but may also constitute an inaccurate approximation depending on the magnitude of the Ricci curvature.
 """
 GeodesicBetween(DM::AbstractDataModel, args...; kwargs...) = GeodesicBetween(FisherMetric(DM), args...; kwargs...)
-function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tol::Real=1e-9, meth::AbstractODEAlgorithm=Tsit5(), approx::Bool=false,
-                                BVPmeth::SciMLBase.AbstractBVPAlgorithm=Shooting(meth), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), kwargs...)
+function GeodesicBetween(Metric::Function, P::AbstractVector{<:Number}, Q::AbstractVector{<:Number}, Endtime::Real=10.0; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime), tol::Real=1e-9, meth::AbstractODEAlgorithm=Tsit5(),
+                            approx::Bool=false, ADmode::Val=Val(:ForwardDiff), promote::Bool=false, BVPmeth::Union{Nothing,SciMLBase.AbstractBVPAlgorithm}=nothing, kwargs...)
     length(P) != length(Q) && throw("GeodesicBetween: Points not of same dim.")
+    isnothing(BVPmeth) && (BVPmeth = LazyShooting(meth))
     dim = length(P)
     function bc!(resid, u, p, t)
-        resid[1:dim] .= u[1:dim,1] .- P
-        resid[(dim+1):2dim] .= u[1:dim,end] .- Q
+        @views resid[1:dim] .= u(tspan[1])[1:dim] .- P
+        @views resid[(dim+1):2dim] .= u(tspan[2])[1:dim] .- Q
     end
     # Slightly perturb initial direction:
-    initial = vcat(P, ((Q - P) ./ Endtime) .+ 1e-8 .*(rand(dim) .- 0.5))
+    initial = vcat(P, ((Q .- P) .+ 1e-8 .*(rand(dim) .- 0.5)) ./ Endtime)
     promote && (initial = PromoteStatic(initial, true))
-    BVP = BVProblem(GetGeodesicODE(Metric, P, approx), bc!, initial, (0.0, Endtime))
+    BVP = BVProblem(GetGeodesicODE(Metric, P, approx; ADmode), bc!, initial, tspan)
     solve(BVP, BVPmeth; reltol=tol, abstol=tol, kwargs...)
 end
 
@@ -230,11 +238,11 @@ end
     ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; tol::Real=1e-9)
 Computes the differential-geometric exponential map ``\\mathrm{exp}_p(v)`` which returns the endpoint that is reached by a geodesic ``\\gamma:[0,1] \\longrightarrow \\mathcal{M}`` with initial direction ``v \\in T_p \\mathcal{M}``.
 """
-function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; FullSol::Bool=false, kwargs...)
+function ExponentialMap(Metric::Function, point::AbstractVector{<:Number}, tangent::AbstractVector{<:Number}; FullSol::Bool=false, BVPmeth=nothing, kwargs...)
     if FullSol
         ComputeGeodesic(Metric, point, tangent, 1.0; kwargs...)
     else
-        @view ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[1:end÷2,end]
+        ComputeGeodesic(Metric, point, tangent, 1.0; save_everystep=false, save_start=false, save_end=true, kwargs...).u[end][1:end÷2]
     end
 end
 ExponentialMap(DM::AbstractDataModel, args...; kwargs...) = ExponentialMap(FisherMetric(DM), args...; kwargs...)
@@ -247,7 +255,7 @@ function LogarithmicMap(Metric::Function, P::AbstractVector{<:Number}, Q::Abstra
     if FullSol
         GeodesicBetween(Metric, P, Q, 1.0; kwargs...)
     else
-        @view GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[((end÷2)+1):end,1]
+        GeodesicBetween(Metric, P, Q, 1.0; save_everystep=false, save_start=true, save_end=false, kwargs...).u[1][((end÷2)+1):end]
     end
 end
 LogarithmicMap(DM::AbstractDataModel, args...; kwargs...) = LogarithmicMap(FisherMetric(DM), args...; kwargs...)
