@@ -49,6 +49,7 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
 BenchmarkTools = "0.5, 0.6, 0.7, 1"
+BoundaryValueDiffEq = "5"
 ColorSchemes = "2, 3"
 Combinatorics = "1"
 ComponentArrays = "0.13, 0.14, 0.15"
