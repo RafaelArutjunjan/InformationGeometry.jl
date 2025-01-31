@@ -188,12 +188,12 @@ BiLog(x) = \\sgn(x) \\cdot \\log(1 + |C \\cdot x|)
 ```
 similar to the definition in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
 The constant `C` controls the slope of the bi-logarithm at zero.
-The inverse transformation is given by [BiExp](@ref).
+The inverse transformation is given by [`BiExp`](@ref).
 """
 BiLog(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * log(one(T) + abs(C*x))
 """
     BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number
-Computes bi-symmetric exponential, which is the inverse transformation to [BiLog](@ref)
+Computes bi-symmetric exponential, which is the inverse transformation to [`BiLog`](@ref)
 ```math
 BiExp(x) = \\sgn(x) \\cdot |1/C| \\cdot (\\exp(|x|) - 1)
 ```

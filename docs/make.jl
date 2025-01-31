@@ -11,6 +11,7 @@ makedocs(
                 "Tutorial" => Any[  "Providing Data and Models" => "datamodels.md",
                                     "Maximum Likelihood Estimation" => "optimization.md",
                                     "Confidence Regions" => "confidence-regions.md",
+                                    "Profile Likelihoods" => "parameter-profiles.md",
                                     "Model Transformations" => "transformations.md",
                                     # "Useful Diagnostic Plots" => "plotting.md",
                                     "Parallelization" => "parallelization.md",

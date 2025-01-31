@@ -17,16 +17,20 @@ For example, given two different parametrizations of the same linear relationshi
 `y(x, θ) = θ[1] * x + θ[2]` | `y(x, θ) = θ[1]^3 * x + exp(θ[1] + θ[2])`
 :------|------:
 <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols.svg" width="410"/> | <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/sols2.svg" width="410"/>
+<img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/Profiles1.svg" width="410"/> | <img src="https://github.com/RafaelArutjunjan/InformationGeometry.jl/blob/master/docs/assets/Profiles2.svg" width="410"/>
 
 In addition, this package also allows for computations of
 
-* likelihoods,
-* confidence bands,
+* confidence bands around the prediction,
+* profile likelihoods,
+* multistart optimization with optimizers from the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem,
 * the Fisher metric, geodesics,
 * Riemann and Ricci curvature tensors
 
-and more. With its unique features and great performance, the toolkit of **InformationGeometry.jl** offers valuable insights into complicated modeling problems from various areas of science and engineering.
+and more. With its unique features, the toolkit of **InformationGeometry.jl** offers valuable insights into complicated modeling problems from various areas of science and engineering.
 Examples detailing how to use this package can be found in the [**documentation**](https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev).
+
+
 
 
 ## Further reading

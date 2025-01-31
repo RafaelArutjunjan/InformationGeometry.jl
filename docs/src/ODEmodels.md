@@ -38,7 +38,7 @@ SIRDS = DataSet(days, infected, 15ones(14); xnames=["Days"], ynames=["Infected"]
 Finally, the `DataModel` associated with the SIR model and the given data is constructed by
 ```@example ODE
 SIRobservables = [2]
-SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, SIRobservables, [0.001, 0.1]; tol=1e-11)
+SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, SIRobservables, [0.002, 0.5]; tol=1e-11)
 ```
 where `SIRobservables` denotes the components of the `ODESystem` that have actually been observed in the given dataset (i.e. the second component which are the infected in this case). The optional vector `[0.001, 0.1]` is our initial guess for the parameters `[β, γ]` for the maximum likelihood estimation and the keyword `tol` specifies the desired accuracy of the ODE solver for all model predictions.
 

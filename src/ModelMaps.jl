@@ -36,10 +36,6 @@ For more complicated boundary constraints, a function `InDomain(θ)` can be spec
 Alternatively, `InDomain` may also be a bool-valued function, evaluating to `true` in admissible parts of the parameter domain.
 
 The kwarg `startp` may be used to pass a suitable parameter vector for the ModelMap.
-
-!!! note
-    A `Bool`-valued function which returns `true` in the valid domain also fits this description, which allows one to easily combine multiple constraints.
-    Providing this information about the domain can be advantageous in the optimization process for complicated models.
 """
 struct ModelMap{Inplace, Custom}
     Map::Function

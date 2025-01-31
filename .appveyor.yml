@@ -1,7 +1,6 @@
 # Documentation: https://github.com/JuliaCI/Appveyor.jl
 environment:
   matrix:
-  - julia_version: 1.9
   - julia_version: 1.10
   - julia_version: 1.11
   - julia_version: nightly
@@ -9,7 +8,6 @@ platform:
   - x64
 matrix:
   allow_failures:
-    - julia_version: 1.9
     - julia_version: nightly
 branches:
   only:

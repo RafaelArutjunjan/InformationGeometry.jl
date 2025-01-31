@@ -127,7 +127,7 @@ end
     PlaneCoordinates(PL::Plane, v::AbstractVector{<:Number})
 Returns an n-dimensional vector from a tuple of two real numbers which correspond to the coordinates in the 2D `Plane`.
 That is, `PlanarCoordinates` provides an embedding of the plane parameters into the ambient space.
-The inverse function is given by [DecomposeWRTPlane](@ref).
+The inverse function is given by [`DecomposeWRTPlane`](@ref).
 """
 PlaneCoordinates(PL::Plane, v::AbstractVector, Proj::AbstractMatrix=Projector(PL)) = muladd(Proj, v, PL.stütz)
 function PlaneCoordinates(PL::Plane, Proj::AbstractMatrix=Projector(PL))
@@ -156,7 +156,7 @@ end
 """
     DecomposeWRTPlane(PL::Plane, x::AbstractVector)
 Takes vector from ambient space which is also element of the given plane and returns its coordinates with respect to the plane basis.
-That is, `DecomposeWRTPlane` is the inverse of the plane embedding function [PlanarCoordinates](@ref).
+That is, `DecomposeWRTPlane` is the inverse of the plane embedding function [`PlanarCoordinates`](@ref).
 """
 function DecomposeWRTPlane(PL::Plane, X::AbstractVector)
     @assert IsOnPlane(PL, X)

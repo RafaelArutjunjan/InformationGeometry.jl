@@ -668,7 +668,7 @@ Further `kwargs` can be passed to the optimization.
 
 # Extended help
 
-For visualization of the results, multiple methods are available, see e.g. [PlotProfileTrajectories](@ref), [PlotRelativeParameterTrajectories](@ref).
+For visualization of the results, multiple methods are available, see e.g. [`PlotProfileTrajectories`](@ref), [`PlotRelativeParameterTrajectories`](@ref).
 """
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
