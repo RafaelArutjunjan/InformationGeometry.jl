@@ -12,7 +12,7 @@ In particular, it employs novel methods to quantify and visualize the *exact* un
 That is, the confidence regions around the best fit parameters can be constructed without resorting to any approximations of their shape (e.g. as ellipsoids by assuming linear covariance between the parameters).
 Moreover, the utilized schemes are highly efficient since they do *not* require one to sample large domains of the parameter space either on a grid or stochastically in order to find said confidence regions, which constitutes a significant improvement over previously established methods.
 
-For example, given two different parametrizations of the same linear relationship between observed *x* and *y*-data, one finds the following confidence regions:
+For example, given two different parametrizations of the same linear relationship between observed *x* and *y*-data, one finds the following confidence regions and intervals:
 
 `y(x, θ) = θ[1] * x + θ[2]` | `y(x, θ) = θ[1]^3 * x + exp(θ[1] + θ[2])`
 :------|------:

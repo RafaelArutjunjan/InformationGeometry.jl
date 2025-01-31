@@ -58,3 +58,139 @@ end
 
 
 
+
+function TimeShiftEmb(xyp::Tuple{Int,Int,Int}, IsCustom::Bool)
+    if xyp[1] == 1
+        if IsCustom
+            TimeShiftC(x::Union{Number, AbstractVector{<:Number}}, p::AbstractVector{<:Number}) = (x .+ p[xyp[3]+1], view(p,1:xyp[3]))
+        else
+            TimeShift(x::Number, p::AbstractVector{<:Number}) = (x + p[xyp[3]+1], view(p,1:xyp[3]))
+        end
+    else
+        if IsCustom
+            TimeShiftNC(x::AbstractVector{<:Number}, p::AbstractVector{<:Number}) = (x .+ view(p, xyp[3]+1:xyp[3]+xyp[1]), view(p,1:xyp[3]))
+            TimeShiftNC(x::AbstractVector{<:AbstractVector{<:Number}}, p::AbstractVector{<:Number}) = (broadcast(z->z .+ view(p, xyp[3]+1:xyp[3]+xyp[1]),x), view(p,1:xyp[3]))
+        else
+            TimeShiftN(x::AbstractVector{<:Number}, p::AbstractVector{<:Number}) = (x .+ view(p, xyp[3]+1:xyp[3]+xyp[1]), view(p,1:xyp[3]))
+        end
+    end
+end
+function TimeShiftTransform(model::Function, xyp::Tuple{Int,Int,Int}=ConstructModelxyp(model), IsCustom::Bool=iscustommodel(model), Inplace::Bool=isinplacemodel(model), Dom::HyperCube=5FullDomain(xyp[1], 1.0))
+    EmbedModelXP(model, TimeShiftEmb(xyp, IsCustom), Inplace)
+end
+"""
+    TimeShiftTransform(DM::AbstractDataModel)
+    TimeShiftTransform(M::ModelMap, xyp::Tuple{Int,Int,Int}=Getxyp(M), IsCustom::Bool=iscustommodel(M), dom::Tuple{<:Real,<:Real}=(-5,5))
+Extends the model by adding `xdim(M)` many timeshift parameters `p_time` as the last accepted parameters such that the new model is given by
+`newmodel(x,p) = oldmodel(x .+ p[end-xdim(M)+1:end], p[1:end-xdim(M)])`.
+"""
+function TimeShiftTransform(M::ModelMap, xyp::Tuple{Int,Int,Int}=Getxyp(M), IsCustom::Bool=iscustommodel(M), Inplace::Bool=isinplacemodel(M), Dom::HyperCube=5FullDomain(xyp[1], 1.0))
+    ModelMap(TimeShiftTransform(M.Map, xyp, IsCustom, Inplace),
+        !isnothing(InDomain(M)) ? InDomain(M)∘(θ::AbstractVector->@view θ[1:xyp[3]]) : nothing,
+        vcat(!isnothing(Domain(M)) ? Domain(M) : FullDomain(xyp[3], Inf), Dom),
+        xyp .+ (0,0,xyp[1]),
+        vcat(pnames(M), CreateSymbolNames(xyp[1],"Timeshift")),
+        Val(isinplacemodel(M)),
+        Val(IsCustom),
+        length(string(name(M))) > 0 ? Symbol("Time-shifted " *string(name(M))) : name(M),
+        M.Meta
+    )
+end
+
+function TimeShiftTransform(DM::AbstractDataModel; factor::Real=0.85, kwargs...)
+    Cube = (C = XCube(DM);    factor*TranslateCube(C, -Center(C)))
+    DataModel(Data(DM), TimeShiftTransform(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)), iscustommodel(Predictor(DM)), isinplacemodel(Predictor(DM)), Cube), 
+                [MLE(DM); 1e-8ones(xdim(DM))], LogPrior(DM); kwargs...)
+end
+
+
+
+"""
+    TimeRetardation(t, T_shift, r; t_range=1)
+Implements time retardation of the form
+```math
+(\\log_{10}(10^{r \\cdot t / t_\\text{range}} + 10^{r \\cdot T_\\text{shift} / t_\\text{range}}) - \\log_{10}(1 + 10^{r \\cdot T_\\text{shift} / t_\\text{range}}))/r
+```
+adapted from
+https://www.researchgate.net/publication/340061135_A_New_Approximation_Approach_for_Transient_Differential_Equation_Models
+with additional curvature parameter `r`.
+"""
+function TimeRetardation(t::Union{S, <:AbstractVector{S}}, T_shift::Number, r::Number; t_range::Real=1) where S<:Number
+    @. (log10(exp10(r*t/t_range) + exp10(r*T_shift/t_range)) - log10(one(S) + exp10(r*T_shift/t_range)))/r
+end
+
+TransientApproximation(; kwargs...) = (args...; Kwargs...) -> TransientApproximation(args...; kwargs..., Kwargs...)
+function TransientApproximation(t::Union{<:Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; t_range::Real=1)
+    A_sus, A_trans, τ_1, τ_3, τ_2, T_shift, r, offset = θ
+    sustained(t_ret) = @. A_sus * (one(eltype(t_ret)) - exp(-t_ret/τ_1))
+    transient(t_ret) = @. A_trans * (one(eltype(t_ret)) - exp(-t_ret/τ_3)) * exp(-t_ret/τ_2)
+    Res(t_ret) = @. sustained(t_ret) + transient(t_ret) + offset
+    @. Res(TimeRetardation(t, T_shift, r; t_range))
+end
+
+"""
+    GetRetardedTransientFunction(DS::AbstractDataSet; exp10::Bool=false, TimeRangeAdjustment::Bool=true, t_range::Real=(E=extrema(xdata(DS));  E[2]-E[1]))
+
+Implements `RetardedTransientFunction(t::Real, θ::AbstractVector)` from
+https://www.researchgate.net/publication/340061135_A_New_Approximation_Approach_for_Transient_Differential_Equation_Models
+with additional curvature parameter `r` for time retardation (see also [`TimeRetardation`](@ref)).
+
+Parameters: `A_sus, A_trans, τ_1, τ_1′, τ_2, T_shift, r, offset`
+
+Kwarg `exp10` controls whether rate parameters `τ` and curvature parameter `r` are transformed to log10-scale.
+"""
+function GetRetardedTransientFunction(DS::AbstractDataSet; AddDomain::Bool=false, exp10::Bool=false, TimeRangeAdjustment::Bool=true, t_range::Real=(E=extrema(xdata(DS));  E[2]-E[1]))
+    @assert xdim(DS) == 1
+    @assert ydim(DS) == 1 # Relax this later?
+    GetRan(X::AbstractVector{<:Number}) = (E = extrema(X); E[2]-E[1])
+    yran = GetRan(ydata(DS))
+    mintdiff = FindMinDiff(sort(xdata(DS)))[1]
+    lb = [-2yran, -2yran, mintdiff/2, mintdiff/2, mintdiff/2, -t_range/5, 0.1, minimum(ydata(DS))-0.2yran]
+    ub = [+2yran, +2yran,      2t_range,      2t_range,      2t_range, +t_range/2,  10, maximum(ydata(DS))+0.2yran]
+    # τ_1′ > τ_1
+    DomainConstraint(X::AbstractVector) = X[4] - X[3]
+    # DomainConstraint = nothing
+    
+    # pnames=["A_sus", "A_trans", "τ_1", "τ_1′", "τ_2", "T_shift", "r", "offset"]
+    RTF = if AddDomain
+        ModelMap(TransientApproximation(; t_range=(TimeRangeAdjustment ? t_range : 1)), DomainConstraint, HyperCube(lb,ub), (xdim(DS), ydim(DS), length(lb)); pnames=["A_sus", "A_trans", "τ_1", "τ_1′", "τ_2", "T_shift", "r", "offset"])
+    else
+        ModelMap(TransientApproximation(; t_range=(TimeRangeAdjustment ? t_range : 1)), (xdim(DS), ydim(DS), length(lb)); pnames=["A_sus", "A_trans", "τ_1", "τ_1′", "τ_2", "T_shift", "r", "offset"])
+    end
+    exp10 ? Exp10Transform(RTF, [false, false, true, true, true, false, true, false]) : RTF
+end
+
+
+"""
+    ODESystemTimeRetardation(Sys::ODESystem) -> ODESystem
+Applies [`TimeRetardation`](@ref) the to given `ODESystem` by multiplying all equations with the sigmodial derivative of the time retardation transformation.
+The new parameters `T_shift` and `r` are appended to the ODE parameters.
+"""
+function ODESystemTimeRetardation(Sys::AbstractODESystem)
+    t = independent_variables(Sys)[1]
+    @parameters T_shift r_coupling
+    RetFactor = exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
+    NewEqs = [(equations(Sys)[i].lhs ~ equations(Sys)[i].rhs * RetFactor) for i in eachindex(equations(Sys))]
+    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
+    ODESystem(NewEqs, t, try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, [ModelingToolkit.parameters(Sys); [T_shift, r_coupling]]; name=Symbol("Time-Retarded " * string(nameof(Sys))))
+end
+
+"""
+    ODESystemTimeRetardation(Sys::ODEFunction) -> ODEFunction
+Applies [`TimeRetardation`](@ref) the to given `ODEFunction` by multiplying all equations with the sigmodial derivative of the time retardation transformation.
+The new parameters `T_shift` and `r` are appended to the ODE parameters.
+"""
+function ODESystemTimeRetardation(Func::AbstractODEFunction{T}) where T
+    oldf! = Func.f
+    function newf!(du,u,p,t)
+        oldf!(du,u,(@view p[1:end-2]), t)
+        T_shift, r_coupling = @view p[end-1:end]
+        du .*= exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
+        nothing
+    end
+    function newf(u,p,t)
+        T_shift, r_coupling = @view p[end-1:end]
+        oldf!(u,(@view p[1:end-2]),t) .* (exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift)))
+    end
+    ODEFunction{T}(T ? newf! : newf)
+end
