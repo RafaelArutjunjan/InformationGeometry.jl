@@ -1,5 +1,5 @@
 
-### Profile Likelihood
+### Profile Likelihoods
 
 Whenever the parameter space of a non-linearly parametrized model is high-dimensional, computing exact confidence regions via integral curves becomes increasingly difficult and time intensive. Moreover, it becomes more likely that not all the parameters are sufficiently informed by the available data for the confidence regions of levels ``1 \sigma`` or ``2 \sigma`` to be bounded.
 Therefore, a popular alternative for the individual uncertainty assessments of the model parameters ``\theta \in \mathcal{M}`` is given by the profile likelihood.
@@ -10,7 +10,7 @@ Thus, the one-dimensional profile likelihoods provide a convenient and exact sum
 For an in-depth discussion of the theory underlying the profile likelihood, see e.g. [this article](https://febs.onlinelibrary.wiley.com/doi/10.1111/febs.12276).
 
 
-Returning again to the example from the [section on Confidence Regions](https://rafaelarutjunjan.github.io/InformationGeometry.jl/stable/confidence-regions), we define:
+Returning again to the example from the previous [section on Confidence Regions](https://rafaelarutjunjan.github.io/InformationGeometry.jl/stable/confidence-regions), we define:
 ```@example Profiles
 using InformationGeometry, Plots
 DS = DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1])
@@ -25,7 +25,7 @@ Instead of computing the associated confidence regions as before, we can compute
 P1 = ParameterProfiles(DM, 2; N=100, plot=true, IsCost=false, adaptive=true, SaveTrajectories=true)
 plot(P1, false) #hide
 ```
-where the second argument `2` determines the confidence level in units of ``\sigma`` to which the profile is computed and `N` determines the number of points in the profile. The keyword `IsCost=false` automatically applies a rescaling to the vertical axis so that it already displays the confidence level up to which the parameter value on the horizontal axis is still compatible with the data. In contrast, the default `IsCost=true` does not apply this rescaling and provides the cost function value ``2\,\big(\ell(\theta) - \ell(\theta_{MLE})\big)`` with ``\ell`` the log-likelihood.
+where the second argument `2` determines the confidence level in units of ``\sigma`` to which the profile is computed and `N` determines the number of points in the profile. The keyword `IsCost=false` automatically applies a rescaling to the vertical axis so that it already displays the confidence level up to which the parameter value on the horizontal axis is still compatible with the data. In contrast, the default `IsCost=true` does not apply this rescaling and provides the cost function value ``2\,\big(\ell(\theta_{MLE}) - \ell(\theta)\big)`` with ``\ell`` the log-likelihood.
  
 Since the model function of `DM` is linear with respect to all its parameters all its profiles are not only symmetric around the MLE, but also bounded up to arbitrary confidence levels. In comparison, the non-linearly parametrized model map from `DM2` results in asymmetric profiles:
 ```@example Profiles
