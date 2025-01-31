@@ -177,9 +177,15 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
 end
 
 function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    F, F! = GetHess(ADmode, Negate(LogLikelihoodFn)), GetHess!(ADmode, Negate(LogLikelihoodFn))
-    FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
-    FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
+    ## Pure autodiff typically slow since must be recompiled!
+    if DS isa AbstractUnknownUncertaintyDataSet
+        F, F! = GetHess(ADmode, Negate(LogLikelihoodFn)), GetHess!(ADmode, Negate(LogLikelihoodFn))
+        FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
+        FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
+    else
+        FisherMetricFn(θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, model, dmodel, θ, LogPriorFn; kwargs...)
+        FisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = copyto!(M, FisherMetricFn(θ; kwargs...))
+    end
 end
 
 

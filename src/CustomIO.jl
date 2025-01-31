@@ -78,40 +78,38 @@ TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap
 # treenode(x::Foo, i::Int) = missing
 
 
-function ParamSummary(DM::AbstractDataModel)
+function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))
     IsLin = try IsLinearParameter(DM) catch; nothing end
     L, U = if Predictor(DM) isa ModelMap
         round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
     else
         fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
     end
-    mle = MLE(DM)
     OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
-function ParamSummary(io::IO, DM::AbstractDataModel)
+function ParamSummary(io::IO, DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))
     IsLin = try IsLinearParameter(DM) catch; nothing end
     L, U = if Predictor(DM) isa ModelMap
         round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
     else
         fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
     end
-    mle = MLE(DM)
     OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, MLE(DM), AutoMetric(DM, MLE(DM));verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 

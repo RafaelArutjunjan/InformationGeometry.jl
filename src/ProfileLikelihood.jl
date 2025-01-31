@@ -262,7 +262,7 @@ end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? AutoMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
                         meth=((isnothing(LogPrior(DM)) && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
@@ -377,7 +377,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath -2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
             
             maxstepnumber = N
-            Fi = isnothing(Fisher) ? AutoMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
+            Fi = isnothing(Fisher) ? FisherMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
             initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
@@ -508,7 +508,7 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
 end
 
 
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, Fisher=AutoMetric(DM, MLE(DM)), kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, Fisher=FisherMetric(DM, MLE(DM)), kwargs...)
     ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, kwargs...)
 end
 
