@@ -497,8 +497,12 @@ Base.exp10(C::HyperCube) = HyperCube(exp10.(C.L), exp10.(C.U))
 Base.firstindex(Cube::HyperCube) = 1
 Base.lastindex(Cube::HyperCube) = length(Cube)
 Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
-Base.getindex(C::HyperCube, ::Colon) = C[1:end]
 Base.getindex(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
+Base.getindex(C::HyperCube, ::Colon) = [C[i] for i in eachindex(C)]
+
+
+SubHyperCube(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
+Base.Tuple(C::HyperCube) = [(C.L[i], C.U[i]) for i in eachindex(C)]
 
 isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)
 

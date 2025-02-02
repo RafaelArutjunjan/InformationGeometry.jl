@@ -596,13 +596,13 @@ function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Ty
 end
 
 """
-    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.) -> HyperCube
+    ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=2.; kwargs...)
+function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
     ProfileBox(Fs, MLE(DM), Confnum; dof=DOF(DM), kwargs...)
 end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=2.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
+function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
     @assert length(Fs) == length(mle)
     reduce(vcat, (parallel ? pmap : map)(i->ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
@@ -629,16 +629,16 @@ function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=tr
     end
     HyperCube([minimum(crossings)], [maximum(crossings)]; Padding=0.0)
 end
-ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=2.0; Padding::Real=0., kwargs...) = ProfileBox(DM, InterpolatedProfiles(M), Confnum; Padding, kwargs...)
-ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5, IsCost::Bool=true, kwargs...) = ProfileBox(DM, ParameterProfiles(DM, Confnum+add; plot=false, IsCost, kwargs...), Confnum; IsCost, Padding)
+ProfileBox(DM::AbstractDataModel, M::AbstractVector{<:AbstractMatrix}, Confnum::Real=2.0; Padding::Real=0., Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(DM, InterpolatedProfiles(M, Interp), Confnum; Padding, kwargs...)
+ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5, IsCost::Bool=true, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(DM, ParameterProfiles(DM, Confnum+add; plot=false, IsCost, kwargs...), Confnum; IsCost, Interp, Padding)
 
 
 
 """
-    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=isloaded(:Plots), kwargs...) -> Real
+    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=isloaded(:Plots), IsCost::Bool=false, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=isloaded(:Plots), N::Int=100, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=isloaded(:Plots), N::Int=100, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, IsCost=IsCost, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
     function Minimax(M::AbstractMatrix)
@@ -726,9 +726,20 @@ Base.getindex(P::ParameterProfiles, i::Int) = ParameterProfilesView(P, i)
 Base.getindex(P::ParameterProfiles, inds::AbstractVector{<:Int}) = [P[i] for i in inds]
 Base.keys(P::ParameterProfiles) = 1:length(P)
 
-ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(P, Confnum; kwargs...)
-ProfileBox(P::ParameterProfiles, Confnum::Real; kwargs...) = ProfileBox(InterpolatedProfiles(P), MLE(P), Confnum; IsCost=IsCost(P), kwargs...)
+ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real=1; kwargs...) = ProfileBox(P, Confnum; kwargs...)
+"""
+    ProfileBox(P::ParameterProfiles, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
+Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
+"""
+ProfileBox(P::ParameterProfiles, Confnum::Real=1; Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(InterpolatedProfiles(P, Interp), MLE(P), Confnum; IsCost=IsCost(P), kwargs...)
 
+
+"""
+    PracticallyIdentifiable(P::ParameterProfiles) -> Real
+Determines the maximum level at which ALL the given profiles in `ParameterProfiles` are still practically identifiable.
+If `IsCost=true` was chosen for the profiles, the output is the maximal deviation in cost function value `2(L_MLE - PL_i(θ))`.
+If instead `IsCost=false` was chosen, so that cost function deviations have already been rescaled to confidence levels, the output of `PracticallyIdentifiable` is the maximal confidence level in units of standard deviations σ where the model is still practically identifiability.
+"""
 PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles(P))
 
 
@@ -768,8 +779,12 @@ Base.lastindex(PV::ParameterProfilesView) = Profiles(PV) |> lastindex
 Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
 
 
-ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
-ProfileBox(PV::ParameterProfilesView, Confnum::Real; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), kwargs...) = ProfileBox([InterpolatedProfiles(PV)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
+ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real=1; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
+"""
+    ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
+Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
+"""
+ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 
