@@ -135,7 +135,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     end
 end
 
-
+RecipesBase.@recipe f(DS::AbstractDataSet, S::Symbol, xpositions::AbstractVector{<:Number}=xdata(DS)) = DS, Val(S), xpositions
 RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositions::AbstractVector{<:Number}=xdata(DS))
     layout --> ydim(DS)
     leg --> false
@@ -153,6 +153,8 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, ::Val{:Individual}, xpositio
     end
 end
 
+RecipesBase.@recipe f(DM::AbstractDataModel, S::Symbol, mle=MLE(DM)) = DM, Val(S), mle
+RecipesBase.@recipe f(DM::AbstractDataModel, mle::AbstractVector{<:Number}, S::Symbol) = DM, Val(S), mle
 RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false)
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet

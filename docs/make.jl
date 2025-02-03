@@ -13,7 +13,7 @@ makedocs(
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Profile Likelihoods" => "parameter-profiles.md",
                                     "Model Transformations" => "transformations.md",
-                                    # "Useful Diagnostic Plots" => "plotting.md",
+                                    "Useful Diagnostic Plots" => "plotting.md",
                                     "Parallelization" => "parallelization.md",
                                     "Exporting" => "exporting.md",
                                     # "Kullback-Leibler Divergences" => "kullback-leibler.md",

@@ -60,12 +60,12 @@ Finally, the precise values where the profile likelihood of a given parameter in
 ProfileBox(P3, 1)
 ```
 which computes the ``1\sigma`` confidence intervals as a `HyperCube` where the confidence level is again provided in units of ``\sigma``.
-The desired confidence level can also be provided in ``\%`` via `InvConfVol`. For instance, to compute precisely the intervals associated with the ``95\% \approx 1.959\sigma`` threshold in units of ``\sigma``:
+The desired confidence level can also be provided in ``\%`` via `InvConfVol`. For instance, to compute precisely the intervals associated with the ``95\% \approx 1.959\sigma`` thresholds:
 ```@example Profiles
 Tuple(ProfileBox(P3, InvConfVol(0.95)))
 ```
 and the confidence intervals can be extracted from the returned `HyperCube` by indexing into the result or applying `Tuple`.
-When the confidence interval of associated with a given level is not bounded to one or both sides, `-Inf` or `+Inf` respectively is returned:
+When the confidence interval of associated with a given level is not bounded to one or both sides, `-Inf` or `+Inf` respectively is returned. For instance, the half-open ``3\sigma`` interval for ``\theta_2``:
 ```@example Profiles
 ProfileBox(P3[2], 3)[1]
 ```
