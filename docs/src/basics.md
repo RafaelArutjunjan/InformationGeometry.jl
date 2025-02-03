@@ -2,7 +2,7 @@
 
 ### Introduction to Information Geometry
 
-For a more detailed discussion of information geometry, see e.g. [my Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis), [this paper](https://arxiv.org/abs/1010.1449) or [this book](https://books.google.de/books?id=vc2FWSo7wLUC).
+For a more detailed discussion of information geometry, see e.g. [my Master's Thesis](https://github.com/RafaelArutjunjan/Master-Thesis), [this paper](https://arxiv.org/abs/1010.1449), [this other paper](https://doi.org/10.48550/arXiv.2211.03421) or [this book](https://books.google.de/books?id=vc2FWSo7wLUC).
 
 Essentially, information geometry is a combination of the mathematical disciplines of differential geometry and probability theory. The main idea is to rephrase statistical problems in such a way that they can be given a geometric interpretation.
 

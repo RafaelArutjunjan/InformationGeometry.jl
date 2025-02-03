@@ -386,9 +386,10 @@ end
     SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
 Shorten the dataset by restricting to the data points specified by `range`.
 """
-function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
+function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int}; verbose::Bool=true, kwargs...)
     @assert DS isa DataSet || xdist(DS) isa InformationGeometry.Dirac
     Npoints(DS) < length(range) && throw("Length of given range unsuitable for DataSet.")
+    verbose && !allunique(range) && @warn "Not all given indices unique!"
     X = WoundX(DS)[range] |> Unwind
     Y = Windup(ydata(DS),ydim(DS))[range] |> Unwind
     Σ = ysigma(DS)
@@ -399,13 +400,18 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     else
         Σ = _WoundMatrix(Σ, ydim(DS))[range, range] |> BlockMatrix
     end
-    DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
+    DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
 end
-SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}) = DataModel(SubDataSet(Data(DM),range), Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM))
+SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}; kwargs...) = DataModel(SubDataSet(Data(DM), range; kwargs...), Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM))
 
 Base.getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)
 Base.firstindex(DS::AbstractDataSet) = 1
 Base.lastindex(DS::AbstractDataSet) = Npoints(DS)
+
+# Check if independent variables sorted
+Base.issorted(DS::AbstractDataSet) = (@assert xdim(DS) == 1;    issorted(xdata(DS)))
+Base.sort(DS::AbstractDataSet; rev::Bool=false, kwargs...) = (@assert xdim(DS)==1;    P=sortperm(xdata(DS); rev);    SubDataSet(DS, P; kwargs...))
+
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))

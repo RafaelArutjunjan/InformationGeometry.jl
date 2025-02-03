@@ -153,14 +153,16 @@ end
 
 
 function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
-    normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
+    Splitter = SplitErrorParams(DS)
+    normalparams, xerrorparams, yerrorparams = Splitter(θ)
     # Emb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS)))
 
-    # Lets xp pass through to model UNLIKE LiftedEmbedding currently!
-    function LiftedEmb(ξ::AbstractVector; kwargs...)
-        xdat = view(ξ, 1:length(xdata(DS)))
-        [xdat; EmbeddingMap(DS, model, ξ, Windup(xdat, xdim(DS)); kwargs...)]
-    end
+    ## Lets xp pass through to model UNLIKE LiftedEmbedding currently!
+    # function LiftedEmb(ξ::AbstractVector; kwargs...)
+    #     xdat = view(ξ, 1:length(xdata(DS)))
+    #     [xdat; EmbeddingMap(DS, model, Splitter(@view ξ[length(xdata(DS))+1:end]), Windup(xdat, xdim(DS)); kwargs...)]
+    # end
+    LiftedEmb = LiftedEmbedding(DS, model, length(normalparams))
     XY = LiftedEmb(normalparams)
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
