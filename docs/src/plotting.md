@@ -6,9 +6,9 @@ Individual vs merged
 
 
 ResidualPlot
+ResidualVsFitted
 
 ParameterPlot
-
 TracePlot
 
 PlotQuantiles

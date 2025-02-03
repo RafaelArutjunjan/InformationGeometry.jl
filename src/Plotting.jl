@@ -350,17 +350,17 @@ function PlotQuantiles(::Type{D}, DM::AbstractDataModel, mle::AbstractVector{<:N
     Dist = Distributions.fit_mle(D, resids)
     FullQ = Distributions.qqbuild(Dist, resids)
     Bounds = [x for x in extrema(vcat(FullQ.qx, FullQ.qy))]
-    P = RecipesBase.plot(Bounds, Bounds; lw=2, linealpha=1, line=:dash, color=:red, label="", xlabel="Theoretical Quantiles", ylabel="Sample Quantiles")
+    P = RecipesBase.plot(Bounds, Bounds; lw=2, linealpha=1, line=:dash, color=:red, label="", xlabel="Theoretical Quantiles: $D", ylabel="Sample Quantiles")
     if ydim(DM) > 1
         woundYresid = Windup(resids, ydim(DM))
         for i in 1:ydim(DM)
             X = getindex.(woundYresid, i)
             Q = Distributions.qqbuild(Dist, X)
-            RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label=ynames(DM)[i], kwargs...)
+            RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label="Residuals "*ynames(DM)[i], kwargs...)
         end
     else
         Q = Distributions.qqbuild(Dist, resids)
-        RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label=ynames(DM)[1], kwargs...)
+        RecipesBase.plot!(P, Q.qx, Q.qy; seriestype=:scatter, label="Residuals "*ynames(DM)[1], kwargs...)
     end;    P
 end
 

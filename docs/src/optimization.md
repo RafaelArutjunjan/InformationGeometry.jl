@@ -61,7 +61,7 @@ The most relevant keywords are:
 This returns a `MultistartResults` object, which saves some additional information such as the number of iterations taken per run, the initial guesses, etc. The parameter configuration is obtained with `MLE(R)`.
 Alternatively, one could for example specify a distribution for the initials of the multistart optimization via
 ```julia
-MultistartFit(DM, MvNormal([0,0], Diagonal(ones(2))), MultistartDomain=HyperCube([-1,-1],[3,4]), N=200, meth=Newton())
+MultistartFit(DM, MvNormal([0,0], Diagonal(ones(2))); MultistartDomain=HyperCube([-1,-1],[3,4]), N=200, meth=Newton())
 ```
 
 

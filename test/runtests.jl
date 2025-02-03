@@ -503,6 +503,20 @@ end
 end
 
 
+@safetestset "MultistartFits" begin
+    using InformationGeometry, Test, Distributions, LinearAlgebra, Optim
+
+    DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; SkipOptim=true)
+
+    R = MultistartFit(DM; N=20, maxval=10)
+    R2 = MultistartFit(DM, MvNormal([0,0], Diagonal(ones(2))); MultistartDomain=HyperCube([-1,-1],[3,4]), N=10)
+    R3 = MultistartFit(DM, MvNormal([0.], Diagonal(ones(1))); MultistartDomain=HyperCube([-1],[3]), N=10,
+                        TransformSample=X->[X; 0.])
+    @test sum(abs, MLE(R)-MLE(R2)) < 1e-8
+    @test sum(abs, MLE(R)-MLE(R3)) < 1e-8
+end
+
+
 @safetestset "Numerical Helper Functions" begin
     using InformationGeometry, Test
     

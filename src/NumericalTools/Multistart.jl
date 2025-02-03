@@ -27,18 +27,19 @@ end
 
 """
     MultistartFit(DM::AbstractDataModel; maxval::Real=1e5, MultistartDomain::HyperCube=FullDomain(pdim(DM), maxval), kwargs...)
-    MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDomain::HyperCube; N::Int=100, resampling::Bool=true, timeout::Real=120, Full=true, parallel::Bool=true, Robust::Bool=true, p::Real=2, kwargs...)
+    MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDomain::HyperCube; N::Int=100, resampling::Bool=true, timeout::Real=120, Full=true, parallel::Bool=true, TransformSample::Function=identity, Robust::Bool=false, p::Real=2, kwargs...)
 Performs Multistart optimization with `N` starts and timeout of fits after `timeout` seconds.
 If `resampling=true`, if likelihood non-finite new initial starts are redrawn until `N` suitable initials are found. 
 If `Robust=true`, performs optimization wrt. p-norm according to given kwarg `p`.
 For `Full=false`, only the final MLE is returned, otherwise a `MultistartResults` object is returned, which can be further analyzed and plotted.
+The keyword `TransformSample` can be used to specify a function which is applied to the sample, allowing e.g. for sampling only a subset of the parameters and then adding on components which should stay at fixed initial values for the multistart.
 !!! note
     Any further keyword arguments are passed through to the optimization procedure [`InformationGeometry.minimize`](@ref) such as tolerances, optimization methods, domain constraints, etc.
 """
 function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}, LogPriorFn::Union{Nothing,Function}; showprogress::Bool=true,
-                                        CostFunction::Union{Nothing,Function}=nothing, N::Int=100, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(pdim(DS,model)),
+                                        CostFunction::Union{Nothing,Function}=nothing, N::Int=100, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(pdim(DS,model)), TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
-                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=false, seed::Union{Int,Nothing}=nothing, kwargs...)
+                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert !Robust || (p > 0 && !TotalLeastSquares)
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     
@@ -57,7 +58,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     TakeFromUnclamped(X::Base.Generator) = iterate(X)[1]
     TakeFromUnclamped(S::SOBOL.AbstractSobolSeq) = SOBOL.next!(S)
     TakeFromClamped(X) = clamp(TakeFromUnclamped(X), MultistartDomain)
-    TakeFrom = (!isnothing(MultistartDomain) && !(InitialPointGen isa Union{AbstractVector{<:AbstractVector{<:Number}},SOBOL.AbstractSobolSeq})) ? TakeFromClamped : TakeFromUnclamped
+    TakeFrom = (!isnothing(MultistartDomain) && !(InitialPointGen isa Union{AbstractVector{<:AbstractVector{<:Number}},SOBOL.AbstractSobolSeq})) ? TransformSample∘TakeFromClamped : TransformSample∘TakeFromUnclamped
     # count total sampling attempts when resampling
     InitialPoints, InitialObjectives = if resampling
         InitPoints = typeof(TakeFrom(InitialPointGen))[]
