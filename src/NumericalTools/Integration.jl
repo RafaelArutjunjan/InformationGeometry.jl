@@ -13,8 +13,8 @@ Integrate1D(F::Function, Interval::AbstractVector{<:Number}; kwargs...) = Integr
 function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=1e-14, FullSol::Bool=false, meth=nothing, kwargs...)
     Interval = floatify(Interval)
     !(0. < tol < 1.) && throw("Integrate1D: tol unsuitable")
-    @assert Interval[1] < Interval[2]
-    f(u,p,t) = F(t);    u0 = 0.
+    @assert Interval[1] ≤ Interval[2]
+    f(u,p,t) = F(t);    u0 = zero(typeof(F((Interval[1]+Interval[2])/2.0)))
     if tol < 1e-15
         u0 = BigFloat(u0);        Interval = BigFloat.(Interval)
         meth = isnothing(meth) ? Vern9() : meth
@@ -27,6 +27,7 @@ function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=
         return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true, kwargs...).u[end]
     end
 end
+Integrate1D(I::DataInterpolations.AbstractInterpolation, dom::Tuple{<:Number,<:Number}=extrema(I.t); kwargs...) = Integrate1D(x->I(x), dom; kwargs...)
 
 """
     IntegrateND(F::Function,Cube::HyperCube; tol::Real=1e-12, WE::Bool=false, kwargs...)

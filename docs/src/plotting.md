@@ -29,12 +29,15 @@ In the literature, these are often instead referred to as "prediction bands" ins
 The linearized confidence and validation bands are computed via the [`VariancePropagation`](@ref) and [`ValidationPropagation`](@ref) methods respectively.
 
 For `DataModel`s or simply datasets which have multiple different components (i.e. `ydim > 1`), the `Symbol` `:Individual` may be appended as the last argument to split the components into separate plots:
-
 ```@example Plotting
-DM122 = DataModel(DataSet([1,2,3],[4,1,5,2,6.5,3.5],[0.5,0.5,0.45,0.45,0.6,0.6], (3,1,2)), (x,p)-> [p[1]*x, p[2]*x]);
+DS122 = DataSet([1,2,3],[2,1,4,2,6.5,3.5],[0.5,0.5,0.45,0.45,0.6,0.6], (3,1,2))
+DM122 = DataModel(DS122, (x,p)-> [p[1]*x, p[2]*x])
 plot(DM122, MLE(DM122), :Individual; Confnum=1, Validation=false)
 ```
-
+as compared with plotting both in one:
+```@example Plotting
+plot(DM122, MLE(DM122); Confnum=1, Validation=false)
+```
 
 ### Residuals
 
