@@ -54,6 +54,7 @@ struct DataModel <: AbstractDataModel
     LogLikelihoodFn::Function
     ScoreFn::Function
     FisherInfoFn::Function
+    name::Symbol
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
         DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipOptimAndTests; ADmode=ADmode, kwargs...)
@@ -87,9 +88,9 @@ struct DataModel <: AbstractDataModel
                                     LogPriorFn::Union{Function,Nothing}=Logprior, # Prior(Logprior, MLE, (-1,length(MLE))), 
                                     LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn),
                                     ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode),
-                                    SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::Union{Symbol,<:AbstractString}=Symbol())
+                                    SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::Union{Symbol,<:AbstractString}=name(model))
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
-        length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
+        # length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         
         # Assert that LogPriorFn has MaximalNumberOfArguments == 1, otherwise DFunction will interpret it as in-place
@@ -99,7 +100,7 @@ struct DataModel <: AbstractDataModel
 
         # Check given Score and FisherMetric function and overload to inplace if not yet implemented.
         
-        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn)
+        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, Symbol.(name))
     end
 end
 
@@ -181,6 +182,8 @@ For performance reasons, this value is stored as a part of the `DataModel` type.
 LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 pdim(DM::DataModel) = length(MLE(DM))
+
+name(DM::DataModel) = DM.name |> string
 
 
 function (::Type{T})(DM::DataModel; kwargs...) where T<:Number

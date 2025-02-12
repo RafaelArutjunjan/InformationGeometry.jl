@@ -186,9 +186,8 @@ DOF(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = length(mle) - 
 DOF(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = length(mle)
 
 
-name(DS::Union{AbstractDataSet, AbstractVector{<:AbstractDataSet}}) = ""
-# Prioritise Predictor name, if empty use Dataset name
-name(DM::AbstractDataModel) = length(name(Predictor(DM))) == 0 ? name(Data(DM)) : name(Predictor(DM))
+name(DS::Union{AbstractDataSet, AbstractVector{<:Union{<:AbstractDataSet,<:AbstractDataModel}}}) = ""
+
 
 Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,<:AbstractString}) = remake(DS; name=Symbol(name))
 Christen(F::Function, name::Union{Symbol,<:AbstractString}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))

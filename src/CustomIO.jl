@@ -34,7 +34,7 @@ Base.summary(DS::AbstractUnknownUncertaintyDataSet) = string(TYPE_COLOR, nameof(
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
-    NO_COLOR, (length(name(Predictor(DM))) > 0 ? " '"*STRING_COLOR* string(name(Predictor(DM))) *NO_COLOR*"'" : ""),
+    NO_COLOR, (length(name(DM)) > 0 ? " '"*STRING_COLOR* string(name(DM)) *NO_COLOR*"'" : ""),
     " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
     NO_COLOR, (length(name(Data(DM))) > 0 ? " '"*STRING_COLOR* string(name(Data(DM)))*NO_COLOR*"'" : ""),
