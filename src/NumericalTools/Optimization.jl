@@ -297,7 +297,7 @@ GetInDomain(M::ModelMap) = InDomain(M)
 GetInDomain(F::Function) = nothing
 
 GetConstraintFunc(DM::AbstractDataModel, startp::AbstractVector{<:Number}=MLE(DM); kwargs...) = GetConstraintFunc(Predictor(DM), startp; kwargs...)
-GetConstraintFunc(F::Function, startp::AbstractVector{<:Number} = rand(1); kwargs...) = (nothing, nothing, nothing)
+GetConstraintFunc(F::Function, startp::AbstractVector{<:Number}=Float64[]; kwargs...) = (nothing, nothing, nothing)
 function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStartP(M); inplace::Bool=true)
     if isnothing(InDomain(M))
         (nothing, nothing, nothing)

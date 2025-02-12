@@ -83,7 +83,7 @@ function InformNames(DS::T, Xnames::AbstractVector{<:AbstractString}, Ynames::Ab
 end
 
 
-SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, nothing)
+SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, 0:-1)
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
@@ -175,15 +175,22 @@ xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=
 yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = yInvCov(DS)
 
 
+
+# How many error parameters do the containing datasets have?
+NumberOfErrorParameters(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = NumberOfErrorParameters(Data(DM), mle)
+NumberOfErrorParameters(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = sum(length, (SplitErrorParams(DS)(mle))[2:end])
+NumberOfErrorParameters(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = 0
+## Currently not possible for CDS to have error parameters yet.
+# NumberOfErrorParameters(CDS::CompositeDataSet, mle::AbstractVector) = sum(sum(length, (SplitErrorParams(DS)(mle))[2:end]) for DS in Data(CDS))
+
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted
 """
     DOF(DM::AbstractDataModel)
 Parameter degrees of freedom of given model not counting error parameters.
 """
-DOF(DM::AbstractDataModel) = DOF(Data(DM), MLE(DM))
-DOF(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = length(mle) - sum(length, (SplitErrorParams(DS)(mle))[2:end])
-DOF(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = length(mle)
+DOF(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = DOF(Data(DM), mle)
+DOF(DS::AbstractDataSet, mle::AbstractVector) = length(mle) - NumberOfErrorParameters(DS, mle)
 
 
 name(DS::Union{AbstractDataSet, AbstractVector{<:Union{<:AbstractDataSet,<:AbstractDataModel}}}) = ""

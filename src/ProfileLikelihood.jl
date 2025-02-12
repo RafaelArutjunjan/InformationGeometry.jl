@@ -261,12 +261,13 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=false, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE(DM)) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
+                        AllowNewMLE::Bool=true, general::Bool=!(DM isa DataModel), IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
+                        LogLikelihoodFn::Function=loglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
-                        meth=((isnothing(LogPrior(DM)) && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
+                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
-    SavePriors && isnothing(LogPrior(DM)) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
+    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
     @assert Confnum > 0
     # stepfactor: overall multiplicative factor for step length
     # stepmemory: linear interpolation of new with previous step size
@@ -276,20 +277,20 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # flatstepconst: mainly controls step size when profile exactly flat
     @assert stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
 
-    IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(MLE(DM))
-    # LogLikeMLE(DM) - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
-    CostThreshold, MaxThreshold = LogLikeMLE(DM) .- 0.5 .* (IC*1.05, IC*3.0)
+    IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(mle)
+    # logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
+    CostThreshold, MaxThreshold = logLikeMLE .- 0.5 .* (IC*1.05, IC*3.0)
 
     OptimDomain = Drop(Domain, Comp)
 
-    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPrior(DM)) && Data(DM) isa AbstractFixedUncertaintyDataSet
+    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && Data(DM) isa AbstractFixedUncertaintyDataSet
         ((args...; Kwargs...)->curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
-        Meth = (!isnothing(LogPrior(DM)) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
         ((DS::AbstractDataSet, M::ModelOrFunction, P, LogPriorFn; Kwargs...)->MultistartFit(DS, M, LogPriorFn; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, maxval, verbose, tol, Kwargs..., Full=true))
     else
-        Meth = (!isnothing(LogPrior(DM)) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
     end
     
@@ -301,10 +302,10 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     ConditionalPush!(N::Nothing, args...) = N
     ConditionalPush!(X::AbstractArray, args...) = push!(X, args...)
 
-    Res = eltype(MLE(DM))[];    visitedps = eltype(MLE(DM))[]
+    Res = eltype(mle)[];    visitedps = eltype(mle)[]
     Converged = BitVector()
-    path = SaveTrajectories ? typeof(MLE(DM))[] : nothing
-    priors = SavePriors ? eltype(MLE(DM))[] : nothing
+    path = SaveTrajectories ? typeof(mle)[] : nothing
+    priors = SavePriors ? eltype(mle)[] : nothing
 
     sizehint!(Res, N)
     sizehint!(visitedps, N)
@@ -317,33 +318,34 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
-        Res = map(loglikelihood(DM), Xs)
+        Res = map(LogLikelihoodFn, Xs)
         Converged = !isnan.(Res) .&& !isinf.(Res) .&& map(x->InBounds([x]), ps)
         visitedps = ps
         SaveTrajectories && (path = Xs)
-        SavePriors && map(x->EvalLogPrior(LogPrior(DM), x), Xs)
+        SavePriors && map(x->EvalLogPrior(LogPriorFn, x), Xs)
     else
-        MLEstash = Drop(MLE(DM), Comp)
+        MLEstash = Drop(mle, Comp)
         
         PerformStep!!! = if ApproximatePaths
             # Perform steps based on profile direction at MLE
-            dir = GetLocalProfileDir(DM, Comp, MLE(DM))
-            pmle = MLE(DM)[Comp]
+            dir = GetLocalProfileDir(DM, Comp, mle)
+            pmle = mle[Comp]
             @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                θ = muladd(p-pmle, dir, MLE(DM))
+                θ = muladd(p-pmle, dir, mle)
 
-                push!(Res, loglikelihood(DM, θ))
+                push!(Res, LogLikelihoodFn(θ))
                 # Ignore MLEstash
                 push!(Converged, !isnan(Res[end]) && InBounds(θ))
                 push!(visitedps, p)
                 ConditionalPush!(path, θ)
-                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), θ))
+                ConditionalPush!(priors, EvalLogPrior(LogPriorFn, θ))
             end
         elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
             # Build objective function based on Neglikelihood only without touching internals
+            CostFunction = Negate(LogLikelihoodFn)
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                Ins = ValInserter(Comp, p, MLE(DM))
-                L = Negloglikelihood(DM)∘Ins
+                Ins = ValInserter(Comp, p, mle)
+                L = CostFunction∘Ins
                 R = FitFunc(L, MLEstash; kwargs...)
                 
                 push!(Res, -GetMinimum(R,L))
@@ -352,14 +354,14 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 push!(Converged, HasConverged(R) && InBounds(FullP))
                 push!(visitedps, p)
                 ConditionalPush!(path, FullP)
-                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), FullP))
+                ConditionalPush!(priors, EvalLogPrior(LogPriorFn, FullP))
             end
         else
             # Build objective function manually by embedding model and LogPrior separately
             # Does not work combined with variance estimation, i.e. error models
             @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                NewModel = ProfilePredictor(DM, Comp, p, MLE(DM))
-                Ins = ValInserter(Comp, p, MLE(DM))
+                NewModel = ProfilePredictor(DM, Comp, p, mle)
+                Ins = ValInserter(Comp, p, mle)
                 DroppedLogPrior = EmbedLogPrior(DM, Ins)
                 R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
 
@@ -369,7 +371,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 push!(Converged, HasConverged(R) && InBounds(FullP))
                 push!(visitedps, p)
                 ConditionalPush!(path, FullP)
-                ConditionalPush!(priors, EvalLogPrior(LogPrior(DM), FullP))
+                ConditionalPush!(priors, EvalLogPrior(LogPriorFn, FullP))
             end
         end
         # Adaptive instead of ps grid here?
@@ -377,7 +379,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath -2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
             
             maxstepnumber = N
-            Fi = isnothing(Fisher) ? FisherMetric(DM, MLE(DM))[Comp,Comp] : Fisher[Comp,Comp]
+            Fi = isnothing(Fisher) ? FisherMetric(DM, mle)[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
             initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
@@ -386,18 +388,18 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             maxstep = 1e5 * initialδ
 
             # Second left point
-            p = MLE(DM)[Comp] - δ
+            p = mle[Comp] - δ
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
 
             # Input MLE
-            push!(Res, -Negloglikelihood(DM)(MLE(DM)))
-            push!(Converged, InBounds(MLE(DM)))
-            push!(visitedps, MLE(DM)[Comp])
-            SaveTrajectories && push!(path, MLE(DM))
-            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [MLE(DM)[Comp]]))
+            push!(Res, LogLikelihoodFn(mle))
+            push!(Converged, InBounds(mle))
+            push!(visitedps, mle[Comp])
+            SaveTrajectories && push!(path, mle)
+            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [mle[Comp]]))
 
             # Second right point
-            p = MLE(DM)[Comp] + δ
+            p = mle[Comp] + δ
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
 
             visitedps2 = deepcopy(visitedps) |> reverse!
@@ -422,9 +424,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
                     ## Early termination if profile flat or already wide enough
                     if right
-                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > MLE(DM)[Comp] + terminatefactor*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > mle[Comp] + terminatefactor*maxstepnumber*initialδ) && break
                     else
-                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < MLE(DM)[Comp] - terminatefactor*maxstepnumber*initialδ) && break
+                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < mle[Comp] - terminatefactor*maxstepnumber*initialδ) && break
                     end
                 end
             end
@@ -438,7 +440,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             δ = initialδ
             newδ = initialδ
             len = length(visitedps2) -1
-            copyto!(MLEstash, Drop(MLE(DM), Comp))
+            copyto!(MLEstash, Drop(mle, Comp))
             DoAdaptive(visitedps2, Res2, path2, priors2, Converged2)
             
             visitedps = [(@view reverse!(visitedps2)[1:end-3]); visitedps]
@@ -447,14 +449,14 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             priors = SavePriors ? [(@view reverse!(priors2)[1:end-3]); priors] : nothing
             Converged = [(@view reverse!(Converged2)[1:end-3]); Converged]
         else
-            startind = (mlecomp = MLE(DM)[Comp];    findfirst(x->x>mlecomp, ps)-1)
+            startind = (mlecomp = mle[Comp];    findfirst(x->x>mlecomp, ps)-1)
             if resort && startind > 1
                 for p in sort(ps[startind:end])
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
                 end
                 len = length(visitedps)
-                copyto!(MLEstash, Drop(MLE(DM), Comp))
+                copyto!(MLEstash, Drop(mle, Comp))
                 for p in sort(ps[startind:-1:1]; rev=true)
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
@@ -467,10 +469,10 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, LogLikeMLE(DM)) : LogLikeMLE(DM)
-    !(Logmax ≈ LogLikeMLE(DM)) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
+    Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
+    !(Logmax ≈ logLikeMLE) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
-    Priormax = SavePriors ? EvalLogPrior(LogPrior(DM),MLE(DM)) : 0.0
+    Priormax = SavePriors ? EvalLogPrior(LogPriorFn,mle) : 0.0
     if IsCost
         @. Res = 2*(Logmax - Res)
         if SavePriors
