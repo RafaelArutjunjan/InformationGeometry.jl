@@ -86,7 +86,7 @@ Extends the model by adding `xdim(M)` many timeshift parameters `p_time` as the 
 """
 function TimeShiftTransform(M::ModelMap, xyp::Tuple{Int,Int,Int}=Getxyp(M), IsCustom::Bool=iscustommodel(M), Inplace::Bool=isinplacemodel(M), Dom::HyperCube=5FullDomain(xyp[1], 1.0))
     ModelMap(TimeShiftTransform(M.Map, xyp, IsCustom, Inplace),
-        !isnothing(InDomain(M)) ? InDomain(M)∘(θ::AbstractVector->@view θ[1:xyp[3]]) : nothing,
+        !isnothing(InDomain(M)) ? InDomain(M)∘ViewElements(1:xyp[3]) : nothing,
         vcat(!isnothing(Domain(M)) ? Domain(M) : FullDomain(xyp[3], Inf), Dom),
         xyp .+ (0,0,xyp[1]),
         vcat(pnames(M), CreateSymbolNames(xyp[1],"Timeshift")),

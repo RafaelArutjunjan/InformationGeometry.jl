@@ -98,7 +98,7 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observable
         # θ -> (u0, θ)
         θ -> (Initial, θ)
     end
-    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : (u -> view(u,Observables))); kwargs...)
+    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : ViewElements(Observables)); kwargs...)
 end
 
 function GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, ObservationFunction::Function; kwargs...)
@@ -296,7 +296,7 @@ function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
         Observables
     elseif Observables isa Union{Int,AbstractVector{<:Int},BoolArray}
         observables = length(Observables) == 1 ? Observables[1] : Observables
-        u->view(u,observables)
+        ViewElements(observables)
     else
         throw("ObservationFunction must be either Function, AbstractArray or Number.")
     end

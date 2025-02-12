@@ -339,3 +339,25 @@ end
 
 FindMinDiff(X::AbstractArray{<:Number}) = FindExtremalNeighboring(X; Comparison=Base.:<)
 FindMaxDiff(X::AbstractArray{<:Number}) = FindExtremalNeighboring(X; Comparison=Base.:>)
+
+
+
+"""
+    ViewElements(Inds::Union{AbstractArray, Tuple, Colon, Int}) -> Function
+Produces a function `X::AbstractArray{<:Number}->view(X, Inds)`` for viewing indices of an array wrapped inside struct for more informative stack traces.
+"""
+struct ViewElements{Inds} <: Function
+    F::Function
+    Inds::Union{AbstractArray, Tuple, Colon, Int}
+    ViewElements(Inds::AbstractRange) = new{Inds}(X::AbstractArray{<:Number}->view(X, Inds), Inds)
+    ViewElements(Inds::Int) = new{Inds}(X::AbstractArray{<:Number}->view(X, Inds), Inds)
+    ViewElements(Inds::AbstractArray{<:Int}) = new{Tuple(Inds)}(X::AbstractArray{<:Number}->view(X, Inds), Inds)
+    ViewElements(Inds::AbstractArray{<:Bool}) = ViewElements((1:length(Inds))[Inds])
+    ViewElements(Inds::NTuple{N,<:Int}) where N = ViewElements(collect(Inds))
+    ViewElements(Inds::Colon) = new{Inds}(identity, Inds)
+    # could extend this to 2D views later by simply defining further constructors
+
+    # Do not wrap any other and simply use anonymous view
+    ViewElements(Inds) = X::AbstractArray{<:Number}->view(X, Inds)
+end
+(V::ViewElements)(args...; kwargs...) = V.F(args...; kwargs...)

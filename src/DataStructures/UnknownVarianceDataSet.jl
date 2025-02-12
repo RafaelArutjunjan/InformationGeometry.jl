@@ -54,7 +54,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
         @info "Assuming error parameters always given by last ($(length(testpx)),$(length(testpy))) parameters respectively."
         # Error param splitter
-        UnknownVarianceDataSet(Unwind(x), Unwind(y), dims, invxerrormodel, invyerrormodel, testpx, testpy, DefaultErrorModel(length(testpx),length(testpy)); kwargs...)
+        UnknownVarianceDataSet(Unwind(x), Unwind(y), dims, invxerrormodel, invyerrormodel, testpx, testpy, DefaultErrorModelSplitter(length(testpx),length(testpy)); kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function;
@@ -99,7 +99,7 @@ ynames::AbstractVector{<:AbstractString}=["y"],
 name::Union{<:AbstractString,Symbol}=Symbol()) = UnknownVarianceDataSet(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
 
 
-DefaultErrorModel(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))
+DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))
 
 
 xdata(DS::UnknownVarianceDataSet) = DS.x

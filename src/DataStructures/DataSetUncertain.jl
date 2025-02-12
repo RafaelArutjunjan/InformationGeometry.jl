@@ -54,7 +54,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=0.1ones(ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error parameters always given by last $(length(testp)) parameters."
-        DataSetUncertain(x, y, inverrormodel, DefaultErrorModel(length(testp)), testp, dims; verbose, kwargs...)
+        DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testp)), testp, dims; verbose, kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
             xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
@@ -91,7 +91,7 @@ ynames::AbstractVector{<:AbstractString}=["y"],
 BesselCorrection::Bool=false,
 name::Union{<:AbstractString,Symbol}=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; BesselCorrection)
 
-DefaultErrorModel(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
+DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 
 
 xdata(DS::DataSetUncertain) = DS.x
