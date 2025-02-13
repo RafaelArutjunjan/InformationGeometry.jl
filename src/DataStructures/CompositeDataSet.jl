@@ -106,7 +106,8 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
         CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{<:AbstractString,Symbol})
+    # What about CompositeDataSets with estimated errors in the future?
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractFixedUncertaintyDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{<:AbstractString,Symbol})
         new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
     end
 end

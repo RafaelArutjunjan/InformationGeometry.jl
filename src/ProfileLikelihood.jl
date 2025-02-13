@@ -288,7 +288,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     elseif Multistart > 0
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
-        ((DS::AbstractDataSet, M::ModelOrFunction, P, LogPriorFn; Kwargs...)->MultistartFit(DS, M, LogPriorFn; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, maxval, verbose, tol, Kwargs..., Full=true))
+        ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, maxval, verbose, tol, Kwargs..., Full=true))
     else
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))

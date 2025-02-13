@@ -283,8 +283,7 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
                 verbose && @warn "minimize(): Repeated Optimization with NelderMead() appears to not have converged, too."
             end
         end
-    end
-    Full ? sol : sol.u
+    end;    Full ? sol : sol.u
 end
 
 

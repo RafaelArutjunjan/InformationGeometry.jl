@@ -4,30 +4,47 @@ SOBOL.SobolSeq(C::HyperCube, maxval::Real=1e5; seed::Int=rand(1000:15000), N::In
 SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e10)))
 GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
 
+function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1e5; verbose::Bool=true)
+    verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
+    FullDomain(Pdim, maxval)
+end
+function MakeMultistartDomain(Pdim::Int, ProspectiveDom::HyperCube, maxval::Real=1e5; verbose::Bool=true)
+    # clamp ProspectiveDom to finite size
+    intersect(ProspectiveDom, FullDomain(length(ProspectiveDom), maxval))
+end
 
-MultistartFit(DM::AbstractDataModel, args...; CostFunction::Function=Negloglikelihood(DM), kwargs...) = MultistartFit(Data(DM), Predictor(DM), LogPrior(DM), args...; CostFunction, pnames=pnames(DM), kwargs...)
-MultistartFit(DS::AbstractDataSet, M::ModelMap, LogPriorFn::Union{Nothing,Function}=nothing; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, M, LogPriorFn, MultistartDomain; MultistartDomain, kwargs...)
-function MultistartFit(DS::AbstractDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; maxval::Real=1e5, MultistartDomain::Union{Nothing, HyperCube}=nothing, verbose::Bool=true, kwargs...)
-    Dom = if isnothing(MultistartDomain)
-        verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
-        FullDomain(pdim(DS, M), maxval)
-    else
-        # clamp MultistartDomain to finite size
-        intersect(MultistartDomain, FullDomain(length(MultistartDomain), maxval))
-    end
-    MultistartFit(DS, M, LogPriorFn, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
+MultistartFit(DM::AbstractDataModel; kwargs...) = MultistartFit(DM, Predictor(DM); kwargs...)
+MultistartFit(DM::AbstractDataModel, M::ModelMap; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, MultistartDomain; MultistartDomain, kwargs...)
+function MultistartFit(DM::AbstractDataModel, M::ModelOrFunction; maxval::Real=1e5, MultistartDomain::Union{Nothing,HyperCube}=nothing, verbose::Bool=true, kwargs...)
+    Dom = MakeMultistartDomain(pdim(DM), MultistartDomain, maxval; verbose)
+    MultistartFit(DM, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
 end
-function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(1000:15000), resampling::Bool=true, maxval::Real=1e5, kwargs...)
-    @assert N ≥ 1
-    MultistartFit(DS, model, (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(MultistartDomain, maxval; N, seed), LogPriorFn; MultistartDomain, N, resampling, seed, kwargs...)
+# Create PointGenerator and drop model again
+function MultistartFit(DM::AbstractDataModel, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(1000:15000), resampling::Bool=true, maxval::Real=1e5, kwargs...)
+    MultistartFit(DM, (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(MultistartDomain, maxval; N, seed); MultistartDomain, N, seed, resampling, kwargs...)
 end
-function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; kwargs...)
-    MultistartFit(DS, model, InitialPointGen, LogPriorFn; kwargs...)
+
+## Legacy Method for DS, model, LogPriorFn?
+# This is where PerformStepManual! from ProfileLikelihood lands
+function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, startp::AbstractVector{<:Number}=rand(pdim(DS,model)), LogPriorFn::Union{Nothing,Function}=nothing; 
+                            MultistartDomain::Union{HyperCube,Nothing}=Domain(model), kwargs...)
+    CostFunction = (θ::AbstractVector-> -loglikelihood(DS, model, θ, LogPriorFn))
+    # CostFunction generation with GetLogLikelihoodFn apparently very slow (due to specialization for each generated ValInserter model?)
+    # CostFunction = GetLogLikelihoodFn(DS, model, LogPriorFn)
+    MultistartFit(CostFunction, startp; LogPriorFn, MultistartDomain, kwargs...)
 end
+# This is where PerformStepGeneral! from ProfileLikelihood lands
+function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number}; MultistartDomain::Union{HyperCube,Nothing}=nothing, maxval::Real=1e5, N::Int=100, 
+                            seed::Int=rand(1000:15000), resampling::Bool=true, verbose::Bool=true, kwargs...)
+    Dom = MakeMultistartDomain(length(startp), MultistartDomain, maxval; verbose)
+    InitialPointGen = (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(Dom, maxval; N, seed)
+    # Drop startp
+    MultistartFit(CostFunction, InitialPointGen; MultistartDomain=Dom, maxval, N, seed, resampling, verbose, kwargs...)
+end
+
 
 """
     MultistartFit(DM::AbstractDataModel; maxval::Real=1e5, MultistartDomain::HyperCube=FullDomain(pdim(DM), maxval), kwargs...)
-    MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, MultistartDomain::HyperCube; N::Int=100, resampling::Bool=true, timeout::Real=120, Full=true, parallel::Bool=true, TransformSample::Function=identity, Robust::Bool=false, p::Real=2, kwargs...)
 Performs Multistart optimization with `N` starts and timeout of fits after `timeout` seconds.
 If `resampling=true`, if likelihood non-finite new initial starts are redrawn until `N` suitable initials are found. 
 If `Robust=true`, performs optimization wrt. p-norm according to given kwarg `p`.
@@ -36,23 +53,36 @@ The keyword `TransformSample` can be used to specify a function which is applied
 !!! note
     Any further keyword arguments are passed through to the optimization procedure [`InformationGeometry.minimize`](@ref) such as tolerances, optimization methods, domain constraints, etc.
 """
-function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}, LogPriorFn::Union{Nothing,Function}; showprogress::Bool=true,
-                                        CostFunction::Union{Nothing,Function}=nothing, N::Int=100, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(pdim(DS,model)), TransformSample::Function=identity,
+function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; 
+                                        CostFunction::Function=Negate(loglikelihood(DM)), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:AbstractString}=pnames(DM),
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), kwargs...)
+    MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
+end
+function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval=1e5, 
+                                        DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=String[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
-                                        meth=((isnothing(LogPriorFn) && DS isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
-    @assert !Robust || (p > 0 && !TotalLeastSquares)
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
+    @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     
     # +Inf if error during optimization, should rarely happen
-    # RobustFunc(θ::AbstractVector{<:Number}, InitialVal::Real) = isfinite(InitialVal) ? (try    RobustFit(DS, model, θ, LogPriorFn; p, timeout, Full, kwargs...)    catch;  fill(-Inf, length(θ))   end) : fill(-Inf, length(θ))
-    # Func(θ::AbstractVector{<:Number}, InitialVal::Real) = isfinite(InitialVal) ? (try    InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, Full, kwargs...)    catch;  fill(-Inf, length(θ))   end) : fill(-Inf, length(θ))
-    RobustFunc(θ::AbstractVector{<:Number}) = RobustFit(DS, model, θ, LogPriorFn; p, timeout, verbose, meth, Full, kwargs...)
-    Func(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(DS, model, θ, LogPriorFn; timeout, verbose, meth, Full, kwargs...)
+    BareOptimFunc = if !isnothing(DM)
+        @assert !Robust || p > 0
+        # DM given, so information about Boundaries etc. passed on
+        #### SHOULD ALSO PASS COSTFUNCTION HERE
+        RobustFunc(θ::AbstractVector{<:Number}) = RobustFit(DM, θ; p, timeout, verbose, meth, Full, kwargs...)
+        Func(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(DM, θ; timeout, verbose, meth, Full, kwargs...)
+        Robust ? RobustFunc : Func
+    else
+        @assert !Robust "Cannot generate Robust p-norm version if only Cost Function given."
+        FuncPureCost(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(CostFunction, θ; timeout, verbose, meth, Full, kwargs...)
+    end
     # Allow for disabling try catch;
     # TotalFunc(θ::AbstractVector{<:Number}) = try    InformationGeometry.TotalLeastSquaresV()    catch;  fill(-Inf, length(θ))   end
     
     TryCatchWrapper(F::Function, Default=-Inf) = x -> try F(x) catch;   Default   end
-    LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(isnothing(CostFunction) ? (θ->loglikelihood(DS, model, θ, LogPriorFn)) : Negate(CostFunction))
+    # Double negation... Use LogLikelihoodFn instead? Make this consistent with GetProfile()
+    LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(Negate(CostFunction))
 
     TakeFromUnclamped(X::Distributions.Distribution) = rand(X)
     TakeFromUnclamped(X::Base.Generator) = iterate(X)[1]
@@ -74,7 +104,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
     else
         InitialPointGen, (parallel ? pmap : map)(LogLikeFunc, InitialPointGen)
     end
-    OptimFunc = TryCatchOptimizer ? (Robust ? TryCatchWrapper(RobustFunc,fill(-Inf, length(InitialPoints[1]))) : TryCatchWrapper(Func,fill(-Inf, length(InitialPoints[1])))) : (Robust ? RobustFunc : Func)
+    OptimFunc = TryCatchOptimizer ? TryCatchWrapper(BareOptimFunc,fill(-Inf, length(InitialPoints[1]))) : BareOptimFunc
     Res = if showprogress
         (parallel ?  progress_pmap : progress_map)(OptimFunc, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... ", showspeed=true))
     else
@@ -88,7 +118,8 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, InitialPoint
         Iterations = GetIterations.(Res)
         # By internal optimizer criterion:
         Converged = HasConverged.(Res; verbose=false)
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
+        Pnames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, Pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
@@ -204,8 +235,17 @@ end
 FindLastIndSafe(R::MultistartResults) = (LastFinite=findlast(isfinite, R.FinalObjectives);  isnothing(LastFinite) ? 0 : LastFinite)
 
 # GetStepInds always includes last point of lower step
-GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01) = ((@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives;  [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol])
-GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), StepInds::AbstractVector{<:Int}=GetStepInds(R,ymaxind)) = vcat([1:StepInds[1]], [StepInds[i]+1:StepInds[i+1] for i in 1:length(StepInds)-1], [StepInds[end]+1:ymaxind])
+function GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01)
+    (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);       F = -R.FinalObjectives
+    S = [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol]
+    length(S) < 1 ? [ymaxind] : S
+end
+function GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), StepInds::AbstractVector{<:Int}=GetStepInds(R,ymaxind))
+    Steps = [1:StepInds[1]]
+    length(StepInds) > 1 && append!(Steps, [StepInds[i-1]+1:StepInds[i] for i in 2:length(StepInds)])
+    StepInds[end] < ymaxind && push!(Steps, StepInds[end]+1:ymaxind)
+    Steps
+end
 
 function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01)
     (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
@@ -249,10 +289,10 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
         (DoBiLog ? BiLog : identity)(-R.InitialObjectives[1:ymaxind])
     end
     # Mark steps with vline, StepTol on linear scale
-    StepTol = get(plotattributes, :ShowSteps, 0.01)
+    StepTol = get(plotattributes, :StepTol, 0.01)
     if 0 < StepTol
         Steps = GetStepInds(R, ymaxind; StepTol=StepTol)
-        for (i,AfterIter) in enumerate(Steps)
+        for (i,AfterIter) in enumerate(@view Steps[1:end-1]) # Do not plot line after last point
             @series begin
                 st := :vline
                 line --> :dash
