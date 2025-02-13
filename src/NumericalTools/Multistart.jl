@@ -119,7 +119,7 @@ function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVe
         # By internal optimizer criterion:
         Converged = HasConverged.(Res; verbose=false)
         Pnames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, Pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing)
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, Pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])

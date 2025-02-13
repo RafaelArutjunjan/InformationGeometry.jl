@@ -511,10 +511,80 @@ end
 
     R = MultistartFit(DM; N=20, maxval=10)
     R2 = MultistartFit(DM, MvNormal([0,0], Diagonal(ones(2))); MultistartDomain=HyperCube([-1,-1],[3,4]), N=10)
-    R3 = MultistartFit(DM, MvNormal([0.], Diagonal(ones(1))); MultistartDomain=HyperCube([-1],[3]), N=10,
+    R3 = MultistartFit(InformationGeometry.Negloglikelihood(DM), MvNormal([0.], Diagonal(ones(1))); MultistartDomain=HyperCube([-1],[3]), N=10,
                         TransformSample=X->[X; 0.])
     @test sum(abs, MLE(R)-MLE(R2)) < 1e-8
     @test sum(abs, MLE(R)-MLE(R3)) < 1e-8
+
+    DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5]; SkipOptim=true)
+    
+    RU = MultistartFit(DMU; N=20, maxval=10)
+    RU2 = MultistartFit(DMU, MvNormal([0,0,0], Diagonal(ones(3))); MultistartDomain=HyperCube([-1,-1,-5],[3,4,1]), N=10)
+    RU3 = MultistartFit(InformationGeometry.Negloglikelihood(DMU), MvNormal([0.,0], Diagonal(ones(2))); MultistartDomain=HyperCube([-1,-1],[3,4]), N=10,
+                        TransformSample=X->[X; -0.5])
+    @test sum(abs, MLE(RU)-MLE(RU2)) < 1e-8
+    @test sum(abs, MLE(RU)-MLE(RU3)) < 1e-8
+end
+
+
+@safetestset "ParameterProfiles" begin
+    using InformationGeometry, Test, Distributions, LinearAlgebra, Optim
+
+    DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2])
+    DMp = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]))
+
+    P1 = ParameterProfiles(DM, 2; IsCost=false, N=50, maxval=10, plot=false)
+    B1 = ProfileBox(P1, 2)
+
+    P1p = ParameterProfiles(DMp, 2; IsCost=false, N=50, maxval=10, plot=false)
+    B1p = ProfileBox(P1p, 2)
+
+    P2 = ParameterProfiles(DM, 2; IsCost=false, N=50, Multistart=20, maxval=10, plot=false, verbose=false)
+    B2 = ProfileBox(P2, 2)
+
+    P2p = ParameterProfiles(DMp, 2; IsCost=false, N=50, Multistart=20, maxval=10, plot=false, verbose=false)
+    B2p = ProfileBox(P2p, 2)
+
+    # Try Multistart reoptimization with general=true for pure cost function and general=false for manual step
+    P3 = ParameterProfiles(DM, 2; general=true, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+    P4 = ParameterProfiles(DM, 2; general=false, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+    # With Prior
+    P3p = ParameterProfiles(DMp, 2; general=true, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+    P4p = ParameterProfiles(DMp, 2; general=false, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+
+    B3 = ProfileBox(P3, 2)
+    B4 = ProfileBox(P4, 2)
+    B3p = ProfileBox(P3p, 2)
+    B4p = ProfileBox(P4p, 2)
+
+    # Check that all go above threshold
+    @test all(isfinite∘sum, Tuple(B1))
+    @test all(isfinite∘sum, Tuple(B2))
+    @test all(isfinite∘sum, Tuple(B3))
+    @test all(isfinite∘sum, Tuple(B4))
+    @test all(isfinite∘sum, Tuple(B1p))
+    @test all(isfinite∘sum, Tuple(B2p))
+    @test all(isfinite∘sum, Tuple(B3p))
+    @test all(isfinite∘sum, Tuple(B4p))
+    @test all(isfinite, ProfileBox(P3[1],2))
+    
+    
+    DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
+
+    PU = ParameterProfiles(DMU, 2; N=30, plot=false, verbose=false)
+    PU2 = ParameterProfiles(DMU, 2; N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+
+    BU = ProfileBox(PU, 2)
+    BU2 = ProfileBox(PU2, 2)
+
+    # Check that all go above threshold
+    @test all(isfinite∘sum, Tuple(BU))
+    @test all(isfinite∘sum, Tuple(BU2))
+
+    ## For future:
+    # CG = ConditionGrid([DM, DMp])
+    # PCG1 = ParameterProfiles(CG; general=true)
+    # PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10)
 end
 
 

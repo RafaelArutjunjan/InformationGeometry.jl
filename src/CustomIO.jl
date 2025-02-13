@@ -202,6 +202,7 @@ function Base.show(io::IO, ::MIME"text/plain", R::MultistartResults)
     println(io, Base.summary(R))
     println(io, "Median number of iterations: "*string(Int(round(median(@view R.Iterations[1:LastFinite])))))
     print(io, string(FirstStepInd) *"/"* string(LastFinite) * " ("*string(round(100*FirstStepInd/LastFinite; sigdigits=2))*" %) convergent fits had same final objective value")
+    print(io, ": "*string(round(R.FinalObjectives[1]; sigdigits=5)))
 end
 
 # Single line display

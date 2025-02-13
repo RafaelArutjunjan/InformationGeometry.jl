@@ -12,7 +12,7 @@ likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
 ## Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
 loglikelihood(DM::AbstractDataModel; kwargs...) = LogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = loglikelihood(DM, θ; kwargs..., Kwargs...)
-Negloglikelihood(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = -loglikelihood(DM, θ; kwargs..., Kwargs...)
+Negloglikelihood(DM::AbstractDataModel; kwargs...) = Negate(loglikelihood(DM; kwargs...))
 
 # import Distributions.loglikelihood
 """

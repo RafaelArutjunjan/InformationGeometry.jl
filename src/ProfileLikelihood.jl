@@ -608,14 +608,18 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
     @assert length(Fs) == length(mle)
     reduce(vcat, (parallel ? pmap : map)(i->ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
+# Maybe add option to perform Bisection or other bracketing method from MLE to respective profile ends
+function FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat; kwargs...)
+    Roots.find_zeros(F, lb, ub; kwargs...)
+end
 function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, 
-                    mleval::Real=F.t[findmin(F.u)[2]], maxval::Real=Inf, tol::Real=1e-10, xrtol=tol, xatol=tol, kwargs...)
+                    mleval::Real=F.t[findmin(F.u)[2]], maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
     crossings = if !IsCost
-        Roots.find_zeros(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+        FindZerosWrapper(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
     else
         # Already 2(loglikeMLE - loglike) in Profile
         CostThreshold = InvChisqCDF(dof, ConfVol(Confnum))
-        Roots.find_zeros(x->(F(x)-CostThreshold), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+        FindZerosWrapper(x->(F(x)-CostThreshold), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
     end
     if length(crossings) == 0
         crossings = [-maxval, maxval]
@@ -627,7 +631,7 @@ function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=tr
         end
     elseif length(crossings) > 2
         # think of cleverer way for checking slope
-        @warn "Got $(length(crossings)) crossings."
+        @warn "Got $(length(crossings)) crossings: $crossings"
     end
     HyperCube([minimum(crossings)], [maximum(crossings)]; Padding=0.0)
 end
@@ -733,7 +737,7 @@ ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real=1; kwargs.
     ProfileBox(P::ParameterProfiles, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-ProfileBox(P::ParameterProfiles, Confnum::Real=1; Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(InterpolatedProfiles(P, Interp), MLE(P), Confnum; IsCost=IsCost(P), kwargs...)
+ProfileBox(P::ParameterProfiles, Confnum::Real=1; IsCost::Bool=IsCost(P), dof::Int=DOF(P), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(InterpolatedProfiles(P, Interp), MLE(P), Confnum; IsCost, dof, kwargs...)
 
 
 """
