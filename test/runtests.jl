@@ -566,8 +566,7 @@ end
     @test all(isfinite∘sum, Tuple(B2p))
     @test all(isfinite∘sum, Tuple(B3p))
     @test all(isfinite∘sum, Tuple(B4p))
-    @test all(isfinite, ProfileBox(P3[1],2))
-    
+    @test all(isfinite, ProfileBox(P3[1],2)[1])
     
     DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
 

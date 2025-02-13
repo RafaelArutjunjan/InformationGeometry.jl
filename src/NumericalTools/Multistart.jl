@@ -211,7 +211,7 @@ Domain(R::MultistartResults) = R.MultistartDomain
 
 
 """
-    WaterfallPlot(R::MultistartResults; BiLog::Bool=true, MaxValue::Real=3000, StepTol::Real=0.01, kwargs...)
+    WaterfallPlot(R::MultistartResults; BiLog::Bool=true, MaxValue::Real=3000, StepTol::Real=1e-3, kwargs...)
 Shows Waterfall plot for the given results of MultistartFit.
 `StepTol` is used to decide which difference of two neighbouring values in the Waterfall plot constitutes a step. `StepTol=0` deactivates step marks.
 `MaxValue` is used to set threshold for ignoring points whose cost function after optimization is too large compared with best optimum.
@@ -220,7 +220,7 @@ Shows Waterfall plot for the given results of MultistartFit.
 WaterfallPlot(R::MultistartResults; kwargs...) = RecipesBase.plot(R, Val(:Waterfall); kwargs...)
 
 """
-    ParameterPlot(R::MultistartResults; st=:dotplot, BiLog::Bool=true, Nsteps::Int=5, StepTol::Real=0.01, MaxValue=3000)
+    ParameterPlot(R::MultistartResults; st=:dotplot, BiLog::Bool=true, Nsteps::Int=5, StepTol::Real=1e-3, MaxValue=3000)
 Plots the parameter values of the `MultistartResults` separated by step to show whether the different optima are localized or not.
 `st` can be either `:dotplot`, `:boxplot` or `:violin`.
 !!! note
@@ -235,7 +235,7 @@ end
 FindLastIndSafe(R::MultistartResults) = (LastFinite=findlast(isfinite, R.FinalObjectives);  isnothing(LastFinite) ? 0 : LastFinite)
 
 # GetStepInds always includes last point of lower step
-function GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01)
+function GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=1e-3)
     (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);       F = -R.FinalObjectives
     S = [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol]
     length(S) < 1 ? [ymaxind] : S
@@ -247,7 +247,7 @@ function GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), St
     Steps
 end
 
-function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=0.01)
+function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=1e-3)
     (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
     FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol, 1:ymaxind-1)
     isnothing(FirstStepInd) ? ymaxind : FirstStepInd
@@ -289,7 +289,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
         (DoBiLog ? BiLog : identity)(-R.InitialObjectives[1:ymaxind])
     end
     # Mark steps with vline, StepTol on linear scale
-    StepTol = get(plotattributes, :StepTol, 0.01)
+    StepTol = get(plotattributes, :StepTol, 1e-3)
     if 0 < StepTol
         Steps = GetStepInds(R, ymaxind; StepTol=StepTol)
         for (i,AfterIter) in enumerate(@view Steps[1:end-1]) # Do not plot line after last point
@@ -308,7 +308,7 @@ end
 RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}, Val{:StepAnalysis}})
     DoBiLog = get(plotattributes, :BiLog, true)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
-    StepTol = get(plotattributes, :StepTol, 0.01)
+    StepTol = get(plotattributes, :StepTol, 1e-3)
     pnames = get(plotattributes, :pnames, InformationGeometry.pnames(R))
     Nsteps = get(plotattributes, :Nsteps, 5)
     Spacer = get(plotattributes, :Spacer, 2)

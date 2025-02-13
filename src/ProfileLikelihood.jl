@@ -246,7 +246,7 @@ GetIterations(X::AbstractVector{<:Number}) = 0
 # For Multistart fit
 GetMinimizer(R::AbstractMultiStartResults) = MLE(R)
 GetMinimum(R::AbstractMultiStartResults, L::Function) = L(MLE(R))
-HasConverged(R::AbstractMultiStartResults; StepTol::Real=0.01) = 1 < GetFirstStepInd(R; StepTol)
+HasConverged(R::AbstractMultiStartResults; StepTol::Real=1e-3) = 1 < GetFirstStepInd(R; StepTol)
 GetIterations(R::AbstractMultiStartResults) = R.Iterations[1]
 
 """

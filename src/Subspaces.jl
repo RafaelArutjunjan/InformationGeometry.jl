@@ -505,6 +505,7 @@ SubHyperCube(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C
 Base.Tuple(C::HyperCube) = [(C.L[i], C.U[i]) for i in eachindex(C)]
 
 isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)
+Base.isfinite(C::HyperCube) = isbounded(C)
 
 
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
