@@ -585,7 +585,8 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     RecipesBase.plot!(P, [MLE(DM)[collect(idxs)]]; linealpha=0, marker=:hex, markersize=3, label="MLE", axislabels..., kwargs...)
 end
 
-
+# Centralized Interpolation method where defaults for extension can be chosen - possibly change to ExtrapolationType.Extension?
+GetInterpolator(X::AbstractVector{<:Number}, Y::AbstractVector{<:Number}, Interp::Type{<:AbstractInterpolation}; extrapolation=ExtrapolationType.None, kwargs...) = Interp(X, Y; extrapolation, kwargs...)
 
 """
     InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) -> Vector{Function}
@@ -593,8 +594,8 @@ Interpolates the `Vector{Matrix}` output of `ParameterProfiles`.
 !!!note
     Does not distinguish between converged and non-converged points in the profile.
 """
-function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation)
-    [Interp(view(profile,:,2), view(profile,:,1)) for profile in Mats]
+function InterpolatedProfiles(Mats::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...)
+    [GetInterpolator(view(profile,:,2), view(profile,:,1), Interp; kwargs...) for profile in Mats]
 end
 
 """
@@ -608,19 +609,33 @@ function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVe
     @assert length(Fs) == length(mle)
     reduce(vcat, (parallel ? pmap : map)(i->ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
-# Maybe add option to perform Bisection or other bracketing method from MLE to respective profile ends
-function FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat; kwargs...)
-    Roots.find_zeros(F, lb, ub; kwargs...)
-end
-function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, 
-                    mleval::Real=F.t[findmin(F.u)[2]], maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
-    crossings = if !IsCost
-        FindZerosWrapper(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+
+
+FindSingleZeroWrapper(args...; kwargs...) = try Roots.find_zero(args...; kwargs...) catch;  NaN end
+
+# Use Bracketing method from mle outwards by default since faster than find_zeros
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat; meth::Union{Nothing,Roots.AbstractUnivariateZeroMethod}=Roots.AlefeldPotraShi(), kwargs...) = FindZerosWrapper(F, lb, ub, meth; kwargs...)
+# Catch unwanted kwargs: no_pts for single zero searches and mleval for AllZeros search
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, ::Nothing; mleval::Real=0, kwargs...) = Roots.find_zeros(F, lb, ub; kwargs...)
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb, mleval), meth; kwargs...), FindSingleZeroWrapper(F, (mleval, ub), meth; kwargs...)]
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractNonBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb+mleval)/2, meth; kwargs...), FindSingleZeroWrapper(F, (mleval+ub)/2, meth; kwargs...)]
+
+
+function ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, mleval::Real=F.t[findmin(F.u)[2]], 
+                            CostThreshold::Union{<:Real, Nothing}=nothing, maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
+    Crossings = if !IsCost
+        FindZerosWrapper(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
     else
         # Already 2(loglikeMLE - loglike) in Profile
-        CostThreshold = InvChisqCDF(dof, ConfVol(Confnum))
-        FindZerosWrapper(x->(F(x)-CostThreshold), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, kwargs...)
+        CostThresh = if !isnothing(CostThreshold)
+            CostThreshold
+        else
+            # Allow for computation of F-based threshold here?
+            InvChisqCDF(dof, ConfVol(Confnum))
+        end
+        FindZerosWrapper(x->(F(x)-CostThresh), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
     end
+    crossings = view(Crossings, .!isnan.(Crossings))
     if length(crossings) == 0
         crossings = [-maxval, maxval]
     elseif length(crossings) == 1
@@ -710,10 +725,10 @@ mutable struct ParameterProfiles <: AbstractProfiles
         new(Profiles, Trajectories, Names, mle, dof, IsCost)
     end
 end
-(P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(P,i,Interp)(t)
-(P::ParameterProfiles)(i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(P,i,Interp)
-InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = Interp(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1))
-InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = [Interp(view(Prof,:,2), view(Prof,:,1)) for Prof in Profiles(P)]
+(P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)(t)
+(P::ParameterProfiles)(i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)
+InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = GetInterpolator(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1), Interp; kwargs...)
+InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = [GetInterpolator(view(Prof,:,2), view(Prof,:,1), Interp; kwargs...) for Prof in Profiles(P)]
 
 Profiles(P::ParameterProfiles) = P.Profiles
 Trajectories(P::ParameterProfiles) = P.Trajectories
@@ -759,8 +774,8 @@ mutable struct ParameterProfilesView
     i::Int
     ParameterProfilesView(P::ParameterProfiles, i::Int) = (@assert 1 ≤ i ≤ pdim(P);     new(P,i))
 end
-(PV::ParameterProfilesView)(t::Real, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = PV.P(t, PV.i, Interp)
-InterpolatedProfiles(PV::ParameterProfilesView, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) = InterpolatedProfiles(PV.P, PV.i, Interp)
+(PV::ParameterProfilesView)(t::Real, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = PV.P(t, PV.i, Interp; kwargs...)
+InterpolatedProfiles(PV::ParameterProfilesView, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(PV.P, PV.i, Interp; kwargs...)
 
 # Specialized
 Profiles(PV::ParameterProfilesView) = getindex(Profiles(PV.P), PV.i)
