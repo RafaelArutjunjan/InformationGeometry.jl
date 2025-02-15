@@ -714,15 +714,15 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile)
-        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; Meta)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; Meta, kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile)
-        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; Meta)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile, kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; Meta, kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
-        @assert 1 ≤ dof ≤ length(mle)
+        verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
         new(Profiles, Trajectories, Names, mle, dof, IsCost, Meta)
     end
 end

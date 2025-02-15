@@ -656,24 +656,26 @@ end
 Computes the forward propagation of the parameter covariance to the residuals.
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, verbose::Bool=true)
     det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
-    
-    # If Validation Band, add data uncertainty for single point to 
-    Ysig = if Validation && Data(DM) isa AbstractFixedUncertaintyDataSet
-        AverageSingleYsigmaMatrix(DM, mle)
-    else
-        Diagonal(zeros(ydim(DM)))
-    end
-    ConfScaling = quantile(Chisq(dof), ConfVol(Confnum))
-    Ysig *= ConfScaling
-    ydim(DM) == 1 && (Ysig = Ysig[1])
 
+    ConfScaling = quantile(Chisq(dof), ConfVol(Confnum))
     # As function of independent variable x
     YsigmaGenerator = if Data(DM) isa AbstractFixedUncertaintyDataSet
+        # If Validation Band, add data uncertainty for single point to 
+        Ysig = if Validation
+            @assert !InterpolateDataUncertainty "InterpolateDataUncertainty not implemented yet!"
+            verbose && !allequal(ysigma(DM)) && @warn "Need to compute average data uncertainty to plot validation profile between observations!"
+            AverageSingleYsigmaMatrix(DM, mle)
+        else    # No data uncertainty contribution
+            Diagonal(zeros(ydim(DM)))
+        end
+        Ysig *= ConfScaling
+        ydim(DM) == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
+        @assert !Validation "Not implemented for data with estimated uncertainty yet!"
         x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,mle), (SplitErrorParams(Data(DM))(mle))[end]));   ConfScaling * (S' * S))
     end
 
