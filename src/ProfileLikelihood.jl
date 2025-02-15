@@ -733,7 +733,7 @@ InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}
 
 # For SciMLBase.remake
 ParameterProfiles(;
-    Profiles::AbstractVector{<:AbstractMatrix}=[rand(1,3)],
+    Profiles::AbstractVector{<:AbstractMatrix}=[zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
     Names::AbstractVector{<:AbstractString}=String[],
     mle::AbstractVector{<:Number}=Float64[],
@@ -1047,7 +1047,7 @@ end
     # Colorize only parameters with 5 strongest changes
     for j in ToPlotInds
         @series begin
-            color --> palette(:default)[(((2+i) % 15) +1)]
+            color --> palette(:default)[(((2+j) % 15) +1)]
             label --> "Comp $j"
             lw --> 1.5
             Change = if RelChange && !any(MLE(PV) .== 0)

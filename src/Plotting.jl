@@ -670,11 +670,11 @@ end
 
 VisualizeSols(X::Tuple, args...; kwargs...) = VisualizeSols(X..., args...; kwargs...)
 function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(PL[1])), N::Int=500,
-                OverWrite::Bool=true, leg::Bool=false, color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
+                OverWrite::Bool=true, leg::Bool=false, colorpalette=palette(:default), kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && RecipesBase.plot()
     for i in eachindex(sols)
-        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=color, kwargs...)
+        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=colorpalette[i+1], kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, mle::AbstractVector{<:Number}=MLE(DM), kwargs...)
@@ -717,23 +717,23 @@ XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Paddi
 
 
 PlotConfidenceBands(DM, M, args...; kwargs...) = PlotConfidenceBands(M, (xdim(DM), ydim(DM)), args...; kwargs...)
-function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing; Confnum::Real=-1, kwargs...)
+function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing; Confnum::Real=-1, colorpalette=palette(:default), kwargs...)
     @assert size(M,2) == InOut[1] + 2InOut[2]
     lab = 0 < Confnum ? "$(round(Confnum; sigdigits=2))σ " : ""
     if size(M,2) == 3
-        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=rand([:red,:blue,:green,:orange,:grey]), kwargs...)
+        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=colorpalette[2], kwargs...)
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
         @assert InOut[1] == 1
         if xpositions isa Nothing
             for i in 1:(size(M,1)-1)
-                RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
+                RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=colorpalette[i+1], label=["" ""])
             end
-            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...)
+            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=colorpalette[2], label=["" lab*"Conf. Band"], kwargs...)
         elseif length(xpositions) == (size(M,2)-1) / 2
             for i in 1:(size(M,1)-1)
-                RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" ""])
+                RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=colorpalette[i+1], label=["" ""])
             end
-            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=rand([:red,:blue,:green,:orange,:grey]), label=["" lab*"Conf. Band"], kwargs...)
+            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=colorpalette[2], label=["" lab*"Conf. Band"], kwargs...)
         else
             throw("Vector of xpositions wrong length.")
         end
@@ -822,7 +822,7 @@ end
 
 # For 1D parameter spaces, drop samples kwarg
 function ConfidenceBands(DM::AbstractDataModel, ConfInterval::Tuple{<:Number,<:Number}, woundX::AbstractVector{<:Number}; samples::Int=200, kwargs...)
-    ConfidenceBands(DM, [[ConfInterval[1]], [ConfInterval[2]]], woundX; kwargs...)
+    ConfidenceBands(DM, [[ConfInterval[1]], [ConfInterval[2]]], woundX; samples, kwargs...)
 end
 
 # Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1
@@ -990,8 +990,8 @@ function PlotEnsemble(Xs::AbstractVector{<:Number}, Preds::Union{AbstractVector{
 end
 
 
-PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N)
-function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE::AbstractVector,Cube::HyperCube,Confnum::Real=1; N::Int=500)
+PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,Cube::HyperCube,Confnum::Real=1; N::Int=500, kwargs...) = PointwiseConfidenceBandFULL(DM,sol,FindMLE(DM),Cube,Confnum; N=N, kwargs...)
+function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE::AbstractVector,Cube::HyperCube,Confnum::Real=1; N::Int=500, kwargs...)
     !(length(Cube) == xdim(DM)) && throw("PWConfBand: Wrong Cube dim.")
     if ydim(DM) == 1
         Lims = ConstructCube(sol)
@@ -1013,8 +1013,8 @@ function PointwiseConfidenceBandFULL(DM::DataModel,sol::AbstractODESolution,MLE:
                 end
             else i = i-1 end
         end
-        RecipesBase.plot!(X,low)
-        RecipesBase.plot!(X,up) |> display
+        RecipesBase.plot!(X, low, kwargs...)
+        RecipesBase.plot!(X, up, kwargs...) |> display
         return [X low up]
     else
         throw("Not programmed yet.")
@@ -1045,41 +1045,41 @@ end
 
 
 
-function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100)
+function PlotCurves(Curves::AbstractVector{<:AbstractODESolution}; N::Int=100, kwargs...)
     p = [];    A = Array{Float64,2}(undef,N,2)
     for sol in Curves
         ran = range(sol.t[1],sol.t[end],length=N)
         for i in eachindex(ran)    A[i,:] = sol(ran[i])[1:2]  end
-        p = RecipesBase.plot!(A[:,1],A[:,2])
+        p = RecipesBase.plot!(A[:,1], A[:,2], kwargs...)
         # p = RecipesBase.plot!(sol,idxs=(1,2))
     end
     p
 end
 
 EvaluateAlongGeodesic(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)[1:Int(length(sol.u[1])/2)]) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongGeodesic(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+function PlotAlongGeodesic(F::Function,sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false, kwargs...)
     Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
-    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X,Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Z, kwargs...))
     [X Z]
 end
 EvaluateAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = EvaluateAlongGeodesic(F,sol,Interval, N=N)
-function PlotAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+function PlotAlongGeodesicLength(DM::AbstractDataModel, F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false, kwargs...)
     Z = EvaluateAlongGeodesic(F, sol, Interval; N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
     Geo = GeodesicLength(x->FisherMetric(DM,x), sol, sol.t[end]; FullSol=true, tol=1e-14)
     Ls = map(Geo, X)
-    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(Ls, Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(Ls, Z, kwargs...))
     [Ls Z]
 end
 EvaluateAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300) = [F(sol(t)) for t in range(Interval[1],Interval[2],length=N)]
-function PlotAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false)
+function PlotAlongCurve(F::Function, sol::AbstractODESolution, Interval::Tuple{<:Number,<:Number}=(sol.t[1],sol.t[end]); N::Int=300, OverWrite::Bool=false, kwargs...)
     Z = EvaluateAlongCurve(F, sol, Interval, N=N)
     @assert ConsistentElDims(Z) == 1
     X = DomainSamples(Interval; N=N)
-    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Z))
+    display((OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Z, kwargs...))
     [X Z]
 end
 
