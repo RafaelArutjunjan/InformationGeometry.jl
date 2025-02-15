@@ -396,7 +396,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             push!(Converged, InBounds(mle))
             push!(visitedps, mle[Comp])
             SaveTrajectories && push!(path, mle)
-            SavePriors && push!(priors, EvalLogPrior(DroppedLogPrior, [mle[Comp]]))
+            SavePriors && push!(priors, EvalLogPrior(LogPriorFn, mle))
 
             # Second right point
             p = mle[Comp] + δ
@@ -476,7 +476,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     if IsCost
         @. Res = 2*(Logmax - Res)
         if SavePriors
-            @. priors = 2*(Logmax - priors)
+            @. priors = 2*(Priormax - priors)
         end
     else
         @inbounds for i in eachindex(Res)
@@ -698,8 +698,9 @@ mutable struct ParameterProfiles <: AbstractProfiles
     mle::AbstractVector{<:Number}
     dof::Int
     IsCost::Bool
+    Meta::Symbol
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -709,26 +710,37 @@ mutable struct ParameterProfiles <: AbstractProfiles
                 i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  Profs[i][:,end] .= 0;    SaveTrajectories ? insert!(Trajs, i, [fill(NaN, pdim(DM))]) : insert!(Trajs, i, nothing))
             end
         end
-        P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof)
+        P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof, Meta)
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM))
-        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile)
+        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; Meta)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names))
-        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile)
+        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; Meta)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
         @assert 1 ≤ dof ≤ length(mle)
-        new(Profiles, Trajectories, Names, mle, dof, IsCost)
+        new(Profiles, Trajectories, Names, mle, dof, IsCost, Meta)
     end
 end
 (P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)(t)
 (P::ParameterProfiles)(i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)
 InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = GetInterpolator(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1), Interp; kwargs...)
 InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = [GetInterpolator(view(Prof,:,2), view(Prof,:,1), Interp; kwargs...) for Prof in Profiles(P)]
+
+# For SciMLBase.remake
+ParameterProfiles(;
+    Profiles::AbstractVector{<:AbstractMatrix}=[rand(1,3)],
+    Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
+    Names::AbstractVector{<:AbstractString}=String[],
+    mle::AbstractVector{<:Number}=Float64[],
+    dof::Int=0,
+    IsCost::Bool=false,
+    Meta::Symbol=:remake,) = ParameterProfiles(Profiles, Trajectories, Names, mle, dof, IsCost; Meta)
+
 
 Profiles(P::ParameterProfiles) = P.Profiles
 Trajectories(P::ParameterProfiles) = P.Trajectories
