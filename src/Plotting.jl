@@ -674,7 +674,7 @@ function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:Abstra
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && RecipesBase.plot()
     for i in eachindex(sols)
-        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=colorpalette[i+1], kwargs...)
+        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=colorpalette[3], kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, mle::AbstractVector{<:Number}=MLE(DM), kwargs...)

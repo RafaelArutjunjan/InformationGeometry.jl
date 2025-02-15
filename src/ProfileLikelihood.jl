@@ -261,7 +261,7 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=!(DM isa DataModel), IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
+                        AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
@@ -457,7 +457,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 end
                 len = length(visitedps)
                 copyto!(MLEstash, Drop(mle, Comp))
-                for p in sort(ps[startind:-1:1]; rev=true)
+                for p in sort(ps[startind-1:-1:1]; rev=true)
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
                 end
@@ -824,7 +824,7 @@ PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(vie
 
 function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfiles; kwargs...)
     @assert HasTrajectories(P)
-    PlotProfileTrajectories(DM, [(Profiles(P)[i], Trajectories(P)[i]) for i in eachindex(pnames(P))]; kwargs...)
+    PlotProfileTrajectories(DM, [(Profiles(P)[i], Trajectories(P)[i]) for i in eachindex(Profiles(P))]; kwargs...)
 end
 
 function ExtendProfiles(P::ParameterProfiles)
@@ -838,15 +838,15 @@ end
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
-    layout := length(pnames(P)) + 1
+    layout := length(Profiles(P)) + 1
 
     @series begin
-        layout := length(pnames(P)) + 1
+        layout := length(Profiles(P)) + 1
         P, Val(false)
     end
 
     @series begin
-        subplot := length(pnames(P)) + 1
+        subplot := length(Profiles(P)) + 1
         idxs := get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
         legend --> nothing
         P, Val(:PlotParameterTrajectories)
@@ -854,11 +854,11 @@ end
 end
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
-    layout --> length(pnames(P))
+    layout --> length(Profiles(P))
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
-    for i in eachindex(pnames(P))
+    for i in eachindex(Profiles(P))
         @series begin
             subplot := i
             ylims --> (-tol, maxy)
@@ -888,7 +888,7 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
         zlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[3]] * ")" : pnames(P)[idxs[3]])
     end
     
-    for i in eachindex(pnames(P))
+    for i in eachindex(Profiles(P))
         if !isnothing(Trajectories(P)[i])
             @series begin
                 label --> "Comp $i"
