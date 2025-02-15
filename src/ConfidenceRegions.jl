@@ -21,13 +21,13 @@ WilksTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=Con
 
 # Convert BigFloat vector back to float if necessary
 SmallFloat(X::AbstractVector{<:Number}, tol::Real) = X
-SmallFloat(X::AbstractVector{<:BigFloat}, tol::Real) = tol < 2e-15 ? X : convert(Vector{Float64}, X)
+SmallFloat(X::AbstractVector{<:BigFloat}, tol::Real) = tol < 2e-15 ? X : Float64.(X)
 
 function _GetBoolTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=DOF(DM), Comp::Int=1, kwargs...)
-    Wilks_Test(x::Real) = WilksTest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
+    Wilks_Test(x::Real) = WilksTest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof, kwargs...)
 end
 function _GetFloatTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; dof::Int=DOF(DM), Comp::Int=1, kwargs...)
-    Wilks_Criterion(x::Real) = WilksCriterion(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof=dof, kwargs...)
+    Wilks_Criterion(x::Real) = WilksCriterion(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; dof, kwargs...)
 end
 function _GetBoolFTesterFunc(DM::AbstractDataModel, mle::AbstractVector, CF::Real; Comp::Int=1, kwargs...)
     F_Test(x::Real) = Ftest(DM, muladd(x, BasisVector(Comp, length(mle)), mle), CF; kwargs...)
@@ -58,8 +58,7 @@ function FindConfBoundary(DM::AbstractDataModel, Confnum::Real; BoolTest::Bool=(
         Test = (Ftest ? _GetFloatFTesterFunc : _GetFloatTesterFunc)(DM, mle, CF; dof=dof, Comp=Comp)
         Interval = _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor)
         _FindFloatBoundary(Test, Interval, mle; tol=tol, dof=dof, Comp=Comp, verbose=verbose, kwargs...)
-    end
-    SmallFloat(Res, tol)
+    end;    SmallFloat(Res, tol)
 end
 
 function _FindBoolBoundary(Test::Function, mle::AbstractVector{<:Number}; tol::Real=4e-15, dof::Int=length(mle), Comp::Int=1, verbose::Bool=true, kwargs...)
@@ -491,7 +490,7 @@ end
 IsStructurallyIdentifiableAlong(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)::Bool = length(StructurallyIdentifiableAlong(DM, sol; kwargs...)) == 0
 
 function StructurallyIdentifiableAlong(DM::AbstractDataModel, sol::AbstractODESolution; kwargs...)
-    find_zeros(t->GeometricDensity(DM, sol(t); kwargs...), sol.t[1], sol.t[end])
+    Roots.find_zeros(t->GeometricDensity(DM, sol(t); kwargs...), sol.t[1], sol.t[end])
 end
 function StructurallyIdentifiableAlong(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}; parallel::Bool=false, kwargs...)
     (parallel ? pmap : map)(x->StructurallyIdentifiableAlong(DM, x; kwargs...), sols)
@@ -688,16 +687,19 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
+    # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
+    embeddingMatrix(DM::AbstractDataModel, mle::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), mle, X)
+
 
     VarCholesky1(x::Number) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J),x))
-    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
+    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
     VarSqrt1(x::Number) = (J = dPredictor(DM)(x, mle);   R = Sqrt((J * C * transpose(J))[1], x))
-    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
+    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
 
     VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   CholeskyU(J * C * transpose(J), x))
-    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
+    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, mle, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
     VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, mle);   R = Sqrt((J * C * transpose(J))[1], x))
-    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = EmbeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
+    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, mle, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
     if xdim(DM) == 1
         ydim(DM) > 1 ? VarCholesky1 : VarSqrt1
     else
