@@ -20,7 +20,7 @@ struct GeneralizedDataSet{DistType<:Distribution} <: AbstractFixedUncertaintyDat
     GeneralizedDataSet(DM::AbstractDataModel) = GeneralizedDataSet(Data(DM))
     function GeneralizedDataSet(DS::DataSetExact; kwargs...)
         xdist(DS) isa InformationGeometry.Dirac && @warn "xdist passed to GeneralizedDataSet is Dirac, continuing anyway."
-        GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), xnames(DS), ynames(DS); kwargs...)
+        GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), Xnames(DS), Ynames(DS); kwargs...)
     end
     GeneralizedDataSet(args...; kwargs...) = DataSetExact(args...; kwargs...) |> GeneralizedDataSet
     function GeneralizedDataSet(X::AbstractVector{<:Number}, Σ::AbstractMatrix{<:Number}; kwargs...)
@@ -57,7 +57,7 @@ end
 function (::Type{T})(DS::GeneralizedDataSet; kwargs...) where T<:Number
 	GeneralizedDataSet(ConvertDist(dist(DS),T), dims(DS),
 				(isnothing(DS.WoundX) ? nothing : [SVector{xdim(DS)}(Z) for Z in Windup(T.(xdata(DS)), xdim(DS))]); 
-                xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+                xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
 end
 
 # For SciMLBase.remake

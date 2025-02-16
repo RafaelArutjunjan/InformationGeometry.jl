@@ -497,7 +497,7 @@ end
 function TransformXdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
     if !HasXerror(DS)
-        DataSetType(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
+        DataSetType(DS)(NewX, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=Ynames(DS), name=name(DS))
     else
         EmbJac = xdim(DS) > 1 ? GetJac(ADmode, Emb, xdim(DS)) : GetDeriv(ADmode, Emb)
         NewXsigma = if xsigma(DS) isa AbstractVector
@@ -506,7 +506,7 @@ function TransformXdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, Tran
             J = reduce(BlockMatrix, map(EmbJac, WoundX(DS)))
             J * xsigma(DS) * transpose(J)
         end
-        DataSetType(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=ynames(DS), name=name(DS))
+        DataSetType(DS)(NewX, NewXsigma, ydata(DS), ysigma(DS), dims(DS); xnames=xnames, ynames=Ynames(DS), name=name(DS))
     end
 end
 # Drop iEmb
@@ -573,9 +573,9 @@ function TransformYdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, Tran
         J * ysigma(DS) * transpose(J)
     end
     if !HasXerror(DS)
-        DataSetType(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
+        DataSetType(DS)(xdata(DS), NewY, NewYsigma, dims(DS); xnames=Xnames(DS), ynames=ynames, name=name(DS))
     else
-        DataSetType(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=xnames(DS), ynames=ynames, name=name(DS))
+        DataSetType(DS)(xdata(DS), xsigma(DS), NewY, NewYsigma, dims(DS); xnames=Xnames(DS), ynames=ynames, name=name(DS))
     end
 end
 

@@ -19,8 +19,8 @@ end
 Copy the state names saved in `ODESystem` to `DS`.
 """
 function InformNames(DS::AbstractDataSet, sys::ModelingToolkit.AbstractSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
-    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : xnames(DS)
-    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : ynames(DS)
+    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : Xnames(DS)
+    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : Ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
@@ -372,7 +372,7 @@ function ModifyODEmodel(DM::AbstractDataModel, Model::ModelMap, NewObservationFu
         sol = Model.Map(x, θ; FullSol=true, save_everystep=false, save_start=false, save_end=true, kwargs...)
         F(sol.u[end], sol.t[end], θ)
     end
-    ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Model.pnames, Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-2]..., F, Model.Meta[end]))
+    ModelMap(NewODEmodel, InDomain(Model), Domain(Model), (Model.xyp[1], length(out), Model.xyp[3]), Pnames(Model), Model.inplace, Model.CustomEmbedding, name(Model), (Model.Meta[1:end-2]..., F, Model.Meta[end]))
 end
 
 

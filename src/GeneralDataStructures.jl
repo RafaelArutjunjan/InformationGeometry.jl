@@ -337,7 +337,7 @@ function Base.join(DS1::T, DS2::T) where T <: AbstractDataSet
         BlockMatrix(ysigma(DS1), ysigma(DS2))
     end
     DataSet(vcat(xdata(DS1), xdata(DS2)), vcat(ydata(DS1), ydata(DS2)), NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1));
-        xnames=xnames(DS1), ynames=ynames(DS1), name=name(DS1) * " + " * name(DS2))
+        xnames=Xnames(DS1), ynames=Ynames(DS1), name=name(DS1) * " + " * name(DS2))
 end
 """
     join(DM1::AbstractDataModel, DM2::AbstractDataModel) -> DataModel
@@ -384,10 +384,10 @@ function SubDataSetComponent(DS::AbstractDataSet, i::Int)
     keep = repeat((X=falses(ydim(DS)); X[i]=true; X), Npoints(DS))
     if !HasXerror(DS)
         DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
-                xnames=xnames(DS), ynames=[ynames(DS)[i]], name=name(DS))
+                xnames=Xnames(DS), ynames=[Ynames(DS)[i]], name=name(DS))
     else
         DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
-                xnames=xnames(DS), ynames=[ynames(DS)[i]], name=name(DS))
+                xnames=Xnames(DS), ynames=[Ynames(DS)[i]], name=name(DS))
     end
 end
 
@@ -409,7 +409,7 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     else
         Σ = _WoundMatrix(Σ, ydim(DS))[range, range] |> BlockMatrix
     end
-    DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+    DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
 end
 SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}; kwargs...) = DataModel(SubDataSet(Data(DM), range; kwargs...), Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM))
 

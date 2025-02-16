@@ -197,7 +197,7 @@ function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
 end
 
 
-InformNames(DM::AbstractDataModel, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
+InformNames(DM::AbstractDataModel, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 
 
 # Dot not create Prior object when there is no prior.

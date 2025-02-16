@@ -37,7 +37,7 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     ynames::AbstractVector{Symbol}
     name::Symbol
     DataSetExact(DM::AbstractDataModel; kwargs...) = DataSetExact(Data(DM); kwargs...)
-    DataSetExact(DS::DataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+    DataSetExact(DS::DataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, allxsigmas*ones(length(x)*length(x[1])), args...; kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
@@ -54,9 +54,9 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     function DataSetExact(DS::DataSet, Σ_x::AbstractArray; kwargs...)
         Σ_x = size(Σ_x,1) != size(Σ_x,2) ? Unwind(Σ_x) : Σ_x
         if (Σ_x == zeros(size(Σ_x,1))) || (Σ_x == Diagonal(zeros(size(Σ_x, 1))))
-            DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+            DataSetExact(InformationGeometry.Dirac(xdata(DS)), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
         else
-            DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), kwargs...)
+            DataSetExact(DataDist(xdata(DS),HealthyCovariance(Σ_x)), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
         end
     end
     function DataSetExact(xd::Distribution, yd::Distribution; kwargs...)
@@ -88,7 +88,7 @@ end
 function (::Type{T})(DSE::DataSetExact; kwargs...) where T<:Number
 	DataSetExact(ConvertDist(xdist(DSE),T), ConvertDist(ydist(DSE), T), dims(DSE), T.(yInvCov(DSE)),
 				(isnothing(DSE.WoundX) ? nothing : [SVector{xdim(DSE)}(Z) for Z in Windup(T.(xdata(DSE)), xdim(DSE))]); 
-                xnames=xnames(DSE), ynames=ynames(DSE), name=name(DSE), kwargs...)
+                xnames=Xnames(DSE), ynames=Ynames(DSE), name=name(DSE), kwargs...)
 end
 
 
@@ -107,7 +107,7 @@ name::StringOrSymb=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, 
 # Conversion to DataSet
 function DataSet(DSE::DataSetExact)
     HasXerror(DSE) && @warn "Dropping x-uncertainties in conversion to DataSet."
-    DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=xnames(DSE), ynames=ynames(DSE), name=name(DSE))
+    DataSet(xdata(DSE), ydata(DSE), ysigma(DSE), dims(DSE); xnames=Xnames(DSE), ynames=Ynames(DSE), name=name(DSE))
 end
 
 
@@ -138,11 +138,11 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
 
 HasXerror(DSE::DataSetExact) = xdist(DSE) isa InformationGeometry.Dirac ? false : any(x->x>0.0, xsigma(DSE))
 
-xnames(DSE::DataSetExact) = DSE.xnames .|> string
-ynames(DSE::DataSetExact) = DSE.ynames .|> string
+xnames(DSE::DataSetExact) = DSE.Xnames .|> string
+ynames(DSE::DataSetExact) = DSE.Ynames .|> string
 
-Xnames(DSE::DataSetExact) = DSE.xnames
-Ynames(DSE::DataSetExact) = DSE.ynames
+Xnames(DSE::DataSetExact) = DSE.Xnames
+Ynames(DSE::DataSetExact) = DSE.Ynames
 
 name(DSE::DataSetExact) = DSE.name |> string
 

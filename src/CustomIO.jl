@@ -118,7 +118,8 @@ end
 #### Show Distribution types for DataSetExact
 function Base.show(io::IO, DS::AbstractDataSet)
     println(io, Base.summary(DS) * ":")
-    xnameinsert = any(xnames(DS) .!= CreateSymbolNames(xdim(DS),"x")) ? (" [" * join(xnames(DS), ", ") * "] ") : ""
+    XNames = string.(Xnames(DS))
+    xnameinsert = any(XNames .!= CreateSymbolNames(xdim(DS),"x")) ? (" [" * join(XNames, ", ") * "] ") : ""
     print(io, "x-data" * xnameinsert * ": ")
     show(io, xdata(DS));    print(io, "\n")
     if HasXerror(DS)
@@ -127,7 +128,8 @@ function Base.show(io::IO, DS::AbstractDataSet)
         show(io, xsig)
         print(io, "\n")
     end
-    ynameinsert = any(ynames(DS) .!= CreateSymbolNames(ydim(DS),"y")) ? (" [" * join(ynames(DS), ", ") * "] ") : ""
+    YNames = string.(Ynames(DS))
+    ynameinsert = any(YNames .!= CreateSymbolNames(ydim(DS),"y")) ? (" [" * join(YNames, ", ") * "] ") : ""
     print(io, "y-data" * ynameinsert * ": ")
     show(io, ydata(DS));    print(io, "\n")
     ysig = ysigma(DS)
@@ -166,7 +168,8 @@ function Base.show(io::IO, ::MIME"text/plain", M::ModelMap)
     Expr = string(SymbolicModel(M))
     print(io, Base.summary(M))
     Expr[1] == 'y' && print(io, "\nModel Expr:  " * Expr)
-    pnames(M) != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(pnames(M), ", ") * "]")
+    PNames = string.(Pnames(M))
+    PNames != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(PNames, ", ") * "]")
 end
 
 # Single line display
@@ -174,7 +177,8 @@ function Base.show(io::IO, M::ModelMap)
     # Expr = SymbolicModel(M)
     print(io, Base.summary(M))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
-    pnames(M) != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(pnames(M), ", ") * "]")
+    PNames = string.(Pnames(M))
+    PNames != CreateSymbolNames(pdim(M)) && print(io, "\nParameters: θ = [" * join(PNames, ", ") * "]")
 end
 
 

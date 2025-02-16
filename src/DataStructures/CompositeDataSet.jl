@@ -53,16 +53,16 @@ DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloa
 
 function SplitDS(DS::DataSet)
     if ysigma(DS) isa AbstractVector
-        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), Xnames(DS), Ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSet(xdata(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), Xnames(DS), Ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 function SplitDS(DS::DataSetExact)
     if ysigma(DS) isa AbstractVector
-        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), Xnames(DS), Ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     else
-        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), xnames(DS), ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
+        [InformNames(DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[i:ydim(DS):end], ysigma(DS)[i:ydim(DS):end,i:ydim(DS):end], (Npoints(DS), xdim(DS), 1); name=name(DS)), Xnames(DS), Ynames(DS)[i:ydim(DS):end]) for i in 1:ydim(DS)]
     end
 end
 
@@ -162,8 +162,8 @@ logdetInvCov(CDS::CompositeDataSet) = CDS.logdetInvCov
 
 DataspaceDim(CDS::CompositeDataSet) = mapreduce(DS->Npoints(DS)*ydim(DS), +, Data(CDS))
 
-xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
-ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
+xnames(CDS::CompositeDataSet) = Xnames(CDS) .|> string
+ynames(CDS::CompositeDataSet) = Ynames(CDS) .|> string
 
 Xnames(CDS::CompositeDataSet) = Xnames(Data(CDS)[1])
 Ynames(CDS::CompositeDataSet) = mapreduce(Ynames, vcat, Data(CDS))
@@ -249,11 +249,11 @@ RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector
     if ydim(CDS) ≤ 16
         !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
         title --> name(CDS)
-        xguide -->  xnames(CDS)[1]
+        xguide -->  string(Xnames(CDS)[1])
         yguide -->  "Observations"
         for (i,DS) in enumerate(Data(CDS))
             @series begin
-                label --> "Data: " * ynames(DS)[1]
+                label --> "Data: " * string(Ynames(DS)[1])
                 # requires ydim(CDS) ≤ 16
                 color --> palette(:default)[(((i)%15)+1)]
                 DS

@@ -39,7 +39,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     ynames::AbstractVector{Symbol}
     name::Symbol
 
-    UnknownVarianceDataSet(DS::AbstractDataSet; kwargs...) = UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
+    UnknownVarianceDataSet(DS::AbstractDataSet; kwargs...) = UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
     function UnknownVarianceDataSet(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); 
                         testpx::AbstractVector=0.1ones(xdim(dims)), testpy::AbstractVector=0.1ones(ydim(dims)), kwargs...)
         @info "Assuming error models σ(x,y,c) = exp10.(c)"
@@ -48,7 +48,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; kwargs...)
     end
     function UnknownVarianceDataSet(DS::AbstractDataSet, invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector=0.1ones(xdim(DS)), testpy::AbstractVector=0.1ones(ydim(DS)); kwargs...)
-        UnknownVarianceDataSet(xdata(DS), ydata(DS), invxerrormodel, invyerrormodel, testpx, testpy, dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
+        UnknownVarianceDataSet(xdata(DS), ydata(DS), invxerrormodel, invyerrormodel, testpx, testpy, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invxerrormodel::Function, invyerrormodel::Function,
         testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
@@ -81,7 +81,7 @@ end
 
 function (::Type{T})(DS::UnknownVarianceDataSet{B}; kwargs...) where T<:Number where B
 	UnknownVarianceDataSet(T.(xdata(DS)), T.(ydata(DS)), dims(DS), xinverrormodel(DS), yinverrormodel(DS), 
-                T.(DS.testpx), T.(DS.testpy), SplitErrorParams(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS), BesselCorrection=B, kwargs...)
+                T.(DS.testpx), T.(DS.testpy), SplitErrorParams(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake

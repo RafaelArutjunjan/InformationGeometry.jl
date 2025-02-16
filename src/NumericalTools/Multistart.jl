@@ -310,7 +310,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
     DoBiLog = get(plotattributes, :BiLog, true)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
     StepTol = get(plotattributes, :StepTol, 1e-3)
-    pnames = get(plotattributes, :pnames, InformationGeometry.pnames(R))
+    pnames = get(plotattributes, :pnames, string.(Pnames(R)))
     Nsteps = get(plotattributes, :Nsteps, 5)
     Spacer = get(plotattributes, :Spacer, 2)
 
