@@ -77,9 +77,9 @@ _WoundX(DS::AbstractDataSet, WoundX::Nothing) = xdata(DS)
 _WoundX(DS::AbstractDataSet, WoundX::AbstractVector) = WoundX
 
 # Can eliminate specialized methods
-function InformNames(DS::T, Xnames::AbstractVector{<:AbstractString}, Ynames::AbstractVector{<:AbstractString}) where T <: AbstractDataSet
-    @assert length(Xnames) == xdim(DS) && length(Ynames) == ydim(DS)
-    remake(DS; xnames=Xnames, ynames=Ynames)
+function InformNames(DS::AbstractDataSet, XNames::AbstractVector{<:StringOrSymb}, YNames::AbstractVector{<:StringOrSymb})
+    @assert length(XNames) == xdim(DS) && length(YNames) == ydim(DS)
+    remake(DS; xnames=XNames, ynames=YNames)
 end
 
 
@@ -130,7 +130,7 @@ Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
 for F in [  :xdata, :ydata,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
             :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :xdist, :ydist, :dist, :HasXerror,
+            :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
             :xdataMat, :ydataMat,
             :SplitErrorParams]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
@@ -141,6 +141,10 @@ end
 pnames(DM::AbstractDataModel) = pnames(DM, Predictor(DM))
 pnames(DM::AbstractDataModel, M::ModelMap) = pnames(M)
 pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ")
+
+Pnames(DM::AbstractDataModel) = Pnames(DM, Predictor(DM))
+Pnames(DM::AbstractDataModel, M::ModelMap) = Pnames(M)
+Pnames(DM::AbstractDataModel, F::Function) = CreateSymbolNames(pdim(DM),"θ") .|> Symbol
 
 
 xerrorparams(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = xerrorparams(Data(DM), mle)
@@ -196,10 +200,9 @@ DOF(DS::AbstractDataSet, mle::AbstractVector) = length(mle) - NumberOfErrorParam
 name(DS::Union{AbstractDataSet, AbstractVector{<:Union{<:AbstractDataSet,<:AbstractDataModel}}}) = ""
 
 
-Christen(DS::Union{ModelMap,AbstractDataSet}, name::Union{Symbol,<:AbstractString}) = remake(DS; name=Symbol(name))
-Christen(F::Function, name::Union{Symbol,<:AbstractString}) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=name))
-# Christens ModelMaps
-Christen(DM::AbstractDataModel, name::Union{Symbol,<:AbstractString}) = remake(DM; model=Christen(Predictor(DM); name=name), dmodel=Christen(dPredictor(DM); name=name))
+Christen(DS::Union{ModelMap,AbstractDataSet}, name::StringOrSymb) = remake(DS; name=Symbol(name))
+Christen(F::Function, name::StringOrSymb) = (@warn "Cannot add name to function, needs to be wrapped in ModelMap first.";   ModelMap(F; name=Symbol(name)))
+Christen(DM::AbstractDataModel, name::StringOrSymb) = remake(DM; name=Symbol(name))
 
 
 function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)

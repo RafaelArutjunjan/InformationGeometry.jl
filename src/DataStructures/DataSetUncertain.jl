@@ -33,9 +33,9 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     inverrormodel::Function # 1./errormodel
     testp::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
-    xnames::AbstractVector{<:AbstractString}
-    ynames::AbstractVector{<:AbstractString}
-    name::Union{<:AbstractString,<:Symbol}
+    xnames::AbstractVector{Symbol}
+    ynames::AbstractVector{Symbol}
+    name::Symbol
 
     DataSetUncertain(DS::AbstractDataSet; kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
@@ -57,12 +57,12 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testp)), testp, dims; verbose, kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
-            xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
-            name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
+            xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"),
+            name::StringOrSymb=Symbol(), kwargs...)
         DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector,
-            xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
+            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -70,7 +70,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         M = inverrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
         ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
         
-        new{BesselCorrection}(x, y, dims, inverrormodel, testp, errorparamsplitter, xnames, ynames, name)
+        new{BesselCorrection}(x, y, dims, inverrormodel, testp, errorparamsplitter, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
@@ -86,10 +86,10 @@ dims::Tuple{Int,Int,Int}=(1,1,1),
 inverrormodel::Function=identity,
 testp::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
-xnames::AbstractVector{<:AbstractString}=["x"],
-ynames::AbstractVector{<:AbstractString}=["y"],
+xnames::AbstractVector{<:StringOrSymb}=[:x],
+ynames::AbstractVector{<:StringOrSymb}=[:y],
 BesselCorrection::Bool=false,
-name::Union{<:AbstractString,Symbol}=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; BesselCorrection)
+name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; BesselCorrection)
 
 DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 
@@ -97,8 +97,10 @@ DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -
 xdata(DS::DataSetUncertain) = DS.x
 ydata(DS::DataSetUncertain) = DS.y
 dims(DS::DataSetUncertain) = DS.dims
-xnames(DS::DataSetUncertain) = DS.xnames
-ynames(DS::DataSetUncertain) = DS.ynames
+xnames(DS::DataSetUncertain) = DS.xnames .|> string
+ynames(DS::DataSetUncertain) = DS.ynames .|> string
+Xnames(DS::DataSetUncertain) = DS.xnames
+Ynames(DS::DataSetUncertain) = DS.ynames
 name(DS::DataSetUncertain) = DS.name |> string
 
 xsigma(DS::DataSetUncertain) = zeros(length(xdata(DS)))

@@ -35,9 +35,9 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     testpx::AbstractVector{<:Number}
     testpy::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, xERRORMODEL), view(θ, yERRORMODEL))
-    xnames::AbstractVector{<:AbstractString}
-    ynames::AbstractVector{<:AbstractString}
-    name::Union{<:AbstractString,<:Symbol}
+    xnames::AbstractVector{Symbol}
+    ynames::AbstractVector{Symbol}
+    name::Symbol
 
     UnknownVarianceDataSet(DS::AbstractDataSet; kwargs...) = UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), kwargs...)
     function UnknownVarianceDataSet(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); 
@@ -58,13 +58,13 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function;
-            xnames::AbstractVector{<:AbstractString}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:AbstractString}=CreateSymbolNames(ydim(dims),"y"),
-            name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
+            xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"),
+            name::StringOrSymb=Symbol(), kwargs...)
             UnknownVarianceDataSet(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name; kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
         invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
-        xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString}, name::Union{<:AbstractString,Symbol}=Symbol(); BesselCorrection::Bool=false)
+        xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -74,7 +74,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         M = invyerrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         xdim(dims) == 1 ? (@assert Q isa Number && Q > 0) : (@assert Q isa AbstractMatrix && size(Q,1) == size(Q,2) == xdim(dims) && det(Q) > 0)
         ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
-        new{BesselCorrection}(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
+        new{BesselCorrection}(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
@@ -94,9 +94,9 @@ invyerrormodel::Function=identity,
 testpx::AbstractVector{<:Number}=[0.],
 testpy::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
-xnames::AbstractVector{<:AbstractString}=["x"],
-ynames::AbstractVector{<:AbstractString}=["y"],
-name::Union{<:AbstractString,Symbol}=Symbol()) = UnknownVarianceDataSet(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
+xnames::AbstractVector{<:StringOrSymb}=[:x],
+ynames::AbstractVector{<:StringOrSymb}=[:y],
+name::StringOrSymb=Symbol()) = UnknownVarianceDataSet(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name)
 
 
 DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))
@@ -105,8 +105,10 @@ DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwar
 xdata(DS::UnknownVarianceDataSet) = DS.x
 ydata(DS::UnknownVarianceDataSet) = DS.y
 dims(DS::UnknownVarianceDataSet) = DS.dims
-xnames(DS::UnknownVarianceDataSet) = DS.xnames
-ynames(DS::UnknownVarianceDataSet) = DS.ynames
+xnames(DS::UnknownVarianceDataSet) = DS.xnames .|> string
+ynames(DS::UnknownVarianceDataSet) = DS.ynames .|> string
+Xnames(DS::UnknownVarianceDataSet) = DS.xnames
+Ynames(DS::UnknownVarianceDataSet) = DS.ynames
 name(DS::UnknownVarianceDataSet) = DS.name |> string
 
 

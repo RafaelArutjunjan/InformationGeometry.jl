@@ -172,10 +172,10 @@ end
 function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
     @assert length(Linked) == pdim(M)
     WoFirst = _WithoutInd(Linked, MainIndBefore)
-    Pnames = copy(pnames(M))
-    Pnames[MainIndBefore] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
-    Pnames = Pnames[.!WoFirst]
-    EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore); Domain=DropCubeDims(Domain(M), WoFirst), pnames=Pnames, kwargs...)
+    PNames = copy(pnames(M))
+    PNames[MainIndBefore] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
+    PNames = PNames[.!WoFirst]
+    EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore); Domain=DropCubeDims(Domain(M), WoFirst), pnames=PNames, kwargs...)
 end
 function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
     EmbedModelVia(F, GetLinkEmbedding(Linked, MainIndBefore); kwargs...)
@@ -562,10 +562,10 @@ HasPriors(M::AbstractMatrix) = size(M,2) > 3
 
 
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
-    Pnames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
-    @assert length(Profiles) == length(Pnames)
-    Ylab = length(Pnames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
-    PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=Pnames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
+    PNames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+    @assert length(Profiles) == length(PNames)
+    Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
+    PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=PNames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
     length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
     RecipesBase.plot(PlotObjects...; layout=length(PlotObjects))
 end
@@ -694,7 +694,7 @@ For visualization of the results, multiple methods are available, see e.g. [`Plo
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:AbstractMatrix}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
-    Names::AbstractVector{<:AbstractString}
+    Names::AbstractVector{Symbol}
     mle::AbstractVector{<:Number}
     dof::Int
     IsCost::Bool
@@ -714,16 +714,16 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; Meta, kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile, kwargs...)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile, kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; Meta, kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:AbstractString}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta, verbose::Bool=true)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
         verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
-        new(Profiles, Trajectories, Names, mle, dof, IsCost, Meta)
+        new(Profiles, Trajectories, Symbol.(Names), mle, dof, IsCost, Meta)
     end
 end
 (P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)(t)
@@ -735,7 +735,7 @@ InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}
 ParameterProfiles(;
     Profiles::AbstractVector{<:AbstractMatrix}=[zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
-    Names::AbstractVector{<:AbstractString}=String[],
+    Names::AbstractVector{<:StringOrSymb}=Symbol[],
     mle::AbstractVector{<:Number}=Float64[],
     dof::Int=0,
     IsCost::Bool=false,
@@ -744,7 +744,8 @@ ParameterProfiles(;
 
 Profiles(P::ParameterProfiles) = P.Profiles
 Trajectories(P::ParameterProfiles) = P.Trajectories
-pnames(P::ParameterProfiles) = P.Names
+pnames(P::ParameterProfiles) = P.Names .|> string
+Pnames(P::ParameterProfiles) = P.Names
 MLE(P::ParameterProfiles) = P.mle
 pdim(P::ParameterProfiles) = length(MLE(P))
 DOF(P::ParameterProfiles) = P.dof
@@ -794,6 +795,7 @@ Profiles(PV::ParameterProfilesView) = getindex(Profiles(PV.P), PV.i)
 Trajectories(PV::ParameterProfilesView) = getindex(Trajectories(PV.P), PV.i)
 # Passthrough
 pnames(PV::ParameterProfilesView) = pnames(PV.P)
+Pnames(PV::ParameterProfilesView) = Pnames(PV.P)
 MLE(PV::ParameterProfilesView) = MLE(PV.P)
 pdim(PV::ParameterProfilesView) = pdim(PV.P)
 DOF(PV::ParameterProfilesView) = DOF(PV.P)

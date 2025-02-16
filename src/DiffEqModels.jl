@@ -46,7 +46,7 @@ end
 
 
 function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:AbstractString}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::Union{<:AbstractString,Symbol}=ModelingToolkit.getname(sys), kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     

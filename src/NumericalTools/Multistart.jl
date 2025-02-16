@@ -54,12 +54,12 @@ The keyword `TransformSample` can be used to specify a function which is applied
     Any further keyword arguments are passed through to the optimization procedure [`InformationGeometry.minimize`](@ref) such as tolerances, optimization methods, domain constraints, etc.
 """
 function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; 
-                                        CostFunction::Function=Negate(loglikelihood(DM)), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:AbstractString}=pnames(DM),
+                                        CostFunction::Function=Negate(loglikelihood(DM)), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
 function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval=1e5, 
-                                        DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:AbstractString}=String[], TransformSample::Function=identity,
+                                        DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
@@ -118,8 +118,8 @@ function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVe
         Iterations = GetIterations.(Res)
         # By internal optimizer criterion:
         Converged = HasConverged.(Res; verbose=false)
-        Pnames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, Pnames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        PNames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
+        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
@@ -143,7 +143,7 @@ struct MultistartResults <: AbstractMultiStartResults
     InitialObjectives::AbstractVector{<:Number}
     Iterations::AbstractVector{<:Int}
     Converged::AbstractVector{<:Bool}
-    pnames::AbstractVector{<:AbstractString}
+    pnames::AbstractVector{Symbol}
     OptimMeth
     seed::Union{Int,Nothing}
     MultistartDomain::Union{Nothing,HyperCube}
@@ -155,7 +155,7 @@ struct MultistartResults <: AbstractMultiStartResults
             InitialObjectives::AbstractVector{<:Number},
             Iterations::AbstractVector{<:Int},
             Converged::AbstractVector{<:Bool},
-            pnames::AbstractVector{<:AbstractString},
+            pnames::AbstractVector{<:StringOrSymb},
             meth,
             seed::Union{Int, Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
@@ -184,7 +184,7 @@ struct MultistartResults <: AbstractMultiStartResults
         end
 
         Perm = sortperm(FinalObjectives; rev=true)
-        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], pnames, OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
+        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
     end
 end
 
@@ -206,7 +206,8 @@ Base.firstindex(R::MultistartResults) = firstindex(R.FinalObjectives)
 Base.lastindex(R::MultistartResults) = length(R.FinalObjectives)
 
 MLE(R::MultistartResults) = R.FinalPoints[1]
-pnames(R::MultistartResults) = R.pnames
+pnames(R::MultistartResults) = R.pnames .|> string
+Pnames(R::MultistartResults) = R.pnames
 Domain(R::MultistartResults) = R.MultistartDomain
 
 

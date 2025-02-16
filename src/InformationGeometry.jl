@@ -118,6 +118,7 @@ import Distributions.loglikelihood
 
 const BoolArray = Union{BitArray,AbstractArray{<:Bool}}
 const BoolVector = Union{BitVector,AbstractVector{<:Bool}}
+const StringOrSymb = Union{Symbol, <:AbstractString}
 
 
 include("Subspaces.jl")

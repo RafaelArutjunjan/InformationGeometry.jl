@@ -96,19 +96,19 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     logdetInvCov::Real
     WoundX::AbstractVector
     SharedYdim::Val
-    name::Union{<:AbstractString,Symbol}
+    name::Symbol
     function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet}; kwargs...)
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
         InvCov = mapreduce(yInvCov, BlockMatrix, DSs) |> HealthyCovariance
         CompositeDataSet(DSs, InvCov, logdet(InvCov), unique(mapreduce(WoundX, vcat, DSs)), Val(all(DS->ydim(DS)==ydim(DSs[1]), DSs)); kwargs...)
     end
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::Union{<:AbstractString,Symbol}=Symbol(), kwargs...)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val; name::StringOrSymb=Symbol(), kwargs...)
         CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
     end
     # What about CompositeDataSets with estimated errors in the future?
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractFixedUncertaintyDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::Union{<:AbstractString,Symbol})
-        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractFixedUncertaintyDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::StringOrSymb)
+        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, Symbol(name))
     end
 end
 
@@ -138,7 +138,7 @@ InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
 SharedYdim::Val=Val(true),
-name::Union{<:AbstractString,Symbol}=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
+name::StringOrSymb=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs
@@ -165,13 +165,16 @@ DataspaceDim(CDS::CompositeDataSet) = mapreduce(DS->Npoints(DS)*ydim(DS), +, Dat
 xnames(CDS::CompositeDataSet) = xnames(Data(CDS)[1])
 ynames(CDS::CompositeDataSet) = mapreduce(ynames, vcat, Data(CDS))
 
+Xnames(CDS::CompositeDataSet) = Xnames(Data(CDS)[1])
+Ynames(CDS::CompositeDataSet) = mapreduce(Ynames, vcat, Data(CDS))
+
 name(CDS::CompositeDataSet) = CDS.name |> string
 
 
-function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
+function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})
     CompositeDataSet(InformNames(Data(CDS), xnames, ynames))
 end
-function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{<:AbstractString}, ynames::AbstractVector{<:AbstractString})
+function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})
     # Use InformNames for single DataSet recursively
     @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
     Res = Vector{AbstractDataSet}(undef, length(DSs))
