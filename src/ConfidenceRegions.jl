@@ -1390,44 +1390,17 @@ end
 end
 
 
-struct ConfidenceInterval <: AbstractBoundarySlice
-    Interval::Tuple{<:Number,<:Number}
-    Confnum::Real
-    mle::AbstractVector{<:Number}
-    pnames::AbstractVector{<:AbstractString}
-    function ConfidenceInterval(Interval::Tuple{<:Number,<:Number}, Confnum::Real, mle::AbstractVector{<:Number}, pnames::AbstractVector{<:AbstractString})
-        @assert Interval[1] ≤ mle[1] ≤ Interval[2]
-        @assert length(mle) == length(pnames) == 1
-        new(Interval, Confnum, mle, pnames)
-    end
-end
-Interval(CI::ConfidenceInterval) = CI.Interval
-
-
-
-
-
-# function isplanar(sol::AbstractODESolution)::Bool
-#     p1 = sol.u[1];      p2 = sol.u[Int(ceil(length(sol.t)/3))];     p3 = sol.u[Int(ceil(2length(sol.t)/3))]
-#     PL = Plane(p1, p2-p1, Make2ndOrthogonal(p2-p1,p3-p1));    all(x->DistanceToPlane(PL,x) < 1e-12, sol.u)
-# end
-#
-# GetPlane(CB::ConfidenceBoundary) = GetPlane(CB.sols[1], CB.MLE)
-# GetPlane(DM::AbstractDataModel, sol::AbstractODESolution) = GetPlane(sol, MLE(DM))
-# function GetPlane(sol::AbstractODESolution, MLE::AbstractVector{<:Number})
-#     @assert isplanar(sol)
-#     # Assuming that the initial point was located at [a,0,0...,0] relative to MLE
-#     # return sol, MLE
-#     Plane(MLE, sol.u[1] .- MLE, sol.u[end÷4] - MLE)
-# end
-
-# LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, Cube::HyperCube) = LinearPredictionUncertainties(DM, F, FaceCenters(Cube))
-# function LinearPredictionUncertainties(DM::AbstractDataModel, F::Function, points::AbstractVector{<:AbstractVector{<:Number}})
-#     best = F(MLE(DM))
-#     bounds = if typeof(best) <: AbstractVector
-#         extrema(map(F, points))
-#     else
-#         map(extrema, eachcol(Unpack(map(F, points))))
+# struct ConfidenceInterval <: AbstractBoundarySlice
+#     Interval::Tuple{<:Number,<:Number}
+#     Confnum::Real
+#     mle::AbstractVector{<:Number}
+#     pnames::AbstractVector{<:AbstractString}
+#     function ConfidenceInterval(Interval::Tuple{<:Number,<:Number}, Confnum::Real, mle::AbstractVector{<:Number}, pnames::AbstractVector{<:AbstractString})
+#         @assert Interval[1] ≤ mle[1] ≤ Interval[2]
+#         @assert length(mle) == length(pnames) == 1
+#         new(Interval, Confnum, mle, pnames)
 #     end
-#     best, bounds
 # end
+# Interval(CI::ConfidenceInterval) = CI.Interval
+
+

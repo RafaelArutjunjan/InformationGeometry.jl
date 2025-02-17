@@ -192,6 +192,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     if any(Confnum .> 0)
         F = FisherMetric(DM, mle)
         if PlotVariance || det(F) > 0
+            color_palette = get(plotattributes, :color_palette, :default)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
                 SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                 for i in 1:ydim(DM)

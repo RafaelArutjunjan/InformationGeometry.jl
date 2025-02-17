@@ -355,29 +355,32 @@ function ParameterSavingCallback(X::AbstractVector{<:Number})
 end
 
 
+GetRobustCostFunction(DM::AbstractDataModel; kwargs...) = GetRobustCostFunction(Data(DM), Predictor(DM), LogPrior(DM); kwargs...)
+function GetRobustCostFunction(DS::AbstractFixedUncertaintyDataSet, M::ModelOrFunction, LogPriorFn::Union{Nothing,Function}=nothing; p::Real=1)
+    HalfSig = cholesky(yInvCov(DS)).U    # Since F is minimized, need to subtract LogPrior
+    pNormCostFunction(θ::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, θ)), p) - EvalLogPrior(LogPriorFn, θ)
+end
+
 """
     RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}; tol::Real=1e-10, p::Real=1, kwargs...)
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); kwargs...) = RobustFit(Data(DM), Predictor(DM), start, LogPrior(DM); kwargs...)
 function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
-    HalfSig = cholesky(yInvCov(DS)).U
-    # Since F is minimized, need to subtract LogPrior
-    F(θ::AbstractVector) = norm(HalfSig * (ydata(DS) - EmbeddingMap(DS, M, θ)), p) - EvalLogPrior(LogPriorFn, θ)
-    InformationGeometry.minimize(F, start, Domain; tol=tol, kwargs...)
+    InformationGeometry.minimize(GetRobustCostFunction(DS, M, LogPriorFn; p), start, Domain; tol=tol, kwargs...)
 end
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
-    HalfSig = cholesky(yInvCov(DS)).U
-    # Since F is minimized, need to subtract LogPrior
-    F(θ::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS)), p) - EvalLogPrior(LogPriorFn, θ)
-    function dFp(θ::AbstractVector)
-        z = HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS))
-        n = sum(z.^p)^(1/p - 1) * z.^(p-1)
-        transpose(HalfSig * EmbeddingMatrix(DS, dM, θ)) * n - EvalLogPriorGrad(LogPriorFn, θ)
-    end
-    dF1(θ::AbstractVector) = transpose(HalfSig * EmbeddingMatrix(DS, dM, θ)) *  sign.(HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS))) - EvalLogPrior(LogPriorFn, θ)
-    InformationGeometry.minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, kwargs...)
-end
+# function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
+#     HalfSig = cholesky(yInvCov(DS)).U
+#     # Since F is minimized, need to subtract LogPrior
+#     F(θ::AbstractVector) = norm(HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS)), p) - EvalLogPrior(LogPriorFn, θ)
+#     function dFp(θ::AbstractVector)
+#         z = HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS))
+#         n = sum(z.^p)^(1/p - 1) * z.^(p-1)
+#         transpose(HalfSig * EmbeddingMatrix(DS, dM, θ)) * n - EvalLogPriorGrad(LogPriorFn, θ)
+#     end
+#     dF1(θ::AbstractVector) = transpose(HalfSig * EmbeddingMatrix(DS, dM, θ)) *  sign.(HalfSig * (EmbeddingMap(DS, M, θ) - ydata(DS))) - EvalLogPrior(LogPriorFn, θ)
+#     InformationGeometry.minimize(F, (p == 1 ? dF1 : dFp), start, Domain; tol=tol, kwargs...)
+# end
 
 
 """
