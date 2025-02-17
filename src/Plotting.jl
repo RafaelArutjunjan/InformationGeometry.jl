@@ -22,9 +22,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     markeralpha :=      0.
     X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=500) : xdata(DM)
     Y = predictedY(DM, mle, X)
+    color_palette = get(plotattributes, :color_palette, :default)
     @series begin
         linewidth -->       2
-        color_palette = get(plotattributes, :color_palette, :default)
         seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto))
         linestyle -->       :solid
         RSEs = ResidualStandardError(DM, mle)
@@ -58,7 +58,6 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                 if ydim(DM) == 1
                     SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
                     @series begin
-                        color_palette = get(plotattributes, :color_palette, :default)
                         seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85

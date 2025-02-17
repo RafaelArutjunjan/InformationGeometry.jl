@@ -74,11 +74,12 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
-                        tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
+                        LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
         LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
-        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; tol=OptimTol, meth=OptimMeth)
-        LogLikeMLE = SkipTests ? (try loglikelihood(DS, model, Mle, LogPriorFn) catch; -Inf end) : loglikelihood(DS, model, Mle, LogPriorFn)
-        DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
+        logLikelihoodFn = isnothing(LogLikelihoodFn) ? GetLogLikelihoodFn(DS, model, logPriorFn) : LogLikelihoodFn
+        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth)
+        LogLikeMLE = SkipTests ? (try logLikelihoodFn(Mle) catch; -Inf end) : logLikelihoodFn(Mle)
+        DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; LogLikelihoodFn=logLikelihoodFn, SkipTests, SkipOptim=true, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Mle::AbstractVector{<:Number}, LogLikeMLE::Real, SkipOptimAndTests::Bool=false; kwargs...)
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, nothing, SkipOptimAndTests; kwargs...)

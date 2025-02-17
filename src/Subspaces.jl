@@ -522,6 +522,7 @@ struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <
     destats::DE
     retcode
     Embedding::Function
+    oldsol
 end
 (ES::EmbeddedODESolution)(t::Real,deriv::Type=Val{0};idxs=nothing,continuity=:left) = ES.Embedding(ES.interp(t,idxs,deriv,ES.prob.p,continuity))
 (ES::EmbeddedODESolution)(Ts::AbstractVector{<:Real},deriv::Type=Val{0};kwargs...) = map(t->ES(t,deriv;kwargs...),Ts)
@@ -529,10 +530,10 @@ end
 # (ES::EmbeddedODESolution)(v,t,deriv::Type=Val{0};idxs=nothing,continuity=:left) = sol.interp(v,t,idxs,deriv,sol.prob.p,continuity)
 
 
-function EmbeddedODESolution(u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding)
+function EmbeddedODESolution(u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding, oldsol=nothing)
     EmbeddedODESolution{typeof(u[1]), length(u[1]), typeof(u), typeof(u_analytic), typeof(errors),
     typeof(t), typeof(k), typeof(prob), typeof(alg), typeof(interp),typeof(destats)}(
-    u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding)
+    u, u_analytic, errors, t, k, prob, alg, interp, dense, tslocation, destats, retcode, Embedding, oldsol)
 end
 
 """
@@ -547,7 +548,7 @@ function EmbeddedODESolution(sol::AbstractODESolution{T,N,uType}, Embedding::Fun
                  sol.interp, # Leaving old interp object as is and only using embedding on calls of EmbeddedODESolution objects themselves.
                  sol.dense, sol.tslocation, 
                  try sol.stats catch; sol.destats end, # destats field deprecated in newer versions 
-                 sol.retcode, Embedding)
+                 sol.retcode, Embedding, sol)
 end
 EmbeddedODESolution(sol::AbstractODESolution, PL::Plane) = EmbeddedODESolution(sol, PlaneCoordinates(PL))
 function EmbeddedODESolution(sols::AbstractVector{<:AbstractODESolution}, Planes::AbstractVector{<:Plane})
@@ -557,3 +558,17 @@ end
 # Reverse order
 EmbeddedODESolution(PL::Union{Plane, AbstractVector{<:Plane}}, sol::Union{AbstractODESolution,AbstractVector{<:AbstractODESolution}}) = EmbeddedODESolution(sol, PL)
 EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)
+
+# ODESolution plotting broken?
+RecipesBase.@recipe function f(esol::EmbeddedODESolution; N::Int=300)
+    draw --> :line
+    label --> ""
+    U = map(esol, range(esol.t[1], esol.t[end]; length=N))
+    if length(esol.u[1]) == 2
+        getindex.(U,1), getindex.(U,2)
+    elseif length(esol.u[1]) == 3
+        getindex.(U,1), getindex.(U,2), getindex.(U,3)
+    else
+        throw("Do not know how to plot EmbeddedODESolution with dim=$(length(esol.u[1]))")
+    end
+end

@@ -222,57 +222,54 @@ function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int
     X
 end
 
-FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...) = FindMLEBig(Data(DM), Predictor(DM), dPredictor(DM), convert(Vector,start), LogPriorFn; kwargs...)
-function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
-                                    tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
-                                    verbose::Bool=true, kwargs...)
-    verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+function FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); LogLikelihoodFn::Function=loglikelihood(DM), kwargs...)
+    FindMLEBig(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)
 end
-function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing;
-                                    tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=NewtonTrustRegion(), ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
-                                    verbose::Bool=true, kwargs...)
+function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing; ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
+                tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=NewtonTrustRegion(), verbose::Bool=true, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
-    InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+    InformationGeometry.minimize(CostFunction, ScoreFn, BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+end
+function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing; kwargs...)
+    FindMLEBig(DS, model, start, LogPriorFn; kwargs...)
 end
 
 
-function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Function,Nothing}=LogPrior(DM); kwargs...)
-    FindMLE(Data(DM), Predictor(DM), dPredictor(DM), start, LogPriorFn; kwargs...)
+function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Function,Nothing}=LogPrior(DM); LogLikelihoodFn::Function=loglikelihood(DM), kwargs...)
+    FindMLE(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)
 end
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false,
-                ADmode::Union{Val,Symbol}=Val(:ForwardDiff), tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
+                tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
-    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; ADmode, tol, kwargs...)
+    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
+    if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
         curve_fit(DS, model, start; tol=tol).param
     else
-        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
         if isnothing(meth)
-            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
         else
-            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
         end
     end
 end
 
 
-function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing;
-                ADmode::Union{Val,Symbol}=Val(:ForwardDiff), Big::Bool=false, tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
+                tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
-    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn)
+    (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    if isnothing(LogPriorFn) && DS isa DataSet && isnothing(meth)
+    if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
         curve_fit(DS, model, dmodel, start; tol=tol).param
     else
-        NegEll(p::AbstractVector{<:Number}) = -loglikelihood(DS,model,p,LogPriorFn)
         if isnothing(meth)
-            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
         else
-            InformationGeometry.minimize(NegEll, GetGrad!(ADmode, NegEll), start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
         end
     end
 end
@@ -970,13 +967,18 @@ If such a point cannot be found (i.e. does not seem to exist), the method return
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, kwargs...)
     FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; tol=tol, kwargs...)
 end
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=DOF(DM), tol::Real=1e-8, maxiter::Int=10000)
-    CF = ConfVol(Confnum);      model = Predictor(DM)
-    PlanarLogPrior = EmbedLogPrior(DM, PL)
-    planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
-    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + SA[x,0.], PlanarLogPrior)))) - CF < 0.
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=DOF(DM), tol::Real=1e-8, LogLikelihoodFn::Function=loglikelihood(DM), meth=Roots.AlefeldPotraShi(), maxval::Real=1e-6, maxiter::Int=10000)
+    CF = ConfVol(Confnum)
+    # model = Predictor(DM);    PlanarLogPrior = EmbedLogPrior(DM, PL)
+    # planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
+    # Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + SA[x,0.], PlanarLogPrior)))) - CF < 0.
+    EmbeddedLikelihood = LogLikelihoodFn∘PlaneCoordinates(PL)
+    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle + SA[x,0.])))) - CF < 0.
     !Test(0.) && return false
     SA[LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
+    # TestCont(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle + SA[x,0.])))) - CF
+    # TestCont(0.) ≥ 0 && return false
+    # SA[AltLineSearch(TestCont, (0.0, maxval), meth; tol=tol), 0.] + mle
 end
 
 
@@ -1078,7 +1080,7 @@ end
     ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, kwargs...)
+function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), kwargs...)
     @assert Confnum > 0 && allunique(paridxs) && all(1 .≤ paridxs .≤ pdim(DM))
     Cube = LinearCuboid(DM, Confnum);    widths = CubeWidths(Cube);    Planes = Plane[]
     inds = Vector{Int}[]
@@ -1093,9 +1095,11 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractV
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = [EmbeddedODESolution(sols[k], (x->getindex(x, inds[k]))∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
-    Plts = [(p = RecipesBase.plot([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]], seriestype=:scatter);
-            RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
-    RecipesBase.plot(Plts...; layout=length(Plts)) |> display
+    if plot
+        Plts = [(p = RecipesBase.plot([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]], seriestype=:scatter);
+                RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
+        RecipesBase.plot(Plts...; layout=length(Plts)) |> display
+    end
     esols
 end
 
