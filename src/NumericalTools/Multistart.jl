@@ -327,9 +327,10 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
     ylabel --> (DoBiLog ? "BiLog(Parameter Value)" : "Parameter Value")
     xlabel --> "Parameter"
     seriestype --> get(plotattributes, :st, :dotplot)
+    color_palette = get(plotattributes, :color_palette, :default)
     for i in eachindex(dfs)
         @series begin
-            color --> palette(:default)[(((i-1)%15)+1)]
+            color --> palette(color_palette)[(((i-1)%15)+1)]
             label := "Step $i"
             repeat(Xvals .+ Spacer*(i-1); outer=length(dfs[i])÷length(pnames)), dfs[i]
         end

@@ -183,7 +183,7 @@ LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 
 pdim(DM::DataModel) = length(MLE(DM))
 
-name(DM::DataModel) = DM.name |> string
+name(DM::DataModel) = DM.name
 
 
 function (::Type{T})(DM::DataModel; kwargs...) where T<:Number

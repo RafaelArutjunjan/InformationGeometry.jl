@@ -105,11 +105,11 @@ DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwar
 xdata(DS::UnknownVarianceDataSet) = DS.x
 ydata(DS::UnknownVarianceDataSet) = DS.y
 dims(DS::UnknownVarianceDataSet) = DS.dims
-xnames(DS::UnknownVarianceDataSet) = DS.xnames .|> string
-ynames(DS::UnknownVarianceDataSet) = DS.ynames .|> string
+xnames(DS::UnknownVarianceDataSet) = Xnames(DS) .|> string
+ynames(DS::UnknownVarianceDataSet) = Ynames(DS) .|> string
 Xnames(DS::UnknownVarianceDataSet) = DS.xnames
 Ynames(DS::UnknownVarianceDataSet) = DS.ynames
-name(DS::UnknownVarianceDataSet) = DS.name |> string
+name(DS::UnknownVarianceDataSet) = DS.name
 
 
 xerrormoddim(DS::UnknownVarianceDataSet) = length(DS.testpx)

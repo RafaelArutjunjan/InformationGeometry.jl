@@ -267,7 +267,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
-    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(length(name(DM)) > 0 ? name(DM) : "model") does not have prior."
+    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? string(name(DM)) : "model") does not have prior."
     @assert Confnum > 0
     # stepfactor: overall multiplicative factor for step length
     # stepmemory: linear interpolation of new with previous step size
@@ -890,11 +890,12 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
         zlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[3]] * ")" : pnames(P)[idxs[3]])
     end
     
+    color_palette = get(plotattributes, :color_palette, :default)
     for i in eachindex(Profiles(P))
         if !isnothing(Trajectories(P)[i])
             @series begin
                 label --> "Comp $i"
-                color --> palette(:default)[(((2+i) % 15) +1)]
+                color --> palette(color_palette)[(((2+i) % 15) +1)]
                 lw --> 1.5
                 M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
                 if length(idxs) == 3
@@ -1046,10 +1047,11 @@ end
     yguide --> ystring
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
+    color_palette = get(plotattributes, :color_palette, :default)
     # Colorize only parameters with 5 strongest changes
     for j in ToPlotInds
         @series begin
-            color --> palette(:default)[(((2+j) % 15) +1)]
+            color --> palette(color_palette)[(((2+j) % 15) +1)]
             label --> "Comp $j"
             lw --> 1.5
             Change = if RelChange && !any(MLE(PV) .== 0)

@@ -76,12 +76,12 @@ dims(GDS::GeneralizedDataSet) = GDS.dims
 InvCov(GDS::GeneralizedDataSet) = GDS |> dist |> InvCov
 
 WoundX(GDS::GeneralizedDataSet) = _WoundX(GDS, GDS.WoundX)
-xnames(GDS::GeneralizedDataSet) = GDS.xnames .|> string
-ynames(GDS::GeneralizedDataSet) = GDS.ynames .|> string
+xnames(GDS::GeneralizedDataSet) = Xnames(GDS) .|> string
+ynames(GDS::GeneralizedDataSet) = Ynames(GDS) .|> string
 Xnames(GDS::GeneralizedDataSet) = GDS.xnames
 Ynames(GDS::GeneralizedDataSet) = GDS.ynames
 
-name(GDS::GeneralizedDataSet) = GDS.name |> string
+name(GDS::GeneralizedDataSet) = GDS.name
 
 dist(GDS::GeneralizedDataSet) = GDS.dist
 

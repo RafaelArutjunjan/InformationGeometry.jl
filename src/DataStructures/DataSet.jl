@@ -131,11 +131,11 @@ WoundX(DS::DataSet) = _WoundX(DS, DS.WoundX)
 
 logdetInvCov(DS::DataSet) = DS.logdetInvCov
 
-xnames(DS::DataSet) = DS.xnames .|> string
-ynames(DS::DataSet) = DS.ynames .|> string
+xnames(DS::DataSet) = Xnames(DS) .|> string
+ynames(DS::DataSet) = Ynames(DS) .|> string
 
 Xnames(DS::DataSet) = DS.xnames
 Ynames(DS::DataSet) = DS.ynames
 
-name(DS::DataSet) = DS.name |> string
+name(DS::DataSet) = DS.name
 

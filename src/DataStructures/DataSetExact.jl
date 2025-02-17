@@ -138,13 +138,13 @@ ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
 
 HasXerror(DSE::DataSetExact) = xdist(DSE) isa InformationGeometry.Dirac ? false : any(x->x>0.0, xsigma(DSE))
 
-xnames(DSE::DataSetExact) = DSE.Xnames .|> string
-ynames(DSE::DataSetExact) = DSE.Ynames .|> string
+xnames(DSE::DataSetExact) = Xnames(DSE) .|> string
+ynames(DSE::DataSetExact) = Ynames(DSE) .|> string
 
-Xnames(DSE::DataSetExact) = DSE.Xnames
-Ynames(DSE::DataSetExact) = DSE.Ynames
+Xnames(DSE::DataSetExact) = DSE.xnames
+Ynames(DSE::DataSetExact) = DSE.ynames
 
-name(DSE::DataSetExact) = DSE.name |> string
+name(DSE::DataSetExact) = DSE.name
 
 
 

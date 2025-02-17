@@ -5,7 +5,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
-    title -->               name(DM)
+    title -->               string(name(DM))
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
             if Data(DM) isa DataSetUncertain
@@ -24,7 +24,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     Y = predictedY(DM, mle, X)
     @series begin
         linewidth -->       2
-        seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(:default)[i] for i in 1:ydim(DM)],1,:) : :auto))
+        color_palette = get(plotattributes, :color_palette, :default)
+        seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto))
         linestyle -->       :solid
         RSEs = ResidualStandardError(DM, mle)
         RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
@@ -57,7 +58,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                 if ydim(DM) == 1
                     SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
                     @series begin
-                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[(((4+j)%15)+1)])
+                        color_palette = get(plotattributes, :color_palette, :default)
+                        seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
@@ -67,7 +69,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     SqrtVar = VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                     for i in 1:ydim(DM)
                         @series begin
-                            seriescolor := palette(:default)[((i*ydim(DM)+j)%15 +1)]
+                            seriescolor := palette(color_palette)[((i*ydim(DM)+j)%15 +1)]
                             linestyle   --> :dash
                             linealpha   --> 0.85
                             label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
@@ -103,7 +105,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
-    title -->               name(DS)
+    title -->               string(name(DS))
     # color_palette -->       :tab10
     seriescolor := :auto
     if ydim(DS) == 1
@@ -195,7 +197,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
                 for i in 1:ydim(DM)
                     @series begin
                         subplot := i
-                        seriescolor --> get(plotattributes, :seriescolor, palette(:default)[(((4+j)%15)+1)])
+                        seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[(((4+j)%15)+1)])
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         yguide      :=  ynames(DM)[i]
@@ -299,11 +301,11 @@ TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Numb
 
 GetResidualDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")
 function GetResidualDataSet(DS::DataSet, model::ModelOrFunction, mle::AbstractVector{<:Number})
-    DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
+    DataSet(xdata(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS))
 end
 function GetResidualDataSet(DS::DataSetExact, model::ModelOrFunction, mle::AbstractVector{<:Number})
     HasXerror(DS) && @warn "Ignoring x-uncertainties in computation of residuals."
-    DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=xnames(DS), ynames=ynames(DS), name=name(DS))
+    DataSetExact(xdata(DS), xsigma(DS), ydata(DS)-EmbeddingMap(DS,model,mle), ysigma(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS))
 end
 
 """
@@ -670,11 +672,11 @@ end
 
 VisualizeSols(X::Tuple, args...; kwargs...) = VisualizeSols(X..., args...; kwargs...)
 function VisualizeSols(PL::AbstractVector{<:Plane},sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(PL[1])), N::Int=500,
-                OverWrite::Bool=true, leg::Bool=false, colorpalette=palette(:default), kwargs...)
+                OverWrite::Bool=true, leg::Bool=false, color_palette=:default, kwargs...)
     length(PL) != length(sols) && throw("VisualizeSols: Must receive same number of Planes and Solutions.")
     p = [];     OverWrite && RecipesBase.plot()
     for i in eachindex(sols)
-        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=colorpalette[3], kwargs...)
+        p = VisualizeSols(PL[i], sols[i]; N=N, idxs=idxs, leg=leg, color=palette(color_palette)[3], kwargs...)
     end;    p
 end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, mle::AbstractVector{<:Number}=MLE(DM), kwargs...)
@@ -717,23 +719,23 @@ XCube(DM::AbstractDataModel; Padding::Number=0.) = XCube(Data(DM); Padding=Paddi
 
 
 PlotConfidenceBands(DM, M, args...; kwargs...) = PlotConfidenceBands(M, (xdim(DM), ydim(DM)), args...; kwargs...)
-function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing; Confnum::Real=-1, colorpalette=palette(:default), kwargs...)
+function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int}, xpositions::Union{AbstractVector{<:Number},Nothing}=nothing; Confnum::Real=-1, color_palette=:default, kwargs...)
     @assert size(M,2) == InOut[1] + 2InOut[2]
     lab = 0 < Confnum ? "$(round(Confnum; sigdigits=2))σ " : ""
     if size(M,2) == 3
-        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=colorpalette[2], kwargs...)
+        RecipesBase.plot!(view(M,:,1), view(M,:,2:3); label=[lab*"Conf. Band" ""], color=palette(color_palette)[2], kwargs...)
     else # Assume the FittedPlot splits every y-component into a separate series of points and have same number of rows as x-values
         @assert InOut[1] == 1
         if xpositions isa Nothing
             for i in 1:(size(M,1)-1)
-                RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=colorpalette[i+1], label=["" ""])
+                RecipesBase.plot!([M[i,2:2:end] M[i,3:2:end]]; color=palette(color_palette)[i+1], label=["" ""])
             end
-            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=colorpalette[2], label=["" lab*"Conf. Band"], kwargs...)
+            RecipesBase.plot!([M[end,2:2:end] M[end,3:2:end]]; color=palette(color_palette)[2], label=["" lab*"Conf. Band"], kwargs...)
         elseif length(xpositions) == (size(M,2)-1) / 2
             for i in 1:(size(M,1)-1)
-                RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=colorpalette[i+1], label=["" ""])
+                RecipesBase.plot!(xpositions, [M[i,2:2:end] M[i,3:2:end]]; color=palette(color_palette)[i+1], label=["" ""])
             end
-            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=colorpalette[2], label=["" lab*"Conf. Band"], kwargs...)
+            RecipesBase.plot!(xpositions, [M[end,2:2:end] M[end,3:2:end]]; color=palette(color_palette)[2], label=["" lab*"Conf. Band"], kwargs...)
         else
             throw("Vector of xpositions wrong length.")
         end

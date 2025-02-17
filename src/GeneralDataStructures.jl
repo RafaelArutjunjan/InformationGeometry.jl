@@ -337,7 +337,7 @@ function Base.join(DS1::T, DS2::T) where T <: AbstractDataSet
         BlockMatrix(ysigma(DS1), ysigma(DS2))
     end
     DataSet(vcat(xdata(DS1), xdata(DS2)), vcat(ydata(DS1), ydata(DS2)), NewΣ, (Npoints(DS1)+Npoints(DS2), xdim(DS1), ydim(DS1));
-        xnames=Xnames(DS1), ynames=Ynames(DS1), name=name(DS1) * " + " * name(DS2))
+        xnames=Xnames(DS1), ynames=Ynames(DS1), name=string(name(DS1)) * " + " * string(name(DS2)))
 end
 """
     join(DM1::AbstractDataModel, DM2::AbstractDataModel) -> DataModel

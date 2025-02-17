@@ -168,7 +168,7 @@ ynames(CDS::CompositeDataSet) = Ynames(CDS) .|> string
 Xnames(CDS::CompositeDataSet) = Xnames(Data(CDS)[1])
 Ynames(CDS::CompositeDataSet) = mapreduce(Ynames, vcat, Data(CDS))
 
-name(CDS::CompositeDataSet) = CDS.name |> string
+name(CDS::CompositeDataSet) = CDS.name
 
 
 function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})
@@ -248,14 +248,15 @@ RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector
     xdim(CDS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
     if ydim(CDS) ≤ 16
         !all(x->ydim(x)==1, Data(CDS)) && throw("Not programmed for plotting ydim > 1 yet.")
-        title --> name(CDS)
+        plot_title --> string(name(CDS))
         xguide -->  string(Xnames(CDS)[1])
         yguide -->  "Observations"
+        color_palette = get(plotattributes, :color_palette, :default)
         for (i,DS) in enumerate(Data(CDS))
             @series begin
                 label --> "Data: " * string(Ynames(DS)[1])
                 # requires ydim(CDS) ≤ 16
-                color --> palette(:default)[(((i)%15)+1)]
+                color --> palette(color_palette)[(((i)%15)+1)]
                 DS
             end
         end

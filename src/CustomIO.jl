@@ -20,24 +20,27 @@ GeneratedFromAutoDiff(F::ModelMap) = GeneratedFromAutoDiff(F.Map)
 GeneratedFromSymbolic(F::Function) = occursin("SymbolicModel", string(nameof(typeof(F))))
 GeneratedFromSymbolic(F::ModelMap) = GeneratedFromSymbolic(F.Map)
 
+ColoredString(X::AbstractVector{<:StringOrSymb}) = string("[", join(STRING_COLOR .* "\"" .* string.(X) .* "\"" .* NO_COLOR, ", "), "]")
+ColoredString(X::StringOrSymb) = string(STRING_COLOR * "\"" * string(X) * "\"" * NO_COLOR)
+
 
 Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
-                                        NO_COLOR, (length(name(DS)) > 0 ? " '" *STRING_COLOR*string(name(DS)) *NO_COLOR*"'" : ""),
+                                        NO_COLOR, (name(DS) === Symbol() ? " "*ColoredString(name(DS)) : ""),
                                         " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
 Base.summary(DS::AbstractUnknownUncertaintyDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
                                         ORANGE_COLOR, HasBessel(DS) ? " Bessel-corrected" : " not Bessel-corrected",
-                                        NO_COLOR, (length(name(DS)) > 0 ? " '" *STRING_COLOR*string(name(DS)) *NO_COLOR*"'" : ""),
+                                        NO_COLOR, (name(DS) === Symbol() ? " "*ColoredString(name(DS)) : ""),
                                         " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
-    NO_COLOR, (length(name(DM)) > 0 ? " '"*STRING_COLOR* string(name(DM)) *NO_COLOR*"'" : ""),
+    NO_COLOR, (name(DM) === Symbol() ? " "*ColoredString(name(DM)) : ""),
     " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, (length(name(Data(DM))) > 0 ? " '"*STRING_COLOR* string(name(Data(DM)))*NO_COLOR*"'" : ""),
+    NO_COLOR, (name(Data(DM)) === Symbol() ? " "*ColoredString(name(Data(DM))) : ""),
     ". Model jacobian: ",
     ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : (GeneratedFromSymbolic(dPredictor(DM)) ? "Symbolic" : "manually provided")),
     NO_COLOR)
@@ -45,7 +48,7 @@ end
 
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap",
-        NO_COLOR, (length(name(M)) > 0 ? " '"*STRING_COLOR*string(name(M))*NO_COLOR*"' " : " "),
+        NO_COLOR, (name(M) === Symbol() ? " "*ColoredString(name(M)) : " "),
         ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
         NO_COLOR, " with xdim="*string(xdim(M))*", ydim="*string(ydim(M))*", pdim="*string(pdim(M)))
 end
