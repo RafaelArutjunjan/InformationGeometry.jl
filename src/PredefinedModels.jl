@@ -92,7 +92,7 @@ function TimeShiftTransform(M::ModelMap, xyp::Tuple{Int,Int,Int}=Getxyp(M), IsCu
         vcat(pnames(M), CreateSymbolNames(xyp[1],"Timeshift")),
         Val(isinplacemodel(M)),
         Val(IsCustom),
-        name(M) === Symbol() ? Symbol("Time-shifted " *string(name(M))) : name(M),
+        name(M) === Symbol() ? name(M) : Symbol("Time-shifted " *string(name(M))),
         M.Meta
     )
 end

@@ -25,22 +25,22 @@ ColoredString(X::StringOrSymb) = string(STRING_COLOR * "\"" * string(X) * "\"" *
 
 
 Base.summary(DS::AbstractDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
-                                        NO_COLOR, (name(DS) === Symbol() ? " "*ColoredString(name(DS)) : ""),
+                                        NO_COLOR, (name(DS) === Symbol() ? "" : " "*ColoredString(name(DS))),
                                         " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
 Base.summary(DS::AbstractUnknownUncertaintyDataSet) = string(TYPE_COLOR, nameof(typeof(DS)),
                                         ORANGE_COLOR, HasBessel(DS) ? " Bessel-corrected" : " not Bessel-corrected",
-                                        NO_COLOR, (name(DS) === Symbol() ? " "*ColoredString(name(DS)) : ""),
+                                        NO_COLOR, (name(DS) === Symbol() ? "" : " "*ColoredString(name(DS))),
                                         " with N="*string(Npoints(DS))*", xdim=" * string(xdim(DS))*" and ydim="*string(ydim(DS)))
 
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
     # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
-    NO_COLOR, (name(DM) === Symbol() ? " "*ColoredString(name(DM)) : ""),
+    NO_COLOR, (name(DM) === Symbol() ? "" : " "*ColoredString(name(DM))),
     " containing ",
     TYPE_COLOR, nameof(typeof(Data(DM))),
-    NO_COLOR, (name(Data(DM)) === Symbol() ? " "*ColoredString(name(Data(DM))) : ""),
+    NO_COLOR, (name(Data(DM)) === Symbol() ? "" : " "*ColoredString(name(Data(DM)))),
     ". Model jacobian: ",
     ORANGE_COLOR, (GeneratedFromAutoDiff(dPredictor(DM)) ? "AutoDiff" : (GeneratedFromSymbolic(dPredictor(DM)) ? "Symbolic" : "manually provided")),
     NO_COLOR)
@@ -48,7 +48,7 @@ end
 
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap",
-        NO_COLOR, (name(M) === Symbol() ? " "*ColoredString(name(M)) : " "),
+        NO_COLOR, (name(M) === Symbol() ? "" : " "*ColoredString(name(M))),
         ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
         NO_COLOR, " with xdim="*string(xdim(M))*", ydim="*string(ydim(M))*", pdim="*string(pdim(M)))
 end

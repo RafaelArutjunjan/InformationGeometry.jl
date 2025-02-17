@@ -505,9 +505,9 @@ function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:N
     _, S, Vt = svd(J)
     nonids = count(x->x<thresh, S)
     if nonids == 0
-        println("$(name(DM) === Symbol() ? string(name(DM)) : "DataModel") is locally structurally identifiable at MLE!\nSmallest singular value $(round(S[end]; sigdigits=5)) > $thresh.")
+        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) is locally structurally identifiable at MLE!\nSmallest singular value $(round(S[end]; sigdigits=5)) > $thresh.")
     else
-        println("$(name(DM) === Symbol() ? string(name(DM)) : "DataModel") NOT locally structurally identifiable at MLE!\n$nonids singular values < $thresh.")
+        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) NOT locally structurally identifiable at MLE!\n$nonids singular values < $thresh.")
     end
     if showall
         for ind in length(S):-1:1

@@ -267,7 +267,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
-    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? string(name(DM)) : "model") does not have prior."
+    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
     @assert Confnum > 0
     # stepfactor: overall multiplicative factor for step length
     # stepmemory: linear interpolation of new with previous step size
