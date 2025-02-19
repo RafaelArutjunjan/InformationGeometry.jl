@@ -265,7 +265,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         LogLikelihoodFn::Function=loglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
-                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, 
+                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth,
+                        IC::Real=eltype(mle)(InvChisqCDF(dof, ConfVol(Confnum))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3,
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
     @assert Confnum > 0
@@ -276,10 +277,10 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # gradientsensitivity: step length dependence on profile slope
     # flatstepconst: mainly controls step size when profile exactly flat
     @assert stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
-
-    IC = InvChisqCDF(dof, ConfVol(Confnum)) |> eltype(mle)
+    @assert IC > 0 && MinSafetyFactor > 1 && MaxSafetyFactor > MinSafetyFactor
+    
     # logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
-    CostThreshold, MaxThreshold = logLikeMLE .- 0.5 .* (IC*1.05, IC*3.0)
+    CostThreshold, MaxThreshold = logLikeMLE .- 0.5 .* (IC*MinSafetyFactor, IC*MaxSafetyFactor)
 
     OptimDomain = Drop(Domain, Comp)
 
@@ -453,7 +454,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             if resort && startind > 1
                 for p in sort(ps[startind:end])
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
-                    ((length(visitedps) > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
+                    ((length(visitedps) - 1 > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
                 end
                 len = length(visitedps)
                 copyto!(MLEstash, Drop(mle, Comp))
@@ -955,7 +956,7 @@ end
     if HasPriors(Profiles(PV))
         @series begin
             label --> ["Prior contribution" nothing]
-            color --> [:red :brown]
+            linealpha --> 0.75
             line --> :dash
             lw --> 1.5
             view(Profiles(PV),:,1), Convergify(view(Profiles(PV),:,3), GetConverged(Profiles(PV)))
