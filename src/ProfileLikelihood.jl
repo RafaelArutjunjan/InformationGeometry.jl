@@ -811,7 +811,7 @@ Base.length(PV::ParameterProfilesView) = Profiles(PV) |> length
 Base.size(PV::ParameterProfilesView) = Profiles(PV) |> size
 Base.firstindex(PV::ParameterProfilesView) = Profiles(PV) |> firstindex
 Base.lastindex(PV::ParameterProfilesView) = Profiles(PV) |> lastindex
-Base.getindex(PV::ParameterProfilesView, i::Int) = getindex(Profiles(PV), i)
+Base.getindex(PV::ParameterProfilesView, args...) = getindex(Profiles(PV), args...)
 
 
 ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real=1; kwargs...) = ProfileBox(PV, Confnum; kwargs...)
@@ -836,7 +836,7 @@ end
 
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P)) = P, Val(PlotTrajectories)
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})

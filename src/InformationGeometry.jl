@@ -191,6 +191,10 @@ include("DataStructures/DataModel.jl")
 export DataModel, AddLogPrior
 
 
+include("DataStructures/ConditionGrid.jl")
+export ConditionGrid
+
+
 include("NumericalTools/Miscellaneous.jl")
 export BiLog, BiExp, SoftAbs, SoftLog
 
