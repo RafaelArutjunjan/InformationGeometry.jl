@@ -245,6 +245,7 @@ export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIde
 export ValInserter, InsertIntoFirst, InsertIntoLast, PinParameters, LinkParameters
 export ParameterProfiles, AbstractProfiles
 export PlotRelativeParameterTrajectories
+export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
 
 
 include("NumericalTools/Multistart.jl")

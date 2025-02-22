@@ -492,6 +492,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     end
 
     perm = sortperm(visitedps)
+    # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
     ResMat = SavePriors ? [visitedps[perm] Res[perm] priors[perm] Converged[perm]] : [visitedps[perm] Res[perm] Converged[perm]]
     SaveTrajectories ? (ResMat, path[perm]) : ResMat
 end
@@ -1075,3 +1076,63 @@ end
 end
 
 PlotRelativeParameterTrajectories(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
+
+
+
+# Generate validation profile centered on prediction at a single independent variable t
+function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, mle::AbstractVector{<:Number}=MLE(DM), ypred::Real=Predictor(DM)(t,mle)[yComp], yoffset::Real=ypred, 
+                                dof::Int=DOF(DM), LinPredictionUncert::Real=(C=VariancePropagation(DM, mle; Confnum, dof)(t);   ydim(DM)>1 ? C[yComp, yComp] : C), DivideBy::Real=5, 
+                                σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+    @assert IC > 0 && dof > 0
+    ℓ = loglikelihood(DM);    M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
+    FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - M(t, θ)[yComp] + yoffset))
+    VPL(θnew::AbstractVector) = ℓ(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
+    mleNew = [mle; (ypred-yoffset)];    Fisher = Diagonal(σv^-2 * ones(pdim(DM)+1))
+    B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
+    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, mle=mleNew, logLikeMLE=VPL(mleNew), Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
+end
+
+# Generate multiple validation profiles and add back offset to prediction scale
+"""
+    ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector; Confnum::Real=2, dof::Int=DOF(DM), OffsetToZero::Bool=false, kwargs...)
+Computes a set of validation profiles for the component `yComp` of the prediction at various values of the independent variables `Ts`.
+The uncertainty of the ficticious validation data point can be optionally chosen via the keyword argument `σv`.
+Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
+"""
+function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), mle::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, verbose::Bool=true, kwargs...)
+    ypreds = [Predictor(DM)(t,mle)[yComp] for t in Ts]      # Always compute with offset to zero internally
+    Res = progress_pmap(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, mle, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... ", dt=1, showspeed=true))
+    Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
+    for i in eachindex(Ts)
+        zProf = map(TrajPoint->Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp], Trajs[i])
+        Profs[i] = @views hcat(Profs[i][:,1:end-1], zProf, Profs[i][:,end])
+    end
+    # If should remain on true scale, add ypreds back on
+    offsetvec = OffsetToZero ? zeros(length(Ts)) : ypreds
+    for i in eachindex(Ts)   Profs[i][:,1] .+= offsetvec[i];     for j in 1:size(Trajs[i],1)    Trajs[i][j][end] += offsetvec[i]    end    end
+    VPL = "VPL"*(ydim(DM) > 1 ? "[$(yComp)]" : "");   ParameterProfiles(Profs, Trajs, [VPL*"($(Ts[i]))" for i in eachindex(Ts)], offsetvec, dof, IsCost; Meta)
+end
+ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = ValidationProfile(DM, yComp, [t]; kwargs...)
+
+# Add virtual point to validation profile again to obtain prediction profile
+"""
+    ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
+Converts a `ParameterProfile` object encoding a validation profile into a prediction profile by subtracting off the effect introduced by the ficticious validation data point.
+"""
+function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
+    @assert HasPriors(Profiles(VP)) && IsCost(VP)
+    @assert VP.Meta === :ValidationProfiles
+    @assert all(size.(Profiles(VP),2) .> 4) # Make sure z-values saved in the Profile matrix, as well as priors
+    # Use fourth column with z-values instead of original v-parameters from validation profile
+    Profs = [(M=P[:, [4,2,size(P,2)]];   M[:,2] .-= P[:, 3]; M) for P in Profiles(VP)]
+    remake(VP; Profiles=Profs, Meta=:PredictionProfiles, Names=Symbol.(map(x->replace(x, "VPL"=>"PPL"), string.(VP.Names))), kwargs...)
+end
+"""
+    PredictionProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector; Confnum::Real=2, dof::Int=DOF(DM), OffsetToZero::Bool=false, kwargs...)
+Computes a set of prediction profiles for the component `yComp` of the prediction at various values of the independent variables `Ts`.
+The prediction profiles are computed by means of intermediately generated validation profiles [`ValidationProfiles`](@ref).
+Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
+"""
+PredictionProfiles(args...; DivideBy::Real=10, kwargs...) = ValidationProfiles(args...; DivideBy, kwargs...) |> ConvertValidationToPredictionProfiles
+
+
