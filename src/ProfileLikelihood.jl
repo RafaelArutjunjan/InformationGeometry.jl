@@ -716,11 +716,11 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
-        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; Meta, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), Meta::Symbol=:ParameterProfile, kwargs...)
-        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; Meta, kwargs...)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; kwargs...)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
@@ -838,7 +838,7 @@ end
 
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfile && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
@@ -927,7 +927,7 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
 end
 
 # Try to plot Trajectories if available
-@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV)) = PV, Val(PlotTrajectories)
+@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.Meta === :ParameterProfile) = PV, Val(PlotTrajectories)
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
