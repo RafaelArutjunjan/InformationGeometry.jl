@@ -346,6 +346,8 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
     end
 end
 
+RecipesBase.@recipe f(DM::AbstractDataModel, R::MultistartResults, args...) = DM, MLE(R), args...
+
 """
     DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, Ind::Int; logarithmic::Bool=true, plot::Bool=isloaded(:Plots), kwargs...)
 Returns matrix of mutual distances between optima in step `Ind` with respect to Fisher Metric of first entry in step. 
