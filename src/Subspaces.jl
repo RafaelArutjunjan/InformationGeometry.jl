@@ -560,7 +560,7 @@ EmbeddedODESolution(PL::Union{Plane, AbstractVector{<:Plane}}, sol::Union{Abstra
 EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)
 
 # ODESolution plotting broken?
-RecipesBase.@recipe function f(esol::EmbeddedODESolution; N::Int=300)
+RecipesBase.@recipe function f(esol::EmbeddedODESolution; N=300)
     draw --> :line
     label --> ""
     U = map(esol, range(esol.t[1], esol.t[end]; length=N))
