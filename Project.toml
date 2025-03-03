@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.17.1"
+version = "1.18.0"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -95,10 +95,8 @@ julia = "1"
 
 [weakdeps]
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
-ProfileLikelihood = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
 
 [extensions]
-ProfileLikelihoodJLext = ["ProfileLikelihood"]
 ModelingToolkitExt = ["ModelingToolkit"]
 
 [extras]
