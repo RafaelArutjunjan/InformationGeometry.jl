@@ -44,8 +44,9 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
 end
 
 ## Alternatively: (need to catch LaTeXStrings before this to avoid $ though)
+MakeMTKVariables(S::Symbol) = eval(Meta.parse("@variables "*string(S)))[1];      MakeMTKVariables(S::AbstractArray{<:Symbol}) = [MakeMTKVariables(s) for s in S]
 # MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
-MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeSymbolicPars(X::AbstractVector) = MakeMTKVariables(X) # eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
 
 
 SymbolicModelExpr(DM::Union{AbstractDataModel,ModelMap}) = @suppress_err ToExpr(DM)
