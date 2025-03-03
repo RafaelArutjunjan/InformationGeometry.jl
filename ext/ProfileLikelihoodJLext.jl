@@ -1,7 +1,7 @@
 module ProfileLikelihoodJLext
 
 
-using InformationGeometry, ProfileLikelihood, Optimization, Optim
+using InformationGeometry, ProfileLikelihood, OptimizationBase, Optim
 using RecipesBase
 
 
@@ -11,11 +11,11 @@ using Optimization: AbstractADType
 
 """
     ProfileLikelihood.LikelihoodProblem(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); Domain::Union{HyperCube,Nothing}=Domain(DM),
-                adtype::AbstractADType=Optimization.AutoForwardDiff(), syms::AbstractVector{<:Symbol}=Pnames(DM), kwargs...)
+                adtype::AbstractADType=OptimizationBase.AutoForwardDiff(), syms::AbstractVector{<:Symbol}=Pnames(DM), kwargs...)
 Constructs `LikelihoodProblem` struct from given `DataModel`.
 """
 function ProfileLikelihood.LikelihoodProblem(DM::AbstractDataModel, mle::AbstractVector=MLE(DM);
-                adtype::AbstractADType=Optimization.AutoForwardDiff(), Domain::Union{HyperCube,Nothing}=Domain(DM),
+                adtype::AbstractADType=OptimizationBase.AutoForwardDiff(), Domain::Union{HyperCube,Nothing}=Domain(DM),
                 syms::AbstractVector{<:Symbol}=Pnames(DM),
                 #lb=(!isnothing(Domain) ? Domain.L : fill(-Inf,length(mle))), ub=(!isnothing(Domain) ? Domain.U : fill(Inf,length(mle))),
                 cons=nothing, lcons=nothing, ucons=nothing, f_kwargs=NamedTuple(), prob_kwargs=NamedTuple(), kwargs...)

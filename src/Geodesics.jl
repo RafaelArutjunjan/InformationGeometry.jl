@@ -19,7 +19,7 @@ end
 
 # accuracy ≈ 6e-11
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEq.isimplicit(meth), approx::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
     prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, tspan)
@@ -179,9 +179,9 @@ function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol:
 end
 
 # No need for precompilation, so can leave Requires.jl rather than native extension
-LazyShooting(M) = throw("Need to load BoundaryValueDiffEq.jl first.")
-@init @require BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d" begin
-    LazyShooting(M::SciMLBase.AbstractSciMLAlgorithm) = BoundaryValueDiffEq.Shooting(M)
+LazyShooting(M) = throw("Need to load BoundaryValueDiffEq.jl (or just BoundaryValueDiffEqShooting.jl) first.")
+@init @require BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757" begin
+    LazyShooting(M::SciMLBase.AbstractSciMLAlgorithm) = BoundaryValueDiffEqShooting.Shooting(M)
 end
 
 

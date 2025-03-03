@@ -218,13 +218,13 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
     Full ? Res : Optim.minimizer(Res)
 end
 
-ADtypeConverter(V::Val{true}) = Optimization.AutoForwardDiff()
-ADtypeConverter(V::Val{:ForwardDiff}) = Optimization.AutoForwardDiff()
-ADtypeConverter(V::Val{:ReverseDiff}) = Optimization.AutoReverseDiff()
-ADtypeConverter(V::Val{:Zygote}) = Optimization.AutoZygote()
-ADtypeConverter(V::Val{:FiniteDifferences}) = Optimization.AutoFiniteDifferences()
-ADtypeConverter(V::Val{:FiniteDiff}) = Optimization.AutoFiniteDiff()
-ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
+ADtypeConverter(V::Val{true}) = OptimizationBase.AutoForwardDiff()
+ADtypeConverter(V::Val{:ForwardDiff}) = OptimizationBase.AutoForwardDiff()
+ADtypeConverter(V::Val{:ReverseDiff}) = OptimizationBase.AutoReverseDiff()
+ADtypeConverter(V::Val{:Zygote}) = OptimizationBase.AutoZygote()
+ADtypeConverter(V::Val{:FiniteDifferences}) = OptimizationBase.AutoFiniteDifferences()
+ADtypeConverter(V::Val{:FiniteDiff}) = OptimizationBase.AutoFiniteDiff()
+ADtypeConverter(V::Val{:Symbolic}) = OptimizationBase.AutoSymbolics()
 ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 # Extend with constraint Functions
@@ -272,13 +272,13 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
     
     prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
-    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
+    sol = OptimizationBase.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
         verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             verbose && @warn "minimize(): Try to continue with NelderMead()."
             prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
-            sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
+            sol = OptimizationBase.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
                 verbose && @warn "minimize(): Repeated Optimization with NelderMead() appears to not have converged, too."
             end
@@ -348,7 +348,7 @@ TracePlot(Pars)
 function ParameterSavingCallback(X::AbstractVector{<:Number})
     SavedParams = typeof(X)[]
     GetCurPar(S::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
-    GetCurPar(S::Optimization.OptimizationState) = S.u
+    GetCurPar(S::OptimizationBase.OptimizationState) = S.u
     GetCurPar(S) = throw("Got $S instead of OptimizationState.")
     SaveOptimizationpath(State, args...) = (push!(SavedParams, GetCurPar(State));   false)
     SavedParams, SaveOptimizationpath
