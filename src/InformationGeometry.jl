@@ -5,9 +5,9 @@ module InformationGeometry
 # @reexport
 using LinearAlgebra, Random, Distributions, DistributionsAD, DataFrames, ComponentArrays
 
-using Distributed, StaticArrays, SparseArrays, ForwardDiff, PreallocationTools
+using Distributed, StaticArrays, ForwardDiff, PreallocationTools
 using OrdinaryDiffEq, DiffEqCallbacks
-using ModelingToolkit, Symbolics, DataInterpolations
+using Symbolics, DataInterpolations
 using DerivableFunctionsBase
 using LsqFit, Optim, LineSearches, Optimization
 using BenchmarkTools, Measurements, HCubature
@@ -21,13 +21,9 @@ import Sobol as SOBOL
 
 import DataInterpolations: AbstractInterpolation
 import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm, AbstractADType
-import ModelingToolkit: AbstractODESystem
 
 import SciMLBase: remake
 export remake
-
-import ModelingToolkit: @named
-export @named
 
 
 import DerivableFunctionsBase: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder

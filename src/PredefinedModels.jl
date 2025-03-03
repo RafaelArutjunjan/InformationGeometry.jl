@@ -161,19 +161,7 @@ function GetRetardedTransientFunction(DS::AbstractDataSet; AddDomain::Bool=false
 end
 
 
-"""
-    ODESystemTimeRetardation(Sys::ODESystem) -> ODESystem
-Applies [`TimeRetardation`](@ref) the to given `ODESystem` by multiplying all equations with the sigmodial derivative of the time retardation transformation.
-The new parameters `T_shift` and `r` are appended to the ODE parameters.
-"""
-function ODESystemTimeRetardation(Sys::AbstractODESystem)
-    t = independent_variables(Sys)[1]
-    @parameters T_shift r_coupling
-    RetFactor = exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
-    NewEqs = [(equations(Sys)[i].lhs ~ equations(Sys)[i].rhs * RetFactor) for i in eachindex(equations(Sys))]
-    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
-    ODESystem(NewEqs, t, try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, [ModelingToolkit.parameters(Sys); [T_shift, r_coupling]]; name=Symbol("Time-Retarded " * string(nameof(Sys))))
-end
+# Also adding ODESystemTimeRetardation method for ODESystem in ModelingToolkitExt
 
 """
     ODESystemTimeRetardation(Sys::ODEFunction) -> ODEFunction

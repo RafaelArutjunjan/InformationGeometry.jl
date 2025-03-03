@@ -621,24 +621,8 @@ EmbedModelXP(M::ModelMap, Emb::Function, Inplace::Bool=isinplacemodel(M)) = Mode
 EmbedModelXP(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model)) = (Inplace ? EmbedModelXPin : EmbedModelXPout)(model, Emb)
 
 
-
-# Parameter transforms
-ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
-LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
-Exp10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
-Log10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))); kwargs...) = SystemTransform(Sys, log10, idxs; kwargs...)
-
-"""
-    SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys)))) -> ODESystem
-Transforms the parameters of an `ODESystem` according to a component-wise function `F`.
-"""
-function SystemTransform(Sys::AbstractODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys))))
-    SubstDict = Dict(parameters(Sys) .=> [(idxs[i] ? F(x) : x) for (i,x) in enumerate(parameters(Sys))])
-    NewEqs = [(equations(Sys)[i].lhs ~ substitute(equations(Sys)[i].rhs, SubstDict)) for i in eachindex(equations(Sys))]
-    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
-    ODESystem(NewEqs, independent_variables(Sys)[1], try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, ModelingToolkit.parameters(Sys); name=nameof(Sys))
-end
-
+# Provided by ModelingToolkitExt
+SystemTransform() = throw("Need to load ModelingToolkit.jl first to use SystemTransform!")
 
 
 IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))

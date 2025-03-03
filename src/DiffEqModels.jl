@@ -14,23 +14,11 @@ function CompleteObservationFunction(PreObservationFunction::Function)
 end
 
 
-"""
-    InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
-Copy the state names saved in `ODESystem` to `DS`.
-"""
-function InformNames(DS::AbstractDataSet, sys::ModelingToolkit.AbstractSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
-    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : Xnames(DS)
-    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : Ynames(DS)
-    InformNames(DS, newxnames, newynames)
-end
-
-
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
 # Extend for other DEFunctions in the future
-function DataModel(DS::AbstractDataSet, sys::Union{ModelingToolkit.AbstractSystem,SciMLBase.AbstractDiffEqFunction}, u0::Union{Number,AbstractArray{<:Number},Function},
+function DataModel(DS::AbstractDataSet, sys::SciMLBase.AbstractDiffEqFunction, u0::Union{Number,AbstractArray{<:Number},Function},
                         observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, OptimTol::Real=tol*1e-2, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
-    newDS = (observables isa Union{Int,AbstractVector{<:Int}} && sys isa ModelingToolkit.AbstractSystem) ? InformNames(DS, sys, observables) : DS
-    DataModel(newDS, GetModel(sys, u0, observables; tol=tol, Domain=Domain, kwargs...), args...; OptimMeth, OptimTol)
+    DataModel(DS, GetModel(sys, u0, observables; tol, Domain, kwargs...), args...; OptimMeth, OptimTol)
 end
 
 
@@ -41,50 +29,6 @@ end
 #                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
 #     GetModel(ODEFunction{inplace}(func), u0, observables; tol=tol, Domain=Domain, meth=meth, inplace=inplace)
 # end
-
-
-
-
-function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.get_ps(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
-    # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
-    # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
-    
-    Model = if sys isa ModelingToolkit.AbstractODESystem
-        odefunc = ODEFunction{inplace}(structural_simplify(sys); jac = true)
-        GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
-    else
-        throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
-    end
-    !isnothing(Domain) && (@assert length(pnames) ≤ length(Domain))
-    ylen = if observables isa Function      # ObservationFunction
-        # Might still fail if states u are a Matrix.
-        argnum = MaximalNumberOfArguments(observables)
-        F = if argnum==1  z->observables(z)   elseif argnum==2  z->observables(z,0.1)
-            elseif argnum==3 z->observables(z,0.1,GetStartP(length(pnames)))    else throw("Error") end
-        num = GetArgLength(F)
-        length(F(ones(num)))
-    else
-        observables isa BoolArray ? sum(observables) : length(observables)
-    end
-    plen = if !isnothing(startp)
-        length(startp)
-    elseif Domain isa HyperCube
-        length(Domain)
-    elseif u0 isa Union{Number,AbstractArray}     # Vector / Matrix
-        # initial conditions given as array means the parameters are only the ps in sys
-        length(pnames)
-    else        # SplitterFunction
-        # May well fail depending on how splitter function is implemented
-        GetArgLength(u0)
-    end
-    xyp = (1, ylen, plen)
-    Domain = isnothing(Domain) ? FullDomain(xyp[3], 1e5) : Domain
-
-    pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
-    # new(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding)
-    ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), name, (Model.Meta isa Tuple ? (sys, (Model.Meta[2:end])...) : Model.Meta))
-end
 
 
 
@@ -283,7 +227,6 @@ function GetModelFastOrRobust(func::AbstractODEFunction{T}, Splitter, Observatio
     !isnothing(pnames) ? InformNames(Mod, pnames) : Mod
 end
 
-GetModelRobust(func::ODESystem, A, B; kwargs...) = GetModelRobust(ODEFunction(func), A, B; kwargs...)
 function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
     SplitterFunction = if u0 isa Function
         u0

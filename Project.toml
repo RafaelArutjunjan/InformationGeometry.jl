@@ -22,7 +22,6 @@ LineSearches = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
 Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
@@ -86,6 +85,14 @@ TreeViews = "0.3"
 Tullio = "0.3"
 julia = "1"
 
+[weakdeps]
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+ProfileLikelihood = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
+
+[extensions]
+ProfileLikelihoodJLext = ["ProfileLikelihood"]
+ModelingToolkitExt = ["ModelingToolkit"]
+
 [extras]
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
@@ -93,4 +100,4 @@ SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["BoundaryValueDiffEq", "Plots", "SafeTestsets", "Test"]
+test = ["BoundaryValueDiffEq", "ModelingToolkit", "Plots", "SafeTestsets", "Test"]
