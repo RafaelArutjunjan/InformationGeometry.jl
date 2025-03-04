@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.18.0"
+version = "1.18.1"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -56,7 +56,7 @@ Combinatorics = "1"
 ComponentArrays = "0.13, 0.14, 0.15"
 DataFrames = "0.20, 0.21, 0.22, 1"
 DataInterpolations = "3, 4, 5, 6, 7"
-DerivableFunctionsBase = "0.1"
+DerivableFunctionsBase = "0.1, 0.2"
 DiffEqCallbacks = "2, 3, 4"
 Distributions = "0.21, 0.22, 0.23, 0.24, 0.25"
 DistributionsAD = "0.5, 0.6"
@@ -97,7 +97,7 @@ julia = "1"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 
 [extensions]
-ModelingToolkitExt = ["ModelingToolkit"]
+InformationGeometryModelingToolkitExt = ["ModelingToolkit"]
 
 [extras]
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"

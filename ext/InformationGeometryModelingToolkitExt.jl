@@ -1,4 +1,4 @@
-module ModelingToolkitExt
+module InformationGeometryModelingToolkitExt
 
 
 using InformationGeometry, ModelingToolkit, Optim, LineSearches
