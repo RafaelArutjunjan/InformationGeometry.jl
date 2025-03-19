@@ -138,7 +138,7 @@ InvCov::AbstractMatrix=Diagonal([1,2.]),
 logdetInvCov::Real=-Inf,
 WoundX::AbstractVector=[0.],
 SharedYdim::Val=Val(true),
-name::StringOrSymb=Symbol()) = CompositeDataSet(DSs, logdetInvCov, WoundX, SharedYdim, name)
+name::StringOrSymb=Symbol()) = CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name)
 
 
 Data(CDS::CompositeDataSet) = CDS.DSs

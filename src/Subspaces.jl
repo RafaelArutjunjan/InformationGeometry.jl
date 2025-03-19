@@ -436,9 +436,10 @@ Base.BigFloat(C::HyperCube) = HyperCube(BigFloat.(C.L), BigFloat.(C.U))
     intersect(Cubes::AbstractVector{<:HyperCube}) -> HyperCube
 Returns new `HyperCube` which is the intersection of the given `HyperCube`s.
 """
-function Base.intersect(A::HyperCube, B::HyperCube)
-    HyperCube(map(max, A.L, B.L), map(min, A.U, B.U))
-end
+Base.intersect(A::HyperCube, B::HyperCube) = HyperCube(map(max, A.L, B.L), map(min, A.U, B.U))
+Base.intersect(N::Nothing, C::HyperCube) = C
+Base.intersect(C::HyperCube, N::Nothing) = C
+
 function Base.intersect(Cubes::AbstractVector{<:HyperCube})
     LowerMatrix = [Cubes[i].L for i in eachindex(Cubes)] |> Unpack
     UpperMatrix = [Cubes[i].U for i in eachindex(Cubes)] |> Unpack
