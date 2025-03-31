@@ -14,7 +14,7 @@ function MakeMultistartDomain(Pdim::Int, ProspectiveDom::HyperCube, maxval::Real
 end
 
 MultistartFit(DM::AbstractDataModel; kwargs...) = MultistartFit(DM, Predictor(DM); kwargs...)
-MultistartFit(DM::AbstractDataModel, M::ModelMap; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DS, MultistartDomain; MultistartDomain, kwargs...)
+MultistartFit(DM::AbstractDataModel, M::ModelMap; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DM, MultistartDomain; MultistartDomain, kwargs...)
 function MultistartFit(DM::AbstractDataModel, M::ModelOrFunction; maxval::Real=1e5, MultistartDomain::Union{Nothing,HyperCube}=nothing, verbose::Bool=true, kwargs...)
     Dom = MakeMultistartDomain(pdim(DM), MultistartDomain, maxval; verbose)
     MultistartFit(DM, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
