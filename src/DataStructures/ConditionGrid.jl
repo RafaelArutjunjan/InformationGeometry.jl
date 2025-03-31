@@ -56,7 +56,7 @@ struct ConditionGrid <: AbstractDataModel
         LogPriorFn::Union{Function,Nothing}, 
         mle::AbstractVector=reduce(vcat, MLE.(DMs)),
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
-        Name::Symbol=Symbol(""),
+        Name::Symbol=Symbol(),
         LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafo(θ)) + EvalLogPrior(LogPriorFn, θ),
         ScoreFn::Function=GetGrad(LogLikelihoodFn), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         FisherMetricFn::Function=GetHess(Negate(LogLikelihoodFn)), # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
@@ -78,6 +78,19 @@ struct ConditionGrid <: AbstractDataModel
         new(DMs, Trafo, LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE)
     end
 end
+
+# For SciMLBase.remake
+ConditionGrid(;
+DMs::AbstractVector{<:AbstractDataModel}=DataModel[],
+Trafos::Union{AbstractVector{<:Function}, ParamTrafo}=Function[],
+LogPriorFn::Union{Function,Nothing}=nothing,
+MLE::AbstractVector{<:Number}=Float64[],
+pnames::AbstractVector{Symbol}=Symbol[],
+name::Symbol=Symbol(),
+LogLikelihoodFn::Function=x->-Inf,
+ScoreFn::Function=x->[-Inf],
+FisherMetricFn::Function=x->[-Inf],
+LogLikeMLE::Number=-Inf, kwargs...) = ConditionGrid(DMs, Trafo, LogPriorFn, MLE, pnames, name, LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE; kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(CG.DMs, i)
 
@@ -112,6 +125,10 @@ GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[];
 
 # Return nothing instead of producing MethodErrors
 Data(CG::ConditionGrid) = nothing
+
+
+GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
+MultistartFit(CG::ConditionGrid; maxval::Real=1e2, kwargs...) = MultistartFit(CG, reduce(vcat, [GetDomainSafe(DM; maxval) for DM in CG.DMs]); kwargs...)
 
 
 ## Prediction Functions
