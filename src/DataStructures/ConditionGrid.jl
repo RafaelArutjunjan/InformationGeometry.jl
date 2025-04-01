@@ -90,7 +90,7 @@ name::Symbol=Symbol(),
 LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherMetricFn::Function=x->[-Inf],
-LogLikeMLE::Number=-Inf, kwargs...) = ConditionGrid(DMs, Trafo, LogPriorFn, MLE, pnames, name, LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE; kwargs...)
+LogLikeMLE::Number=-Inf, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE, pnames, name, LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE; kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(CG.DMs, i)
 
@@ -128,7 +128,7 @@ Data(CG::ConditionGrid) = nothing
 
 
 GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
-MultistartFit(CG::ConditionGrid; maxval::Real=1e2, kwargs...) = MultistartFit(CG, reduce(vcat, [GetDomainSafe(DM; maxval) for DM in CG.DMs]); kwargs...)
+MultistartFit(CG::ConditionGrid; maxval::Real=1e2, Domain::HyperCube=(@info "Using naively constructed Domain for Multistart."; reduce(vcat, [GetDomainSafe(DM; maxval) for DM in CG.DMs])), kwargs...) = MultistartFit(CG, Domain; Domain, maxval, kwargs...)
 
 
 ## Prediction Functions
