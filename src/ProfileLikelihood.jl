@@ -139,19 +139,20 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components])
+function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=false)
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
-    DataModel(Data(DM), ProfilePredictor(DM, Components, Values), ProfileDPredictor(DM, Components, Values), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)))
+    Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests)
 end
 
-function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString, Number})
+function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString, Number}; kwargs...)
     Comps = Int[];  Vals = []
     for i in 1:pdim(DM)
-        pnames(DM)[i] ∈ keys(ParamDict) && push!(Comps, i) && push!(Vals, ParamDict[pnames(DM)[i]])
+        pnames(DM)[i] ∈ keys(ParamDict) && (push!(Comps, i);  push!(Vals, ParamDict[pnames(DM)[i]]))
     end
     @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
-    PinParameters(DM, Comps, Vals)
+    PinParameters(DM, Comps, Vals; kwargs...)
 end
 
 
@@ -452,13 +453,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else
             startind = (mlecomp = mle[Comp];    findfirst(x->x>mlecomp, ps)-1)
             if resort && startind > 1
-                for p in sort(ps[startind:end])
+                for p in sort((@view ps[startind:end]))
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     ((length(visitedps) - 1 > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
                 end
                 len = length(visitedps)
                 copyto!(MLEstash, Drop(mle, Comp))
-                for p in sort(ps[startind-1:-1:1]; rev=true)
+                for p in sort((@view ps[startind-1:-1:1]); rev=true)
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
                 end
@@ -862,10 +863,11 @@ end
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
+    Ylims = get(plotattributes, :ylims, (-tol, maxy))
     for i in eachindex(Profiles(P))
         @series begin
             subplot := i
-            ylims --> (-tol, maxy)
+            ylims --> Ylims
             ParameterProfilesView(P, i), Val(false)
         end
     end
@@ -927,7 +929,7 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
 end
 
 # Try to plot Trajectories if available
-@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.Meta === :ParameterProfile) = PV, Val(PlotTrajectories)
+@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.P.Meta === :ParameterProfile) = PV, Val(PlotTrajectories)
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
@@ -1077,6 +1079,12 @@ end
 
 PlotRelativeParameterTrajectories(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
 
+
+# Bad style but works for now for plotting profiles from different models in one:
+function RecipesBase.plot(Ps::AbstractArray{<:Union{ParameterProfiles, ParameterProfilesView}}; kwargs...)
+    Plts = [RecipesBase.plot(Ps[i]) for i in eachindex(Ps)]
+    RecipesBase.plot(Plts...; layout=length(Plts), kwargs...)
+end
 
 
 # Generate validation profile centered on prediction at a single independent variable t

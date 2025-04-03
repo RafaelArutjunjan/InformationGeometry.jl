@@ -424,8 +424,8 @@ end
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
 A `Domain` for the new model can optionally be specified for `ModelMap`s.
 """
-EmbedModelVia(model::Function, F::Function; Kwargs...) = EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); Kwargs..., kwargs...)
-EmbedModelVia_inplace(model!::Function, F::Function; Kwargs...) = EmbeddedModel!(y, x, θ; kwargs...) = model!(y, x, F(θ); Kwargs..., kwargs...)
+EmbedModelVia(model::Function, F::Function; Kwargs...) = EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
+EmbedModelVia_inplace(model!::Function, F::Function; Kwargs...) = EmbeddedModel!(y, x, θ; kwargs...) = model!(y, x, F(θ); kwargs...)
 
 function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube}=nothing, pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, name::StringOrSymb=name(M), Meta=M.Meta, kwargs...)
     if isnothing(Domain)
