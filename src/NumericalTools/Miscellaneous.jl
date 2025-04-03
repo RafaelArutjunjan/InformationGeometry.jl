@@ -175,7 +175,8 @@ ChisqCDF(k::Int, x::T) where T<:Number = gamma_inc(T(k)/2, x/2, 0)[1]
 
 InvChisqCDF(k::Int, p::Int; kwargs...) = InvChisqCDF(k, floatify(p))
 InvChisqCDF(k::Int, p::T; kwargs...) where T<:Number = 2gamma_inc_inv(T(k)/2, p, 1-p)
-InvChisqCDF(k::Int, p::BigFloat; tol::Real=GetH(p)) = invert(x->ChisqCDF(k, x), p; tol=tol)
+InvChisqCDF(k::Int, p::T; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), maxval*one(T)), kwargs...) where T<:BigFloat = invert(x->ChisqCDF(k, x), p, Domain; kwargs...)
+
 
 
 # sign function which is autodiffble at zero.

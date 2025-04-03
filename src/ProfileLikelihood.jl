@@ -264,10 +264,10 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5,
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth,
-                        IC::Real=eltype(mle)(InvChisqCDF(dof, ConfVol(Confnum))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3,
+                        IC::Real=eltype(mle)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e12)), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3,
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
     @assert Confnum > 0
@@ -426,9 +426,11 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
                     ## Early termination if profile flat or already wide enough
                     if right
-                        (length(visitedps) - len > maxstepnumber/2 || p ≥ ParamBounds[2] || p > mle[Comp] + terminatefactor*maxstepnumber*initialδ) && break
+                        p ≥ ParamBounds[2] && break
+                        !OnlyBreakOnBounds && (length(visitedps) - len > maxstepnumber/2 || p > mle[Comp] + terminatefactor*maxstepnumber*initialδ) && break
                     else
-                        (length(visitedps) - len > maxstepnumber/2 || p ≤ ParamBounds[1] || p < mle[Comp] - terminatefactor*maxstepnumber*initialδ) && break
+                        p ≤ ParamBounds[1] && break
+                        !OnlyBreakOnBounds && (length(visitedps) - len > maxstepnumber/2 || p < mle[Comp] - terminatefactor*maxstepnumber*initialδ) && break
                     end
                 end
             end
@@ -455,13 +457,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             if resort && startind > 1
                 for p in sort((@view ps[startind:end]))
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
-                    ((length(visitedps) - 1 > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≥ ParamBounds[2]) && break
+                    p ≥ ParamBounds[2] && break
+                    !OnlyBreakOnBounds && ((length(visitedps) - 1 > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
                 end
                 len = length(visitedps)
                 copyto!(MLEstash, Drop(mle, Comp))
                 for p in sort((@view ps[startind-1:-1:1]); rev=true)
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
-                    ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold) || p ≤ ParamBounds[1]) && break
+                    p ≤ ParamBounds[1] && break
+                    !OnlyBreakOnBounds && ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
                 end
             else # No early break, no clamping, just evaluate on given ps
                 for p in ps
@@ -521,7 +525,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::Abstr
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
 
-    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... ", dt=1, showspeed=true)
+    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel) " : ""), dt=1, showspeed=true)
     Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
@@ -858,6 +862,7 @@ end
     end
 end
 
+
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     layout --> length(Profiles(P))
     tol = 0.05
@@ -1107,9 +1112,9 @@ Computes a set of validation profiles for the component `yComp` of the predictio
 The uncertainty of the ficticious validation data point can be optionally chosen via the keyword argument `σv`.
 Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
 """
-function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), mle::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, verbose::Bool=true, kwargs...)
+function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), mle::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = [Predictor(DM)(t,mle)[yComp] for t in Ts]      # Always compute with offset to zero internally
-    Res = progress_pmap(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, mle, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... ", dt=1, showspeed=true))
+    Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, mle, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
     for i in eachindex(Ts)
         zProf = map(TrajPoint->Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp], Trajs[i])

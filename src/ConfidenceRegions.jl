@@ -546,7 +546,7 @@ function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Rea
     if pdim(DM) == 1
         return (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof), Range)
     elseif pdim(DM) == 2
-        Prog = Progress(length(Range); enabled=verbose, desc="Computing boundaries... ", dt=1, showspeed=true)
+        Prog = Progress(length(Range); enabled=verbose, desc="Computing boundaries... "*(parallel ? "(parallel) " : ""), dt=1, showspeed=true)
         sols = (parallel ? progress_pmap : progress_map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Range; progress=Prog)
         if tests
             NotTerminated = map(x->!(x.retcode === SciMLBase.ReturnCode.Terminated), sols)
@@ -1070,7 +1070,7 @@ Intersects the confidence boundary of level `Confnum` with `Planes` and computes
 """
 function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true,
                         Boundaries::Union{Function,Nothing}=nothing, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, parallel::Bool=false, kwargs...)
-    Prog = Progress(length(Planes); enabled=verbose, desc="Computing planar solutions... ", dt=1, showspeed=true)
+    Prog = Progress(length(Planes); enabled=verbose, desc="Computing planar solutions... "*(parallel ? "(parallel) " : ""), dt=1, showspeed=true)
     (parallel ? progress_pmap : progress_map)(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Planes; progress=Prog)
 end
 

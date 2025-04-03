@@ -106,7 +106,7 @@ function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVe
     end
     OptimFunc = TryCatchOptimizer ? TryCatchWrapper(BareOptimFunc,fill(-Inf, length(InitialPoints[1]))) : BareOptimFunc
     Res = if showprogress
-        (parallel ?  progress_pmap : progress_map)(OptimFunc, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... ", showspeed=true))
+        (parallel ?  progress_pmap : progress_map)(OptimFunc, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... "*(parallel ? "(parallel) " : ""), showspeed=true))
     else
         (parallel ?  pmap : map)(OptimFunc, InitialPoints)
     end
