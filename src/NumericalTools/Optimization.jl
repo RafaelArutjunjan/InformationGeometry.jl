@@ -171,7 +171,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
                 # catch for now:
                 cons=nothing, lcons=nothing, ucons=nothing, 
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
-                g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, g_reltol::Real=1e-8, 
+                g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
                 store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, 
                 retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...) where T <: Number
@@ -183,7 +183,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
     
     # Construct callback for early stopping if objective function below Fthresh unless any other callback is given
     cb = isnothing(callback) ? (!isnothing(Fthresh) ? (z->z.value<Fthresh) : nothing) : callback
-    options = Optim.Options(; x_tol, f_tol, g_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, g_reltol, f_calls_limit, show_every, show_trace,
+    options = Optim.Options(; x_tol, f_tol, g_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, f_calls_limit, show_every, show_trace,
                             allow_f_increases, iterations, store_trace, extended_trace, time_limit, callback=cb)
     
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
@@ -211,7 +211,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
         verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             Res = InformationGeometry.minimize(Fs, Optim.minimizer(Res), retrymeth; Domain, Fthresh, tol, Full=true, verbose, maxtime, time_limit,
-                cons, lcons, ucons, lb, ub, g_tol, x_tol, f_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, g_reltol, maxiters, iterations, callback, f_calls_limit, allow_f_increases, 
+                cons, lcons, ucons, lb, ub, g_tol, x_tol, f_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, maxiters, iterations, callback, f_calls_limit, allow_f_increases, 
                 store_trace, show_trace, extended_trace, show_every, retry=false, kwargs...)
         end
     end
