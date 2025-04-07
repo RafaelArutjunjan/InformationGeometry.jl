@@ -1,6 +1,6 @@
 
 
-SOBOL.SobolSeq(C::HyperCube, maxval::Real=1e5; seed::Int=rand(1000:15000), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -maxval*ones(length(C)), maxval*ones(length(C))), clamp(C.U, -maxval*ones(length(C)), maxval*ones(length(C)))), seed; exact=true)
+SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(1000:15000), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -maxval*ones(length(C)), maxval*ones(length(C))), clamp(C.U, -maxval*ones(length(C)), maxval*ones(length(C)))), seed; exact=true)
 SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e10)))
 GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
 
@@ -106,7 +106,7 @@ function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVe
     end
     OptimFunc = TryCatchOptimizer ? TryCatchWrapper(BareOptimFunc,fill(-Inf, length(InitialPoints[1]))) : BareOptimFunc
     Res = if showprogress
-        (parallel ?  progress_pmap : progress_map)(OptimFunc, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... "*(parallel ? "(parallel) " : ""), showspeed=true))
+        (parallel ?  progress_pmap : progress_map)(OptimFunc, InitialPoints; progress=Progress(length(InitialPoints), desc="Multistart fitting... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), showspeed=true))
     else
         (parallel ?  pmap : map)(OptimFunc, InitialPoints)
     end
@@ -157,7 +157,7 @@ struct MultistartResults <: AbstractMultiStartResults
             Converged::AbstractVector{<:Bool},
             pnames::AbstractVector{<:StringOrSymb},
             meth,
-            seed::Union{Int, Nothing}=nothing,
+            seed::Union{Int,Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
             FullOptimResults=nothing; 
             verbose::Bool=true
