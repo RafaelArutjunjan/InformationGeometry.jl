@@ -248,6 +248,7 @@ export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProf
 include("NumericalTools/Multistart.jl")
 export MultistartFit, LocalMultistartFit, MultistartResults, WaterfallPlot, ParameterPlot
 export DistanceMatrixWithinStep, DistanceMatrixBetweenSteps
+export StochasticProfileLikelihood
 
 
 include("Divergences.jl")

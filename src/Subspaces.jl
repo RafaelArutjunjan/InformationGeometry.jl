@@ -480,6 +480,7 @@ function _rand(C::HyperCube, ::Val)
     f(l,u) = l + (u-l) * rand()
     map(f, C.L, C.U)
 end
+Base.rand(C::HyperCube, N::Int) = [rand(C) for i in 1:N]
 
 Base.clamp(x::T, C::HyperCube) where T<:AbstractVector{<:Number} = convert(T,Base.clamp.(x, C.L, C.U))
 function Base.clamp!(x::AbstractVector, C::HyperCube)

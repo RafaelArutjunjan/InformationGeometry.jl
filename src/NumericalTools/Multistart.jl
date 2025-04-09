@@ -148,6 +148,7 @@ struct MultistartResults <: AbstractMultiStartResults
     seed::Union{Int,Nothing}
     MultistartDomain::Union{Nothing,HyperCube}
     FullOptimResults
+    Meta
     function MultistartResults(
             FinalPoints::AbstractVector{<:AbstractVector{<:Number}},
             InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
@@ -159,7 +160,8 @@ struct MultistartResults <: AbstractMultiStartResults
             meth,
             seed::Union{Int,Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
-            FullOptimResults=nothing; 
+            FullOptimResults=nothing,
+            Meta=nothing; 
             verbose::Bool=true
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
@@ -184,7 +186,7 @@ struct MultistartResults <: AbstractMultiStartResults
         end
 
         Perm = sortperm(FinalObjectives; rev=true)
-        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm])
+        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm], Meta)
     end
 end
 
@@ -196,7 +198,8 @@ function Base.vcat(R1::MultistartResults, R2::MultistartResults)
     MultistartResults(vcat(R1.FinalPoints, R2.FinalPoints), vcat(R1.InitialPoints, R2.InitialPoints),
         vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations), vcat(R1.Converged, R2.Converged),
         R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
-        (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing)
+        (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing),
+        (!isnothing(R1.Meta) && !isnothing(R2.Meta) ? vcat(R1.Meta,R2.Meta) : nothing),
     )
 end
 
@@ -209,6 +212,7 @@ MLE(R::MultistartResults) = R.FinalPoints[1]
 pnames(R::MultistartResults) = R.pnames .|> string
 Pnames(R::MultistartResults) = R.pnames
 Domain(R::MultistartResults) = R.MultistartDomain
+pdim(R::MultistartResults) = length(MLE(R))
 
 
 """
@@ -237,7 +241,7 @@ FindLastIndSafe(R::MultistartResults) = (LastFinite=findlast(isfinite, R.FinalOb
 
 # GetStepInds always includes last point of lower step
 function GetStepInds(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=1e-3)
-    (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);       F = -R.FinalObjectives
+    !isnothing(R.Meta) || (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);       F = -R.FinalObjectives
     S = [i for i in 1:ymaxind-1 if isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol]
     length(S) < 1 ? [ymaxind] : S
 end
@@ -249,7 +253,7 @@ function GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), St
 end
 
 function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=1e-3)
-    (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
+    !isnothing(R.Meta) || (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
     FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol, 1:ymaxind-1)
     isnothing(FirstStepInd) ? ymaxind : FirstStepInd
 end
@@ -371,4 +375,57 @@ function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults;
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[Steps[i][1]] - R.FinalPoints[Steps[j][1]])) for i in eachindex(Steps), j in eachindex(Steps)]
     plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
+end
+
+
+
+
+HistoBins(X::AbstractVector, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(X))...; length=nbins+1)
+"""
+   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=4Nsingle, parallel::Bool=true, maxval::Real=1e5, DoBiLog::Bool=true, kwargs...)
+Samples the likelihood over the parameter space, splits the value range of each parameter into bins and visualizes the best observed likelihood value from all samples with the respective parameter value in this bin.
+Therefore, it gives a coarse-grained global approximation to the profile likelihood, approaching the true profile likelihood in the large sample limit as `N` ⟶ ∞, which is however much cheaper to compute as no re-optimization of nuisance parameters is required.
+This can already give hints for good candidates for initial parameter values from which to start optimization and conversely also illustrate parts of the parameter ranges which can be excluded from multistart fitting due to their consistently unsuitable likelihood values.
+
+The results of this sampling are saved in the `FinalPoints` and `FinalObjectives` fields of a `MultistartResults` object.
+"""
+function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM))∩FullDomain(pdim(DM),1e5); Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=Nsingle, parallel::Bool=true, maxval::Real=1e5, pnames::AbstractVector{<:AbstractString}=string.(pnames(DM)), kwargs...)
+   Points = GenerateSobolPoints(C; N, maxval)
+   @info "StochasticProfileLikelihood: Starting $N samples"
+   Likelihoods = (parallel ? progress_pmap : progress_map)(loglikelihood(DM), Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
+   StochasticProfileLikelihood(Points, Likelihoods; nbins, pnames, Domain=C, kwargs...)
+end
+# Compute all and call plots
+function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
+   P = [StochasticProfileLikelihood(Points, Trafo.(Likelihoods), i; nbins, DoBiLog, xlabel=string(pnames[i])) for i in eachindex(pnames)]
+   AddedPlots = [];      perm = sortperm(Likelihoods; rev=true)
+   push!(AddedPlots, RecipesBase.plot(1:length(Likelihoods), -Trafo.(Likelihoods[perm]); xlabel="Run index (sorted)", ylabel=(DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : ""), label="Waterfall"))
+   length(pnames) ≤ 3 && push!(AddedPlots, RecipesBase.plot(Points; st=:scatter, zcolor=Trafo.(Likelihoods), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label=nothing))
+   RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...) |> display
+   MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, nothing, nothing, Domain, nothing, :SampledLikelihood)
+end
+
+# Plot results:
+StochasticProfileLikelihood(R::MultistartResults, ind::Int; kwargs...) = StochasticProfileLikelihood(R.FinalPoints, R.FinalObjectives, ind; xlabel=pnames(R)[ind], kwargs...)
+function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), Extremizer::Function=maximum, 
+                                 DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), xlabel="Parameter $ind", OffsetResults::Bool=false, kwargs...)
+   pval = getindex.(Points, ind)
+   pBins = HistoBins(pval, nbins)
+   keep = falses(length(pval), length(pBins)-1)
+   for i in axes(keep,2)
+      keep[:, i] .= pBins[i] .≤ pval .< pBins[i+1]
+   end
+   MaxLike = OffsetResults ? Extremizer(Trafo.(Likelihoods)) : 0
+   res = [(try Extremizer(Trafo.(@view Likelihoods[col]).-MaxLike) catch; -Inf end) for col in eachcol(keep)]
+   HitsPerBin = Float64[sum(col) for col in eachcol(keep)];  HitsPerBin ./= maximum(HitsPerBin)
+   Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; xlabel, ylabel=(DoBiLog ? "BiLog(" : "")*"Minimal Objective"*(DoBiLog ? ")" : ""), alpha=max.(0,HitsPerBin), st=:bar, label="Conditional Objectives", kwargs...)
+   Extremizer === maximum && RecipesBase.plot!(Plt, [Points[findmax(Trafo.(Likelihoods))[2]][ind]]; st=:vline, line=:dash, c=:red, label="Best Objective")
+   Plt
+end
+
+function FindGoodStart(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM))∩FullDomain(pdim(DM),1e5); Nsingle::Int=5, N::Int=Nsingle^length(C), parallel::Bool=true, maxval::Real=1e5)
+   @info "FindGoodStart: Starting $N samples"
+   Points = GenerateSobolPoints(C; N, maxval)
+   Likelihoods = (parallel ? progress_pmap : progress_map)(loglikelihood(DM), Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
+   Points[findmax(Likelihoods)[2]]
 end
