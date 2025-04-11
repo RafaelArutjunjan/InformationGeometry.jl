@@ -4,6 +4,17 @@ SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=r
 SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e10)))
 GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
 
+function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Distribution, n::Int=100; N::Int=n)
+    @assert N ≥ 1
+    i = 1;   y = SOBOL.next!(S);  M = Matrix{eltype(y)}(undef, length(y), N)
+    Pusher(x, i::Int) = (rand() ≤ pdf(P, x)  ? (M[:,i] .= x;  true) : false)
+ 
+    while i ≤ N
+       Pusher(y, i) && (i += 1)
+       SOBOL.next!(S, y)
+    end;  [view(M,:,i) for i in axes(M,2)]
+ end
+
 function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1e5; verbose::Bool=true)
     verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
     FullDomain(Pdim, maxval)
@@ -389,11 +400,14 @@ This can already give hints for good candidates for initial parameter values fro
 
 The results of this sampling are saved in the `FinalPoints` and `FinalObjectives` fields of a `MultistartResults` object.
 """
-function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM))∩FullDomain(pdim(DM),1e5); Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=Nsingle, parallel::Bool=true, maxval::Real=1e5, pnames::AbstractVector{<:AbstractString}=string.(pnames(DM)), kwargs...)
-   Points = GenerateSobolPoints(C; N, maxval)
-   @info "StochasticProfileLikelihood: Starting $N samples"
-   Likelihoods = (parallel ? progress_pmap : progress_map)(loglikelihood(DM), Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
-   StochasticProfileLikelihood(Points, Likelihoods; nbins, pnames, Domain=C, kwargs...)
+function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=Nsingle, maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(pdim(DM),maxval), kwargs...)
+   Points = GenerateSobolPoints(Domain; N, maxval)
+   StochasticProfileLikelihood(DM, Points; Domain, nbins, kwargs...)
+end
+function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVector{<:AbstractVector}; LogLikelihoodFn::Function=loglikelihood(DM), parallel::Bool=true, pnames::AbstractVector{<:AbstractString}=string.(pnames(DM)), kwargs...)
+   @info "StochasticProfileLikelihood: Starting $(length(Points)) samples"
+   Likelihoods = (parallel ? progress_pmap : progress_map)(LogLikelihoodFn, Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
+   StochasticProfileLikelihood(Points, Likelihoods; pnames, kwargs...)
 end
 # Construct MultistartResults and call Plot
 function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots), Domain::Union{HyperCube,Nothing}=nothing, pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), kwargs...)
