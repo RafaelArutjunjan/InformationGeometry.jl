@@ -395,23 +395,29 @@ function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(
    Likelihoods = (parallel ? progress_pmap : progress_map)(loglikelihood(DM), Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
    StochasticProfileLikelihood(Points, Likelihoods; nbins, pnames, Domain=C, kwargs...)
 end
-# Compute all and call plots
-function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
-   P = [StochasticProfileLikelihood(Points, Trafo.(Likelihoods), i; nbins, DoBiLog, xlabel=string(pnames[i])) for i in eachindex(pnames)]
-   AddedPlots = [];      perm = sortperm(Likelihoods; rev=true)
-   push!(AddedPlots, RecipesBase.plot(1:length(Likelihoods), -Trafo.(Likelihoods[perm]); xlabel="Run index (sorted)", ylabel=(DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : ""), label="Waterfall"))
-   length(pnames) ≤ 3 && push!(AddedPlots, RecipesBase.plot(Points; st=:scatter, zcolor=Trafo.(Likelihoods), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label=nothing))
-   RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...) |> display
-   MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, nothing, nothing, Domain, nothing, :SampledLikelihood)
+# Construct MultistartResults and call Plot
+function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots), Domain::Union{HyperCube,Nothing}=nothing, pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), kwargs...)
+   R = MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, nothing, nothing, Domain, nothing, :SampledLikelihood)
+   plot && display(StochasticProfileLikelihoodPlot(R; kwargs...))
+   R
 end
 
-# Plot results:
-StochasticProfileLikelihood(R::MultistartResults, ind::Int; kwargs...) = StochasticProfileLikelihood(R.FinalPoints, R.FinalObjectives, ind; xlabel=pnames(R)[ind], kwargs...)
-function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), Extremizer::Function=maximum, 
+## Plot results:
+StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives, ind; xlabel=string(pnames(R)[ind]), kwargs...))
+StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
+# Collective
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), 
+                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), kwargs...)
+   P = [StochasticProfileLikelihoodPlot(Points, Trafo.(Likelihoods), i; nbins, DoBiLog, xlabel=string(pnames[i])) for i in eachindex(pnames)]
+   AddedPlots = []
+   push!(AddedPlots, RecipesBase.plot(1:length(Likelihoods), -Trafo.(Likelihoods); xlabel="Run index (sorted)", ylabel=(DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : ""), label="Waterfall"))
+   length(pnames) ≤ 3 && push!(AddedPlots, RecipesBase.plot(Points; st=:scatter, zcolor=Trafo.(Likelihoods), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label=nothing))
+   RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
+end
+# Individual Parameter
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=min(10,Int(ceil(sqrt(length(Likelihoods))))), Extremizer::Function=maximum, 
                                  DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), xlabel="Parameter $ind", OffsetResults::Bool=false, kwargs...)
-   pval = getindex.(Points, ind)
-   pBins = HistoBins(pval, nbins)
-   keep = falses(length(pval), length(pBins)-1)
+   pval = getindex.(Points, ind);   pBins = HistoBins(pval, nbins);   keep = falses(length(pval), length(pBins)-1)
    for i in axes(keep,2)
       keep[:, i] .= pBins[i] .≤ pval .< pBins[i+1]
    end
