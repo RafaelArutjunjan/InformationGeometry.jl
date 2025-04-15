@@ -187,7 +187,7 @@ Computes bi-symmetric logarithm, which can also be applied to negative numbers
 ```math
 BiLog(x) = \\sgn(x) \\cdot \\log(1 + |C \\cdot x|)
 ```
-similar to the definition in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
+similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
 The constant `C` controls the slope of the bi-logarithm at zero.
 The inverse transformation is given by [`BiExp`](@ref).
 """
@@ -198,7 +198,7 @@ Computes bi-symmetric exponential, which is the inverse transformation to [`BiLo
 ```math
 BiExp(x) = \\sgn(x) \\cdot |1/C| \\cdot (\\exp(|x|) - 1)
 ```
-similar to the definition in https://kar.kent.ac.uk/32810/2/2012_Bi-symmetric-log-transformation_v5.pdf
+similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
 The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exponential has slope `1/C`.
 """
 BiExp(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * abs(inv(C)) * (exp(abs(x)) - one(T))
