@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.18.4"
+version = "1.18.5"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -55,12 +55,12 @@ BoundaryValueDiffEqShooting = "1"
 Combinatorics = "1"
 ComponentArrays = "0.13, 0.14, 0.15"
 DataFrames = "0.20, 0.21, 0.22, 1"
-DataInterpolations = "3, 4, 5, 6, 7"
+DataInterpolations = "3, 4, 5, 6, 7, 8"
 DerivableFunctionsBase = "0.1, 0.2"
 DiffEqCallbacks = "2, 3, 4"
 Distributions = "0.21, 0.22, 0.23, 0.24, 0.25"
 DistributionsAD = "0.5, 0.6"
-ForwardDiff = "0.10"
+ForwardDiff = "0.10, 1"
 HCubature = "1.4"
 LibGEOS = "0.6, 0.7, 0.8, 0.9"
 LineSearches = "5, 6, 7"
