@@ -390,31 +390,33 @@ end
 
 
 GetNsingleFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNsingleFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
-function GetNsingleFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=120; minval=2, maxval=1000, verbose::Bool=true)
-    Tsingle = @elapsed L(startp)
+function GetNsingleFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=1000, verbose::Bool=true)
+    L(startp);  Tsingle = @elapsed L(startp)
     N = TargetTime / Tsingle |> floor |> Int
-    Nsingle = N^(1/length(startp)) |> floor |> Int
-    Nsingle = clamp(Nsingle, minval, maxval)
-    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting N=$N samples in total (Nsingle=$Nsingle) to fill allotted $(TargetTime)s."
+    Nsingle = clamp(N^(1/length(startp)), minval, maxval) |> floor |> Int
+    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting approximately N=$N samples in total (Nsingle=$Nsingle, $Nsingle^$(length(startp))=$(Nsingle^length(startp))) to fill allotted $(TargetTime)s."
     Nsingle
 end
 
 
 HistoBins(X::AbstractVector, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(X))...; length=nbins+1)
 """
-   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=4Nsingle, parallel::Bool=true, maxval::Real=1e5, DoBiLog::Bool=true, kwargs...)
+   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); TargetTime=60, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=4Nsingle, parallel::Bool=true, maxval::Real=1e5, DoBiLog::Bool=true, kwargs...)
 Samples the likelihood over the parameter space, splits the value range of each parameter into bins and visualizes the best observed likelihood value from all samples with the respective parameter value in this bin.
 Therefore, it gives a coarse-grained global approximation to the profile likelihood, approaching the true profile likelihood in the large sample limit as `N` ⟶ ∞, which is however much cheaper to compute as no re-optimization of nuisance parameters is required.
 This can already give hints for good candidates for initial parameter values from which to start optimization and conversely also illustrate parts of the parameter ranges which can be excluded from multistart fitting due to their consistently unsuitable likelihood values.
 
 The results of this sampling are saved in the `FinalPoints` and `FinalObjectives` fields of a `MultistartResults` object.
+
+The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
-function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); TargetTime::Real=120, Nsingle::Int=GetNsingleFromTargetTime(DM, TargetTime), N::Int=Nsingle^length(C), nbins::Int=clamp(Nsingle,4,100), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(pdim(DM),maxval), kwargs...)
+function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM)); TargetTime::Real=60, Nsingle::Int=GetNsingleFromTargetTime(DM, TargetTime), N::Int=Nsingle^length(C), 
+                                                        nbins::Int=clamp(Nsingle,4,100), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(pdim(DM),maxval), kwargs...)
    Points = GenerateSobolPoints(Domain; N, maxval)
    StochasticProfileLikelihood(DM, Points; Domain, nbins, kwargs...)
 end
 function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVector{<:AbstractVector}; LogLikelihoodFn::Function=loglikelihood(DM), parallel::Bool=true, pnames::AbstractVector{<:AbstractString}=string.(pnames(DM)), kwargs...)
-   @info "StochasticProfileLikelihood: Starting $(length(Points)) samples"
+   @info "Starting $(length(Points)) samples of the log-likelihood."
    Likelihoods = (parallel ? progress_pmap : progress_map)(LogLikelihoodFn, Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
    StochasticProfileLikelihood(Points, Likelihoods; pnames, kwargs...)
 end
@@ -457,9 +459,8 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
    Plt
 end
 
-function FindGoodStart(DM::AbstractDataModel, C::HyperCube=Domain(Predictor(DM))∩FullDomain(pdim(DM),1e5); Nsingle::Int=5, N::Int=Nsingle^length(C), parallel::Bool=true, maxval::Real=1e5)
-   @info "FindGoodStart: Starting $N samples"
-   Points = GenerateSobolPoints(C; N, maxval)
-   Likelihoods = (parallel ? progress_pmap : progress_map)(loglikelihood(DM), Points; progress=Progress(length(Points); desc="Sampling Parameter Space... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=0.2, showspeed=true))
-   Points[findmax(Likelihoods)[2]]
+
+function FindGoodStart(DM::AbstractDataModel, args...; plot::Bool=false, kwargs...)
+    R = StochasticProfileLikelihood(DM, args...; plot, kwargs...)
+    R.FinalPoints[findmax(R.FinalObjectives)[2]]
 end

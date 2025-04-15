@@ -49,7 +49,7 @@ end
 function Base.summary(M::ModelMap)
     string(TYPE_COLOR, "ModelMap",
         NO_COLOR, (name(M) === Symbol() ? "" : " "*ColoredString(name(M))),
-        ORANGE_COLOR, (isinplacemodel(M) ? "in-place" : "out-of-place"),
+        ORANGE_COLOR, (isinplacemodel(M) ? " in-place" : " out-of-place"),
         NO_COLOR, " with xdim="*string(xdim(M))*", ydim="*string(ydim(M))*", pdim="*string(pdim(M)))
 end
 
