@@ -440,13 +440,13 @@ end
 
 function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple=Tuple([]); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     Jac = GetJac(ADmode, F)
-    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); Kwargs..., kwargs...) * Jac(θ)
+    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * Jac(θ)
 end
 function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,Int}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     Jac = GetJac(ADmode, F)
     function EmbeddedJacobian!(y, x, θ::AbstractVector{T}; kwargs...) where T<:Number
         Ycache = Matrix{T}(undef, Size)
-        dmodel!(Ycache, x, F(θ); Kwargs..., kwargs...)
+        dmodel!(Ycache, x, F(θ); kwargs...)
         mul!(y, Ycache, Jac(θ))
     end
 end
