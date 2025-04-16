@@ -581,10 +581,9 @@ end
     @test all(isfinite∘sum, Tuple(BU))
     @test all(isfinite∘sum, Tuple(BU2))
 
-    ## For future:
-    # CG = ConditionGrid([DM, DMp])
-    # PCG1 = ParameterProfiles(CG; general=true)
-    # PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10)
+    CG = ConditionGrid([DM, DMp])
+    PCG1 = ParameterProfiles(CG; general=true)
+    PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10)
 end
 
 

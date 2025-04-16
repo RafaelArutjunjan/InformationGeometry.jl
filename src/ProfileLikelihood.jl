@@ -321,7 +321,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
         Res = map(LogLikelihoodFn, Xs)
-        Converged = !isnan.(Res) .&& !isinf.(Res) .&& map(x->InBounds([x]), ps)
+        Converged = .!isnan.(Res) .&& .!isinf.(Res) .&& map(x->InBounds([x]), ps)
         visitedps = ps
         SaveTrajectories && (path = Xs)
         SavePriors && map(x->EvalLogPrior(LogPriorFn, x), Xs)
