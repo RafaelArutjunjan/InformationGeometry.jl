@@ -975,7 +975,7 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::Abstract
     EmbeddedLikelihood = LogLikelihoodFn∘PlaneCoordinates(PL)
     Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle + SA[x,0.])))) - CF < 0.
     !Test(0.) && return false
-    SA[LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] + mle
+    SA[LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] .+ mle
     # TestCont(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle + SA[x,0.])))) - CF
     # TestCont(0.) ≥ 0 && return false
     # SA[AltLineSearch(TestCont, (0.0, maxval), meth; tol=tol), 0.] + mle
@@ -1093,7 +1093,7 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractV
         end
     end    
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
-    esols = [EmbeddedODESolution(sols[k], (x->getindex(x, inds[k]))∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
+    esols = [EmbeddedODESolution(sols[k], ViewElements(inds[k])∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
     if plot
         Plts = [(p = RecipesBase.plot([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]], seriestype=:scatter);
@@ -1133,9 +1133,9 @@ function ToGeos(pointlist::AbstractVector{<:AbstractVector{<:Number}})
     @assert 2 == InformationGeometry.ConsistentElDims(pointlist)
     text = "POLYGON(("
     for point in pointlist
-        text *= "$(point[1]) $(point[2]),"
+        text *= string(point[1]) *" "* string(point[2]) *","
     end
-    text *= "$(pointlist[1][1]) $(pointlist[1][2])" * "))"
+    text *= string(pointlist[1][1]) *" "* string(pointlist[1][2]) * "))"
     LibGEOS.readgeom(text)
 end
 UnionPolygons(p1::AbstractVector{<:AbstractVector{<:Number}}, p2::AbstractVector{<:AbstractVector{<:Number}}) = LibGEOS.GeoInterface.coordinates(UnionPolygons(ToGeos(p1), ToGeos(p2)))[1]
@@ -1158,7 +1158,7 @@ function ShadowTheatre(DM::AbstractDataModel, Confnum::Real=1, dirs::Tuple{<:Int
     Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],translationdirs[1]))
     list = CastShadow(DM, Planes, sols, dirs)
     if length(translationdirs) > 1
-        for i in translationdirs[2:end]
+        for i in (@view translationdirs[2:end])
             Planes, sols = ConfidenceRegion(DM, Confnum; tol=tol, N=N, Dirs=(dirs[1],dirs[2],i))
             list = UnionPolygons(list, CastShadow(DM, Planes, sols, dirs))
         end

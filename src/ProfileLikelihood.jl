@@ -925,7 +925,7 @@ PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, V
     end
     @series begin
         label --> nothing
-        seriescolor --> :red
+        markercolor --> :red
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
@@ -973,7 +973,7 @@ end
     ## Mark MLE in profile
     @series begin
         label --> nothing
-        seriescolor --> :red
+        markercolor --> :red
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
@@ -990,7 +990,7 @@ end
                     st := :hline
                     line --> :dash
                     lw --> 1.5
-                    color --> palette(:viridis, length(Confnum); rev=true)[j]
+                    linecolor := palette(:viridis, length(Confnum); rev=true)[j]
                     label --> "$(j)σ level, dof=$dof"
                     [Thresh]
                 end
