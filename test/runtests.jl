@@ -530,8 +530,8 @@ end
 @safetestset "ParameterProfiles" begin
     using InformationGeometry, Test, Distributions, LinearAlgebra, Optim
 
-    DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2])
-    DMp = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]))
+    DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DM)
+    DMp = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]); name=:DMp)
 
     P1 = ParameterProfiles(DM, 2; IsCost=false, N=50, maxval=10, plot=false)
     B1 = ProfileBox(P1, 2)
@@ -568,6 +568,7 @@ end
     @test all(isfinite∘sum, Tuple(B4p))
     @test all(isfinite, ProfileBox(P3[1],2)[1])
     
+
     DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
 
     PU = ParameterProfiles(DMU, 2; N=30, plot=false, verbose=false)
