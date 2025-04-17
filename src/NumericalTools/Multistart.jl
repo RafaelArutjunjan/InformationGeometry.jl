@@ -475,7 +475,7 @@ OrderedIndCombs2D(paridxs::AbstractVector{<:Int}) = [[paridxs[j],paridxs[i]] for
 OrderedIndCombs3D(paridxs::AbstractVector{<:Int}) = [[paridxs[k],paridxs[j],paridxs[i]] for k in 1:length(paridxs)-2, j in 2:length(paridxs)-1, i in 3:length(paridxs) if k < j < i]
 
 # All dims in layout plot
-@recipe function f(R::MultistartResults, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=isfinite.(R.FinalObjectives))
+@recipe function f(R::MultistartResults, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
    Combos = OrderedIndCombs2D(1:pdim(R))
    pdim(R) == 2 && return R, [1,2], V, FiniteInds
    layout --> length(Combos)
@@ -488,7 +488,7 @@ OrderedIndCombs3D(paridxs::AbstractVector{<:Int}) = [[paridxs[k],paridxs[j],pari
 end
 
 # kwargs: BiLog
-@recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : isfinite.(R.FinalObjectives)))
+@recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
    DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
    @series begin
       color --> :viridis
@@ -504,7 +504,7 @@ end
 end
 
 @recipe function f(X::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}, ::Val{:SubspaceProjection})
-   @assert 1 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(R))
+   @assert 1 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ ConsistentElDims(X))
    msw := 0
    st := :scatter
    map(ViewElements(idxs), X)
