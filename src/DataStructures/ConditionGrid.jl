@@ -48,12 +48,9 @@ struct ConditionGrid <: AbstractDataModel
     ScoreFn::Function
     FisherMetricFn::Function
     LogLikeMLE::Number
-    function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), LogPriorFn::Union{Function,Nothing}=nothing; kwargs...)
-        ConditionGrid(DMs, ParamTrafo(Trafos, Symbol.(name.(DMs))), LogPriorFn; kwargs...)
-    end
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
-        Trafo::AbstractVector{<:Function}, 
-        LogPriorFn::Union{Function,Nothing}, 
+        Trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
+        LogPriorFn::Union{Function,Nothing}=nothing, 
         mle::AbstractVector=reduce(vcat, MLE.(DMs)),
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
         Name::Symbol=Symbol(),
