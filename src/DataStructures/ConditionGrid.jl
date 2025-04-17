@@ -52,7 +52,7 @@ struct ConditionGrid <: AbstractDataModel
         ConditionGrid(DMs, ParamTrafo(Trafos, Symbol.(name.(DMs))), LogPriorFn; kwargs...)
     end
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
-        Trafo::ParamTrafo, 
+        Trafo::AbstractVector{<:Function}, 
         LogPriorFn::Union{Function,Nothing}, 
         mle::AbstractVector=reduce(vcat, MLE.(DMs)),
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
@@ -75,7 +75,7 @@ struct ConditionGrid <: AbstractDataModel
             InformationGeometry.minimize(Negate(LogLikelihoodFn), mle; kwargs...)
         end            
 
-        new(DMs, Trafo, LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE)
+        new(DMs, (Trafo isa ParamTrafo ? Trafo : ParamTrafo(Trafo, Symbol.(InformationGeometry.name.(DMs)))), LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE)
     end
 end
 
@@ -180,7 +180,7 @@ Base.show(io::IO, CG::ConditionGrid) = println(io, Base.summary(CG))
 RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))
     plot_title --> string(name(CG))
     layout --> length(CG.DMs)
-    for i in 1:length(CG.DMs)
+    for i in eachindex(CG.DMs)
         @series begin
             subplot := i
             dof --> DOF(CG)
