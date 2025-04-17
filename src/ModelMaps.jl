@@ -200,8 +200,9 @@ end
 GetNamesRecursive(p) = string.(GetNamesSymb(p))
 function GetNamesRecursive(@nospecialize p_NN::ComponentVector)
     S = GetNamesSymb(p_NN)
-    InnerS = map(s->GetNamesRecursive(getproperty(p_NN,s)), S)
     OuterNames = string.(S)
+    length(OuterNames) == length(p_NN) && return OuterNames
+    InnerS = map(s->GetNamesRecursive(getproperty(p_NN,s)), S)
     InnerNames = [string.(s) for s in InnerS]
     Res = String[]
     for i in eachindex(OuterNames)

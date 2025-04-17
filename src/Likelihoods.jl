@@ -100,7 +100,7 @@ _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Nu
 
 
 Score(DM::AbstractDataModel; kwargs...) = LogLikelihoodGradient(θ::AbstractVector{<:Number}; Kwargs...) = Score(DM, θ; kwargs..., Kwargs...)
-NegScore(DM::AbstractDataModel; kwargs...) = NegativeLogLikelihoodGradient(θ::AbstractVector{<:Number}; Kwargs...) = -Score(DM, θ; kwargs..., Kwargs...)
+NegScore(DM::AbstractDataModel; kwargs...) = Negate(Score(DM; kwargs...))
 
 """
     Score(DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff))

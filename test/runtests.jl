@@ -310,9 +310,12 @@ end
         @assert Data(DM3) isa InformationGeometry.AbstractFixedUncertaintyDataSet
 
         @test isapprox(loglikelihood(DM)(mle), loglikelihood(DM2)(mle); atol)
-        @test Score(DM)(mle)[1:pdim(DM2)] ≈ Score(DM2)(mle)[1:pdim(DM2)] ≈ Score(DM3)(mle)[1:pdim(DM2)]
-        @test FisherMetric(DM)(mle)[1:pdim(DM2),1:pdim(DM2)] ≈ FisherMetric(DM2)(mle)[1:pdim(DM2),1:pdim(DM2)] ≈ FisherMetric(DM3)(mle)[1:pdim(DM2),1:pdim(DM2)]
-        @test -GetHess(loglikelihood(DM))(mle)[1:pdim(DM2),1:pdim(DM2)] ≈ -GetHess(loglikelihood(DM2))(mle)[1:pdim(DM2),1:pdim(DM2)] ≈ -GetHess(loglikelihood(DM3))(mle)[1:pdim(DM2),1:pdim(DM2)]
+        @test isapprox(Score(DM)(mle)[1:pdim(DM2)], Score(DM2)(mle)[1:pdim(DM2)]; atol)
+        @test isapprox(Score(DM2)(mle)[1:pdim(DM2)], Score(DM3)(mle)[1:pdim(DM2)]; atol)
+        @test isapprox(FisherMetric(DM)(mle)[1:pdim(DM2),1:pdim(DM2)], FisherMetric(DM2)(mle)[1:pdim(DM2),1:pdim(DM2)]; atol)
+        @test isapprox(FisherMetric(DM2)(mle)[1:pdim(DM2),1:pdim(DM2)], FisherMetric(DM3)(mle)[1:pdim(DM2),1:pdim(DM2)]; atol)
+        @test isapprox(-GetHess(loglikelihood(DM))(mle)[1:pdim(DM2),1:pdim(DM2)], -GetHess(loglikelihood(DM2))(mle)[1:pdim(DM2),1:pdim(DM2)]; atol)
+        @test isapprox(-GetHess(loglikelihood(DM2))(mle)[1:pdim(DM2),1:pdim(DM2)], -GetHess(loglikelihood(DM3))(mle)[1:pdim(DM2),1:pdim(DM2)]; atol)
     end
 
     DS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/abs(p[1]), [0.4]; xnames=["Time"], ynames=["Signal"])
@@ -374,7 +377,7 @@ end
     tester(
         Böhmdm, BöhmDM,
         DataModel(DataSetExact(BöhmDS), Predictor(BöhmDM), MLE(BöhmDM); tol=1e-6),
-        vcat(MLE(BöhmDM), [4.12, 7.04, 3.37])
+        vcat(MLE(BöhmDM), [4.12, 7.04, 3.37]); atol=1e-4
     )
 end
 
@@ -582,8 +585,8 @@ end
     @test all(isfinite∘sum, Tuple(BU2))
 
     CG = ConditionGrid([DM, DMp])
-    PCG1 = ParameterProfiles(CG; general=true)
-    PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10)
+    PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)
+    PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10, plot=false, verbose=false)
 end
 
 

@@ -69,7 +69,7 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
-function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval=1e5, 
+function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=isloaded(:Plots), 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
@@ -130,7 +130,9 @@ function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVe
         # By internal optimizer criterion:
         Converged = HasConverged.(Res; verbose=false)
         PNames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
-        MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        R = MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        plot && display(RecipesBase.plot(R))
+        R
     else
         MaxVal, MaxInd = findmax(FinalObjectives)
         GetMinimizer(FinalPoints[MaxInd])
@@ -270,7 +272,7 @@ function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); 
 end
 
 
-RecipesBase.@recipe f(R::MultistartResults, S::Symbol=:Waterfall) = R, Val(S)
+RecipesBase.@recipe f(R::MultistartResults, S::Symbol=(isnothing(R.Meta) ? :Waterfall : :SubspaceProjection)) = R, Val(S)
 # kwargs BiLog, StepTol, MaxValue, MaxInd, ColorIterations
 RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     DoBiLog = get(plotattributes, :BiLog, true)
@@ -463,4 +465,47 @@ end
 function FindGoodStart(DM::AbstractDataModel, args...; plot::Bool=false, kwargs...)
     R = StochasticProfileLikelihood(DM, args...; plot, kwargs...)
     R.FinalPoints[findmax(R.FinalObjectives)[2]]
+end
+
+
+
+
+## SubspaceProjection plots for sampling results in MultistartResults format
+OrderedIndCombs2D(paridxs::AbstractVector{<:Int}) = [[paridxs[j],paridxs[i]] for j in 1:length(paridxs)-1, i in 2:length(paridxs) if j < i]
+OrderedIndCombs3D(paridxs::AbstractVector{<:Int}) = [[paridxs[k],paridxs[j],paridxs[i]] for k in 1:length(paridxs)-2, j in 2:length(paridxs)-1, i in 3:length(paridxs) if k < j < i]
+
+# All dims in layout plot
+@recipe function f(R::MultistartResults, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=isfinite.(R.FinalObjectives))
+   Combos = OrderedIndCombs2D(1:pdim(R))
+   pdim(R) == 2 && return R, [1,2], V, FiniteInds
+   layout --> length(Combos)
+   for (i,inds) in enumerate(Combos)
+      @series begin
+         subplot := i
+         R, inds, V, FiniteInds
+      end
+   end
+end
+
+# kwargs: BiLog
+@recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : isfinite.(R.FinalObjectives)))
+   DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
+   @series begin
+      color --> :viridis
+      zcolor --> Trafo.(@view R.FinalObjectives[FiniteInds])
+      colorbar --> false
+      xlabel --> Pnames(R)[idxs[1]]
+      ylabel --> Pnames(R)[idxs[2]]
+      zlabel --> (length(idxs) ≥ 3 ? Pnames(R)[idxs[3]] : "")
+      label --> (DoBiLog ? "BiLog(" : "")* "Log-Likelihood" * (DoBiLog ? ")" : "")
+      legend --> false
+      (@view R.FinalPoints[FiniteInds]), idxs, V
+   end
+end
+
+@recipe function f(X::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}, ::Val{:SubspaceProjection})
+   @assert 1 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(R))
+   msw := 0
+   st := :scatter
+   map(ViewElements(idxs), X)
 end
