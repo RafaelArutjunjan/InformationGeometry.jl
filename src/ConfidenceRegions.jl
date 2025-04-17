@@ -1080,7 +1080,8 @@ end
     ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), kwargs...)
+function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), kwargs...)
+    @assert pdim(DM) > 2
     @assert Confnum > 0 && allunique(paridxs) && all(1 .≤ paridxs .≤ pdim(DM))
     Cube = LinearCuboid(DM, Confnum);    widths = CubeWidths(Cube);    Planes = Plane[]
     inds = Vector{Int}[]
@@ -1091,7 +1092,7 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractV
                 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))))
             push!(inds, [j,i])
         end
-    end    
+    end
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = [EmbeddedODESolution(sols[k], ViewElements(inds[k])∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)

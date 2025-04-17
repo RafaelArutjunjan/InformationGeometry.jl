@@ -13,7 +13,8 @@ function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
 end
 
 
-function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true)
+function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true,
+                        xnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, ynames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing)
     if xerrs
         (size(df,2) != 2xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
         Xcols = stripedXs ? (1:2:2xdims) : (1:xdims)
@@ -26,10 +27,10 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2
         Ycols = stripedYs ? ((xdims+1):2:(xdims + 2ydims)) : ((xdims+1):(xdims + ydims))
         Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
     end
-    xnames = names(df[:,Xcols]);    ynames = names(df[:,Ycols])
-    verbose && @info "Variable names inferred from DataFrame: xnames=$xnames, ynames=$ynames."
+    Xnames = isnothing(xnames) ? names(df[:,Xcols]) : xnames;    Ynames = isnothing(ynames) ? names(df[:,Ycols]) : ynames
+    verbose && (isnothing(xnames) || isnothing(ynames)) && @info "Variable names inferred from DataFrame: xnames=$Xnames, ynames=$Ynames."
     DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
-    InformNames(DSs, xnames, ynames)
+    InformNames(DSs, Xnames, Ynames)
 end
 
 function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::AbstractVector{<:Int}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
@@ -120,8 +121,9 @@ end
 
 
 CompositeDataSet(DS::AbstractDataSet; kwargs...) = CompositeDataSet([DS]; kwargs...)
-function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, kwargs...)
-    CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs=xerrs, stripedXs=stripedXs, stripedYs=stripedYs), kwargs...)
+function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, 
+                            xnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, ynames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, kwargs...)
+    CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs, stripedXs, stripedYs, xnames, ynames); kwargs...)
 end
 function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs...)
     CompositeDataSet(xdf, ydf, DataFrame(sig*ones(size(ydf)...), names(ydf).*"_σ"); kwargs...)
