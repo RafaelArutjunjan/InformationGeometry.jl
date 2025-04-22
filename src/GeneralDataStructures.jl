@@ -205,7 +205,7 @@ Christen(F::Function, name::StringOrSymb) = (@warn "Cannot add name to function,
 Christen(DM::AbstractDataModel, name::StringOrSymb) = remake(DM; name=Symbol(name))
 
 
-function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Val=Val(:ForwardDiff), Kwargs...)
     Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
     GradPass, JacPass = DerivableFunctionsBase._GetGradPass, DerivableFunctionsBase._GetJacPass
     ## Allow for symbolic passthrough here

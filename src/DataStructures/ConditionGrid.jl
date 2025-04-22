@@ -17,11 +17,10 @@ function _ExecuteParamTrafo(P::ParamTrafo, θ::AbstractVector{<:Number}, Cond::S
     @assert !isnothing(ind) "Unable to find condition $Cond in given ParamTrafo: $(P.ConditionNames)"
     P.Trafos[ind](θ)
 end
-# Should behave like AbstractVector{<:Function}?
-Base.getindex(P::ParamTrafo, i) = getindex(P.Trafos, i)
+
 # Forwarding:
-for F in [:length, :size, :firstindex, :lastindex, :keys, :values]
-    @eval Base.$F(P::ParamTrafo) = $F(P.Trafos)
+for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
+    @eval Base.$F(P::ParamTrafo, args...) = $F(P.Trafos, args...)
 end
 
 
@@ -39,7 +38,7 @@ Thus, this allows for easily connecting different datasets with distinct models 
 """
 struct ConditionGrid <: AbstractDataModel
     DMs::AbstractVector{<:AbstractDataModel}
-    Trafos::Union{AbstractVector{<:Function}, ParamTrafo}
+    Trafos::ParamTrafo
     LogPriorFn::Union{Function,Nothing}
     MLE::AbstractVector{<:Number}
     pnames::AbstractVector{Symbol}
@@ -49,18 +48,19 @@ struct ConditionGrid <: AbstractDataModel
     FisherMetricFn::Function
     LogLikeMLE::Number
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
-        Trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
+        trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
         LogPriorFn::Union{Function,Nothing}=nothing, 
-        mle::AbstractVector=reduce(vcat, MLE.(DMs)),
+        mle::AbstractVector=reduce(vcat, MLE.(DMs));
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
-        Name::Symbol=Symbol(),
-        LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafo(θ)) + EvalLogPrior(LogPriorFn, θ),
+        name::StringOrSymb=Symbol(),
+        Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)))),
+        LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         ScoreFn::Function=GetGrad(LogLikelihoodFn), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         FisherMetricFn::Function=GetHess(Negate(LogLikelihoodFn)), # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
-        LogLikeMLE::Number=LogLikelihoodFn(mle); name::StringOrSymb=Name, SkipOptim::Bool=false, kwargs...)
+        LogLikeMLE::Number=LogLikelihoodFn(mle), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
         # Check pnames correct?
         # Condition names already unique from ParamTrafo
-        @assert length(Trafo) == length(DMs)
+        @assert length(Trafos) == length(DMs)
         @assert allunique(InformationGeometry.name.(DMs))
 
         @warn "The condition grid functionality is still experimental, use with caution!"
@@ -72,7 +72,7 @@ struct ConditionGrid <: AbstractDataModel
             InformationGeometry.minimize(Negate(LogLikelihoodFn), mle; kwargs...)
         end            
 
-        new(DMs, (Trafo isa ParamTrafo ? Trafo : ParamTrafo(Trafo, Symbol.(InformationGeometry.name.(DMs)))), LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE)
+        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherMetricFn, LogLikeMLE)
     end
 end
 
@@ -92,8 +92,8 @@ LogLikeMLE::Number=-Inf, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE
 Base.getindex(CG::ConditionGrid, i) = getindex(CG.DMs, i)
 
 # Forwarding:
-for F in [:length, :size, :firstindex, :lastindex, :keys, :values]
-    @eval Base.$F(CG::ConditionGrid) = $F(CG.DMs)
+for F in [:length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
+    @eval Base.$F(CG::ConditionGrid, args...) = $F(CG.DMs, args...)
 end
 
 MLE(CG::ConditionGrid) = CG.MLE

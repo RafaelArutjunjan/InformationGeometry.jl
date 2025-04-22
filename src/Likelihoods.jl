@@ -27,7 +27,7 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
 
 # Specialize this for different DataSet types
 function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS)-EmbeddingMap(DS, model, θ; kwargs...)))
+    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
 function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; Kwargs...)

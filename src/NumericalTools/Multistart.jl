@@ -69,7 +69,7 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
-function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=isloaded(:Plots), 
+function MultistartFit(CostFunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=true, p::Real=2, timeout::Real=120, verbose::Bool=false, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
@@ -476,9 +476,13 @@ OrderedIndCombs3D(paridxs::AbstractVector{<:Int}) = [[paridxs[k],paridxs[j],pari
 
 # All dims in layout plot
 @recipe function f(R::MultistartResults, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
-   Combos = OrderedIndCombs2D(1:pdim(R))
+    R, OrderedIndCombs2D(1:pdim(R)), V, FiniteInds
+end
+@recipe function f(R::MultistartResults, Combos::AbstractVector{<:AbstractVector{<:Int}}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
+   @assert allunique(Combos) && 2 ≤ ConsistentElDims(Combos) ≤ 3
    pdim(R) == 2 && return R, [1,2], V, FiniteInds
    layout --> length(Combos)
+   size --> (1500,1500)
    for (i,inds) in enumerate(Combos)
       @series begin
          subplot := i
@@ -489,18 +493,16 @@ end
 
 # kwargs: BiLog
 @recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
-   DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
-   @series begin
-      color --> :viridis
-      zcolor --> Trafo.(@view R.FinalObjectives[FiniteInds])
-      colorbar --> false
-      xlabel --> Pnames(R)[idxs[1]]
-      ylabel --> Pnames(R)[idxs[2]]
-      zlabel --> (length(idxs) ≥ 3 ? Pnames(R)[idxs[3]] : "")
-      label --> (DoBiLog ? "BiLog(" : "")* "Log-Likelihood" * (DoBiLog ? ")" : "")
-      legend --> false
-      (@view R.FinalPoints[FiniteInds]), idxs, V
-   end
+    DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
+    color --> :viridis
+    zcolor --> Trafo.(@view R.FinalObjectives[FiniteInds])
+    colorbar --> false
+    xlabel --> Pnames(R)[idxs[1]]
+    ylabel --> Pnames(R)[idxs[2]]
+    zlabel --> (length(idxs) ≥ 3 ? Pnames(R)[idxs[3]] : "")
+    label --> (DoBiLog ? "BiLog(" : "")* "Log-Likelihood" * (DoBiLog ? ")" : "")
+    legend --> false
+    (@view R.FinalPoints[FiniteInds]), idxs, V
 end
 
 @recipe function f(X::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}, ::Val{:SubspaceProjection})
