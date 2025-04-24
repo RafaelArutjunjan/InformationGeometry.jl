@@ -272,7 +272,11 @@ function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); 
 end
 
 
-RecipesBase.@recipe f(R::MultistartResults, S::Symbol=(isnothing(R.Meta) ? :Waterfall : :SubspaceProjection)) = R, Val(S)
+# RecipesBase.@recipe f(R::MultistartResults, S::Symbol=(isnothing(R.Meta) ? :Waterfall : :SubspaceProjection)) = R, Val(S)
+function RecipesBase.plot(R::MultistartResults, S::Symbol=(isnothing(R.Meta) ? :Waterfall : :StochasticProfile), args...; kwargs...)
+    S === :StochasticProfile && return StochasticProfileLikelihoodPlot(R, args...; kwargs...)
+    RecipesBase.plot(R, Val(S), args...; kwargs...)
+end
 # kwargs BiLog, StepTol, MaxValue, MaxInd, ColorIterations
 RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     DoBiLog = get(plotattributes, :BiLog, true)
@@ -435,7 +439,7 @@ StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Me
 # Collective
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),4,100), DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity), 
                                 pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, kwargs...)
-    P = [StochasticProfileLikelihoodPlot(Points, Trafo.(Likelihoods), i; nbins, DoBiLog, xlabel=string(pnames[i]), legend) for i in eachindex(pnames)]
+    P = [StochasticProfileLikelihoodPlot(Points, Likelihoods, i; nbins, DoBiLog, xlabel=string(pnames[i]), legend) for i in eachindex(pnames)]
     AddedPlots = []
     push!(AddedPlots, RecipesBase.plot(1:length(Likelihoods), -Trafo.(Likelihoods); xlabel="Run index (sorted)", ylabel=(DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : ""), label="Waterfall", legend))
     if length(pnames) ≤ 3
@@ -492,8 +496,9 @@ end
 end
 
 # kwargs: BiLog
-@recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)])))
-    DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
+@recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)]));
+                DoBiLog=true, Trafo=(DoBiLog ? BiLog : identity))
+    # DoBiLog = get(plotattributes, :BiLog, true);    Trafo = DoBiLog ? BiLog : identity
     color --> :viridis
     zcolor --> Trafo.(@view R.FinalObjectives[FiniteInds])
     colorbar --> false
