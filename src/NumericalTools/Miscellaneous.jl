@@ -196,12 +196,12 @@ BiLog(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x)
     BiExp(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number
 Computes bi-symmetric exponential, which is the inverse transformation to [`BiLog`](@ref)
 ```math
-BiExp(x) = \\sgn(x) \\cdot 1/|C| \\cdot (\\exp(|x|) - 1)
+BiExp(x) = \\sgn(x) \\cdot 1/C \\cdot (\\exp(|x|) - 1)
 ```
 similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
 The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exponential has slope `1/C`.
 """
-BiExp(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * inv(abs(C)) * (exp(abs(x)) - one(T))
+BiExp(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * inv(C) * (exp(abs(x)) - one(T))
 
 """
     BiRoot(x::Union{T, AbstractVector{T}}, m::Real=2.0; C::Real=one(T)) where T<:Number
@@ -216,11 +216,11 @@ BiRoot(x::Union{T, AbstractArray{T}}, m::Real=2.0; C::Real=one(T)) where T<:Numb
     BiPower(x::Union{T, AbstractVector{T}}, m::Real=2.0; C::Real=one(T)) where T<:Number
 Computes bi-symmetric `m`-th power, which is the inverse transformation to [`BiRoot`](@ref) in such a way that the slope of [`BiPower`](@ref) is `1/C` at the origin (i.e. the slope of the original [`BiRoot`](@ref) is `C`):
 ```math
-BiPower_m(x) = \\sgn(x) \\cdot (m |C|)^{-1} \\cdot ((1 + |x|)^m - 1)
+BiPower_m(x) = \\sgn(x) \\cdot (m C)^{-1} \\cdot ((1 + |x|)^m - 1)
 ```
 The bi-symmetric root and power are inspired by the bi-symmetric logarithm in https://doi.org/10.1088/0957-0233/24/2/027001
 """
-BiPower(x::Union{T, AbstractArray{T}}, m::Real=2.0; C::Real=one(T)) where T<:Number = @. Sgn(x) * inv(m * abs(C)) * (exp(m * log1p(abs(x))) - one(T))
+BiPower(x::Union{T, AbstractArray{T}}, m::Real=2.0; C::Real=one(T)) where T<:Number = @. Sgn(x) * inv(m * C) * (exp(m * log1p(abs(x))) - one(T))
 
 
 """
