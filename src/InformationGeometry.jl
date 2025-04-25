@@ -193,7 +193,7 @@ export ConditionGrid
 
 
 include("NumericalTools/Miscellaneous.jl")
-export BiLog, BiExp, SoftAbs, SoftLog
+export BiLog, BiExp, BiRoot, BiPower, SoftAbs, SoftLog
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")

@@ -125,7 +125,7 @@ Data(CG::ConditionGrid) = nothing
 
 
 GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
-MultistartFit(CG::ConditionGrid; maxval::Real=1e2, Domain::HyperCube=(@info "Using naively constructed Domain for Multistart."; reduce(vcat, [GetDomainSafe(DM; maxval) for DM in CG.DMs])), kwargs...) = MultistartFit(CG, Domain; Domain, maxval, kwargs...)
+MultistartFit(CG::ConditionGrid; maxval::Real=1e2, Domain::HyperCube=(@warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"; reduce(vcat, [GetDomainSafe(DM; maxval) for DM in CG.DMs])), kwargs...) = MultistartFit(CG, Domain; Domain, maxval, kwargs...)
 
 
 ## Prediction Functions
