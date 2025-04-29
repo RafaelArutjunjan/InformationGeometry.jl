@@ -114,7 +114,7 @@ function ConstrainMeth(meth::Optim.AbstractOptimizer, Domain::HyperCube; verbose
     elseif meth isa Union{NelderMead, BFGS, LBFGS, GradientDescent, ConjugateGradient}
         Fminbox(meth)
     elseif meth isa Optim.SecondOrderOptimizer # meth isa Optim.Newton || meth isa Optim.NewtonTrustRegion
-        verbose && @warn "$(nameof(typeof(meth)))() does not support constrained optimization, switching to IPNewton()."
+        verbose && @warn "$(nameof(typeof(meth)))() does not support constrained optimization, switching to IPNewton()." maxlog=5
         IPNewton()
     else
         verbose && @warn "$(nameof(typeof(meth)))() currently does not support constrained optimization, ignoring given domain boundaries and continuing."
@@ -274,13 +274,13 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
 
     sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
-        verbose && @warn "minimize(): Optimization appears to not have converged."
+        verbose && @warn "minimize(): Optimization appears to not have converged." maxlog=5
         if retry
-            verbose && @warn "minimize(): Try to continue with NelderMead()."
+            verbose && @warn "minimize(): Try to continue with $retrymeth."
             prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
             sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
-                verbose && @warn "minimize(): Repeated Optimization with NelderMead() appears to not have converged, too."
+                verbose && @warn "minimize(): Repeated Optimization with $retrymeth appears to not have converged, too."
             end
         end
     end;    Full ? sol : sol.u
