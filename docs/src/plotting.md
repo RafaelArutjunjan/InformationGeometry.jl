@@ -28,6 +28,9 @@ In the literature, these are often instead referred to as "prediction bands" ins
 
 The linearized confidence and validation bands are computed via the [`VariancePropagation`](@ref) and [`ValidationPropagation`](@ref) methods respectively.
 
+!!! note
+    Validation Propagation experimental and not reliable, for more exact results, compute actual [`ValidationProfiles`](@ref).
+
 For `DataModel`s or simply datasets which have multiple different components (i.e. `ydim > 1`), the `Symbol` `:Individual` may be appended as the last argument to split the components into separate plots:
 ```@example Plotting
 DS122 = DataSet([1,2,3],[2,1,4,2,6.8,3.5],[0.5,0.5,0.45,0.45,0.55,0.6], (3,1,2))

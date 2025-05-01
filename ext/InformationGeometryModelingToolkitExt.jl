@@ -37,12 +37,15 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     
     Model = if sys isa ModelingToolkit.AbstractODESystem
-        odefunc = ODEFunction{inplace}(structural_simplify(sys); jac = true)
+        odefunc = ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : structural_simplify(sys)); jac = true)
         GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
     end
-    !isnothing(Domain) && (@assert length(pnames) ≤ length(Domain))
+    if !isnothing(Domain) && (length(pnames) != length(Domain))
+        @warn "Dimensionality of given Domain HyperCube inconsistent with given number of parameter names. Dropping given names and using default parameter names."
+        pnames = CreateSymbolNames(length(Domain), "θ")
+    end
     ylen = if observables isa Function      # ObservationFunction
         # Might still fail if states u are a Matrix.
         argnum = MaximalNumberOfArguments(observables)
@@ -67,7 +70,7 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     xyp = (1, ylen, plen)
     Domain = isnothing(Domain) ? FullDomain(xyp[3], 1e5) : Domain
 
-    pnames = length(pnames) == length(Domain) ? pnames : CreateSymbolNames(plen, "θ")
+    length(pnames) != plen && (pnames = CreateSymbolNames(plen, "θ"))
     # new(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding)
     ModelMap(Model.Map, InDomain, Domain, xyp, pnames, Val(false), Val(true), name, (Model.Meta isa Tuple ? (sys, (Model.Meta[2:end])...) : Model.Meta))
 end

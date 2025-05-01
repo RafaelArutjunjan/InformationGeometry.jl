@@ -77,6 +77,12 @@ ParameterPlot(R; st=:dotplot)
 ```
 Seeing a spread in the `ParameterPlot` for the parameter configurations of the lowest "step" is already an indication that some parameter may be non-identifiable.
 
+Exemplary parameter configurations from the `n`-th step in a Waterfall plot can be conviently retrieved via `GetStepParameters(R, n)` for plotting and other analyses.
+For instance, to compare the fit corresponding to the local optimum constituted by the second step:
+```@example Multistart
+plot(DM, GetStepParameters(R, 2))
+```
+
 
 ```@docs
 InformationGeometry.minimize
