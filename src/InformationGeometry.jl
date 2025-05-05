@@ -117,6 +117,10 @@ const BoolArray = Union{BitArray,AbstractArray{<:Bool}}
 const BoolVector = Union{BitVector,AbstractVector{<:Bool}}
 const StringOrSymb = Union{Symbol, <:AbstractString}
 
+function BiLog end
+function BiExp end
+function BiRoot end
+function BiPower end
 
 include("Subspaces.jl")
 export Plane
@@ -132,13 +136,10 @@ include("ModelMaps.jl")
 export ModelMap, ModelOrFunction, InformNames, IsInDomain
 # Parameter Space transforms
 export ComponentwiseModelTransform
-export LogTransform, Log10Transform, ExpTransform, Exp10Transform, ScaleTransform
-export TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
+export ScaleTransform, TranslationTransform, LinearTransform, AffineTransform, LinearDecorrelation
 export EmbedModelVia, ModelEmbedding
 # Input and Output Transforms
 export TransformXdata, TransformYdata
-export LogXdata, Log10Xdata, ExpXdata, Exp10Xdata, SqrtXdata
-export LogYdata, Log10Ydata, ExpYdata, Exp10Ydata, SqrtYdata
 
 
 include("PredefinedModels.jl")

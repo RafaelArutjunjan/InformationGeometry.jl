@@ -361,18 +361,21 @@ function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverse
     DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); kwargs...)
 end
 
+for (Name, F, Finv, TrafoName) in [(:LogTransform, :log, :exp, :log),
+                                (:Log10Transform, :log10, :exp10, :log10),
+                                (:ExpTransform, :exp, :log, :exp),
+                                (:Exp10Transform, :exp10, :log10, :exp10),
+                                (:BiLogTransform, :BiLog, :BiExp, :BiLog),
+                                (:BiExpTransform, :BiExp, :BiLog, :BiExp),
+                                (:BiRootTransform, :BiRoot, :BiPower, :BiRoot),
+                                (:BiPowerTransform, :BiPower, :BiRoot, :BiPower),]
+    @eval begin
+        $Name(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, $F, $Finv)
+        $Name(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, $F, $Finv, idxs; kwargs...)
+        export $Name
+    end
+end
 
-LogTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, log, exp)
-LogTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, log, exp, idxs; kwargs...)
-
-ExpTransform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, exp, log)
-ExpTransform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, exp, log, idxs; kwargs...)
-
-Log10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, log10, exp10)
-Log10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, log10, exp10, idxs; kwargs...)
-
-Exp10Transform(M::ModelOrFunction, idxs::BoolVector=(M isa ModelMap ? trues(M.xyp[3]) : trues(GetArgSize(M)[2]))) = ComponentwiseModelTransform(M, idxs, exp10, log10)
-Exp10Transform(DM::AbstractDataModel, idxs::BoolVector=trues(pdim(DM)); kwargs...) = ComponentwiseModelTransform(DM, exp10, log10, idxs; kwargs...)
 
 @deprecate Power10Transform(args...; kwargs...) Exp10Transform(args...; kwargs...)
 
@@ -518,7 +521,11 @@ for (Name, F, Finv, TrafoName) in [(:LogXdata, :log, :exp, :log),
                                 (:Log10Xdata, :log10, :exp10, :log10),
                                 (:ExpXdata, :exp, :log, :exp),
                                 (:Exp10Xdata, :exp10, :log10, :exp10),
-                                (:SqrtXdata, :sqrt, :(x->x^2), :sqrt)]
+                                (:SqrtXdata, :sqrt, :(x->x^2), :sqrt),
+                                (:BiLogXdata, :BiLog, :BiExp, :BiLog),
+                                (:BiExpXdata, :BiExp, :BiLog, :BiExp),
+                                (:BiRootXdata, :BiRoot, :BiPower, :BiRoot),
+                                (:BiPowerXdata, :BiPower, :BiRoot, :BiPower),]
     @eval begin
         """
             $($Name)(DM::AbstractDataModel) -> AbstractDataModel
@@ -582,10 +589,14 @@ end
 
 
 for (Name, F, TrafoName) in [(:LogYdata, :log, :log),
-                                (:Log10Ydata, :log10, :log10),
-                                (:ExpYdata, :exp, :exp),
-                                (:Exp10Ydata, :exp10, :exp10),
-                                (:SqrtYdata, :sqrt, :sqrt)]
+                            (:Log10Ydata, :log10, :log10),
+                            (:ExpYdata, :exp, :exp),
+                            (:Exp10Ydata, :exp10, :exp10),
+                            (:SqrtYdata, :sqrt, :sqrt),
+                            (:BiLogYdata, :BiLog, :BiLog),
+                            (:BiExpYdata, :BiExp, :BiExp),
+                            (:BiRootYdata, :BiRoot, :BiRoot),
+                            (:BiPowerYdata, :BiPower, :BiPower),]
     @eval begin
         """
             $($Name)(DM::AbstractDataModel) -> AbstractDataModel
