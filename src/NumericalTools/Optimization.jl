@@ -310,23 +310,33 @@ function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStar
     end
 end
 
-function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Lifted::Bool=false, Domain::Union{HyperCube,Nothing}=GetDomain(DM), meth=missing, kwargs...)
-    F = (Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)
-    # Get constraint function and Hypercube from ModelMap if available?
-    Lcons, Ucons, Cons = GetConstraintFunc(DM, start; inplace=true) # isinplacemodel(DM)
+function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(DM), meth=missing, ADmode::Val=Val(:ForwardDiff), 
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)), 
+                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(UseGrad ? GetGrad!(ADmode, CostFunction) : nothing), # (UseGrad ? ((Lifted && HasXerror(DM)) ? GetGrad!(ADmode,FullLiftedNegLogLikelihood(DM)) : NegScore(DM)) : nothing), 
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(UseHess ? GetHess!(ADmode, CostFunction) : nothing), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
+    # Get constraint function and Hypercube from ModelMap if available?
+    Lcons, Ucons, Cons = GetConstraintFunc(DM, start; inplace=true) # isinplacemodel(DM)
     !Lifted && isnothing(meth) && isnothing(LogPrior(DM)) && isnothing(Cons) && (return curve_fit(DM, start, LogPrior(DM); Domain, kwargs...))
+
+    F = isnothing(CostGradient) ? (CostFunction, ) : (isnothing(CostHessian) ? (CostFunction, CostGradient) : (CostFunction, CostGradient, CostHessian))
     isnothing(Cons) ? minimize(F, start, Domain; PassMeth..., kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, PassMeth..., kwargs...)
 end
 
 # If DM not constructed yet
-function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Lifted::Bool=false, Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, kwargs...)
-    F = (Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
-    Lcons, Ucons, Cons = GetConstraintFunc(Model, start; inplace=true) # isinplacemodel(DM)
+function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, ADmode::Val=Val(:ForwardDiff), 
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))), 
+                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(UseGrad ? GetGrad!(ADmode, CostFunction) : nothing), 
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(UseHess ? GetHess!(ADmode, CostFunction) : nothing), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
+    Lcons, Ucons, Cons = GetConstraintFunc(Model, start; inplace=true) # isinplacemodel(DM)
     !Lifted && isnothing(meth) && isnothing(LogPriorFn) && isnothing(Cons) && (return curve_fit(DS, Model, start, LogPriorFn; Domain, kwargs...))
+    
+    F = isnothing(CostGradient) ? (CostFunction, ) : (isnothing(CostHessian) ? (CostFunction, CostGradient) : (CostFunction, CostGradient, CostHessian))
+    # F = (Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
+    # ∇F = (Lifted && HasXerror(DS)) ? GetGrad(ADmode,FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start))) : GetGrad(ADmode,(θ->-loglikelihood(DS,Model,θ,LogPriorFn)))
     isnothing(Cons) ? minimize(F, start, Domain; PassMeth..., kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, PassMeth..., kwargs...)
 end
 
