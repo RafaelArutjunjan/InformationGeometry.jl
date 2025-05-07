@@ -383,3 +383,25 @@ struct ViewElements{Inds} <: Function
     ViewElements(Inds) = X::AbstractArray{<:Number}->view(X, Inds)
 end
 (V::ViewElements)(args...; kwargs...) = V.F(args...; kwargs...)
+
+
+
+function MergeOneArgMethods(::Nothing, Inplace!::Function, args...; OutIn::Tuple=DerivableFunctionsBase._GetArgLengthInPlace(Inplace!), J=nothing, kwargs...)
+    FakeOutOfPlace(x::AbstractVector{T}) where T<:Number = (X = !isnothing(J) ? J : (rand(T, OutIn[1]...));   Inplace!(X,x);   X)
+    MergeOneArgMethods(FakeOutOfPlace, Inplace!, args...; kwargs...)
+ end
+ function MergeOneArgMethods(OutOfPlace::Function, ::Nothing, args...; kwargs...)
+    FakeInplace!(J::AbstractArray, x::AbstractVector) = copyto!(J, OutOfPlace(x))
+    MergeOneArgMethods(OutOfPlace, FakeInplace!, args...; kwargs...)
+ end
+ """
+    MergeOneArgMethods(OutOfPlace::Union{Nothing,Function}, Inplace!::Union{Nothing,Function}; J=nothing)
+ Merges the `OutOfPlace` and `Inplace!` methods under a single `Function` so that `OutOfPlace(x)` is called whenever only a single arg is given and `Inplace!(J,x)`
+ is used whenever the function is called with two arguments.
+ 
+ If `nothing` is given for either function, an appropriate method is generated.
+ """
+ function MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function)
+    OverloadedMethod(x::AbstractVector; kwargs...) = OutOfPlace(x; kwargs...)
+    OverloadedMethod(J::AbstractArray, x::AbstractVector; kwargs...) = Inplace!(J,x; kwargs...)
+ end

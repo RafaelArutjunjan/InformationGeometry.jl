@@ -604,6 +604,12 @@ end
     k = rand(1:20);     r = 10rand()
     @test InvChisqCDF(k,Float64(ChisqCDF(k,r))) ≈ r
     @test abs(InvChisqCDF(k,ChisqCDF(k,BigFloat(r)); tol=1e-20) - r) < 1e-18
+
+    F = InformationGeometry.MergeOneArgMethods(nothing, (A::AbstractMatrix, x::AbstractVector)->(A[1:3,1] = x))
+    G = InformationGeometry.MergeOneArgMethods(x->2.0*x, nothing)
+    X = rand(3);   J = rand(3)
+    @test all(F(X) .== X)
+    @test (G(J,X);    J == 2X)
 end
 
 

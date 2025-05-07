@@ -899,6 +899,8 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
             line --> :dash
             label --> "True value"
             ylims --> Ylims
+            xlabel --> pnames(P)[i]
+            ylabel --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
             @view trueparams[i:i]
         end
     end
