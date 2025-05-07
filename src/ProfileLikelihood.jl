@@ -878,7 +878,31 @@ end
     end
 end
 
-PlotProfileTrajectories(P::ParameterProfiles; kwargs...) = RecipesBase.plot(P, Val(:PlotParameterTrajectories); kwargs...)
+PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.plot(P, args..., Val(:PlotParameterTrajectories); kwargs...)
+
+
+@recipe function f(P::ParameterProfiles, trueparams::AbstractVector, ::Val{false}=Val(false))
+    @assert length(trueparams) == length(Profiles(P))
+    layout --> length(Profiles(P))
+    tol = 0.05
+    maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
+    maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
+    Ylims = get(plotattributes, :ylims, (-tol, maxy))
+    @series begin
+        ylims --> Ylims
+        P
+    end
+    for i in eachindex(trueparams)
+        @series begin
+            subplot := i
+            st := :vline
+            line --> :dash
+            label --> "True value"
+            ylims --> Ylims
+            @view trueparams[i:i]
+        end
+    end
+end
 
 
 # BiLog kwarg for rescaling plotted trajectories
