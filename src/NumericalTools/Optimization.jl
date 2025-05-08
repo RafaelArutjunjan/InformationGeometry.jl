@@ -189,6 +189,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
     Cmeth = ConstrainMeth(meth, Domain; verbose=verbose)
     Res = if Cmeth isa Optim.AbstractConstrainedOptimizer
         start ∉ Domain && @warn "Given starting value $start not in specified domain $Domain."
+        # Implement nonlinear constraints with lcons, ucons and in-place or out-of-place cons
         if length(Fs) == 1
             @assert !isnothing(lb) && !isnothing(ub)
             Optim.optimize(Fs[1], lb, ub, floatify(start), Cmeth, options; kwargs...)
@@ -311,9 +312,9 @@ function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStar
 end
 
 function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(DM), meth=missing, ADmode::Val=Val(:ForwardDiff), 
-                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)), 
-                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(UseGrad ? GetGrad!(ADmode, CostFunction) : nothing), # (UseGrad ? ((Lifted && HasXerror(DM)) ? GetGrad!(ADmode,FullLiftedNegLogLikelihood(DM)) : NegScore(DM)) : nothing), 
-                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(UseHess ? GetHess!(ADmode, CostFunction) : nothing), kwargs...)
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)), GenerateNewDerivatives::Bool=Lifted,
+                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : (!GenerateNewDerivatives ? NegScore(DM) : GetGrad!(ADmode, CostFunction))), 
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : (!GenerateNewDerivatives ? FisherMetric(DM) : GetHess!(ADmode, CostFunction))), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
     # Get constraint function and Hypercube from ModelMap if available?
@@ -326,9 +327,9 @@ end
 
 # If DM not constructed yet
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, ADmode::Val=Val(:ForwardDiff), 
-                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))), 
-                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(UseGrad ? GetGrad!(ADmode, CostFunction) : nothing), 
-                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(UseHess ? GetHess!(ADmode, CostFunction) : nothing), kwargs...)
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : Negate(GetLogLikelihoodFn(DS,Model,LogPriorFn))), GenerateNewDerivatives::Bool=Lifted,
+                    UseGrad::Bool=false, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : GetGrad!(ADmode, CostFunction)), 
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : GetHess!(ADmode, CostFunction)), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
     Lcons, Ucons, Cons = GetConstraintFunc(Model, start; inplace=true) # isinplacemodel(DM)

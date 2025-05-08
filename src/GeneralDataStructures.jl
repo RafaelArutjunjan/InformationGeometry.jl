@@ -424,3 +424,10 @@ Base.sort(DS::AbstractDataSet; rev::Bool=false, kwargs...) = (@assert xdim(DS)==
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))
+
+
+"""
+    Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); kwargs...)
+Refits `DM` via `InformationGeometry.minimize` and returns result as new `DataModel`.
+"""
+Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); kwargs...) = (X=InformationGeometry.minimize(DM, startp; kwargs...);    remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X)))

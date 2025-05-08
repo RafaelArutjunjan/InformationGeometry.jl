@@ -4,6 +4,18 @@ macro CSI_str(str)
     return :(string("\x1b[", $(esc(str)), "m"))
 end
 
+# Adapted from: https://discourse.julialang.org/t/simple-timeout-of-function/99578/2
+macro timeout(seconds, expr)
+    quote
+        tsk = @task $expr
+        schedule(tsk)
+        Timer($seconds) do timer
+            istaskdone(tsk) || Base.throwto(tsk, InterruptException())
+        end
+        try fetch(tsk) catch; end
+    end
+end
+
 
 const ORANGE_COLOR = CSI"38;5;208"
 # ANSI Format: 38;2;R;G;B
@@ -154,7 +166,8 @@ function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
     println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
     isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
     Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
-    try ParamSummary(io, DM) catch; end
+    # Discard generation of ParamSummary after 10 seconds
+    @timeout 10 ParamSummary(io, DM)
 end
 
 # Single line display

@@ -403,5 +403,7 @@ function MergeOneArgMethods(::Nothing, Inplace!::Function, args...; OutIn::Tuple
  """
  function MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function)
     OverloadedMethod(x::AbstractVector; kwargs...) = OutOfPlace(x; kwargs...)
-    OverloadedMethod(J::AbstractArray, x::AbstractVector; kwargs...) = Inplace!(J,x; kwargs...)
+    OverloadedMethod(J::AbstractArray, x::AbstractVector; kwargs...) = Inplace!(J, x; kwargs...)
+    # Allow for splitting tuples generated in composition with ∘
+    OverloadedMethod(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = OverloadedMethod(Tup[1], Tup[2]; kwargs...)
  end

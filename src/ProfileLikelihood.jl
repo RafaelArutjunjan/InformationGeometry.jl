@@ -59,6 +59,17 @@ function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]) where
     ValInsertionEmbedding(P::AbstractVector{<:Num}) = @views [P[1:Component-1]; Value; P[Component:end]]
 end
 
+ValInserterTransform(X::Union{<:Int,<:AbstractVector{<:Int}}, args...; kwargs...) = ValInserterTransform(ValInserter(X, args...; kwargs...))
+ValInserterTransform(Ins::Function) = WrappedComposition(Ins)
+## Allows composition for functions which mutate the first results and only accept one other argument
+function WrappedComposition(Ins::Function)
+    function WrapFunction(F::Function)
+        WrappedFunction(x; kwargs...) = F(Ins(x); kwargs...)
+        WrappedFunction(J, x, args...; kwargs...) = F(J, Ins(x), args...; kwargs...)
+    end
+end
+
+
 """
     ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}) -> Function
 Returns an embedding function which inserts `Values` in the specified `Components`.
@@ -263,7 +274,8 @@ end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
-                        LogLikelihoodFn::Function=loglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
+                        LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=false, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
+                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth,
@@ -344,7 +356,6 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
             # Build objective function based on Neglikelihood only without touching internals
-            CostFunction = Negate(LogLikelihoodFn)
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 Ins = ValInserter(Comp, p, mle)
                 L = CostFunction∘Ins
@@ -1087,7 +1098,7 @@ end
     for j in ToPlotInds
         @series begin
             color --> palette(color_palette)[(((2+j) % 15) +1)]
-            label --> "Comp $j"
+            label --> pnames(PV.P)[j]
             lw --> 1.5
             Change = if RelChange && !any(MLE(PV) .== 0)
                 getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
