@@ -20,8 +20,8 @@ Negloglikelihood(DM::AbstractDataModel; kwargs...) = Negate(loglikelihood(DM; kw
 Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
 """
 loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = loglikelihood(DM)(θ; kwargs...)
-# loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = (@warn "Will deprecate this loglikelihood method soon!";   loglikelihood(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...))
-loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = throw("Here's a stackstrace for you!")
+loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = (@warn "Will deprecate this loglikelihood method soon!";   loglikelihood(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...))
+# loglikelihood(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = throw("Here's a stackstrace for you!")
 
 loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _loglikelihood(DS, model, θ; kwargs...)
 loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _loglikelihood(DS, model, θ; kwargs...) + EvalLogPrior(LogPriorFn, θ)
