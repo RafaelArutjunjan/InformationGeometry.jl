@@ -50,7 +50,7 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<
     newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
     dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
-    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle), PlanarLogPrior), PlanarLogPrior, true)
+    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle)), PlanarLogPrior, true)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32

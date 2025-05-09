@@ -142,7 +142,7 @@ Other choices of `ADmode` directly compute the Score by differentiating the form
 function OrthVF(DM::AbstractDataModel, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
     length(θ) < 2 && throw(ArgumentError("dim(Parameter Space) < 2  --> No orthogonal VF possible."))
     # completely non-allocating version
-    S = -Score(DM, θ; ADmode=ADmode, kwargs...);    P = prod(S)
+    S = -Score(DM, θ; kwargs...);    P = prod(S)
     normalize(alpha .* P ./ S)
     # alpha .*= P;    alpha ./= S;    normalize!(alpha);    alpha
 end
@@ -168,7 +168,7 @@ Calculates a direction (in parameter space) in which the value of the log-likeli
 Other choices of `ADmode` directly compute the Score by differentiating the formula the log-likelihood, i.e. only one evaluation on a dual variable is performed.
 """
 function OrthVF!(du::AbstractVector, DM::AbstractDataModel, θ::AbstractVector; alpha::AbstractVector=GetAlpha(length(θ)), ADmode::Val=Val(:ForwardDiff), kwargs...)
-    _turn!(du, -Score(DM, θ; ADmode=ADmode, kwargs...), alpha)
+    _turn!(du, -Score(DM, θ; kwargs...), alpha)
 end
 
 # Method for general functions F
@@ -397,9 +397,10 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     @assert length(u0) == 2
     promote && !mfd && (u0 = PromoteStatic(u0, true))
     PlanarLogPrior = EmbedLogPrior(DM, PL)
-    LogLikeOnBoundary = loglikelihood(DM, PlaneCoordinates(PL,u0), PlanarLogPrior)
+    PlanarLogLike = loglikelihood(DM)∘PlaneCoordinates(PL)
+    LogLikeOnBoundary = PlanarLogLike(u0)
     IntCurveODE!(du,u,p,t)  =  (copyto!(du, 0.1 .* OrthVF(DM, PL, u, PlanarLogPrior; ADmode=ADmode)))
-    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - loglikelihood(DM, PlaneCoordinates(PL,u), PlanarLogPrior)
+    g!(resid,u,p,t)  =  resid[1] = LogLikeOnBoundary - PlanarLogLike(u)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, PL),terminate!)) : CB
@@ -619,7 +620,7 @@ end
 
 # Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
 
-FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM, θ; kwargs...)
+# FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM)(θ; kwargs...)
 
 """
     FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
@@ -628,7 +629,8 @@ Computes the Fisher metric ``g`` given a `DataModel` and a parameter configurati
 g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
 ```
 """
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...) = FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM)(θ; kwargs...)
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = (@warn "Will deprecate this FisherMetric method soon!";   FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...))
 
 FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _FisherMetric(DS, model, dmodel, θ; kwargs...)
 # ADD MINUS SIGN FOR LogPrior TERM TO ACCOUNT FOR NEGATIVE SIGN IN DEFINTION OF FISHER METRIC

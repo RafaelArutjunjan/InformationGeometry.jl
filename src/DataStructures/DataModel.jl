@@ -105,24 +105,8 @@ struct DataModel <: AbstractDataModel
     end
 end
 
-function OutOfPlaceOverload(F::Function, startp::AbstractVector)
-    if MaximalNumberOfArguments(F) == 2
 
-    else
-        @warn "Got function allowing $(MaximalNumberOfArguments(F)) arguments, expected 2."
-    end
-end
-function InplaceOverload(F::Function, startp::AbstractVector)
-    if MaximalNumberOfArguments(F) == 2
-        F
-    elseif MaximalNumberOfArguments(F) == 1
-        InplaceOverloading!(X; kwargs...) = F(X; kwargs...)
-        InplaceOverloading!(Y, X; kwargs...) = copyto!(Y, F(X; kwargs...))
-    else
-        @warn "Got function allowing $(MaximalNumberOfArguments(F)) arguments, expected 1."
-        F
-    end
-end
+
 
 function TestDataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, MLE::AbstractVector{<:Number}, LogLikeMLE::Real, LogPriorFn::Union{Function,Nothing},
                                     LogLikelihoodFn::Function, ScoreFn::Function, FisherInfoFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff))
@@ -164,9 +148,9 @@ Predictor(DM::DataModel) = DM.model
 dPredictor(DM::DataModel) = DM.dmodel
 LogPrior(DM::DataModel) = DM.LogPrior
 LogPrior(DM::DataModel, θ::AbstractVector{<:Number}) = EvalLogPrior(LogPrior(DM), θ)
-# loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
-# Score(DM::DataModel) = DM.ScoreFn
-# FisherMetric(DM::DataModel) = DM.FisherInfoFn
+loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
+Score(DM::DataModel) = DM.ScoreFn
+FisherMetric(DM::DataModel) = DM.FisherInfoFn
 
 """
     MLE(DM::DataModel) -> Vector
