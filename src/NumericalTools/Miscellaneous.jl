@@ -55,7 +55,7 @@ negate!(x::Union{T, AbstractArray{T}}) where T<:Number = (x .*= -one(T))
 negate(x::Union{T, AbstractArray{T}}) where T<:Number = -x
 Negate(F::Function) = negate∘F
 Negate!!(F!::Function) = (x, args...; kwargs...) -> (F!(x, args...; kwargs...);     negate!(x))
-
+NegateBoth(F::Function) = MergeOneArgMethods(Negate(F), Negate!!(F))
 
 function GetMethod(tol::Real)
     if tol > 1e-8

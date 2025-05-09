@@ -167,7 +167,8 @@ function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
     isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
     Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
     # Discard generation of ParamSummary after 10 seconds
-    @timeout 10 ParamSummary(io, DM)
+    # @timeout 10 ParamSummary(io, DM)
+    try ParamSummary(io, DM) catch; end
 end
 
 # Single line display
