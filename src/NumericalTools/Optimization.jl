@@ -173,7 +173,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
                 g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
-                store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, autodiff=:forward,
+                store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, 
                 retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...) where T <: Number
     @assert !retry || !isnothing(retrymeth)
     @assert 1 ≤ length(Fs) ≤ 3
@@ -192,20 +192,20 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
         # Implement nonlinear constraints with lcons, ucons and in-place or out-of-place cons
         if length(Fs) == 1
             @assert !isnothing(lb) && !isnothing(ub)
-            Optim.optimize(Fs[1], lb, ub, floatify(start), Cmeth, options; autodiff, kwargs...)
+            Optim.optimize(Fs[1], lb, ub, floatify(start), Cmeth, options; kwargs...)
         else
             if Cmeth isa Fminbox
                 # Optim.optimize only accepts inplace kwarg for Fminbox
-                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; inplace, autodiff, kwargs...)
+                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; inplace, kwargs...)
             else
-                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; autodiff, kwargs...)
+                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; kwargs...)
             end
         end
     else
         if length(Fs) == 1
-            Optim.optimize(Fs[1], floatify(start), Cmeth, options; autodiff, kwargs...)
+            Optim.optimize(Fs[1], floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace, autodiff, kwargs...)
+            Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace, kwargs...)
         end
     end
     if !Optim.converged(Res) 
@@ -213,7 +213,7 @@ function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, 
         if retry
             Res = InformationGeometry.minimize(Fs, Optim.minimizer(Res), retrymeth; Domain, Fthresh, tol, Full=true, verbose, maxtime, time_limit,
                 cons, lcons, ucons, lb, ub, g_tol, x_tol, f_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, maxiters, iterations, callback, f_calls_limit, allow_f_increases, 
-                store_trace, show_trace, extended_trace, show_every, retry=false, autodiff, kwargs...)
+                store_trace, show_trace, extended_trace, show_every, retry=false, kwargs...)
         end
     end
     Full ? Res : Optim.minimizer(Res)
