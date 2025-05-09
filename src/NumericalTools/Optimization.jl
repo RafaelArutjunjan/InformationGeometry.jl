@@ -155,20 +155,21 @@ minimize(F::Function, dF::Function, start::AbstractVector, args...; kwargs...) =
 minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args...; kwargs...) = InformationGeometry.minimize((F,dF,ddF), start, args...; kwargs...)
 
 
-function minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
+function minimize(Fs::Tuple, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
                 meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? Optim.LBFGS(;linesearch=LineSearches.BackTracking()) : Optim.NewtonTrustRegion())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
     minimize(Fs, Start, meth; Domain, maxtime, kwargs...)
 end
 
 
 # Force use of custom function instead of using OptimizationOptimJL.jl as intermediate layer
-minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; OptimJL::Bool=true, kwargs...) = (OptimJL ? minimizeOptimJL : minimizeOptimizationJL)(Fs, Start, meth; kwargs...)
-minimize(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; kwargs...) = minimizeOptimizationJL(Fs, Start, meth; kwargs...)
+minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; OptimJL::Bool=true, kwargs...) = (OptimJL ? minimizeOptimJL : minimizeOptimizationJL)(Fs, Start, meth; kwargs...)
+minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth; kwargs...) = minimizeOptimizationJL(Fs, Start, meth; kwargs...)
 
 # Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
-function minimizeOptimJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
+function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
                 Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime,
                 # catch for now:
+                CostGradient=nothing, CostHessian=nothing,
                 cons=nothing, lcons=nothing, ucons=nothing, inplace::Bool=(length(Fs) > 1 && MaximalNumberOfArguments(Fs[2])>1),
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
                 g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, 
@@ -229,7 +230,7 @@ ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
 ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 # Extend with constraint Functions
-function minimizeOptimizationJL(Fs::Tuple{Vararg{Function}}, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, lcons=nothing, ucons=nothing, kwargs...)
+function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, lcons=nothing, ucons=nothing, kwargs...)
     @assert 1 ≤ length(Fs) ≤ 3
     
     if !SciMLBase.allowsconstraints(meth)

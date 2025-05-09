@@ -59,13 +59,27 @@ function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]) where
     ValInsertionEmbedding(P::AbstractVector{<:Num}) = @views [P[1:Component-1]; Value; P[Component:end]]
 end
 
-ValInserterTransform(X::Union{<:Int,<:AbstractVector{<:Int}}, args...; kwargs...) = ValInserterTransform(ValInserter(X, args...; kwargs...))
-ValInserterTransform(Ins::Function) = WrappedComposition(Ins)
-## Allows composition for functions which mutate the first results and only accept one other argument
-function WrappedComposition(Ins::Function)
-    function WrapFunction(F::Function)
-        WrappedFunction(x; kwargs...) = F(Ins(x); kwargs...)
-        WrappedFunction(J, x, args...; kwargs...) = F(J, Ins(x), args...; kwargs...)
+# ValInserterTransform(X::Union{<:Int,<:AbstractVector{<:Int}}, args...; kwargs...) = ValInserterTransform(ValInserter(X, args...; kwargs...))
+# ValInserterTransform(Ins::Function) = WrappedComposition(Ins)
+# ## Allows composition for functions which mutate the first results and only accept one other argument
+# function WrappedComposition(Ins::Function)
+#     function WrapFunction(F::Function)
+#         WrappedFunction(x; kwargs...) = F(Ins(x); kwargs...)
+#         WrappedFunction(J, x, args...; kwargs...) = F(J, Ins(x), args...; kwargs...)
+#     end
+# end
+
+## Provides correct insertion embedding for in-place functions
+function ValInserterTransform(Inds, Vals, mle::AbstractVector)
+    Ins = ValInserter(Inds, Vals, mle)
+    KeepInds = [i for i in eachindex(mle) if i ∉ Inds]
+    ReductionTransform(x::Number) = x # Pass through if the function that is wrapped is scalar, like cost function itself
+    ReductionTransform(x::AbstractVector) = view(x, KeepInds)
+    ReductionTransform(x::AbstractMatrix) = view(x, KeepInds, KeepInds)
+    function WrapFunctionWithInversion(F::Function, TestOut=F(mle))
+        NewJ = TestOut isa Number ? nothing : similar(TestOut)
+        WrappedFunction(x; kwargs...) = ReductionTransform(F(Ins(x); kwargs...))
+        WrappedFunction(J, x, args...; kwargs...) = (F(NewJ, Ins(x), args...; kwargs...);    copyto!(J, ReductionTransform(NewJ)); J)
     end
 end
 
@@ -275,6 +289,7 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=false, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
+                        UseHess::Bool=false, CostHessian::Union{Function,Nothing}=(UseHess ? FisherMetric(DM) : nothing),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
@@ -359,7 +374,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 Ins = ValInserter(Comp, p, mle)
                 L = CostFunction∘Ins
-                R = FitFunc(L, MLEstash; kwargs...)
+                F = isnothing(CostGradient) ? L : (Trafo=ValInserterTransform(Comp, p, mle);   isnothing(CostHessian) ? (L, Trafo(CostGradient)) : (L, Trafo(CostGradient), Trafo(CostHessian)))
+                R = FitFunc(F, MLEstash; kwargs...)
                 
                 push!(Res, -GetMinimum(R,L))
                 copyto!(MLEstash, GetMinimizer(R))
@@ -487,7 +503,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     end
 
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
-    !(Logmax ≈ logLikeMLE) && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
+    Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPriorFn,mle) : 0.0
     if IsCost

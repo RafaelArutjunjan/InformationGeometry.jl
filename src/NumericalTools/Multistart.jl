@@ -53,6 +53,13 @@ function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number};
     MultistartFit(CostFunction, InitialPointGen; MultistartDomain=Dom, maxval, N, seed, resampling, verbose, kwargs...)
 end
 
+# For PerformStepGeneral!
+function MultistartFit(Fs::Tuple, args...; kwargs...)
+    @assert 1 ≤ length(Fs) ≤ 3
+    Kw = length(Fs) == 1 ? (;) : length(Fs) == 2 ? (;CostGradient=Fs[2]) : (;CostGradient=Fs[2], CostHessian=Fs[3])
+    MultistartFit(Fs[1], args...; Kw..., kwargs...)
+end
+
 
 """
     MultistartFit(DM::AbstractDataModel; maxval::Real=1e5, MultistartDomain::HyperCube=FullDomain(pdim(DM), maxval), kwargs...)
