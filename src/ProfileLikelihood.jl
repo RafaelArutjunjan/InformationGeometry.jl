@@ -923,6 +923,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
                 subplot := j
                 st := :vline
                 line --> :dash
+                color --> j+3
                 label --> "True value"
                 ylims --> Ylims
                 xlabel --> pnames(P)[i]
