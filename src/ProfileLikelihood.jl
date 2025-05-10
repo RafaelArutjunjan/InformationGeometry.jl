@@ -865,15 +865,15 @@ end
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
-    layout := length(Profiles(P)) + 1
+    layout := sum(IsPopulated(P)) + 1
 
     @series begin
-        layout := length(Profiles(P)) + 1
+        layout := sum(IsPopulated(P)) + 1
         P, Val(false)
     end
 
     @series begin
-        subplot := length(Profiles(P)) + 1
+        subplot := sum(IsPopulated(P)) + 1
         idxs := get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
         legend --> nothing
         P, Val(:PlotParameterTrajectories)
@@ -882,16 +882,21 @@ end
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
-    layout --> length(Profiles(P))
+    PopulatedInds = IsPopulated(P) 
+    layout --> sum(PopulatedInds)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (-tol, maxy))
+    j = 1
     for i in eachindex(Profiles(P))
-        @series begin
-            subplot := i
-            ylims --> Ylims
-            ParameterProfilesView(P, i), Val(false)
+        if PopulatedInds[i]
+            @series begin
+                subplot := j
+                ylims --> Ylims
+                ParameterProfilesView(P, i), Val(false)
+            end
+            j += 1
         end
     end
 end
@@ -901,7 +906,8 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
 
 @recipe function f(P::ParameterProfiles, trueparams::AbstractVector, ::Val{false}=Val(false))
     @assert length(trueparams) == length(Profiles(P))
-    layout --> length(Profiles(P))
+    PopulatedInds = IsPopulated(P) 
+    layout --> sum(PopulatedInds)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
@@ -910,16 +916,20 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
         ylims --> Ylims
         P
     end
+    j = 1
     for i in eachindex(trueparams)
-        @series begin
-            subplot := i
-            st := :vline
-            line --> :dash
-            label --> "True value"
-            ylims --> Ylims
-            xlabel --> pnames(P)[i]
-            ylabel --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
-            @view trueparams[i:i]
+        if PopulatedInds[i]
+            @series begin
+                subplot := j
+                st := :vline
+                line --> :dash
+                label --> "True value"
+                ylims --> Ylims
+                xlabel --> pnames(P)[i]
+                ylabel --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
+                @view trueparams[i:i]
+            end
+            j += 1
         end
     end
 end

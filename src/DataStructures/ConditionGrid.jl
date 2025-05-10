@@ -46,6 +46,7 @@ struct ConditionGrid <: AbstractDataModel
     ScoreFn::Function
     FisherInfoFn::Function
     LogLikeMLE::Number
+    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafo::AbstractVector{<:Function}, mle::AbstractVector; kwargs...) = ConditionGrid(DMs, Trafo, nothing, mle; kwargs...)
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
         trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
         LogPriorFn::Union{Function,Nothing}=nothing, 
@@ -126,7 +127,14 @@ Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
 
 GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
-MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::HyperCube=(@warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"; reduce(vcat, [GetDomainSafe(DM; maxval) for DM in Conditions(CG)])), kwargs...) = MultistartFit(CG, Domain; dof, Domain, maxval, kwargs...)
+function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=nothing, kwargs...)
+    if isnothing(Domain)
+        pdim(CG) != sum(pdim.(Conditions(CG))) && throw(ArgumentError("Domain HyperCube or Distribution for sampling must be specified as second argument for ConditionGrids."))
+        @warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"
+        Domain = reduce(vcat, [GetDomainSafe(DM; maxval) for DM in Conditions(CG)])
+    end
+    MultistartFit(CG, Domain; dof, Domain, maxval, kwargs...)
+end
 
 
 ## Prediction Functions
