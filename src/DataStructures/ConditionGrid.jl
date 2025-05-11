@@ -22,6 +22,7 @@ for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
     @eval Base.$F(P::ParamTrafo, args...) = $F(P.Trafos, args...)
 end
 
+const ParameterTransformations = ParamTrafo
 
 
 # function TryToInferPnames()
@@ -165,22 +166,17 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::Ab
 end
 
 
-function Base.summary(CG::ConditionGrid)
-    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
-    Name = string(name(CG))
-    string(TYPE_COLOR, "Condition Grid",
-    NO_COLOR, (length(Name) > 0 ? " "*ColoredString(name(CG)) : ""),
-    " with pdim=", string(pdim(CG)), " containing ", string(length(Conditions(CG))), " submodels")
+
+SymbolicParamTrafo(CG::ConditionGrid, GenericNames::Bool=true) = (GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))) |> CG.Trafos .|> collect
+function ParamTrafoString(CG::ConditionGrid, GenericNames::Bool=true, args...; kwargs...)
+   Shorten(S::AbstractString) = @view S[findfirst('[', S):end]
+   if GenericNames
+      "[" * join("θ->" .* Shorten.(string.(SymbolicParamTrafo(CG, GenericNames, args...; kwargs...))), ", ") * "]"
+   else
+      "θ ⟼ " * Shorten(string(SymbolicParamTrafo(CG, GenericNames, args...; kwargs...)))
+   end
 end
-# Multi-line display when used on its own in REPL
-function Base.show(io::IO, ::MIME"text/plain", CG::ConditionGrid)
-    LogPr = !isnothing(LogPrior(CG)) ? LogPrior(CG)(MLE(CG)) : nothing
-    print(io, Base.summary(CG));    println(io, ": "*ColoredString(name.(Conditions(CG))))
-    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(CG); sigdigits=5)))
-    isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
-end
-# Single line display
-Base.show(io::IO, CG::ConditionGrid) = println(io, Base.summary(CG))
+
 
 # Plotrecipe: plot all dms individually
 RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))

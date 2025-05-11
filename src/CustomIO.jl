@@ -70,6 +70,14 @@ Base.summary(PV::ParameterProfilesView) = string(TYPE_COLOR, "ParameterProfile",
 
 Base.summary(R::MultistartResults) = string(TYPE_COLOR, "MultistartResults", NO_COLOR, " with "* string(FindLastIndSafe(R)) *"/"* string(length(R)) *" successful starts")
 
+Base.summary(P::ParamTrafo) = string(TYPE_COLOR, "ParameterTransformations", NO_COLOR, " for ", NUMBER_COLOR, string(length(P.Trafos)), NO_COLOR, " conditions")
+function Base.summary(CG::ConditionGrid)
+    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
+    Name = string(name(CG))
+    string(TYPE_COLOR, "Condition Grid",
+    NO_COLOR, (length(Name) > 0 ? " "*ColoredString(name(CG)) : ""),
+    " with pdim=", string(pdim(CG)), " containing ", string(length(Conditions(CG))), " submodels")
+end
 
 # http://docs.junolab.org/stable/man/info_developer/#
 # hastreeview, numberofnodes, treelabel, treenode
@@ -228,3 +236,19 @@ end
 
 # Single line display
 Base.show(io::IO, R::MultistartResults) = print(io, Base.summary(R))
+
+# Multi-line display when used on its own in REPL
+function Base.show(io::IO, ::MIME"text/plain", CG::ConditionGrid)
+    LogPr = !isnothing(LogPrior(CG)) ? LogPrior(CG)(MLE(CG)) : nothing
+    print(io, Base.summary(CG));    println(io, ": "*ColoredString(name.(Conditions(CG))))
+    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(CG); sigdigits=5)))
+    isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
+    print(io, "Parameter Transformations: " * ParamTrafoString(CG, true))
+end
+# Single line display
+Base.show(io::IO, CG::ConditionGrid) = print(io, Base.summary(CG))
+
+# Multi-line display
+Base.show(io::IO, ::MIME"text/plain", P::ParamTrafo) = print(io, Base.summary(P))
+# Single line display
+Base.show(io::IO, P::ParamTrafo) = print(io, Base.summary(P))
