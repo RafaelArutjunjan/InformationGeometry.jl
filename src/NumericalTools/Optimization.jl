@@ -170,7 +170,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
                 Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime,
                 # catch for now:
                 CostGradient=nothing, CostHessian=nothing,
-                cons=nothing, lcons=nothing, ucons=nothing, inplace::Bool=(length(Fs) > 1 && MaximalNumberOfArguments(Fs[2])>1),
+                cons=nothing, lcons=nothing, ucons=nothing, # inplace::Bool=(length(Fs) > 1 && MaximalNumberOfArguments(Fs[2])>1),
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
                 g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, g_abstol::Real=1e-8, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
@@ -197,7 +197,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
         else
             if Cmeth isa Fminbox
                 # Optim.optimize only accepts inplace kwarg for Fminbox
-                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; inplace, kwargs...)
+                Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; kwargs...) # inplace, 
             else
                 Optim.optimize(Fs..., lb, ub, floatify(start), Cmeth, options; kwargs...)
             end
@@ -206,7 +206,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
         if length(Fs) == 1
             Optim.optimize(Fs[1], floatify(start), Cmeth, options; kwargs...)
         else
-            Optim.optimize(Fs..., floatify(start), Cmeth, options; inplace, kwargs...)
+            Optim.optimize(Fs..., floatify(start), Cmeth, options; kwargs...) # inplace, 
         end
     end
     if !Optim.converged(Res) 
@@ -219,6 +219,10 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
     end
     Full ? Res : Optim.minimizer(Res)
 end
+
+# Drop hessian when using Fminbox to avoid error
+Optim.optimize(f, g!, h!, l::AbstractArray, u::AbstractArray, p::AbstractArray, F::Fminbox, args...; kwargs...) = Optim.optimize(f, g!, l, u, p, F, args...; kwargs...)
+
 
 ADtypeConverter(V::Val{true}) = Optimization.AutoForwardDiff()
 ADtypeConverter(V::Val{:ForwardDiff}) = Optimization.AutoForwardDiff()

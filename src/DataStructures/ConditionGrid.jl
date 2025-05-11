@@ -197,3 +197,28 @@ RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=
     end
 end
 
+
+function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; OffsetResults::Bool=true, kwargs...)
+   Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
+   for i in 1:pdim(CG)
+      if PopulatedInds[i]
+         k += 1
+         for j in eachindex(Conditions(CG))
+            L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], Trajectories(P)[i])
+            OffsetResults && (L .-= minimum(L))
+            RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), L; color=j+2, label="Contribution "*string(name(Conditions(CG)[j])), lw=1.5, legend=true, subplot=k, kwargs...)
+         end
+      end
+   end;  Plt
+end
+
+function ConditionSpecificWaterFalls(CG::ConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, kwargs...)
+   Plt = RecipesBase.plot(; xlabel="Run (sorted)", ylabel=(BiLog ? "BiLog(" : "")*"CostFunction"*(BiLog ? ")" : ""))
+   for j in eachindex(Conditions(CG))
+       L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], R.FinalPoints)
+       L = @view L[1:findlast(isfinite, L)]
+       OffsetResults && (L .-= minimum(L))
+       BiLog && (L .= Trafo.(L))
+       RecipesBase.plot!(Plt, L; label="Contribution "*string(name(Conditions(CG)[j])), lw=1.5, color=j, legend=true, kwargs...)
+   end;  Plt
+end

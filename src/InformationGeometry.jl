@@ -102,7 +102,8 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
 abstract type Cuboid end
-abstract type AbstractMultiStartResults end
+abstract type AbstractProfiles end
+abstract type AbstractMultistartResults end
 export AbstractDataSet, AbstractDataModel, Cuboid
 
 abstract type AbstractUnknownUncertaintyDataSet <: AbstractDataSet end
@@ -190,7 +191,7 @@ export DataModel, AddLogPrior
 
 
 include("DataStructures/ConditionGrid.jl")
-export ConditionGrid
+export ConditionGrid, ConditionSpecificProfiles, ConditionSpecificWaterFalls
 
 
 include("NumericalTools/Miscellaneous.jl")

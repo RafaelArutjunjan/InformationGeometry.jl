@@ -156,7 +156,7 @@ LocalMultistartFit(DM::AbstractDataModel, mle::AbstractVector{<:Number}, scale::
 LocalMultistartFit(DM::AbstractDataModel, mleuncert::AbstractVector{<:Measurements.Measurement}, scale::Real=sqrt(InvChisqCDF(DOF(DM), ConfVol(2.0))); kwargs...) = MultistartFit(DM; MultistartDomain=HyperCube(mleuncert, scale), kwargs...)
 
 
-struct MultistartResults <: AbstractMultiStartResults
+struct MultistartResults <: AbstractMultistartResults
     FinalPoints::AbstractVector{<:AbstractVector{<:Number}}
     InitialPoints::AbstractVector{<:AbstractVector{<:Number}}
     FinalObjectives::AbstractVector{<:Number}

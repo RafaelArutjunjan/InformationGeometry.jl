@@ -261,10 +261,10 @@ HasConverged(X::AbstractVector{<:Number}; verbose::Bool=true) = (verbose && (@wa
 GetIterations(X::AbstractVector{<:Number}) = 0
 
 # For Multistart fit
-GetMinimizer(R::AbstractMultiStartResults) = MLE(R)
-GetMinimum(R::AbstractMultiStartResults, L::Function) = L(MLE(R))
-HasConverged(R::AbstractMultiStartResults; StepTol::Real=1e-3) = 1 < GetFirstStepInd(R; StepTol)
-GetIterations(R::AbstractMultiStartResults) = R.Iterations[1]
+GetMinimizer(R::AbstractMultistartResults) = MLE(R)
+GetMinimum(R::AbstractMultistartResults, L::Function) = L(MLE(R))
+HasConverged(R::AbstractMultistartResults; StepTol::Real=1e-3) = 1 < GetFirstStepInd(R; StepTol)
+GetIterations(R::AbstractMultistartResults) = R.Iterations[1]
 
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
