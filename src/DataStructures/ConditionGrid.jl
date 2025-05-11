@@ -42,6 +42,7 @@ struct ConditionGrid <: AbstractDataModel
     LogPriorFn::Union{Function,Nothing}
     MLE::AbstractVector{<:Number}
     pnames::AbstractVector{Symbol}
+    Domain::Union{Nothing,Cuboid}
     name::Symbol
     LogLikelihoodFn::Function
     ScoreFn::Function
@@ -55,6 +56,7 @@ struct ConditionGrid <: AbstractDataModel
         ADmode::Val=Val(:ForwardDiff),
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
         name::StringOrSymb=Symbol(),
+        Domain::Union{Nothing,Cuboid}=nothing,
         Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)))),
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
@@ -65,6 +67,7 @@ struct ConditionGrid <: AbstractDataModel
         # Condition names already unique from ParamTrafo
         @assert length(Trafos) == length(DMs)
         @assert allunique(InformationGeometry.name.(DMs))
+        !isnothing(Domain) && @assert length(Domain) == length(mle)
 
         @warn "The ConditionGrid functionality is still experimental, use with caution!"
 
@@ -72,10 +75,10 @@ struct ConditionGrid <: AbstractDataModel
             @warn "ConditionGrid: Not performing optimization out of the box!"
             mle
         else
-            InformationGeometry.minimize(Negate(LogLikelihoodFn), mle; kwargs...)
+            InformationGeometry.minimize(Negate(LogLikelihoodFn), mle, Domain; kwargs...)
         end            
 
-        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE)
+        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE)
     end
 end
 
@@ -86,11 +89,13 @@ Trafos::Union{AbstractVector{<:Function}, ParamTrafo}=Function[],
 LogPriorFn::Union{Function,Nothing}=nothing,
 MLE::AbstractVector{<:Number}=Float64[],
 pnames::AbstractVector{Symbol}=Symbol[],
+Domain::Union{Nothing,Cuboid}=nothing,
 name::Symbol=Symbol(),
 LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherInfoFn::Function=x->[-Inf],
-LogLikeMLE::Number=-Inf, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE, pnames, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE; kwargs...)
+LogLikeMLE::Number=-Inf, 
+SkipOptim::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE, SkipOptim, kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)
 
@@ -108,6 +113,7 @@ pnames(CG::ConditionGrid) = Pnames(CG) .|> string
 Pnames(CG::ConditionGrid) = CG.pnames
 name(CG::ConditionGrid) = CG.name
 LogPrior(CG::ConditionGrid) = CG.LogPriorFn
+Domain(CG::ConditionGrid) = CG.Domain
 
 loglikelihood(CG::ConditionGrid) = CG.LogLikelihoodFn
 loglikelihood(CG::ConditionGrid, θ::AbstractVector{<:Number}) = loglikelihood(CG)(θ)
@@ -119,7 +125,7 @@ FisherMetric(CG::ConditionGrid) = CG.FisherInfoFn
 FisherMetric(CG::ConditionGrid, θ::AbstractVector{<:Number}) = FisherMetric(CG)(θ)
 
 # Disable Boundaries for Optimization
-GetDomain(CG::ConditionGrid) = nothing
+GetDomain(CG::ConditionGrid) = Domain(CG)
 GetInDomain(CG::ConditionGrid) = nothing
 GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[]; kwargs...) = (nothing, nothing, nothing)
 
@@ -128,7 +134,7 @@ Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
 
 GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
-function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=nothing, kwargs...)
+function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), kwargs...)
     if isnothing(Domain)
         pdim(CG) != sum(pdim.(Conditions(CG))) && throw(ArgumentError("Domain HyperCube or Distribution for sampling must be specified as second argument for ConditionGrids."))
         @warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"
