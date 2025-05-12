@@ -9,6 +9,7 @@ struct ParamTrafo{F<:Function} <: AbstractVector{F}
     end
 end
 (P::ParamTrafo)(θ::AbstractVector{<:Number}; Cond::Union{Nothing,Symbol}=nothing) = _ExecuteParamTrafo(P, θ, Cond)
+(P::ParamTrafo)(θ::AbstractVector{<:Number}, i::Int; kwargs...) = P.Trafos[i](θ)
 
 _ExecuteParamTrafo(P::ParamTrafo, θ::AbstractVector{<:Number}, ::Union{Nothing,Val{nothing}}) = [P.Trafos[i](θ) for i in eachindex(P.Trafos)]
 function _ExecuteParamTrafo(P::ParamTrafo, θ::AbstractVector{<:Number}, Cond::Symbol)

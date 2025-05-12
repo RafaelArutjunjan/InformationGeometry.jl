@@ -74,6 +74,7 @@ OrdinaryDiffEqLowOrderRK = "1"
 OrdinaryDiffEqRosenbrock = "1"
 OrdinaryDiffEqTsit5 = "1"
 OrdinaryDiffEqVerner = "1"
+PEtab = "3"
 PlotUtils = "1.0.9 - 1.1, 1.2"
 PreallocationTools = "0.4"
 PrettyTables = "1, 2"
@@ -95,9 +96,11 @@ julia = "1"
 
 [weakdeps]
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 
 [extensions]
 InformationGeometryModelingToolkitExt = ["ModelingToolkit"]
+InformationGeometryPEtabExt = ["PEtab", "ModelingToolkit"]
 
 [extras]
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"

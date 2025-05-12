@@ -191,7 +191,7 @@ export DataModel, AddLogPrior
 
 
 include("DataStructures/ConditionGrid.jl")
-export ConditionGrid, ConditionSpecificProfiles, ConditionSpecificWaterFalls
+export ConditionGrid, Conditions, ConditionSpecificProfiles, ConditionSpecificWaterFalls
 
 
 include("NumericalTools/Miscellaneous.jl")
