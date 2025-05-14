@@ -1,6 +1,5 @@
 
 
-
 ### ProfileLikelihood.jl
 
 
@@ -20,7 +19,7 @@ P1 = ProfileLikelihood.profile(prob, sol, 1:pdim(DM); alg=Optim.LBFGS(), paralle
 ## Alternatively:
 P2 = ProfileLikelihood.profile(DM, 1; alg=Optim.LBFGS(), parallel=true, resolution=51)
 ```
-Note that the [`ProfileLikelihood.profile`](@ref) function is sensitive to the boundaries of the provided parameter domains. A `HyperCube` may be passed via the `Domain` kwarg, 
+Note that the [`ProfileLikelihood.profile`](@ref) function is sensitive to the boundaries of the provided parameter domains. A `HyperCube` may be passed via the `Domain` kwarg, or a 
 
 
 For more examples of how to use the [**ProfileLikelihood.jl**](https://github.com/DanielVandH/ProfileLikelihood.jl) package, see [the documentation](https://danielvandh.github.io/ProfileLikelihood.jl/dev).

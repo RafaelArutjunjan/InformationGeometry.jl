@@ -16,11 +16,11 @@ makedocs(
                                     "Useful Diagnostic Plots" => "plotting.md",
                                     "Parallelization" => "parallelization.md",
                                     "Exporting" => "exporting.md",
-                                    # "Package Extensions" => "extensions.md"
                                     # "Kullback-Leibler Divergences" => "kullback-leibler.md",
                                     ],
                 # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, PDE / Stochastic Examples, Exporting
                 "Advanced Examples" => Any["ODE-based models" => "ODEmodels.md", "Advanced Datasets" => "AdvancedData.md"],
+                # "Package Extensions" => ["PEtabExt.md"], #, "ProfileLikelihood.md"],
                 "List of useful methods" => "methodlist.md",
                 "Contributing" => "todo.md",
             ],

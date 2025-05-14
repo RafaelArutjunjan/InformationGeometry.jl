@@ -297,6 +297,14 @@ include("CustomIO.jl")
 # export GeneratedFromAutoDiff, GeneratedFromSymbolic
 
 
+# For debugging of PEtabExt
+function GetNllh end
+function GetNllhGrads end
+function GetNllhHesses end
+function GetDataUncertainty end
+function GetConditionData end
+function GetDataSets end
+function GetModelFunction end
 
 using SnoopPrecompile
 

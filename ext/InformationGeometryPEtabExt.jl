@@ -45,6 +45,9 @@ import PEtab: PEtabODEProblemInfo, ModelInfo
 # const GetNllhGrads = PEtab._get_grad
 # const GetNllhHesses = PEtab._get_hess
 
+#### Debugging:
+import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
+
 include(joinpath(@__DIR__, "PEtabFix/ModifiedMethods.jl"))
 
 GetNllh(M::PEtabODEProblem, args...; kwargs...) = GetNllh(M.probinfo, M.model_info, args...; kwargs...)
