@@ -1,7 +1,7 @@
 module InformationGeometryPEtabExt
 
 
-using InformationGeometry, PEtab, DataFrames, ModelingToolkit
+using InformationGeometry, PEtab, DataFrames, ModelingToolkit, ForwardDiff
 
 InformationGeometry.MLE(P::PEtabODEProblem) = PEtab.get_x(P)
 InformationGeometry.HyperCube(P::PEtabODEProblem) = HyperCube(P.lower_bounds, P.upper_bounds)

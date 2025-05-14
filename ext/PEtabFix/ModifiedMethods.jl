@@ -330,3 +330,77 @@ function _get_nllh_not_solveode_adapted(probinfo::PEtabODEProblemInfo, model_inf
     end
     return _nllh_not_solveode
 end
+
+
+function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
+                            probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
+                            cfg::Union{ForwardDiff.JacobianConfig, Nothing};
+                            cids::Vector{Symbol} = [:all],
+                            isremade::Bool = false)::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+    @unpack cache, sensealg = probinfo
+    @unpack xindices, simulation_info = model_info
+    xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
+    xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
+    xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
+    xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
+
+    # Solve the expanded ODE system for the sensitivites
+    success = PEtab.solve_sensitivites!(model_info, _solve_conditions!, xdynamic_ps, sensealg,
+                                  probinfo, cids, cfg, isremade)
+    if success != true
+        @warn "Failed to solve sensitivity equations"
+        fill!(grad, 0.0)
+        return nothing
+    end
+    if isempty(xdynamic_ps)
+        return nothing
+    end
+
+    fill!(grad, 0.0)
+    for icid in eachindex(simulation_info.conditionids[:experiment])
+        if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
+            continue
+        end
+        PEtab._grad_forward_eqs_cond!(grad, xdynamic_ps, xnoise_ps, xobservable_ps,
+                                xnondynamic_ps,
+                                icid, sensealg, probinfo, model_info)
+    end
+    return nothing
+end
+
+function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_conditions!::Function,
+                                  probinfo::PEtabODEProblemInfo,
+                                  model_info::ModelInfo, cfg::ForwardDiff.JacobianConfig;
+                                  cids::Vector{Symbol} = [:all],
+                                  isremade::Bool = false)::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+    @unpack cache, sensealg, reuse_sensitivities = probinfo
+    @unpack xindices, simulation_info = model_info
+    xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
+    xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
+    xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
+    xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
+
+    if reuse_sensitivities == false
+        success = PEtab.solve_sensitivites!(model_info, _solve_conditions!, xdynamic_ps,
+                                      :ForwardDiff, probinfo, cids, cfg, isremade)
+        if success != true
+            @warn "Failed to solve sensitivity equations"
+            fill!(jac, 0.0)
+            return nothing
+        end
+    end
+    if isempty(xdynamic_ps)
+        fill!(jac, 0.0)
+        return nothing
+    end
+
+    # Compute the gradient by looping through all experimental conditions.
+    for icid in eachindex(simulation_info.conditionids[:experiment])
+        if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
+            continue
+        end
+        PEtab._jac_residuals_cond!(jac, xdynamic_ps, xnoise_ps, xobservable_ps, xnondynamic_ps,
+                             icid, probinfo, model_info)
+    end
+    return nothing
+end
