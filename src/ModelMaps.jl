@@ -494,9 +494,9 @@ Returns a modified `DataModel` where the x-variables have been transformed by a 
 `iEmb` denotes the inverse of `Emb`.
 The uncertainties are computed via linearized error propagation through the given transformation.
 """
-function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
+function TransformXdata(DM::AbstractDataModel, Emb::Function, iEmb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames::AbstractVector{<:StringOrSymb}=TransformName*"(".*xnames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     @assert all(WoundX(DM) .≈ map(iEmb∘Emb, WoundX(DM))) # Check iEmb is correct inverse
-    DataModel(TransformXdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM), LogPrior(DM))
+    DataModel(TransformXdata(Data(DM), Emb, TransformName; xnames, ADmode), EmbedModelX(Predictor(DM), iEmb), EmbedModelX(dPredictor(DM), iEmb), MLE(DM), LogPrior(DM); ADmode, kwargs...)
 end
 function TransformXdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); xnames=TransformName*"(".*xnames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewX = Reduction(map(Emb, WoundX(DS)))
@@ -569,10 +569,10 @@ EmbedModelY(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model))
 Returns a modified `DataModel` where the y-variables have been transformed by a multivariable transform `Emb` both in the data as well as for the model via `newmodel(x,θ) = Emb(oldmodel(x,θ))`.
 The uncertainties are computed via linearized error propagation through the given transformation.
 """
-function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); kwargs...)
-    DataModel(TransformYdata(Data(DM), Emb, TransformName; kwargs...), EmbedModelY(Predictor(DM), Emb), MLE(DM), LogPrior(DM))
+function TransformYdata(DM::AbstractDataModel, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames::AbstractVector{<:StringOrSymb}=TransformName*"(".*ynames(DM).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+    DataModel(TransformYdata(Data(DM), Emb, TransformName; ynames, ADmode), EmbedModelY(Predictor(DM), Emb), MLE(DM), LogPrior(DM); ADmode, kwargs...)
 end
-function TransformYdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
+function TransformYdata(DS::AbstractFixedUncertaintyDataSet, Emb::Function, TransformName::AbstractString=GetTrafoName(Emb); ynames::AbstractVector{<:StringOrSymb}=TransformName*"(".*ynames(DS).*")", ADmode::Union{Val,Symbol}=Val(:ForwardDiff))
     NewY = Reduction(map(Emb, WoundY(DS)));    EmbJac = ydim(DS) > 1 ? GetJac(ADmode, Emb, ydim(DS)) : GetDeriv(ADmode, Emb)
     NewYsigma = if ysigma(DS) isa AbstractVector
         map((ydat, ysig)->EmbJac(ydat)*ysig, WoundY(DS), Windup(ysigma(DS), ydim(DS))) # |> Reduction

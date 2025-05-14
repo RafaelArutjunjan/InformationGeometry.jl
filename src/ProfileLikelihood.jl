@@ -698,7 +698,6 @@ function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}
 end
 
 
-abstract type AbstractProfiles end
 
 """
     ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=true, dof::Int=DOF(DM), kwargs...)
