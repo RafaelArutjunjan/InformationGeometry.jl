@@ -947,10 +947,12 @@ end
 
     # Should do rescaling with diagonal sqrt inv Fisher instead of BiLog
     DoBiLog = get(plotattributes, :BiLog, true)
-    xlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[1]] * ")" : pnames(P)[idxs[1]])
-    ylabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[2]] * ")" : pnames(P)[idxs[2]])
+    Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
+    TrafoName, TrafoNameEnd = Trafo === BiLog ? ("BiLog(",")") : (Trafo === identity ? ("", "") : ("Trafo(", ")"))
+    xlabel --> TrafoName * pnames(P)[idxs[1]] * TrafoNameEnd
+    ylabel --> TrafoName * pnames(P)[idxs[2]] * TrafoNameEnd
     if length(idxs) == 3
-        zlabel --> (DoBiLog ? "BiLog(" * pnames(P)[idxs[3]] * ")" : pnames(P)[idxs[3]])
+        zlabel --> TrafoName * pnames(P)[idxs[3]] * TrafoNameEnd
     end
     
     color_palette = get(plotattributes, :color_palette, :default)
@@ -962,17 +964,9 @@ end
                 lw --> 1.5
                 M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
                 if length(idxs) == 3
-                    if DoBiLog
-                        BiLog(view(M,:,1)), BiLog(view(M,:,2)), BiLog(view(M,:,3))
-                    else
-                        view(M,:,1), view(M,:,2), view(M,:,3)
-                    end
+                    Trafo.(view(M,:,1)), Trafo.(view(M,:,2)), Trafo.(view(M,:,3))
                 else
-                    if DoBiLog
-                        BiLog(view(M,:,1)), BiLog(view(M,:,2))
-                    else
-                        view(M,:,1), view(M,:,2)
-                    end
+                    Trafo.(view(M,:,1)), Trafo.(view(M,:,2))
                 end
             end
         end
@@ -983,7 +977,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [(DoBiLog ? BiLog : identity)(MLE(P)[collect(idxs)])]
+        [Trafo.(MLE(P)[collect(idxs)])]
     end
 end
 
@@ -1066,10 +1060,14 @@ end
     end
 end
 
+
+## Allow for plotting other scalar functions of the parameters, e.g. steady-state constraints
 @recipe function f(P::ParameterProfiles, V::Val{:PlotRelativeParamTrajectories})
     @assert HasTrajectories(P)
     RelChange = get(plotattributes, :RelChange, true)
     idxs = get(plotattributes, :idxs, 1:pdim(P))
+
+    ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
     @assert RelChange isa Bool
     @assert all(1 .≤ idxs .≤ pdim(P)) && allunique(idxs)
 
@@ -1082,6 +1080,7 @@ end
             subplot := plotnum
             RelChange --> RelChange
             idxs --> ToPlotInds
+            ParameterFunctions --> ParameterFunctions
             P[i], V
         end
     end
@@ -1093,21 +1092,21 @@ end
 @recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, true)
+    DoRelChange = RelChange && !any(MLE(PV) .== 0)
     Fisher = get(plotattributes, :Fisher, Diagonal(ones(pdim(PV))))
     U = cholesky(Fisher).U
     idxs = get(plotattributes, :idxs, 1:pdim(PV))
+    ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
     @assert RelChange isa Bool
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
     xguide --> pnames(PV)[i]
 
     DoBiLog = get(plotattributes, :BiLog, false)
-    ystring = if DoBiLog
-        ((RelChange && !any(MLE(PV) .== 0)) ? "BiLog(p_i/p_MLE)" : "BiLog(p_i-p_MLE)")
-    else
-        ((RelChange && !any(MLE(PV) .== 0)) ? "Rel. change p_i/p_MLE" : (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * (p_i-p_MLE)" : "Parameter change p_i-p_MLE"))
-    end
-    yguide --> ystring
+    Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
+    TrafoName, TrafoNameEnd = Trafo === BiLog ? ("BiLog(",")") : (Trafo === identity ? ("", "") : ("Trafo(", ")"))
+    ystring = DoRelChange ? "p_i/p_MLE" :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i-p_MLE]" : "p_i-p_MLE")
+    yguide --> TrafoName * ystring * TrafoNameEnd
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
     color_palette = get(plotattributes, :color_palette, :default)
@@ -1117,12 +1116,12 @@ end
             color --> palette(color_palette)[(((2+j) % 15) +1)]
             label --> pnames(PV.P)[j]
             lw --> 1.5
-            Change = if RelChange && !any(MLE(PV) .== 0)
+            Change = if DoRelChange
                 getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
             else
                 U[j,j] .* (getindex.(Trajectories(PV), j) .- MLE(PV)[j])
             end
-            getindex.(Trajectories(PV), i), (DoBiLog ? BiLog(Change) : Change)
+            getindex.(Trajectories(PV), i), Trafo.(Change)
         end
     end
     # Mark MLE
@@ -1132,7 +1131,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(PV)[i]], ((RelChange && !any(MLE(PV) == 0)) ? (DoBiLog ? [BiLog(1)] : [1.0]) : [0.0])
+        [MLE(PV)[i]], (DoRelChange ? [Trafo(1.0)] : [0.0])
     end
 end
 

@@ -143,6 +143,7 @@ kwargs...,
 
 # Specialized methods for DataModel
 Conditions(DM::DataModel) = [DM]
+Domain(DM::DataModel) = Domain(Predictor(DM))
 Data(DM::DataModel) = DM.Data
 Predictor(DM::DataModel) = DM.model
 dPredictor(DM::DataModel) = DM.dmodel

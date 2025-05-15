@@ -116,6 +116,7 @@ Pnames(CG::ConditionGrid) = CG.pnames
 name(CG::ConditionGrid) = CG.name
 LogPrior(CG::ConditionGrid) = CG.LogPriorFn
 Domain(CG::ConditionGrid) = CG.Domain
+InDomain(CG::ConditionGrid) = nothing
 
 loglikelihood(CG::ConditionGrid) = CG.LogLikelihoodFn
 loglikelihood(CG::ConditionGrid, θ::AbstractVector{<:Number}) = loglikelihood(CG)(θ)
