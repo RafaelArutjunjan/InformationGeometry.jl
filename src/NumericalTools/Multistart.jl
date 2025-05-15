@@ -531,3 +531,163 @@ end
    st := :scatter
    map(ViewElements(idxs), X)
 end
+
+
+## Plot recipes to replace `StochasticProfileLikelihoodPlot`
+for F in [Symbol("plot"), Symbol("plot!")]
+    @eval RecipesBase.$F(R::MultistartResults, V::Val{:StochasticProfile}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::Val{:StochasticProfile}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
+end
+@recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::Val{:StochasticProfile})
+                                # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),4,100), DoBiLog::Bool=true, Trafo::Function=(DoBiLog ? BiLog : identity))
+    Nbins = get(plotattributes, :Nbins, clamp(Int(ceil(sqrt(length(Likelihoods)))),4,100))
+    Extremizer = get(plotattributes, :Extremizer, maximum)
+    DoBiLog = get(plotattributes, :DoBiLog, true)
+    Trafo = get(plotattributes, :Trafo, (DoBiLog ? BiLog : identity))
+    pnames = get(plotattributes, :pnames, CreateSymbolNames(length(Points[1])))
+    legend --> false
+    layout --> length(pnames) + 1 + (length(pnames) ≤ 3 ? 1 : 0)
+    for i in eachindex(pnames)
+        @series begin
+            subplot := i
+            xlabel := string(pnames[i])
+            ylabel := (DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : "")
+            Nbins := Nbins
+            DoBiLog := DoBiLog
+            Extremizer := Extremizer
+            Trafo := Trafo
+            Points, Likelihoods, i, V
+        end
+    end
+    @series begin
+        subplot := length(pnames) + 1
+        xlabel --> "Run index (sorted)"
+        ylabel --> (DoBiLog ? "BiLog(" : "")*"Objective value"*(DoBiLog ? ")" : "")
+        label --> "Waterfall"
+        1:length(Likelihoods), -Trafo.(Likelihoods)
+    end
+    if length(pnames) ≤ 3
+        @series begin
+            st := :scatter
+            subplot := length(pnames) + 2
+            c --> :viridis
+            colorbar --> true
+            zcolor --> Trafo.(Likelihoods)
+            msw --> 0
+            xlabel --> pnames[1]
+            ylabel --> pnames[2]
+            zlabel --> (length(pnames) ≥ 3 ? pnames[3] : "")
+            label --> "log-likelihood"
+            Points
+        end
+        @series begin
+            st := :scatter
+            subplot := length(pnames) + 2
+            mc --> :red
+            msw --> 0
+            label --> "Best"
+            maxind = findmax(Likelihoods)[2]
+            Points[maxind:maxind]
+        end
+    end
+    # RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
+end
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::Val{:StochasticProfile})
+                # Nbins=clamp(Int(ceil(sqrt(length(Likelihoods)))),4,100), Extremizer=maximum, DoBiLog=true, Trafo=(DoBiLog ? BiLog : identity), OffsetResults=false)
+    Nbins = get(plotattributes, :Nbins, clamp(Int(ceil(sqrt(length(Likelihoods)))),4,100))
+    Extremizer = get(plotattributes, :Extremizer, maximum)
+    DoBiLog = get(plotattributes, :DoBiLog, true)
+    Trafo = get(plotattributes, :Trafo, (DoBiLog ? BiLog : identity))
+    OffsetResults = get(plotattributes, :OffsetResults, false)
+    pnames = get(plotattributes, :pnames, CreateSymbolNames(length(Points[1])))
+    
+    pval = getindex.(Points, ind);   pBins = HistoBins(pval, Nbins);   keep = falses(length(pval), length(pBins)-1)
+    for i in axes(keep,2)
+        keep[:, i] .= pBins[i] .≤ pval .< pBins[i+1]
+    end
+    MaxLike = OffsetResults ? Extremizer(Trafo.(Likelihoods)) : 0
+    res = [(try Extremizer(Trafo.(@view Likelihoods[col]).-MaxLike) catch; -Inf end) for col in eachcol(keep)]
+    HitsPerBin = Float64[sum(col) for col in eachcol(keep)];  HitsPerBin ./= maximum(HitsPerBin)
+    
+    @series begin
+        st := :bar
+        alpha --> max.(0,HitsPerBin)
+        bar_width --> diff(pBins)
+        lw --> 0.5
+        xlabel := pnames[ind]
+        ylabel := (DoBiLog ? "BiLog(" : "")*"Minimal Objective"*(DoBiLog ? ")" : "")
+        label --> "Conditional Objectives"
+        (@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res
+    end
+    if Extremizer === maximum   @series begin
+        st := :vline
+        line --> :dash
+        lc --> :red
+        lw --> 1.5
+        xlabel := pnames[ind]
+        ylabel := (DoBiLog ? "BiLog(" : "")*"Minimal Objective"*(DoBiLog ? ")" : "")
+        label --> "Best Objective"
+        [Points[findmax(Trafo.(Likelihoods))[2]][ind]]
+    end end
+end
+
+## 2D stochastic profiles
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, ::Val{:Stochastic2DProfile};
+                nxbins = Int(clamp(ceil(length(Likelihoods))^(1/length(Points[1])),4,100)),
+                nybins = Int(clamp(ceil(length(Likelihoods))^(1/length(Points[1])),4,100)),
+                Extremizer = maximum, DoBiLog = true, Trafo = (DoBiLog ? BiLog : identity), OffsetResults = false)
+    @assert length(idxs) == 2 && allunique(idxs) && all(1 .≤ idxs .≤ length(Points[1]))
+    
+    pxval, pyval = getindex.(Points, idxs[1]), getindex.(Points, idxs[2])
+    pxBins, pyBins = HistoBins(pxval, nxbins), HistoBins(pyval, nybins)
+    keep = falses(length(pxval), length(pxBins)-1, length(pyBins)-1)
+    pnames = get(plotattributes, :pnames, CreateSymbolNames(length(Points[1])))
+
+    for i in axes(keep,2), j in axes(keep,3)
+        keep[:, i, j] .= pxBins[i] .≤ pxval .< pxBins[i+1] .&& pyBins[j] .≤ pyval .< pyBins[j+1]
+    end
+    MaxLike = OffsetResults ? Extremizer(Trafo.(Likelihoods)) : 0
+    res = [(try Extremizer(Trafo.(@view Likelihoods[(@view keep[:,i,j])]).-MaxLike) catch; -Inf end) for j in axes(keep,3), i in axes(keep,2)]
+    HitsPerBin = Float64[sum(@view keep[:,i,j]) for j in axes(keep,3), i in axes(keep,2)];   HitsPerBin ./= maximum(HitsPerBin)
+
+    legend --> false
+    @series begin
+        st := :heatmap
+        color --> :viridis
+        colorbar := false
+        xlabel := pnames[idxs[1]]
+        ylabel := pnames[idxs[2]]
+        # alpha --> max.(0,HitsPerBin)
+        lw --> 0.5
+        label --> (DoBiLog ? "BiLog(" : "")*"Minimal Objective"*(DoBiLog ? ")" : "")
+        # heatmap order needs transposed matrix and xy
+        (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), res
+    end
+    if Extremizer === maximum   @series begin
+        st := :scatter
+        c := :red
+        mc := :red
+        xlabel := pnames[idxs[1]]
+        ylabel := pnames[idxs[2]]
+        ms --> 1.5
+        label --> "Best Objective"
+        [Points[findmax(Trafo.(Likelihoods))[2]][idxs]]
+    end end
+end
+## Recipe Passthrough
+for F in [Symbol("plot"), Symbol("plot!")]
+    @eval RecipesBase.$F(R::MultistartResults, V::Val{:Stochastic2DProfile}, args...; kwargs...) = RecipesBase.$F(R, OrderedIndCombs2D(1:pdim(R)), V, args...; kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, idxs::AbstractVector, V::Val{:Stochastic2DProfile}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
+end
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Combos::AbstractVector{<:AbstractVector{<:Int}}, V::Val{:Stochastic2DProfile})
+    @assert allunique(Combos) && 2 ≤ ConsistentElDims(Combos) ≤ 3
+    length(Points[1]) == 2 && return R, [1,2], V
+    layout --> length(Combos)
+    length(Combos) > 1 && (size --> (1500,1500))
+    for (i,inds) in enumerate(Combos)
+        @series begin
+            subplot := i
+            Points, Likelihoods, inds, V
+        end
+    end
+end
