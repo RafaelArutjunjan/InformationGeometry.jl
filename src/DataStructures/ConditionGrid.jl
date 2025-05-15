@@ -32,9 +32,10 @@ const ParameterTransformations = ParamTrafo
 
 
 """
-    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function})
+    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, mle::AbstractVector; Domain::Union{Nothing,Cuboid}=nothing, 
+                    SkipOptim::Bool=false, pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), name::StringOrSymb="")
 Implements condition grid inspired by R package dMod.
-Connects different given `DataModel`s via a vector of transformations, which read from the same collective vector of parameter values and compute the parameter configurations of the respective `DataModel`s from this.
+Connects different given `DataModel`s via a vector of parameter transformations, which read from the same collective vector of outer parameter values and compute from them the individual parameter configurations of the respective `DataModel`s from this at every step.
 Thus, this allows for easily connecting different datasets with distinct models while performing simultaneous inference with shared parameters between the models.
 """
 struct ConditionGrid <: AbstractDataModel
@@ -49,7 +50,7 @@ struct ConditionGrid <: AbstractDataModel
     ScoreFn::Function
     FisherInfoFn::Function
     LogLikeMLE::Number
-    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafo::AbstractVector{<:Function}, mle::AbstractVector; kwargs...) = ConditionGrid(DMs, Trafo, nothing, mle; kwargs...)
+    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafo::AbstractVector{<:Function}, mle::AbstractVector, LogPriorFn::Union{Nothing,Function}=nothing; kwargs...) = ConditionGrid(DMs, Trafo, LogPriorFn, mle; kwargs...)
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
         trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
         LogPriorFn::Union{Function,Nothing}=nothing, 

@@ -9,7 +9,10 @@ ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
 ToArray(df::DataFrame) = size(df,2) == 1 ? Vector(floatify(df[:,1])) : Matrix(floatify(df))
 function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
     any(ismissing, df) && throw("Input contains missing values.")
-    Vector{suff(df)}(floatify(df))
+    # Ensure Type is not union with Missing anymore
+    MissingToNan(x::Number) = x
+    MissingToNan(x::Missing) = NaN
+    MissingToNan.(floatify(df))
 end
 
 

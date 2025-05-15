@@ -8,7 +8,7 @@ makedocs(
     modules = [InformationGeometry],
     pages = Any["Getting Started" => "index.md",
                 "Basics of Information Geometry" => "basics.md",
-                "Tutorial" => Any[  "Providing Data and Models" => "datamodels.md",
+                "Tutorial" => [     "Providing Data and Models" => "datamodels.md",
                                     "Maximum Likelihood Estimation" => "optimization.md",
                                     "Confidence Regions" => "confidence-regions.md",
                                     "Profile Likelihoods" => "parameter-profiles.md",
@@ -18,9 +18,10 @@ makedocs(
                                     "Exporting" => "exporting.md",
                                     # "Kullback-Leibler Divergences" => "kullback-leibler.md",
                                     ],
-                # Advanced Tutorial: Confidence Bands, Geodesics, Profile Likelihood, DataSetExact, Plotting, PDE / Stochastic Examples, Exporting
-                "Advanced Examples" => Any["ODE-based models" => "ODEmodels.md", "Advanced Datasets" => "AdvancedData.md"],
-                # "Package Extensions" => ["PEtabExt.md"], #, "ProfileLikelihood.md"],
+                # Advanced Tutorial: Confidence Bands, Geodesics, DataSetExact, Plotting, PDE / Stochastic Examples
+                "Advanced Examples" => ["ODE-based Models" => "ODEmodels.md", "Advanced Dataset Types" => "AdvancedData.md", 
+                                        "Linking Multiple Models and Datasets" => "ConditionGrids.md"],
+                "Package Extensions" => ["PEtab.jl" => "PEtabExt.md"], #, "ProfileLikelihood.md"],
                 "List of useful methods" => "methodlist.md",
                 "Contributing" => "todo.md",
             ],

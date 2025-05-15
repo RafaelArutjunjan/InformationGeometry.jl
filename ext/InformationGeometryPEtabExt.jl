@@ -117,7 +117,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
 end
 
 # Get all data for single condition
-function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, verbose::Bool=false, Mle=MLE(P))
+function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== C, :]
     verbose && @info "Starting Condition $C."
     df = Long2WidePEtabMeasurements(cdf; UniqueObsids=GetObservablesInCondition(M, C; ObsID, CondID))
@@ -125,7 +125,7 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFr
     Constructor = !any(ismissing.(Matrix(df))) ? DataSet : CompositeDataSet
 
     try 
-        ConstError = GetDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); Mle)
+        ConstError = GetDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); FixedError, Mle)
         SigmaDf = if length(ConstError) == length(names(Ydf)) || eltype(ConstError) <: Number
             DataFrame(reduce(hcat, [fill(x,size(Ydf,1)) for x in ConstError]), :auto)
         else
@@ -140,9 +140,9 @@ end
 
 CreateSymbolDF(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = (sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID]);     sdf)
 # Get vector of all condition datasets
-function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, UniqueConds=GetUniqueConditions(M; CondID), Mle=MLE(P))
+function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, UniqueConds=GetUniqueConditions(M; CondID), FixedError::Bool=true, Mle=MLE(P))
     sdf = CreateSymbolDF(M; ObsID, CondID)
-    [GetConditionData(P, M, sdf, C; ObsID, CondID, Mle) for C in UniqueConds]
+    [GetConditionData(P, M, sdf, C; ObsID, CondID, FixedError, Mle) for C in UniqueConds]
 end
 
 function NicifyPEtabNames(PNames::AbstractVector{<:AbstractString})
@@ -153,13 +153,13 @@ function NicifyPEtabNames(PNames::AbstractVector{<:AbstractString})
 end
 
 
-InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:conditions][1,1]); ObsID=:observableId, CondID=:simulationConditionId) = GetConditionData(M, CreateSymbolDF(M; ObsID, CondID), C; ObsID, CondID)
+InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:conditions][1,1]); ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true) = GetConditionData(M, CreateSymbolDF(M; ObsID, CondID), C; ObsID, CondID, FixedError)
 
 
 InformationGeometry.DataModel(P::PEtabModel; kwargs...) = InformationGeometry.DataModel(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, kwargs...)
+function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, kwargs...)
     UniqueConds = GetUniqueConditions(P; CondID)
-    DSs = GetDataSets(P; ObsID, CondID, UniqueConds, Mle)
+    DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle)
     DS = DSs[1]
 
     PNames = InformationGeometry.GetNamesSymb(Mle) # .|> string |> NicifyPEtabNames
@@ -183,6 +183,10 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
         InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); ADmode, pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...)
     end
 end
+
+# Currently overload with identical behaviour
+InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); kwargs...) = InformationGeometry.DataModel(P, Mle; kwargs...)
+
 
 function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId)
     @unpack model_info, probinfo = petab_prob
