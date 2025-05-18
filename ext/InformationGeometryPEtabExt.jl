@@ -180,7 +180,7 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
         # Give Prior to ConditionGrid, not individual DMs
         DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
                             ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])), name=C, SkipTests=true, SkipOptim=true) for (i,C) in enumerate(UniqueConds)]
-        InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); ADmode, pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...)
+        InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...)
     end
 end
 

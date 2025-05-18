@@ -137,6 +137,8 @@ GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[];
 Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
 
+DataspaceDim(CG::ConditionGrid) = sum(length.(ydata.(Conditions(CG))))
+
 GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
 function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), kwargs...)
     if isnothing(Domain)

@@ -219,7 +219,7 @@ function Base.vcat(R1::MultistartResults, R2::MultistartResults)
         vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations), vcat(R1.Converged, R2.Converged),
         R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
         (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing),
-        (!isnothing(R1.Meta) && !isnothing(R2.Meta) ? vcat(R1.Meta,R2.Meta) : nothing),
+        ((!isnothing(R1.Meta) && !isnothing(R2.Meta) && (@assert R1.Meta == R2.Meta; true)) ? R1.Meta : nothing),
     )
 end
 
@@ -430,8 +430,10 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
 function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime::Real=60, Nsingle::Int=GetNsingleFromTargetTime(DM, TargetTime), N::Int=Nsingle^length(C), 
-                                                        nbins::Int=clamp(Nsingle,2,100), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(pdim(DM),maxval), kwargs...)
-   StochasticProfileLikelihood(DM, GenerateSobolPoints(Domain; N, maxval); Domain, nbins, kwargs...)
+                                                        nbins::Int=clamp(Nsingle,2,100), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, kwargs...)
+    Points = GenerateSobolPoints(Domain; N, maxval)
+    !(TransformSample === identity) && (Points .= TransformSample.(Points))
+    StochasticProfileLikelihood(DM, Points; Domain, nbins, kwargs...)
 end
 function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVector{<:AbstractVector}; LogLikelihoodFn::Function=loglikelihood(DM), parallel::Bool=true, pnames::AbstractVector{<:AbstractString}=pnames(DM), kwargs...)
    @info "Starting $(length(Points)) samples."
