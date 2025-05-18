@@ -70,7 +70,7 @@ import InformationGeometry: DataModel, DataSet, CompositeDataSet, ModelMap, Cond
 
 # Get fixed uncertainties based on error parameter values from P
 function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.petab_tables[:observables], ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
-                        FixedError::Bool=true, ObsID=:observableId, CondID=:simulationConditionId, Formula=:noiseFormula, ObsTrafo=:observableTransformation, NoiseDist=:noiseDistribution, Pscale=:parameterScale, ParamID=:parameterId, debug::Bool=true, kwargs...)
+                        FixedError::Bool=true, ObsID=:observableId, CondID=:simulationConditionId, Formula=:noiseFormula, ObsTrafo=:observableTransformation, NoiseDist=:noiseDistribution, Pscale=:parameterScale, ParamID=:parameterId, debug::Bool=false, kwargs...)
     Odf = @view (observablesDF[[findfirst(isequal(O),Symbol.(observablesDF[!,ObsID])) for O in ObsNames], :])
     # @assert all(Symbol.(Odf[!,ObsTrafo]) .=== :lin)
     @assert all(Symbol.(Odf[!,NoiseDist]) .=== :normal)
@@ -117,7 +117,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
 end
 
 # Get all data for single condition
-function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, Mle=MLE(P))
+function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== C, :]
     verbose && @info "Starting Condition $C."
     df = Long2WidePEtabMeasurements(cdf; UniqueObsids=GetObservablesInCondition(M, C; ObsID, CondID))
@@ -125,7 +125,7 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFr
     Constructor = !any(ismissing.(Matrix(df))) ? DataSet : CompositeDataSet
 
     try 
-        ConstError = GetDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); FixedError, Mle)
+        ConstError = GetDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); FixedError, debug, Mle)
         SigmaDf = if length(ConstError) == length(names(Ydf)) || eltype(ConstError) <: Number
             DataFrame(reduce(hcat, [fill(x,size(Ydf,1)) for x in ConstError]), :auto)
         else
@@ -133,7 +133,7 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFr
         end
         Constructor(Xdf, Ydf, SigmaDf; xnames=names(Xdf), ynames=names(Ydf), name=C)
     catch E;
-        @warn "Tried getting errors but could not because of $E."
+        debug && @warn "Tried getting errors but could not because of $E."
         Constructor(Xdf, Ydf; xnames=names(Xdf), ynames=names(Ydf), name=C)
     end
 end
@@ -159,6 +159,7 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 InformationGeometry.DataModel(P::PEtabModel; kwargs...) = InformationGeometry.DataModel(PEtabODEProblem(P); kwargs...)
 function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, kwargs...)
     UniqueConds = GetUniqueConditions(P; CondID)
+    @assert length(UniqueConds) == 1 || P.probinfo.gradient_method === :ForwardEquations "Only gradient_method = :ForwardEquations implemented for PEtab models with more than one condition! Got :$(P.probinfo.gradient_method) instead."
     DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle)
     DS = DSs[1]
 
