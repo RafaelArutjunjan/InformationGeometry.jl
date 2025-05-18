@@ -29,7 +29,8 @@ const ParameterTransformations = ParamTrafo
 # function TryToInferPnames()
 # end
 
-
+# Get Vector of inds for viewing into concatenated vector made of individual lengths
+IndsVecFromLengths(Lenghts::AbstractVector{<:Int}) = (C=[0;cumsum(Lenghts)];   [1+C[i-1]:C[i] for i in 2:length(C)])
 
 """
     ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, mle::AbstractVector; Domain::Union{Nothing,Cuboid}=nothing, 
@@ -52,7 +53,7 @@ struct ConditionGrid <: AbstractDataModel
     LogLikeMLE::Number
     ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafo::AbstractVector{<:Function}, mle::AbstractVector, LogPriorFn::Union{Nothing,Function}=nothing; kwargs...) = ConditionGrid(DMs, Trafo, LogPriorFn, mle; kwargs...)
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
-        trafo::AbstractVector{<:Function}=(C=[0;cumsum(pdim.(DMs))];   Inds=[1+C[i-1]:C[i] for i in 2:length(C)];   [ViewElements(inds) for inds in Inds]), 
+        trafo::AbstractVector{<:Function}=[ViewElements(inds) for inds in IndsVecFromLengths(pdim.(DMs))], 
         LogPriorFn::Union{Function,Nothing}=nothing, 
         mle::AbstractVector=reduce(vcat, MLE.(DMs));
         ADmode::Val=Val(:ForwardDiff),

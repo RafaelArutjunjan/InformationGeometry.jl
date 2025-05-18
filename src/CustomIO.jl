@@ -76,7 +76,7 @@ function Base.summary(CG::ConditionGrid)
     Name = string(name(CG))
     string(TYPE_COLOR, "Condition Grid",
     NO_COLOR, (length(Name) > 0 ? " "*ColoredString(name(CG)) : ""),
-    " with pdim=", string(pdim(CG)), " containing ", string(length(Conditions(CG))), " submodels")
+    " with pdim=", string(pdim(CG)), " containing ", string(length(Conditions(CG))), " conditions")
 end
 
 # http://docs.junolab.org/stable/man/info_developer/#
@@ -182,8 +182,8 @@ end
 # Single line display
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = SymbolicModel(DM)
-    println(io, Base.summary(DM))
-    print(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
+    print(io, Base.summary(DM))
+    print(io, ", Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
@@ -246,7 +246,10 @@ function Base.show(io::IO, ::MIME"text/plain", CG::ConditionGrid)
     print(io, "Parameter Transformations: " * ParamTrafoString(CG, true))
 end
 # Single line display
-Base.show(io::IO, CG::ConditionGrid) = print(io, Base.summary(CG))
+function Base.show(io::IO, CG::ConditionGrid)
+    print(io, Base.summary(CG))
+    print(io, ", Maximal value of log-likelihood: "*string(round(LogLikeMLE(CG); sigdigits=5)))
+end
 
 # Multi-line display
 Base.show(io::IO, ::MIME"text/plain", P::ParamTrafo) = print(io, Base.summary(P))
