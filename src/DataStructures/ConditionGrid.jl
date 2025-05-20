@@ -33,7 +33,7 @@ const ParameterTransformations = ParamTrafo
 IndsVecFromLengths(Lenghts::AbstractVector{<:Int}) = (C=[0;cumsum(Lenghts)];   [1+C[i-1]:C[i] for i in 2:length(C)])
 
 """
-    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, mle::AbstractVector; Domain::Union{Nothing,Cuboid}=nothing, 
+    ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, mle::AbstractVector, LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{Nothing,Cuboid}=nothing, 
                     SkipOptim::Bool=false, pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), name::StringOrSymb="")
 Implements condition grid inspired by R package dMod.
 Connects different given `DataModel`s via a vector of parameter transformations, which read from the same collective vector of outer parameter values and compute from them the individual parameter configurations of the respective `DataModel`s from this at every step.

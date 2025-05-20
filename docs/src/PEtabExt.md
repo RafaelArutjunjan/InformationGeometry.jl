@@ -13,7 +13,7 @@ Böhm = PEtabODEProblem(PEtabModel(BöhmYamlPath); gradient_method=:ForwardEquat
 DM = DataModel(Böhm; FixedError=true)
 ```
 This will automatically extract a simplified representation of the dataset. 
-If error models are used in the `PEtabODEProblem` to estimate the data uncertainties, they are currently dropped and the uncertainties are fixed to the values dictated by the error model at the best fit values of the error parameters. However, since the likelihood function and its gradient are directly copied from the given `PEtabODEProblem`, this does not affect optimisation (such as during profile likelihood computation or multistart optimisation), where changes in the given error parameters are properly accounted for.
+If error models are used in the `PEtabODEProblem` to estimate the data uncertainties, they are currently dropped and the uncertainties are fixed to the values dictated by the error model at the best fit values of the error parameters. However, since the likelihood function and its gradient are directly accessed from the given `PEtabODEProblem`, this does not affect optimisation (such as during profile likelihood computation or multistart optimisation), where changes in the given error parameters are properly accounted for.
 
 Therefore, this mainly affects plots of the datasets from the `DM`, if further changes to the values of the error parameters have been made after the import of the `PEtabODEProblem` to a `DataModel` or `ConditionGrid`, as these will currently not be visible in said plots of the dataset.
 
