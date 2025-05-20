@@ -180,7 +180,12 @@ InvChisqCDF(k::Int, p::T; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), m
 
 
 
-# sign function which is autodiffble at zero.
+"""
+    Sgn(x::Number) -> Number
+Sign function with the right-continuous convention that `Sgn(0) = 1` which means that the derivative is formally defined as zero everywhere.
+Most importantly, this helps avoid automatic differentiation issues for functions involving `Sgn` of the argument, where 
+derivatives of functions involving `sgn` are discontinuously forced to zero at the origin.
+"""
 Sgn(x::T) where T<:Number = ifelse(x < 0, -one(T), one(T))
 """
     BiLog(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number

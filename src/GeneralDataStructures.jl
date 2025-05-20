@@ -187,6 +187,8 @@ NumberOfErrorParameters(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector
 ## Currently not possible for CDS to have error parameters yet.
 # NumberOfErrorParameters(CDS::CompositeDataSet, mle::AbstractVector) = sum(sum(length, (SplitErrorParams(DS)(mle))[2:end]) for DS in Data(CDS))
 
+errormoddim(DS::AbstractFixedUncertaintyDataSet) = 0
+
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted
 """
@@ -315,17 +317,21 @@ function ScaledResiduals(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); xer
 end
 
 
+# Called by GetStartP
 """
     pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(DS::AbstractDataSet, model::ModelOrFunction)
-    if !isinplacemodel(model)
+function pdim(DS::AbstractDataSet, model::Function)
+    pModel = if !isinplacemodel(model)
         GetArgLength(p->model(WoundX(DS)[1],p))
     else #inplace model
         GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))
     end
+    pModel + errormoddim(DS)
 end
+pdim(DS::AbstractDataSet, M::ModelMap) = pdim(M) + errormoddim(DS)
+
 
 # DataSet types not defined at point of loading this
 function Base.join(DS1::T, DS2::T) where T <: AbstractDataSet

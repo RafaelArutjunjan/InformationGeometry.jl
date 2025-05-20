@@ -1,7 +1,7 @@
 
 
-SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(1000:15000), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -maxval*ones(length(C)), maxval*ones(length(C))), clamp(C.U, -maxval*ones(length(C)), maxval*ones(length(C)))), seed; exact=true)
-SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e10)))
+SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(0:1e7), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -maxval*ones(length(C)), maxval*ones(length(C))), clamp(C.U, -maxval*ones(length(C)), maxval*ones(length(C)))), seed; exact=true)
+SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e12)))
 GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
 
 function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Distribution, n::Int=100; N::Int=n)
@@ -13,7 +13,7 @@ function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Dist
        Pusher(y, i) && (i += 1)
        SOBOL.next!(S, y)
     end;  [view(M,:,i) for i in axes(M,2)]
- end
+end
 
 function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1e5; verbose::Bool=true)
     verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
