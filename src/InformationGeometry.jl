@@ -326,8 +326,6 @@ SnoopPrecompile.@precompile_all_calls begin
 
     SIR! = nothing
 
-    # DM = DataModel(DataSet([1,2,3],[4,1,5,2,6.5,3.5],[0.5,0.5,0.45,0.45,0.6,0.6], (3,1,2)), (x,p)-> [p[1]^3*x, p[2]^2*x])
-    # dm = InplaceDM(DM)
     io = IOBuffer()
     ParamSummary(io, DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]),
                 ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]-θ[2], PositiveDomain(2,1e2), (1,1,2)), [16, 0.41]))

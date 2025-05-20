@@ -278,7 +278,7 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
 end
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction, P::AbstractVector=GetStartP(DS, model); verbose::Bool=true)
-    out = try  model(WoundX(DS)[1],P)   catch Err
+    out = try  model(WoundX(DS)[1],(SplitErrorParams(DS)(P))[1])   catch Err
         throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
     end
     size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
@@ -328,9 +328,21 @@ function pdim(DS::AbstractDataSet, model::Function)
     else #inplace model
         GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))
     end
+    # Error parameter definitely not accounted for in pModel yet
     pModel + errormoddim(DS)
 end
-pdim(DS::AbstractDataSet, M::ModelMap) = pdim(M) + errormoddim(DS)
+pdim(DS::AbstractFixedUncertaintyDataSet, M::ModelMap) = pdim(M)
+function pdim(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap)
+    # Check if given ModelMap Domain already includes error parameters
+    try
+        # Should already compensate for in-place models
+        M(WoundX(DS)[1],(SplitErrorParams(DS)(ElaborateGetStartP(M)))[1])
+        pdim(M)
+    catch E;
+        @warn "pdim(DS,M): It appears that error parameters are not included in given ModelMap Domain $(Domain(M)) yet? Got error $E. Appending $(errormoddim(DS)) component(s) for error parameters to initial parameter guess and trying to continue."
+        pdim(M) + errormoddim(DS)
+    end
+end
 
 
 # DataSet types not defined at point of loading this

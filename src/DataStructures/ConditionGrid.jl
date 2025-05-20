@@ -65,20 +65,20 @@ struct ConditionGrid <: AbstractDataModel
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         FisherInfoFn::Function=MergeOneArgMethods(GetHess(ADmode,Negate(LogLikelihoodFn)), GetHess!(ADmode,Negate(LogLikelihoodFn))), # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
-        LogLikeMLE::Number=LogLikelihoodFn(mle), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+        LogLikeMLE::Number=LogLikelihoodFn(mle), SkipOptim::Bool=false, SkipTests::Bool=false, verbose::Bool=true, kwargs...)
         # Check pnames correct?
         # Condition names already unique from ParamTrafo
         @assert length(Trafos) == length(DMs)
         @assert allunique(InformationGeometry.name.(DMs))
         !isnothing(Domain) && @assert length(Domain) == length(mle)
 
-        @warn "The ConditionGrid functionality is still experimental, use with caution!"
+        verbose && @warn "The ConditionGrid functionality is still experimental, use with caution!"
 
         Mle = if SkipOptim
-            @warn "ConditionGrid: Not performing optimization out of the box!"
+            verbose && @warn "ConditionGrid: Not performing optimization out of the box!"
             mle
         else
-            InformationGeometry.minimize(Negate(LogLikelihoodFn), mle, Domain; kwargs...)
+            InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
         end            
 
         new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE)
@@ -179,9 +179,12 @@ end
 
 
 
-SymbolicParamTrafo(CG::ConditionGrid, GenericNames::Bool=true) = (GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))) |> CG.Trafos .|> collect
+function SymbolicParamTrafo(CG::ConditionGrid, GenericNames::Bool=true)
+    P = GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))
+    [F === identity ? "θ" : F(P) for F in CG.Trafos]
+end
 function ParamTrafoString(CG::ConditionGrid, GenericNames::Bool=true, args...; kwargs...)
-   Shorten(S::AbstractString) = @view S[findfirst('[', S):end]
+   Shorten(S::AbstractString) = !startswith(S, "θ") ? (@view S[findfirst('[', S):end]) : S
    if GenericNames
       "[" * join("θ->" .* Shorten.(string.(SymbolicParamTrafo(CG, GenericNames, args...; kwargs...))), ", ") * "]"
    else

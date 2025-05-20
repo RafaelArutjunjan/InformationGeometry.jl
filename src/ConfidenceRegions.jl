@@ -204,7 +204,13 @@ _turn(S::AbstractVector, α::AbstractVector, normalize::Val{false}) = (P = prod(
 
 GetStartP(DM::AbstractDataModel) = GetStartP(Data(DM), Predictor(DM), pdim(DM))
 GetStartP(DS::AbstractDataSet, model::Function, hint::Int=pdim(DS,model)) = GetStartP(hint)
-GetStartP(DS::AbstractDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetStartP(model)
+GetStartP(DS::AbstractFixedUncertaintyDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetStartP(model)
+function GetStartP(DS::AbstractUnknownUncertaintyDataSet, model::ModelMap, hint::Int=pdim(DS,model))
+    hint == length(Domain(model)) && return ElaborateGetStartP(model)
+    @assert hint == length(Domain(model)) + errormoddim(DS)
+    # Append error parameter guesses slightly larger than zero
+    vcat(ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
+end
 GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
 
 ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(Domain(M), InDomain(M); maxiters=maxiters)

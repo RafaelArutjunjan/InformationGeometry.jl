@@ -234,7 +234,6 @@ function _FullNames(DM::AbstractDataModel)
     end
 end
 
-pdim(DS::AbstractDataSet, model::ModelMap)::Int = model.xyp[3]
 
 xdim(M::ModelMap)::Int = M.xyp[1]
 ydim(M::ModelMap)::Int = M.xyp[2]

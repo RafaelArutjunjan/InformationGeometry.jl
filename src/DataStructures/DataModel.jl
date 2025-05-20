@@ -68,8 +68,18 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector, LogPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
-        mle = SkipOptim ? [-Inf,-Inf] : FindMLE(DS, model, dmodel; tol=OptimTol, meth=OptimMeth)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
+        if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && length(Domain(model)) + errormoddim(DS) == length(startp)
+            # Error parameters not accounted for in Domain yet and recognized by GetStartP
+            @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
+            M = deepcopy(model)
+            PNames = vcat(pnames(M), CreateSymbolNames(errormoddim(DS), "σ"))
+            Xyp = (xdim(M), ydim(M), pdim(M) + errormoddim(DS))
+            Dom = vcat(Domain(M), HyperCube(-5ones(errormoddim(DS)), 5ones(errormoddim(DS))))
+            model = remake(M; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom)
+            dmodel isa ModelMap && (dmodel = remake(dmodel; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom))
+        end
+        mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth)
         # Optimization already happened, propagate SkipOptim=true explicitly for later
         DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
     end

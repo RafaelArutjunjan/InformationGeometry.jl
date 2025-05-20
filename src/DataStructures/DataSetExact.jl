@@ -80,7 +80,7 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
                             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, Name::StringOrSymb=Symbol())
-        new{typeof(xd), typeof(yd)}(xd, yd, dims, InvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol.(Name))
+        new{typeof(xd), typeof(yd)}(xd, yd, dims, InvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(Name))
     end
 end
 
