@@ -479,14 +479,14 @@ The `Plane`s and their embedded 2D confidence boundaries are returned as the res
 function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, verbose::Bool=true,
                             Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=DOF(DM), kwargs...)
     if pdim(DM) == 1
-        ConfidenceInterval1D(DM, Confnum; tol=tol)
+        ConfidenceInterval1D(DM, Confnum; tol)
     elseif pdim(DM) == 2
-        GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol=tol, dof=dof); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...)
+        GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol, dof); tol, Boundaries, meth, mfd, ADmode, kwargs...)
     else
         verbose && Dirs == (1,2,3) && @info "ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually."
-        Cube = LinearCuboid(DM, Confnum)
-        Planes = IntersectCube(DM, Cube, Confnum; Dirs=Dirs, N=N, tol=tol)
-        Planes, MincedBoundaries(DM, Planes, Confnum; tol=tol, Boundaries=Boundaries, ADmode=ADmode, meth=meth, mfd=mfd, parallel=parallel, kwargs...)
+        Cube = LinearCuboid(DM, Confnum; dof)
+        Planes = IntersectCube(DM, Cube, Confnum; Dirs, N, tol)
+        Planes, MincedBoundaries(DM, Planes, Confnum; tol, dof, Boundaries, ADmode, meth, mfd, parallel, kwargs...)
     end
 end
 
@@ -646,6 +646,7 @@ FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunctio
 # Specialize this for other DataSet types
 _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
+# Does not work for CDS
 # Data covariance matrix for a single data point, computed from the mean
 function AverageSingleYsigmaMatrix(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
     @assert Data(DM) isa AbstractFixedUncertaintyDataSet
@@ -1021,12 +1022,12 @@ end
 
 
 """
-    LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200) -> HyperCube
+    LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; dof::Int=DOF(DM), Padding::Number=1/30, N::Int=200) -> HyperCube
 Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
 """
-function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; Padding::Number=1/30, N::Int=200)
+function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; dof::Int=DOF(DM), Padding::Number=1/30, N::Int=200)
     # LinearCuboid(Symmetric(InvChisqCDF(pdim(DM),ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding, N=N)
-    BoundingBox(Symmetric(InvChisqCDF(pdim(DM),ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding)
+    BoundingBox(Symmetric(InvChisqCDF(dof,ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding)
 end
 
 # Formula from https://tavianator.com/2014/ellipsoid_bounding_boxes.html
@@ -1067,19 +1068,17 @@ function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:N
 end
 
 
-function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff),
-                                Boundaries::Union{Function,Nothing}=nothing, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, kwargs...)
-    GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol=tol); tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...)
+function GenerateEmbeddedBoundary(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, dof::Int=DOF(DM), mfd::Bool=false, kwargs...)
+    GenerateBoundary(DM, PL, FindConfBoundaryOnPlane(DM, PL, Confnum; tol, dof); tol, mfd, kwargs...)
 end
 
 """
     MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, ADmode::Val=Val(:ForwardDiff), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true,
-                        Boundaries::Union{Function,Nothing}=nothing, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, parallel::Bool=false, kwargs...)
+function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; verbose::Bool=true, parallel::Bool=false, kwargs...)
     Prog = Progress(length(Planes); enabled=verbose, desc="Computing planar solutions... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
-    (parallel ? progress_pmap : progress_map)(X->GenerateEmbeddedBoundary(DM, X, Confnum; tol=tol, Boundaries=Boundaries, meth=meth, mfd=mfd, ADmode=ADmode, kwargs...), Planes; progress=Prog)
+    (parallel ? progress_pmap : progress_map)(X->GenerateEmbeddedBoundary(DM, X, Confnum; kwargs...), Planes; progress=Prog)
 end
 
 
