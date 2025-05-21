@@ -859,6 +859,20 @@ end
 
 
 
+function GetTrafoNames(F::Function, GenericName::Bool=false)
+    TrafoName = if F === identity   ""
+    elseif F === BiLog              "BiLog("
+    elseif F === BiRoot             "BiRoot("
+    elseif F === BiExp              "BiExp("
+    elseif F === BiPower            "BiPower("
+    elseif F === BiRoot             "BiRoot("
+    elseif GenericName   "Trafo("  else    string(Symbol(F))*"("   end
+    TrafoName, (length(TrafoName) == 0 ? "" : ")")
+end
+
+
+
+
 # Plot trajectories by default
 @recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfile && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
 
@@ -948,7 +962,7 @@ end
     # Should do rescaling with diagonal sqrt inv Fisher instead of BiLog
     DoBiLog = get(plotattributes, :BiLog, true)
     Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = Trafo === BiLog ? ("BiLog(",")") : (Trafo === identity ? ("", "") : ("Trafo(", ")"))
+    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     xlabel --> TrafoName * pnames(P)[idxs[1]] * TrafoNameEnd
     ylabel --> TrafoName * pnames(P)[idxs[2]] * TrafoNameEnd
     if length(idxs) == 3
@@ -1104,7 +1118,7 @@ end
 
     DoBiLog = get(plotattributes, :BiLog, false)
     Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = Trafo === BiLog ? ("BiLog(",")") : (Trafo === identity ? ("", "") : ("Trafo(", ")"))
+    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     ystring = DoRelChange ? "p_i/p_MLE" :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i-p_MLE]" : "p_i-p_MLE")
     yguide --> TrafoName * ystring * TrafoNameEnd
     # Also filter out 

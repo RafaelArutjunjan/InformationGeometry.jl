@@ -139,14 +139,18 @@ Conditions(CG::ConditionGrid) = CG.DMs
 
 DataspaceDim(CG::ConditionGrid) = sum(length.(ydata.(Conditions(CG))))
 
-GetDomainSafe(DM::DataModel; maxval::Real=1e2) = isnothing(GetDomain(DM)) ? FullDomain(length(MLE(DM)), maxval) : GetDomain(DM)
-function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), kwargs...)
+function GetDomainSafe(DM::DataModel; maxval::Real=1e2, verbose::Bool=true)
+    !isnothing(GetDomain(DM)) && return GetDomain(DM)
+    verbose && @warn "Making Domain [-$maxval, $maxval]^$(pdim(DM)) for DataModel $(name(DM))"
+    FullDomain(length(MLE(DM)), maxval)
+end
+function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), verbose::Bool=true, kwargs...)
     if isnothing(Domain)
         pdim(CG) != sum(pdim.(Conditions(CG))) && throw(ArgumentError("Domain HyperCube or Distribution for sampling must be specified as second argument for ConditionGrids."))
         @warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"
-        Domain = reduce(vcat, [GetDomainSafe(DM; maxval) for DM in Conditions(CG)])
+        Domain = reduce(vcat, [GetDomainSafe(DM; maxval, verbose) for DM in Conditions(CG)])
     end
-    MultistartFit(CG, Domain; dof, Domain, maxval, kwargs...)
+    MultistartFit(CG, Domain; dof, Domain, maxval, verbose, kwargs...)
 end
 
 
