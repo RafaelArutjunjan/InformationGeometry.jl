@@ -47,10 +47,13 @@ end
 function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}=DecomposeWRTPlane(PL, ProjectOntoPlane(PL, MLE(DM))))
     @assert DM isa DataModel
     model = Predictor(DM);      dmodel = dPredictor(DM)
-    newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, PlaneCoordinates(PL,θ); kwargs...)
-    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, PlaneCoordinates(PL,θ); kwargs...) * Projector(PL)
+    newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, (SplitErrorParams(DM)(PlaneCoordinates(PL,θ)))[1]; kwargs...)
+    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, (SplitErrorParams(DM)(PlaneCoordinates(PL,θ)))[1]; kwargs...) * Projector(PL)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
-    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle)), PlanarLogPrior, true)
+    LogLikelihoodFn = loglikelihood(DM)∘PlaneCoordinates(PL)
+    # ScoreFn = MergeOneArgMethods(Score(DM)∘PlaneCoordinates(PL), nothing)
+    # FisherInfoFn = MergeOneArgMethods(FisherMetric(DM)∘PlaneCoordinates(PL), nothing)
+    DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle)), PlanarLogPrior, true; LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
 end
 
 # Performance gains of using static vectors is lost if their length exceeds 32

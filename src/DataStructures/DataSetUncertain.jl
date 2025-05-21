@@ -147,7 +147,7 @@ end
 
 function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
     normalparams, errorparams = SplitErrorParams(DS)(θ)
-    woundYpred = Windup(EmbeddingMap(DS, model, θ; kwargs...), ydim(DS))
+    woundYpred = Windup(EmbeddingMap(DS, model, normalparams; kwargs...), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
     woundY = WoundY(DS)
