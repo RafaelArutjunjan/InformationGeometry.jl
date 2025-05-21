@@ -304,6 +304,13 @@ end
 @safetestset "DataSetUncertain" begin
     using InformationGeometry, Test, Distributions, Optim
 
+    # Detect if error parameters already accounted for in given ModelMap Domain and attempt to fix automatically
+    X = 1:5;    Y = rand(5)
+    @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel; startp=rand(3))) isa DataModel
+    @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel; startp=rand(2))) isa DataModel
+    @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel)) isa DataModel
+    @test DataModel(DataSetUncertain(X, Y), LinearModel) isa DataModel
+
     function tester(DM::AbstractDataModel, DM2::AbstractDataModel, DM3::AbstractDataModel, mle::AbstractVector; atol::Real=1e-6)
         @assert Data(DM) isa InformationGeometry.AbstractUnknownUncertaintyDataSet
         @assert Data(DM2) isa InformationGeometry.AbstractFixedUncertaintyDataSet

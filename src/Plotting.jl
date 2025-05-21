@@ -85,7 +85,7 @@ function predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)
 end
 function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}, X::AbstractVector=xdata(DS))
     # Ignore structure of missing values for CompositeDataSet for dense prediction curve
-    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, mle, X) : EmbeddingMap(DS, model, mle, X)
+    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, (SplitErrorParams(DS)(mle))[1], X) : EmbeddingMap(DS, model, (SplitErrorParams(DS)(mle))[1], X)
     ydim(DS) == 1 ? Y : (ydim(DS) ≤ Npoints(DS) ? Unpack(Windup(Y, ydim(DS))) : transpose(Unpack(Windup(Y, ydim(DS)))))
 end
 
@@ -291,7 +291,7 @@ end
 ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; verbose::Bool=true)
     Npoints(DS) ≤ length(MLE) && ((verbose && @warn "Too few data points to compute RSE"); return nothing)
-    ydiff = ydata(DS) - EmbeddingMap(DS, model, MLE)
+    ydiff = ydata(DS) - EmbeddingMap(DS, model, (SplitErrorParams(DS)(MLE))[1])
     Res = map(i->sqrt(sum(abs2, view(ydiff, i:ydim(DS):length(ydiff))) / (Npoints(DS) - length(MLE))), 1:ydim(DS))
     ydim(DS) == 1 ? Res[1] : Res
 end
@@ -742,8 +742,8 @@ function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int},
     end
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), samples::Int=200, kwargs...)
-    ConfidenceBands(DM, ConfidenceRegion(DM, Confnum; kwargs...), Xdomain; N=N, plot=plot, samples=samples)
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), samples::Int=200, dof::Int=DOF(DM), kwargs...)
+    ConfidenceBands(DM, ConfidenceRegion(DM, Confnum; dof, kwargs...), Xdomain; N, dof, plot, samples)
 end
 
 """
@@ -805,7 +805,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractO
 end
 
 function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
-                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), dof::Int=DOF(DM), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert length(Planes) == length(sols)
     @assert !(Data(DM) isa CompositeDataSet)
@@ -818,7 +818,7 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
         end
         ProgressMeter.next!(Prog)
     end
-    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1])))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, Planes[1], sols[1]; dof)))
     M
 end
 
