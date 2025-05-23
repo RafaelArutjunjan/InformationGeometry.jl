@@ -422,7 +422,8 @@ function GetNsingleFromTargetTime(L::Function, startp::AbstractVector, TargetTim
 end
 
 
-HistoBins(X::AbstractVector, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(X))...; length=nbins+1)
+HistoBins(X::AbstractVector{<:Number}, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(X))...; length=nbins+1)
+HistoBins(X::AbstractVector{<:AbstractVector}, ind::Int, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(x->x[ind],X))...; length=nbins+1)
 """
    StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime=60, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=4Nsingle, parallel::Bool=true, maxval::Real=1e5, BiLog::Bool=true, kwargs...)
 Samples the likelihood over the parameter space, splits the value range of each parameter into bins and visualizes the best observed likelihood value from all samples with the respective parameter value in this bin.
@@ -434,7 +435,7 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
 function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=60, Nsingle::Int=GetNsingleFromTargetTime(DM, TargetTime), N::Int=Nsingle^length(C), 
-                                                        nbins::Int=clamp(Nsingle,2,100), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, kwargs...)
+                                                        nbins::Int=Int(ceil(clamp(0.5*(N^(1/length(C))),2,100))), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, kwargs...)
     Points = GenerateSobolPoints(Domain; N, maxval)
     !(TransformSample === identity) && (Points .= TransformSample.(Points))
     StochasticProfileLikelihood(DM, Points; Domain, nbins, kwargs...)
@@ -455,7 +456,7 @@ end
 StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives, ind; xlabel=string(pnames(R)[ind]), kwargs...))
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
-function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; Inds::AbstractVector{<:Int}=1:findlast(isfinite,Likelihoods), nbins::Int=clamp(Int(ceil(sqrt(length(Inds)))),2,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=maximum,
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; Inds::AbstractVector{<:Int}=1:findlast(isfinite,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),2,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=maximum,
                                 pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
     AddedPlots = []
@@ -472,7 +473,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
 end
 # Individual Parameter
-function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100), Extremizer::Function=maximum, 
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),2,100))), Extremizer::Function=maximum, 
                                  BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), pval::AbstractVector=getindex.(Points, ind), pBins::AbstractVector=HistoBins(pval, nbins), 
                                  xlabel="Parameter $ind", OffsetResults::Bool=false, kwargs...)
    keep = falses(length(pval), length(pBins)-1)
@@ -550,7 +551,7 @@ for F in [Symbol("plot"), Symbol("plot!")]
 end
 @recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::Val{:StochasticProfile})
                                 # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity))
-    Nbins = get(plotattributes, :Nbins, clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100))
+    Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),2,100))))
     Extremizer = get(plotattributes, :Extremizer, maximum)
     DoBiLog = get(plotattributes, :BiLog, true)
     Trafo = get(plotattributes, :Trafo, (DoBiLog ? BiLog : identity))
@@ -606,7 +607,7 @@ end
 end
 @recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::Val{:StochasticProfile})
                 # Nbins=clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100), Extremizer=maximum, BiLog=true, Trafo=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults=false)
-    Nbins = get(plotattributes, :Nbins, clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100))
+    Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),2,100))))
     Extremizer = get(plotattributes, :Extremizer, maximum)
     DoBiLog = get(plotattributes, :DoBiLog, true)
     Trafo = get(plotattributes, :Trafo, (DoBiLog ? BiLog : identity))

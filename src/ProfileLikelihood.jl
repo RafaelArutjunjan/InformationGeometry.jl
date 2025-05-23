@@ -860,14 +860,14 @@ end
 
 function _GetTrafoName(F::Function, GenericName::Bool=false)
     if F === identity   ""
-    elseif F === BiLog              "BiLog"
-    elseif F === BiRoot             "BiRoot"
-    elseif F === BiExp              "BiExp"
-    elseif F === BiPower            "BiPower"
-    elseif F === BiRoot             "BiRoot"
-    elseif GenericName   "Trafo"  else    string(Symbol(F))   end
+    elseif F === BiLog    "BiLog"
+    elseif F === BiRoot   "BiRoot"
+    elseif F === BiExp    "BiExp"
+    elseif F === BiPower  "BiPower"
+    elseif F === BiRoot   "BiRoot"
+    elseif GenericName    "Trafo"  else   string(Symbol(F))   end
 end
-_GetTrafoName(F::ComposedFunction, GenericName::Bool=false) = _GetTrafoName(F.outer, GenericName) *" ∘ "*_GetTrafoName(F.inner, GenericName)
+_GetTrafoName(F::ComposedFunction, GenericName::Bool=false) = _GetTrafoName(F.outer, GenericName) *"∘"*_GetTrafoName(F.inner, GenericName)
 
 function GetTrafoNames(F::Function, GenericName::Bool=false)
     TrafoName = _GetTrafoName(F, GenericName)
@@ -881,12 +881,15 @@ end
 # Plot trajectories by default
 @recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfile && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
 
-
+# DoBiLog for paths, i.e. TrafoPath
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
     layout := sum(IsPopulated(P)) + 1
-
+    Trafo = get(plotattributes, :Trafo, identity)
+    DoBiLog = get(plotattributes, :BiLog, true)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
     @series begin
         layout := sum(IsPopulated(P)) + 1
+        Trafo := Trafo
         P, Val(false)
     end
 
@@ -894,6 +897,7 @@ end
         subplot := sum(IsPopulated(P)) + 1
         idxs := get(plotattributes, :idxs, length(MLE(P))≥3 ? (1,2,3) : (1,2))
         legend --> nothing
+        TrafoPath := TrafoPath
         P, Val(:PlotParameterTrajectories)
     end
 end
@@ -902,16 +906,19 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     PopulatedInds = IsPopulated(P) 
     layout --> sum(PopulatedInds)
+    P.Meta !== :ParameterProfiles && (plot_title --> string(P.Meta))
+    Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
-    Ylims = get(plotattributes, :ylims, (-tol, maxy))
+    Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     j = 1
     for i in eachindex(Profiles(P))
         if PopulatedInds[i]
             @series begin
                 subplot := j
                 ylims --> Ylims
+                Trafo := Trafo
                 ParameterProfilesView(P, i), Val(false)
             end
             j += 1
@@ -926,14 +933,17 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     @assert length(trueparams) == length(Profiles(P))
     PopulatedInds = IsPopulated(P) 
     layout --> sum(PopulatedInds)
+    Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
-    Ylims = get(plotattributes, :ylims, (-tol, maxy))
+    Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     @series begin
         ylims --> Ylims
+        Trafo := Trafo
         P
     end
+    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     j = 1
     for i in eachindex(trueparams)
         if PopulatedInds[i]
@@ -945,7 +955,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
                 label --> "True value"
                 ylims --> Ylims
                 xlabel --> pnames(P)[i]
-                ylabel --> (IsCost(P) ? "Cost Function" : "Conf. level [σ]")
+                ylabel --> TrafoName *(IsCost(P) ? "Cost Function" : "Conf. level [σ]")* TrafoNameEnd
                 @view trueparams[i:i]
             end
             j += 1
@@ -966,8 +976,8 @@ end
 
     # Should do rescaling with diagonal sqrt inv Fisher instead of BiLog
     DoBiLog = get(plotattributes, :BiLog, true)
-    Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+    TrafoName, TrafoNameEnd = GetTrafoNames(TrafoPath)
     xlabel --> TrafoName * pnames(P)[idxs[1]] * TrafoNameEnd
     ylabel --> TrafoName * pnames(P)[idxs[2]] * TrafoNameEnd
     if length(idxs) == 3
@@ -983,9 +993,9 @@ end
                 lw --> 1.5
                 M = Unpack(map(x->getindex(x, collect(idxs)), Trajectories(P)[i]))
                 if length(idxs) == 3
-                    Trafo.(view(M,:,1)), Trafo.(view(M,:,2)), Trafo.(view(M,:,3))
+                    TrafoPath.(view(M,:,1)), TrafoPath.(view(M,:,2)), TrafoPath.(view(M,:,3))
                 else
-                    Trafo.(view(M,:,1)), Trafo.(view(M,:,2))
+                    TrafoPath.(view(M,:,1)), TrafoPath.(view(M,:,2))
                 end
             end
         end
@@ -996,7 +1006,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [Trafo.(MLE(P)[collect(idxs)])]
+        [TrafoPath.(MLE(P)[collect(idxs)])]
     end
 end
 
@@ -1005,9 +1015,11 @@ end
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
+    Trafo = get(plotattributes, :Trafo, identity)
     for i in eachindex(PVs)
         @series begin
             subplot := i
+            Trafo := Trafo
             PVs[i], V
         end
     end
@@ -1018,14 +1030,16 @@ end
 # Confnum kwarg for plotting specific levels
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
+    Trafo = get(plotattributes, :Trafo, identity)
+    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     legend --> nothing
     xguide --> pnames(PV)[i]
-    yguide --> (IsCost(PV) ? "Cost Function" : "Conf. level [σ]")
+    yguide --> TrafoName * (IsCost(PV) ? "Cost Function" : "Conf. level [σ]") * TrafoNameEnd
 
     @series begin
         label --> ["Profile Likelihood" nothing]
         lw --> 1.5
-        view(Profiles(PV),:,1), Convergify(view(Profiles(PV),:,2), GetConverged(Profiles(PV)))
+        view(Profiles(PV),:,1), Trafo.(Convergify(view(Profiles(PV),:,2), GetConverged(Profiles(PV))))
     end
     # Draw prior contribution
     if HasPriors(Profiles(PV))
@@ -1034,7 +1048,7 @@ end
             linealpha --> 0.75
             line --> :dash
             lw --> 1.5
-            view(Profiles(PV),:,1), Convergify(view(Profiles(PV),:,3), GetConverged(Profiles(PV)))
+            view(Profiles(PV),:,1), Trafo.(Convergify(view(Profiles(PV),:,3), GetConverged(Profiles(PV))))
         end
     end
     ## Mark MLE in profile
@@ -1044,7 +1058,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(PV)[i]], [0.0]
+        [MLE(PV)[i]], [Trafo.(0.0)]
     end
     # Mark threshold if not already rescaled to confidence scale
     Confnum = get(plotattributes, :Confnum, 1:5)
@@ -1059,7 +1073,7 @@ end
                     lw --> 1.5
                     linecolor := palette(:viridis, length(Confnum); rev=true)[j]
                     label --> "$(j)σ level, dof=$dof"
-                    [Thresh]
+                    [Trafo.(Thresh)]
                 end
             end
         end
@@ -1068,13 +1082,17 @@ end
 
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{true})
     layout --> (2,1)
-
+    Trafo = get(plotattributes, :Trafo, identity)
+    DoBiLog = get(plotattributes, :BiLog, true)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
     @series begin
         subplot := 1
+        Trafo := Trafo
         PV, Val(false)
     end
     @series begin
         subplot := 2
+        TrafoPath := TrafoPath
         PV, Val(:PlotRelativeParamTrajectories)
     end
 end
@@ -1093,10 +1111,13 @@ end
     ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && !isnothing(Trajectories(P)[i])]
 
     layout --> length(ToPlotInds)
+    DoBiLog = get(plotattributes, :BiLog, true)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
 
     for (plotnum, i) in enumerate(ToPlotInds)
         @series begin
             subplot := plotnum
+            TrafoPath := TrafoPath
             RelChange --> RelChange
             idxs --> ToPlotInds
             ParameterFunctions --> ParameterFunctions
@@ -1121,9 +1142,9 @@ end
     i = PV.i
     xguide --> pnames(PV)[i]
 
-    DoBiLog = get(plotattributes, :BiLog, false)
-    Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
+    DoBiLog = get(plotattributes, :BiLog, true)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+    TrafoName, TrafoNameEnd = GetTrafoNames(TrafoPath)
     ystring = DoRelChange ? "p_i/p_MLE" :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i-p_MLE]" : "p_i-p_MLE")
     yguide --> TrafoName * ystring * TrafoNameEnd
     # Also filter out 
@@ -1140,7 +1161,7 @@ end
             else
                 U[j,j] .* (getindex.(Trajectories(PV), j) .- MLE(PV)[j])
             end
-            getindex.(Trajectories(PV), i), Trafo.(Change)
+            getindex.(Trajectories(PV), i), TrafoPath.(Change)
         end
     end
     # Mark MLE
@@ -1150,7 +1171,7 @@ end
         marker --> :hex
         markersize --> 2.5
         markerstrokewidth --> 0
-        [MLE(PV)[i]], (DoRelChange ? [Trafo(1.0)] : [0.0])
+        [MLE(PV)[i]], (DoRelChange ? [TrafoPath(1.0)] : [TrafoPath(0.0)])
     end
 end
 
