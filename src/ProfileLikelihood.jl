@@ -858,16 +858,21 @@ function ExtendProfiles(P::ParameterProfiles)
 end
 
 
+function _GetTrafoName(F::Function, GenericName::Bool=false)
+    if F === identity   ""
+    elseif F === BiLog              "BiLog"
+    elseif F === BiRoot             "BiRoot"
+    elseif F === BiExp              "BiExp"
+    elseif F === BiPower            "BiPower"
+    elseif F === BiRoot             "BiRoot"
+    elseif GenericName   "Trafo"  else    string(Symbol(F))   end
+end
+_GetTrafoName(F::ComposedFunction, GenericName::Bool=false) = _GetTrafoName(F.outer, GenericName) *" ∘ "*_GetTrafoName(F.inner, GenericName)
 
 function GetTrafoNames(F::Function, GenericName::Bool=false)
-    TrafoName = if F === identity   ""
-    elseif F === BiLog              "BiLog("
-    elseif F === BiRoot             "BiRoot("
-    elseif F === BiExp              "BiExp("
-    elseif F === BiPower            "BiPower("
-    elseif F === BiRoot             "BiRoot("
-    elseif GenericName   "Trafo("  else    string(Symbol(F))*"("   end
-    TrafoName, (length(TrafoName) == 0 ? "" : ")")
+    TrafoName = _GetTrafoName(F, GenericName)
+    length(TrafoName) > 0 && (TrafoName *= "(")
+    TrafoName, (endswith(TrafoName, "(") ? ")" : "")
 end
 
 

@@ -460,7 +460,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
     AddedPlots = []
     TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
-    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=TrafoName*"Objective value"*TrafoNameEnd, label="Waterfall", legend))
+    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=TrafoName*"Objective"*TrafoNameEnd, label="Waterfall", legend))
     if length(pnames) ≤ 3
         SP = RecipesBase.plot((@view Points[Inds]); st=:scatter, zcolor=Trafo.(@view Likelihoods[Inds]), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label="log-likelihood", legend, colorbar=true)
         if Extremizer === maximum
@@ -473,8 +473,9 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
 end
 # Individual Parameter
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),2,100), Extremizer::Function=maximum, 
-                                 BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), xlabel="Parameter $ind", OffsetResults::Bool=false, kwargs...)
-   pval = getindex.(Points, ind);   pBins = HistoBins(pval, nbins);   keep = falses(length(pval), length(pBins)-1)
+                                 BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), pval::AbstractVector=getindex.(Points, ind), pBins::AbstractVector=HistoBins(pval, nbins), 
+                                 xlabel="Parameter $ind", OffsetResults::Bool=false, kwargs...)
+   keep = falses(length(pval), length(pBins)-1)
    for i in axes(keep,2)
       keep[:, i] .= pBins[i] .≤ pval .< pBins[i+1]
    end
@@ -482,7 +483,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
    res = [(try Extremizer(Trafo.(@view Likelihoods[col]).-MaxLike) catch; -Inf end) for col in eachcol(keep)]
    HitsPerBin = Float64[sum(col) for col in eachcol(keep)];  HitsPerBin ./= maximum(HitsPerBin)
    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
-   Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=max.(0,HitsPerBin), bar_width=diff(pBins), lw=0.5, xlabel, ylabel=TrafoName*"Minimal Objective"*TrafoNameEnd, label="Conditional Objectives", kwargs...)
+   Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=max.(0,HitsPerBin), bar_width=diff(pBins), lw=0.5, xlabel, ylabel=TrafoName*"Min. Objective"*TrafoNameEnd, label="Conditional Objectives", kwargs...)
    Extremizer === maximum && RecipesBase.plot!(Plt, [Points[findmax(Trafo.(Likelihoods))[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
    Plt
 end
@@ -561,7 +562,7 @@ end
         @series begin
             subplot := i
             xlabel := string(pnames[i])
-            ylabel := TrafoName * "Objective value" * TrafoNameEnd
+            ylabel := TrafoName * "Objective" * TrafoNameEnd
             Nbins := Nbins
             BiLog := BiLog
             Trafo := Trafo
@@ -573,7 +574,7 @@ end
     @series begin
         subplot := length(pnames) + 1
         xlabel --> "Run index (sorted)"
-        ylabel --> TrafoName * "Objective value" * TrafoNameEnd
+        ylabel --> TrafoName * "Objective" * TrafoNameEnd
         label --> "Waterfall"
         1:length(Likelihoods), -Trafo.(Likelihoods)
     end
@@ -627,7 +628,7 @@ end
         bar_width --> diff(pBins)
         lw --> 0.5
         xlabel := pnames[ind]
-        ylabel := TrafoName * "Minimal Objective" * TrafoNameEnd
+        ylabel := TrafoName * "Min. Objective" * TrafoNameEnd
         label --> "Conditional Objectives"
         (@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res
     end
@@ -637,7 +638,7 @@ end
         lc --> :red
         lw --> 1.5
         xlabel := pnames[ind]
-        ylabel := TrafoName * "Minimal Objective" * TrafoNameEnd
+        ylabel := TrafoName * "Min. Objective" * TrafoNameEnd
         label --> "Best Objective"
         [Points[findmax(Trafo.(Likelihoods))[2]][ind]]
     end end
@@ -672,7 +673,7 @@ end
         ylabel := pnames[idxs[2]]
         # alpha --> max.(0,HitsPerBin)
         lw --> 0.5
-        label --> TrafoName * "Minimal Objective" * TrafoNameEnd
+        label --> TrafoName * "Min. Objective" * TrafoNameEnd
         # heatmap order needs transposed matrix and xy
         (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), res
     end
