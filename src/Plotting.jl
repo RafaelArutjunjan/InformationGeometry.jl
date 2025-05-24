@@ -396,8 +396,8 @@ function PlotErrorModel(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE
     p = RecipesBase.plot(Data(DM); yerror=nothing)
     p = PlotFit(DM; color=:red)
     xran = range(extrema(xdata(DM))...; length=N)
-    Ypred = EmbeddingMap(DM, mle, xran)
-    errorpars = InformationGeometry.SplitErrorParams(DM)(MLE(DM))[2]
+    Ypred = EmbeddingMap(DM, (SplitErrorParams(DM)(mle))[1], xran)
+    errorpars = (SplitErrorParams(DM)(mle))[end]
     errmod = (x,y)->inv(Data(DM).inverrormodel(x,y,errorpars))
     Bandwidth = map(errmod, xran, Ypred)
     RecipesBase.plot!(p, xran, Ypred .+ Bandwidth; linewidth, line, color, label=nothing)
@@ -847,7 +847,7 @@ function _ConfidenceBands!(Res::AbstractMatrix, Yt::AbstractMatrix, DM::Abstract
     @assert size(Yt) == (ydim(DM), length(woundX))
     @assert size(Res) == (length(woundX), 2ydim(DM))
 
-    copyto!(Yt, EmbeddingMap(DM, point, woundX))
+    copyto!(Yt, EmbeddingMap(DM, (SplitErrorParams(DM)(point))[1], woundX))
     @inbounds for col in 1:2:2ydim(DM)
         Ycol = Int(ceil(col/2))
         for row in axes(Res,1)
