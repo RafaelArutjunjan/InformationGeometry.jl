@@ -365,7 +365,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
                 Ins = ValInserter(Comp, p, mle)
                 L = CostFunction∘Ins
-                F = isnothing(CostGradient) ? L : (Trafo=ValInserterTransform(Comp, p, mle);   isnothing(CostHessian) ? (L, Trafo(CostGradient)) : (L, Trafo(CostGradient), Trafo(CostHessian)))
+                F = isnothing(CostGradient) ? L : (Transform=ValInserterTransform(Comp, p, mle);   isnothing(CostHessian) ? (L, Transform(CostGradient)) : (L, Transform(CostGradient), Transform(CostHessian)))
                 R = FitFunc(F, MLEstash; kwargs...)
                 
                 push!(Res, -GetMinimum(R,L))
@@ -724,7 +724,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     IsCost::Bool
     Meta::Symbol
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfile, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfiles, kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -744,7 +744,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfile; Meta::Symbol=meta, verbose::Bool=true)
+    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfiles; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
         verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
         new(Profiles, Trajectories, Symbol.(Names), mle, dof, IsCost, Meta)
@@ -776,6 +776,8 @@ DOF(P::ParameterProfiles) = P.dof
 IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
 IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
+
+HyperCube(P::ParameterProfiles) = [IsPopulated(P[i]) ? collect(extrema(@view Profiles(P[i])[:,1])) : [-Inf,Inf] for i in eachindex(P)] |> HyperCube
 
 Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex
@@ -879,7 +881,7 @@ end
 
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfile && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfiles && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
 
 # DoBiLog for paths, i.e. TrafoPath
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
@@ -1011,7 +1013,7 @@ end
 end
 
 # Try to plot Trajectories if available
-@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.P.Meta === :ParameterProfile) = PV, Val(PlotTrajectories)
+@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.P.Meta === :ParameterProfiles) = PV, Val(PlotTrajectories)
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
