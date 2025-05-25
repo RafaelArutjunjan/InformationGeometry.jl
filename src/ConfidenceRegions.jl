@@ -681,11 +681,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         ydim(DM) == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
-        if Validation
-            x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), errorparams));   ConfScaling * (S' * S))
-        else
-            x -> 0.0
-        end
+        !Validation ? (x -> 0.0) : (x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), errorparams));   ConfScaling * (S' * S)))
     end
     
     # Add data uncertainty here if Validation
@@ -702,7 +698,6 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
     embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJac(mle)
 
-
     VarCholesky1(x::Number) = (J = dPredictor(DM)(x, normalparams);   CholeskyU(J * C * transpose(J),x))
     VarCholesky1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
     VarSqrt1(x::Number) = (J = dPredictor(DM)(x, normalparams);   R = Sqrt((J * C * transpose(J))[1], x))
@@ -712,11 +707,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
     VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparams);   R = Sqrt((J * C * transpose(J))[1], x))
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
-    if xdim(DM) == 1
-        ydim(DM) > 1 ? VarCholesky1 : VarSqrt1
-    else
-        ydim(DM) > 1 ? VarCholeskyN : VarSqrtN
-    end
+    xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), kwargs...)
     VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); Confnum, dof, kwargs...)

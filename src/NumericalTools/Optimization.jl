@@ -332,7 +332,7 @@ end
 
 # If DM not constructed yet
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, ADmode::Val=Val(:ForwardDiff), 
-                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : Negate(GetLogLikelihoodFn(DS,Model,LogPriorFn))), GenerateNewDerivatives::Bool=Lifted,
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : GetNeglogLikelihoodFn(DS,Model,LogPriorFn)), GenerateNewDerivatives::Bool=Lifted,
                     UseGrad::Bool=true, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : GetGrad!(ADmode, CostFunction)), 
                     UseHess::Bool=true, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : GetHess!(ADmode, CostFunction)), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
@@ -348,6 +348,7 @@ end
 
 
 """
+    ParameterSavingCallback(DM::AbstractDataModel)
     ParameterSavingCallback(start::AbstractVector) -> (Vector{typeof(start)}, Function)
 Produces tuple where first entry constitutes empty `Vector{typeof(start)}` array into which the parameter trajectory will be saved.
 Second entry is the callback function itself, which is to be added to the optimization method via the `callback` keyword argument.
@@ -369,6 +370,7 @@ function ParameterSavingCallback(X::AbstractVector{<:Number})
     SaveOptimizationpath(State, args...) = (push!(SavedParams, GetCurPar(State));   false)
     SavedParams, SaveOptimizationpath
 end
+ParameterSavingCallback(DM::AbstractDataModel) = ParameterSavingCallback(MLE(DM))
 
 
 GetRobustCostFunction(DM::AbstractDataModel; kwargs...) = GetRobustCostFunction(Data(DM), Predictor(DM), LogPrior(DM); kwargs...)

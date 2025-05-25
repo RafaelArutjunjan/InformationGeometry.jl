@@ -32,22 +32,23 @@ function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::Abstrac
     -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
-function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; Kwargs...)
+function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     # Pre-Computations or buffers here
+    BareLikelihood(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
     if isnothing(LogPriorFn)
         """
             LogLikelihoodWithoutPrior(θ::AbstractVector; kwargs...) -> Real
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         No prior was given for the parameters.
         """
-        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
+        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; kwargs...)
     else
         """
             LogLikelihoodWithPrior(θ::AbstractVector; kwargs...) -> Real
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         The given prior information is already incorporated.
         """
-        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
+        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; kwargs...) + EvalLogPrior(LogPriorFn, θ)
     end
 end
 GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; kwargs...))

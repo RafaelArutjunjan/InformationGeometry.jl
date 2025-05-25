@@ -412,20 +412,21 @@ function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults;
 end
 
 
-GetNsingleFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNsingleFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
-function GetNsingleFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=1000, verbose::Bool=true)
+GetNFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
+function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=1000, verbose::Bool=true)
     L(startp);  Tsingle = @elapsed L(startp)
     N = TargetTime / Tsingle |> floor |> Int
     Nsingle = clamp(N^(1/length(startp)), minval, maxval) |> floor |> Int
     verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting approximately N=$N samples in total (Nsingle=$Nsingle, $Nsingle^$(length(startp))=$(Nsingle^length(startp))) to fill allotted $(TargetTime)s."
-    Nsingle
+    N
 end
 
 
 HistoBins(X::AbstractVector{<:Number}, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(X))...; length=nbins+1)
 HistoBins(X::AbstractVector{<:AbstractVector}, ind::Int, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(x->x[ind],X))...; length=nbins+1)
+
 """
-   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime=60, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=4Nsingle, parallel::Bool=true, maxval::Real=1e5, BiLog::Bool=true, kwargs...)
+   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime=30, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=0.5Nsingle, parallel::Bool=true, maxval::Real=1e5, BiLog::Bool=true, kwargs...)
 Samples the likelihood over the parameter space, splits the value range of each parameter into bins and visualizes the best observed likelihood value from all samples with the respective parameter value in this bin.
 Therefore, it gives a coarse-grained global approximation to the profile likelihood, approaching the true profile likelihood in the large sample limit as `N` ⟶ ∞, which is however much cheaper to compute as no re-optimization of nuisance parameters is required.
 This can already give hints for good candidates for initial parameter values from which to start optimization and conversely also illustrate parts of the parameter ranges which can be excluded from multistart fitting due to their consistently unsuitable likelihood values.
@@ -434,7 +435,7 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
-function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=60, Nsingle::Int=GetNsingleFromTargetTime(DM, TargetTime), N::Int=Nsingle^length(C), 
+function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=30, Nsingle::Union{Nothing,Int}=nothing, N::Int=isnothing(Nsingle) ? GetNFromTargetTime(DM, TargetTime) : Nsingle^length(C), 
                                                         nbins::Int=Int(ceil(clamp(0.5*(N^(1/length(C))),2,100))), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, kwargs...)
     Points = GenerateSobolPoints(Domain; N, maxval)
     !(TransformSample === identity) && (Points .= TransformSample.(Points))
@@ -516,13 +517,15 @@ StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@a
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; Inds::AbstractVector{<:Int}=1:findlast(isfinite,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),2,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
-                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, kwargs...)
+                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, Cutoff::Int=400000, kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
     AddedPlots = []
     TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=TrafoName*"Objective"*TrafoNameEnd, label="Waterfall", legend))
     if length(pnames) ≤ 3
-        SP = RecipesBase.plot((@view Points[Inds]); st=:scatter, zcolor=Trafo.(@view Likelihoods[Inds]), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label="log-likelihood", legend, colorbar=true)
+        # Cutoff elements in plot to avoid overloading backend
+        ReducedInds = length(Inds) > Cutoff ? (@view Inds[1:Cutoff]) : Inds
+        SP = RecipesBase.plot((@view Points[ReducedInds]); st=:scatter, zcolor=Trafo.(@view Likelihoods[ReducedInds]), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label="log-likelihood", legend, colorbar=true)
         if Extremizer === findmax
             maxind = Extremizer(Likelihoods)[2]
             RecipesBase.plot!(SP, Points[maxind:maxind]; st=:scatter, color=:red, msw=0, label="Best")
