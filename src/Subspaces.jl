@@ -383,14 +383,14 @@ function ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number})
 end
 
 
-DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=500) = DomainSamples(Domain, N)
+DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=501) = DomainSamples(Domain, N)
 DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
 function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
     @assert N > 2 && Domain[1] ≤ Domain[2]
     range(Domain[1], Domain[2]; length=N) |> collect
 end
 
-function Base.range(C::HyperCube; length::Int=100, kwargs...)
+function Base.range(C::HyperCube; length::Int=101, kwargs...)
     @assert size(C.L, 1) == 1 && length > 1
     range(C.L[1], C.U[1]; length=length, kwargs...)
 end

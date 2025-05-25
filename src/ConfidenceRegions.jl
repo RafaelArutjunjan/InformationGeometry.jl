@@ -476,16 +476,16 @@ end
 Computes confidence region of level `Confnum`. For `pdim(DM) > 2`, the confidence region is intersected by a family of `Plane`s in the directions specified by the keyword `Dirs`.
 The `Plane`s and their embedded 2D confidence boundaries are returned as the respective first and second arguments in this case.
 """
-function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, verbose::Bool=true,
-                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=false, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=DOF(DM), kwargs...)
+function ConfidenceRegion(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-9, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, verbose::Bool=true, Padding::Real=1/10,
+                            Boundaries::Union{Function,Nothing}=nothing, ADmode::Val=Val(:ForwardDiff), parallel::Bool=true, Dirs::Tuple{Int,Int,Int}=(1,2,3), N::Int=30, dof::Int=DOF(DM), kwargs...)
     if pdim(DM) == 1
         ConfidenceInterval1D(DM, Confnum; tol)
     elseif pdim(DM) == 2
         GenerateBoundary(DM, FindConfBoundary(DM, Confnum; tol, dof); tol, Boundaries, meth, mfd, ADmode, kwargs...)
     else
         verbose && Dirs == (1,2,3) && @info "ConfidenceRegion() computes solutions in the θ[1]-θ[2] plane which are separated in the θ[3] direction. For more explicit control, call MincedBoundaries() and set options manually."
-        Cube = LinearCuboid(DM, Confnum; dof)
-        Planes = IntersectCube(DM, Cube, Confnum; Dirs, N, tol)
+        Cube = LinearCuboid(DM, Confnum; Padding, dof=dof)
+        Planes = IntersectCube(DM, Cube, Confnum; Dirs, N, tol, dof)
         Planes, MincedBoundaries(DM, Planes, Confnum; tol, dof, Boundaries, ADmode, meth, mfd, parallel, kwargs...)
     end
 end
@@ -765,7 +765,8 @@ function ConfidenceRegionVolume(DM::AbstractDataModel, Tup::Tuple{<:AbstractVect
     ConfidenceRegionVolume(DM, Tup[1], Tup[2]; N=N, WE=WE, Approx=Approx, kwargs...)
 end
 function ConfidenceRegionVolume(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, sols::AbstractVector{<:AbstractODESolution}, Confnum::Real=GetConfnum(DM,Planes,sols); N::Int=Int(1e5), WE::Bool=true, Approx::Bool=false, kwargs...)
-    Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
+    # Domain = ProfileBox(DM, InterpolatedProfiles(ProfileLikelihood(DM, Confnum+2; plot=false)), Confnum; Padding=1e-2)
+    Domain = ConstructCube(Planes, sols; Padding=1e-2)
     if Approx
         IntegrateOverApproxConfidenceRegion(DM, Domain, Planes, sols, GeometricDensity(DM); N=N, WE=WE)
     else
@@ -989,32 +990,32 @@ function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::Abstract
 end
 
 
-DoPruning(DM, Planes::AbstractVector{<:Plane}, Confnum; kwargs...) = Prune(DM, AntiPrune(DM, Planes, Confnum), Confnum; kwargs...)
+DoPruning(DM, Planes::AbstractVector{<:Plane}, Confnum; kwargs...) = Prune(DM, AntiPrune(DM, Planes, Confnum; kwargs...), Confnum; kwargs...)
 
-function Prune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
+function Prune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, dof::Int=DOF(DM))
     CF = ConfVol(Confnum)
     Planes = copy(Pls)
     while length(Planes) > 2
-        !WilksTest(DM, PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1];tol=tol)), CF) ? popfirst!(Planes) : break
+        !WilksTest(DM, PlaneCoordinates(Planes[1],MLEinPlane(DM,Planes[1];tol=tol)), CF; dof) ? popfirst!(Planes) : break
     end
     while length(Planes) > 2
-        !WilksTest(DM, PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end];tol=tol)), CF) ? pop!(Planes) : break
+        !WilksTest(DM, PlaneCoordinates(Planes[end],MLEinPlane(DM,Planes[end];tol=tol)), CF; dof) ? pop!(Planes) : break
     end
     length(Planes) == 2 && throw("For some reason, all Planes were pruned away?!")
     return Planes
 end
 
-function AntiPrune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8)
+function AntiPrune(DM::AbstractDataModel, Pls::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-8, dof::Int=DOF(DM))
     Planes = copy(Pls)
     length(Planes) < 2 && throw("Not enough Planes to infer translation direction.")
     CF = ConfVol(Confnum)
     while true
         TestPlane = ShiftTo(Planes[2], Planes[1])
-        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? pushfirst!(Planes,TestPlane) : break
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF; dof) ? pushfirst!(Planes,TestPlane) : break
     end
     while true
         TestPlane = ShiftTo(Planes[end-1], Planes[end])
-        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF) ? push!(Planes,TestPlane) : break
+        WilksTest(DM, PlaneCoordinates(TestPlane,MLEinPlane(DM,TestPlane;tol=tol)), CF; dof) ? push!(Planes,TestPlane) : break
     end;    Planes
 end
 
@@ -1045,12 +1046,12 @@ They are separated in the direction of the basis vector associated with the thir
 The keyword `N` can be used to approximately control the number of planes which are returned.
 This depends on whether more (or fewer) planes than `N` are necessary to cover the whole confidence region of level `Confnum`.
 """
-function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3), tol::Real=1e-8)
+function IntersectCube(DM::AbstractDataModel, Cube::HyperCube, Confnum::Real=1.; N::Int=31, Dirs::Tuple{Int,Int,Int}=(1,2,3), tol::Real=1e-8, dof::Int=DOF(DM))
     (!allunique(Dirs) || !all(x->(1 ≤ x ≤ length(Cube)), Dirs)) && throw("Invalid choice of Dirs: $Dirs.")
     widths = CubeWidths(Cube)
     # PL = Plane(Center(Cube), BasisVector(Dirs[1], length(Cube)), BasisVector(Dirs[2],length(Cube)))
     PL = Plane(Center(Cube), 0.5widths[Dirs[1]]*BasisVector(Dirs[1], length(Cube)), 0.5widths[Dirs[2]]*BasisVector(Dirs[2],length(Cube)))
-    IntersectRegion(DM, PL, widths[Dirs[3]] * BasisVector(Dirs[3],length(Cube)), Confnum; N=N, tol=tol)
+    IntersectRegion(DM, PL, widths[Dirs[3]] * BasisVector(Dirs[3],length(Cube)), Confnum; N, tol, dof)
 end
 
 """
@@ -1058,11 +1059,11 @@ end
 Translates family of `N` planes which are translated approximately from `-v` to `+v` and intersect the confidence region of level `Confnum`.
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
-function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8)
+function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8, dof::Int=DOF(DM))
     IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     # Planes = ParallelPlanes(PL, v, range(-0.5,0.5; length=N))
     # AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
-    DoPruning(DM, ParallelPlanes(PL, v, range(-0.5,0.5;length=N)), Confnum; tol=tol)
+    DoPruning(DM, ParallelPlanes(PL, v, range(-0.5,0.5;length=N)), Confnum; tol, dof)
 end
 
 
@@ -1074,7 +1075,7 @@ end
     MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; tol::Real=1e-9, ADmode::Val=Val(:ForwardDiff), meth=Tsit5(), mfd::Bool=false)
 Intersects the confidence boundary of level `Confnum` with `Planes` and computes `ODESolution`s which parametrize this intersection.
 """
-function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; verbose::Bool=true, parallel::Bool=false, kwargs...)
+function MincedBoundaries(DM::AbstractDataModel, Planes::AbstractVector{<:Plane}, Confnum::Real=1.; verbose::Bool=true, parallel::Bool=true, kwargs...)
     Prog = Progress(length(Planes); enabled=verbose, desc="Computing planar solutions... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
     (parallel ? progress_pmap : progress_map)(X->GenerateEmbeddedBoundary(DM, X, Confnum; kwargs...), Planes; progress=Prog)
 end
