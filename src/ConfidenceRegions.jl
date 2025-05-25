@@ -696,16 +696,17 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
     SplitterJac = Data(DM) isa AbstractFixedUncertaintyDataSet ? (x->1.0) : GetJac(ADmode, x->(SplitErrorParams(DM)(x))[1])
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
-    embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJac(mle)
+    SplitterJ = SplitterJac(mle)
+    embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJ
 
-    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, normalparams);   CholeskyU(J * C * transpose(J),x))
+    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, normalparams)*SplitterJ;   CholeskyU(J * C * transpose(J),x))
     VarCholesky1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
-    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, normalparams);   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, normalparams)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
     VarSqrt1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
 
-    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparams);   CholeskyU(J * C * transpose(J), x))
+    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparams)*SplitterJ;   CholeskyU(J * C * transpose(J), x))
     VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
-    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparams);   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparams)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
     xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
 end

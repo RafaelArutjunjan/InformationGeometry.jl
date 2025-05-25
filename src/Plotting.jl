@@ -772,7 +772,7 @@ function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
     M, Res, Yt
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number};
+function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM),
                             plot::Bool=isloaded(:Plots), samples::Int=100, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
@@ -783,11 +783,11 @@ function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX
         _ConfidenceBands!(Res, Yt, DM, sol(t), woundX)
         ProgressMeter.next!(Prog)
     end
-    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol)))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sol; dof)))
     M
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number};
+function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM),
                             plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
@@ -800,7 +800,7 @@ function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractO
         end
         ProgressMeter.next!(Prog)
     end
-    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1])))
+    plot && display(PlotConfidenceBands(DM, M; Confnum=GetConfnum(DM, sols[1]; dof)))
     M
 end
 

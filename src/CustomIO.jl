@@ -243,7 +243,7 @@ function Base.show(io::IO, ::MIME"text/plain", CG::ConditionGrid)
     print(io, Base.summary(CG));    println(io, ": "*ColoredString(name.(Conditions(CG))))
     println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(CG); sigdigits=5)))
     isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
-    print(io, "Parameter Transformations: " * ParamTrafoString(CG, true))
+    print(io, "Parameter Transformations: " * ParamTrafoString(CG))
 end
 # Single line display
 function Base.show(io::IO, CG::ConditionGrid)
@@ -252,6 +252,9 @@ function Base.show(io::IO, CG::ConditionGrid)
 end
 
 # Multi-line display
-Base.show(io::IO, ::MIME"text/plain", P::ParamTrafo) = print(io, Base.summary(P))
+function Base.show(io::IO, ::MIME"text/plain", P::ParamTrafo)
+    println(io, Base.summary(P))
+    print(io, "Parameter Transformations: " * ParamTrafoString(P))
+end
 # Single line display
 Base.show(io::IO, P::ParamTrafo) = print(io, Base.summary(P))

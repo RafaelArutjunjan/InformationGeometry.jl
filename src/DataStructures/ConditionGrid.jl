@@ -183,16 +183,25 @@ end
 
 
 
-function SymbolicParamTrafo(CG::ConditionGrid, GenericNames::Bool=true)
-    P = GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))
-    [F === identity ? "θ" : F(P) for F in CG.Trafos]
+function TrafoLength(P::ParamTrafo; max::Int=200)
+    for i in 1:max
+        try P(ones(i)); return i catch; end
+    end;    max
 end
-function ParamTrafoString(CG::ConditionGrid, GenericNames::Bool=true, args...; kwargs...)
+
+function SymbolicParamTrafo(CG::ConditionGrid; GenericNames::Bool=true)
+    Pars = GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))
+    SymbolicParamTrafo(CG.Trafos, Pars)
+end
+function SymbolicParamTrafo(P::ParamTrafo, Pars::Union{AbstractArray{<:Num}, Symbolics.Arr}=SymbolicArguments((1,1,TrafoLength(P)))[end]; GenericNames::Bool=true)
+    [F === identity ? "θ" : F(Pars) for F in P]
+end
+function ParamTrafoString(CG::Union{ConditionGrid,ParamTrafo}, args...; GenericNames::Bool=true, kwargs...)
    Shorten(S::AbstractString) = !startswith(S, "θ") ? (@view S[findfirst('[', S):end]) : S
    if GenericNames
-      "[" * join("θ->" .* Shorten.(string.(SymbolicParamTrafo(CG, GenericNames, args...; kwargs...))), ", ") * "]"
+      "[" * join("θ->" .* Shorten.(string.(SymbolicParamTrafo(CG, args...; GenericNames, kwargs...))), ", ") * "]"
    else
-      "θ ⟼ " * Shorten(string(SymbolicParamTrafo(CG, GenericNames, args...; kwargs...)))
+      "θ ⟼ " * Shorten(string(SymbolicParamTrafo(CG, args...; GenericNames, kwargs...)))
    end
 end
 
