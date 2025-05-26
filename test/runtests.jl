@@ -302,7 +302,7 @@ end
 
 
 @safetestset "DataSetUncertain" begin
-    using InformationGeometry, Test, Distributions, Optim
+    using InformationGeometry, Test, LinearAlgebra, Distributions, Optim
 
     # Detect if error parameters already accounted for in given ModelMap Domain and attempt to fix automatically
     X = 1:5;    Y = rand(5)
@@ -333,6 +333,19 @@ end
         [1,1,0.4]
     )
 
+    import InformationGeometry: SplitErrorParams
+    # Agreement between variance propagation and confidence bands for linearly parametrised models
+    function TestAgreement(DM::AbstractDataModel, Value::Real=2e-3; N::Int=51, Confnum::Real=3)
+        Xs = range(XCube(DM); length=N);   Ys = EmbeddingMap(DM, SplitErrorParams(DM)(MLE(DM))[1], Xs)
+        F = VariancePropagation(DM; Confnum)
+        S = ConfidenceRegion(DM, Confnum)
+        M = (@view ConfidenceBands(DM, S, Xs; plot=false)[:,end]) .- Ys;
+        @test norm((M .- F.(Xs)) ./ length(Xs)) < Value
+    end
+    ## Agrees for AbstractFixedUncertaintyDataSet
+    TestAgreement(DataModel(DataSet(X, Y), LinearModel))
+    ## Does not agree for exactly AbstractUnknownUncertaintyDataSet
+    # TestAgreement(DataModel(DataSetUncertain(X, Y), LinearModel))
 
     using ModelingToolkit, StaticArrays, OrdinaryDiffEq, LinearAlgebra
 
