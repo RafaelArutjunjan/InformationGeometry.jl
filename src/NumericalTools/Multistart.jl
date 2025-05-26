@@ -600,7 +600,7 @@ end
 end
 
 
-## Plot recipes to replace `StochasticProfileLikelihoodPlot`
+## Plot recipes to replace `StochasticProfileLikelihoodPlot`, not used yet though
 for F in [Symbol("plot"), Symbol("plot!")]
     @eval RecipesBase.$F(R::MultistartResults, V::Val{:StochasticProfiles}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::Val{:StochasticProfiles}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
@@ -624,7 +624,6 @@ end
             BiLog := BiLog
             Trafo := Trafo
             Extremizer := Extremizer
-            Trafo := Trafo
             Points, Likelihoods, i, V
         end
     end
