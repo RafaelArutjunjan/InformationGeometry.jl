@@ -139,9 +139,9 @@ Conditions(CG::ConditionGrid) = CG.DMs
 
 DataspaceDim(CG::ConditionGrid) = sum(length.(ydata.(Conditions(CG))))
 
-function GetDomainSafe(DM::DataModel; maxval::Real=1e2, verbose::Bool=true)
+function GetDomainSafe(DM::AbstractDataModel; maxval::Real=1e2, verbose::Bool=true)
     !isnothing(GetDomain(DM)) && return GetDomain(DM)
-    verbose && @warn "Making Domain [-$maxval, $maxval]^$(pdim(DM)) for DataModel $(name(DM))"
+    verbose && @warn "Making Domain [-$maxval, $maxval]^$(pdim(DM)) for $(typeof(DM)) $(name(DM))"
     FullDomain(length(MLE(DM)), maxval)
 end
 function MultistartFit(CG::ConditionGrid; dof=DOF(CG), maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), verbose::Bool=true, kwargs...)

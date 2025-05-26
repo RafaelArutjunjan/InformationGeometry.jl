@@ -18,11 +18,6 @@ end
 GetObservablesInConditionDict(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = Dict{Symbol,Vector{Symbol}}([C => GetObservablesInCondition(M, C; ObsID, CondID) for C in GetUniqueConditions(M; CondID)])
 
 
-# Pass model from PEtabODEProblem
-for F in [:GetUniqueConditions, :GetAllUniqueObservables, :GetObservablesInCondition, :GetObservablesInConditionDict, :GetDataSets, :CreateSymbolDF, Symbol("InformationGeometry.DataSet")]
-    @eval $F(P::PEtabODEProblem, args...; kwargs...) = $F(P.model_info.model, args...; kwargs...)
-end
-
 tryfloat(x::Number) = float(x)
 tryfloat(x) = x
 MissingToNan(x::Number) = x
@@ -46,7 +41,12 @@ import PEtab: PEtabODEProblemInfo, ModelInfo
 # const GetNllhHesses = PEtab._get_hess
 
 #### Debugging:
-import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
+import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction, DataSet
+
+# Pass model from PEtabODEProblem
+for F in [:GetUniqueConditions, :GetAllUniqueObservables, :GetObservablesInCondition, :GetObservablesInConditionDict, :GetDataSets, :CreateSymbolDF, :DataSet]
+    @eval $F(P::PEtabODEProblem, args...; kwargs...) = $F(P.model_info.model, args...; kwargs...)
+end
 
 include(joinpath(@__DIR__, "PEtabFix/ModifiedMethods.jl"))
 
