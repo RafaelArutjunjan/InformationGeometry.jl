@@ -305,6 +305,8 @@ function GetDataUncertainty end
 function GetConditionData end
 function GetDataSets end
 function GetModelFunction end
+function SplitParamsIntoCategories end
+
 
 using SnoopPrecompile
 

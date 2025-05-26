@@ -41,7 +41,8 @@ import PEtab: PEtabODEProblemInfo, ModelInfo
 # const GetNllhHesses = PEtab._get_hess
 
 #### Debugging:
-import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction, DataSet
+import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
+import InformationGeometry: SplitParamsIntoCategories, DataSet
 
 # Pass model from PEtabODEProblem
 for F in [:GetUniqueConditions, :GetAllUniqueObservables, :GetObservablesInCondition, :GetObservablesInConditionDict, :GetDataSets, :CreateSymbolDF, :DataSet]
@@ -55,6 +56,19 @@ GetNllh(M::PEtabODEProblem, args...; kwargs...) = GetNllh(M.probinfo, M.model_in
 GetNllhGrads(M::PEtabODEProblem, args...; gradient_method=M.probinfo.gradient_method, kwargs...) = GetNllhGrads(Val(gradient_method), M.probinfo, M.model_info, PEtab._get_prior(M.model_info)[2], args...; kwargs...)
 GetNllhHesses(M::PEtabODEProblem, args...; kwargs...) = GetNllhHesses(M.probinfo, M.model_info, PEtab._get_prior(M.model_info)[3], args...; kwargs...)
 
+
+
+SplitParamsIntoCategories(P::PEtabODEProblem, args...; kwargs...) = SplitParamsIntoCategories(P.model_info, args...; kwargs...)
+SplitParamsIntoCategories(model_info::PEtab.ModelInfo, args...; kwargs...) = SplitParamsIntoCategories(model_info.xindices, args...; kwargs...)
+function SplitParamsIntoCategories(xindices::PEtab.ParameterIndices)
+    LogDict = xindices.xscale
+    Merger(S::Symbol) = (X=LogDict[S];  X === :lin ? S : Symbol(string(X)*"_"*string(S)))
+    (Merger.(xindices.xids[:dynamic]), Merger.(xindices.xids[:noise]), Merger.(xindices.xids[:nondynamic]), Merger.(xindices.xids[:observable]))
+end
+GetDynamicParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[1]
+GetErrorParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[2]
+GetNondynamicParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[3]
+GetObservableParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[4]
 
 
 # for F in [:GetNllh]

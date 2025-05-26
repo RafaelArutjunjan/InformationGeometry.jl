@@ -436,7 +436,7 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
 function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=30, Nsingle::Union{Nothing,Int}=nothing, N::Int=isnothing(Nsingle) ? GetNFromTargetTime(DM, TargetTime) : Nsingle^length(C), 
-                                                        nbins::Int=Int(ceil(clamp(0.5*(N^(1/length(C))),3,100))), maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, seed::Int=rand(0:Int(1e7)), kwargs...)
+                                                        nbins::Int=isnothing(Nsingle) ? Int(ceil(clamp(0.5*(N^(1/length(C))),3,100))) : Nsingle, maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, seed::Int=rand(0:Int(1e7)), kwargs...)
     Points = GenerateSobolPoints(Domain; seed, N, maxval)
     !(TransformSample === identity) && (Points .= TransformSample.(Points))
     StochasticProfileLikelihood(DM, Points; Domain, nbins, seed, kwargs...)
