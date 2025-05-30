@@ -177,7 +177,7 @@ struct MultistartResults <: AbstractMultistartResults
             Iterations::AbstractVector{<:Int},
             Converged::AbstractVector{<:Bool},
             pnames::AbstractVector{<:StringOrSymb},
-            meth,
+            meth=missing,
             seed::Union{Int,Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
             FullOptimResults=nothing,
@@ -188,12 +188,12 @@ struct MultistartResults <: AbstractMultistartResults
         @assert ConsistentElDims(FinalPoints) == length(pnames)
         OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
         
-        # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
-        nans = 0
-        for i in eachindex(FinalObjectives)
-            (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
-        end
         if verbose
+            # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
+            nans = 0
+            for i in eachindex(FinalObjectives)
+                (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
+            end
             if all(isinf, FinalObjectives)
                 if any(isfinite, InitialObjectives)
                     @warn "ALL multistart optimizations with $(typeof(OptimMeth)) crashed! Most likely the options supplied to the optimizer were wrong. Automatic catching of optimizer errors can be disabled with kwarg TryCatchOptimizer=false."
@@ -204,11 +204,29 @@ struct MultistartResults <: AbstractMultistartResults
                 @info "$nans runs crashed during multistart optimization with $(typeof(OptimMeth))."
             end
         end
-
-        Perm = sortperm(FinalObjectives; rev=true)
-        new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm], Meta)
+        if !issorted(FinalObjectives; rev=true)
+            Perm = sortperm(FinalObjectives; rev=true)
+            new(FinalPoints[Perm], InitialPoints[Perm], FinalObjectives[Perm], InitialObjectives[Perm], Iterations[Perm], Converged[Perm], Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults[Perm], Meta)
+        else
+            new(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, Symbol.(pnames), OptimMeth, seed, MultistartDomain, isnothing(FullOptimResults) ? nothing : FullOptimResults, Meta)
+        end
     end
 end
+MultistartResults(;
+    FinalPoints::AbstractVector{<:AbstractVector{<:Number}}=[Float64[]],
+    InitialPoints::AbstractVector{<:AbstractVector{<:Number}}=[Float64[]],
+    FinalObjectives::AbstractVector{<:Number}=Float64[],
+    InitialObjectives::AbstractVector{<:Number}=Float64[],
+    Iterations::AbstractVector{<:Int}=Int[],
+    Converged::AbstractVector{<:Bool}=Bool[],
+    pnames::AbstractVector{<:StringOrSymb}=Symbol[],
+    OptimMeth=nothing,
+    seed::Union{Int,Nothing}=nothing,
+    MultistartDomain::Union{Nothing,HyperCube}=nothing,
+    FullOptimResults=nothing,
+    Meta=nothing,
+    verbose::Bool=false
+) = MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, pnames, OptimMeth, seed, MultistartDomain, FullOptimResults, Meta; verbose)
 
 function Base.vcat(R1::MultistartResults, R2::MultistartResults)
     @assert length(R1.pnames) == length(R2.pnames)
@@ -413,8 +431,9 @@ end
 
 
 GetNFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
-function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=1000, verbose::Bool=true)
+function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=Inf, verbose::Bool=true)
     L(startp);  Tsingle = @elapsed L(startp)
+    # Tsingle = @belapsed $L($startp)
     N = TargetTime / Tsingle |> floor |> Int
     Nsingle = clamp(N^(1/length(startp)), minval, maxval) |> floor |> Int
     verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting approximately N=$N samples in total (Nsingle=$Nsingle, $Nsingle^$(length(startp))=$(Nsingle^length(startp))) to fill allotted $(TargetTime)s."
@@ -448,7 +467,7 @@ function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVect
 end
 # Construct MultistartResults and call Plot
 function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots), Domain::Union{HyperCube,Nothing}=nothing, pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), Meta=:SampledLikelihood, seed::Union{Nothing,Int}=nothing, kwargs...)
-   R = MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, nothing, seed, Domain, nothing, Meta)
+   R = MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(-Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, missing, seed, Domain, nothing, Meta)
    plot && display(StochasticProfileLikelihoodPlot(R; kwargs...))
    R
 end

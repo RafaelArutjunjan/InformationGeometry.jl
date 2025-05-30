@@ -37,7 +37,7 @@ function GetModel(sys::ModelingToolkit.AbstractSystem, u0::Union{Number,Abstract
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     
     Model = if sys isa ModelingToolkit.AbstractODESystem
-        odefunc = ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : structural_simplify(sys)); jac = true)
+        odefunc = ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : ModelingToolkit.complete(sys)); jac = true)
         GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     else
         throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.AbstractODESystem first.")
