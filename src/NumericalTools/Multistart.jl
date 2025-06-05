@@ -231,12 +231,20 @@ MultistartResults(;
 function Base.vcat(R1::MultistartResults, R2::MultistartResults)
     @assert length(R1.pnames) == length(R2.pnames)
     R1.pnames != R2.pnames && @warn "Using pnames from first MultistartResults object."
-    R1.OptimMeth != R2.OptimMeth && @warn "Combining results from different optimizers."
+    NewOptimMeth = if (!isnothing(R1.OptimMeth) && !isnothing(R2.OptimMeth)) && (!ismissing(R1.OptimMeth) && !ismissing(R2.OptimMeth)) && R1.OptimMeth != R2.OptimMeth
+        @warn "Combining results from different optimizers."
+        vcat(R1.OptimMeth, R2.OptimMeth)
+    else R1.OptimMeth end
+    R1.MultistartDomain != R2.MultistartDomain && @warn "Using MultistartDomain from first MultistartResults object."
+    # Adopt larger seed for continuation
+    NewSeed = if !(isnothing(R1.seed) && isnothing(R2.seed))
+        @info "Using bigger of two seeds in vcat of MultistartResults."
+        max(R1.seed, R2.seed)
+    else nothing end
 
     MultistartResults(vcat(R1.FinalPoints, R2.FinalPoints), vcat(R1.InitialPoints, R2.InitialPoints),
         vcat(R1.FinalObjectives, R2.FinalObjectives), vcat(R1.InitialObjectives, R2.InitialObjectives), vcat(R1.Iterations, R2.Iterations), vcat(R1.Converged, R2.Converged),
-        R1.pnames, R1.OptimMeth != R2.OptimMeth ? [R1.OptimMeth, R2.OptimMeth] : R1.OptimMeth, nothing, R1.MultistartDomain,
-        (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing),
+        R1.pnames, NewOptimMeth, NewSeed, R1.MultistartDomain, (!isnothing(R1.FullOptimResults) && !isnothing(R2.FullOptimResults) ? vcat(R1.FullOptimResults,R2.FullOptimResults) : nothing),
         ((!isnothing(R1.Meta) && !isnothing(R2.Meta) && (@assert R1.Meta == R2.Meta; true)) ? R1.Meta : nothing),
     )
 end
@@ -428,6 +436,10 @@ function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults;
     plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
 end
+
+
+
+ContinuationSeed(R::MultistartResults) = R.seed + length(R.FinalObjectives)
 
 
 GetNFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
