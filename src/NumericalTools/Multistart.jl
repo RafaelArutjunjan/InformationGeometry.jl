@@ -320,7 +320,6 @@ end
 RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     DoBiLog = get(plotattributes, :BiLog, true)
     Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
     ColorIterations = get(plotattributes, :ColorIterations, true)
     @assert MaxValue ≥ 0
@@ -328,7 +327,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Val{:Waterfall})
     # Cut off results with difference to lowest optimum greater than MaxValue
     ymaxind = get(plotattributes, :MaxInd, (Q=findlast(x->isfinite(x) && abs(x-Fin[1]) < Trafo(MaxValue), Fin);   isnothing(Q) ? length(Fin) : Q))
     xlabel --> "Run (sorted by cost function result)"
-    ylabel --> TrafoName * "Final Cost Value" * TrafoNameEnd
+    ylabel --> ApplyTrafoNames("Final Cost Value", Trafo)
     title --> "Waterfall plot $(ymaxind)/$(length(Fin))"
     leg --> nothing
     st --> :scatter
@@ -371,7 +370,6 @@ end
 RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}, Val{:StepAnalysis}})
     DoBiLog = get(plotattributes, :BiLog, true)
     Trafo = get(plotattributes, :Trafo, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     MaxValue = get(plotattributes, :MaxValue, BiExp(8))
     StepTol = get(plotattributes, :StepTol, 1e-3)
     pnames = get(plotattributes, :pnames, string.(Pnames(R)))
@@ -388,7 +386,7 @@ RecipesBase.@recipe function f(R::MultistartResults, ::Union{Val{:ParameterPlot}
     Xvals = 1.0:Spacer*length(dfs):Spacer*length(dfs)*length(pnames) |> collect
 
     xtick --> (Xvals .+ Spacer*0.5(length(dfs)-1), pnames)
-    ylabel --> TrafoName * "Parameter Value" * TrafoNameEnd
+    ylabel --> ApplyTrafoNames("Parameter Value", Trafo)
     xlabel --> "Parameter"
     seriestype --> get(plotattributes, :st, :dotplot)
     color_palette = get(plotattributes, :color_palette, :default)
@@ -551,8 +549,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
                                 pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, Cutoff::Int=400000, kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
     AddedPlots = []
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
-    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=TrafoName*"Objective"*TrafoNameEnd, label="Waterfall", legend))
+    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=ApplyTrafoNames("Objective", Trafo), label="Waterfall", legend))
     if length(pnames) ≤ 3
         # Cutoff elements in plot to avoid overloading backend
         ReducedInds = length(Inds) > Cutoff ? (@view Inds[1:Cutoff]) : Inds
@@ -572,8 +569,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     _, Res, ResPoints = GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
-    Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=TrafoName*"Min. Objective"*TrafoNameEnd, label="Conditional Objectives", kwargs...)
+    Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("Min. Objective", Trafo), label="Conditional Objectives", kwargs...)
     Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
     Plt
 end
@@ -611,14 +607,13 @@ end
 # kwargs: BiLog
 @recipe function f(R::MultistartResults, idxs::AbstractVector{<:Int}, V::Val{:SubspaceProjection}, FiniteInds::AbstractVector=(length(R.FinalObjectives) > 10000 ? (1:10000) : reverse(collect(1:length(R.FinalObjectives))[isfinite.(R.FinalObjectives)]));
                 BiLog=true, Trafo=(BiLog ? InformationGeometry.BiLog : identity))
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     color --> :viridis
     zcolor --> Trafo.(@view R.FinalObjectives[FiniteInds])
     colorbar --> false
     xlabel --> Pnames(R)[idxs[1]]
     ylabel --> Pnames(R)[idxs[2]]
     zlabel --> (length(idxs) ≥ 3 ? Pnames(R)[idxs[3]] : "")
-    label --> TrafoName * "Log-Likelihood" * TrafoNameEnd
+    label --> ApplyTrafoNames("Log-Likelihood", Trafo)
     legend --> false
     (@view R.FinalPoints[FiniteInds]), idxs, V
 end
@@ -737,7 +732,6 @@ end
                 Extremizer = findmax, BiLog = true, Trafo = (BiLog ? InformationGeometry.BiLog : identity), OffsetResults = false)
     @assert length(idxs) == 2 && allunique(idxs) && all(1 .≤ idxs .≤ length(Points[1]))
     
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     pxval = get(plotattributes, :pxval, getindex.(Points, idxs[1]))
     pyval = get(plotattributes, :pyval, getindex.(Points, idxs[2]))
     pxBins = get(plotattributes, :pxBins, collect(HistoBins(pxval, nxbins)))
@@ -756,7 +750,7 @@ end
         ylabel := pnames[idxs[2]]
         # alpha --> max.(0,HitsPerBin)
         lw --> 0.5
-        label --> TrafoName * "Min. Objective" * TrafoNameEnd
+        label --> ApplyTrafoNames("Min. Objective", Trafo)
         # heatmap order needs transposed matrix and xy
         (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), res'
     end

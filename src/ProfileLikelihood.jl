@@ -876,6 +876,7 @@ function GetTrafoNames(F::Function, GenericName::Bool=false)
     length(TrafoName) > 0 && (TrafoName *= "(")
     TrafoName, (endswith(TrafoName, "(") ? ")" : "")
 end
+ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((TrafoName, TrafoNameEnd)=GetTrafoNames(F, GenericName);    TrafoName * S * TrafoNameEnd)
 
 
 
@@ -945,7 +946,6 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
         Trafo := Trafo
         P
     end
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     j = 1
     for i in eachindex(trueparams)
         if PopulatedInds[i]
@@ -957,7 +957,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
                 label --> "True value"
                 ylims --> Ylims
                 xlabel --> pnames(P)[i]
-                ylabel --> TrafoName *(IsCost(P) ? "Cost Function" : "Conf. level [σ]")* TrafoNameEnd
+                ylabel --> ApplyTrafoNames(IsCost(P) ? "Cost Function" : "Conf. level [σ]", Trafo)
                 @view trueparams[i:i]
             end
             j += 1
@@ -1033,10 +1033,9 @@ end
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{false})
     i = PV.i
     Trafo = get(plotattributes, :Trafo, identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(Trafo)
     legend --> nothing
     xguide --> pnames(PV)[i]
-    yguide --> TrafoName * (IsCost(PV) ? "Cost Function" : "Conf. level [σ]") * TrafoNameEnd
+    yguide --> ApplyTrafoNames(IsCost(PV) ? "Cost Function" : "Conf. level [σ]", Trafo)
 
     @series begin
         label --> ["Profile Likelihood" nothing]
@@ -1146,9 +1145,8 @@ end
 
     DoBiLog = get(plotattributes, :BiLog, true)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    TrafoName, TrafoNameEnd = GetTrafoNames(TrafoPath)
     ystring = DoRelChange ? "p_i/p_MLE" :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i-p_MLE]" : "p_i-p_MLE")
-    yguide --> TrafoName * ystring * TrafoNameEnd
+    yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
     color_palette = get(plotattributes, :color_palette, :default)

@@ -70,6 +70,11 @@ GetErrorParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs..
 GetNondynamicParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[3]
 GetObservableParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[4]
 
+GetDynamicParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[1])
+GetErrorParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[2])
+GetNondynamicParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[3])
+GetObservableParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[4])
+
 
 # for F in [:GetNllh]
 #     @eval $F(M::PEtabODEProblem, args...; kwargs...) = $F(M.probinfo, M.model_info, args...; kwargs...)
@@ -126,7 +131,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
     IndOrValue = GetInds.(NameOrValue)
     ## For debugging
     # return ParsedError, NameOrValue, IndOrValue, MakeConstError.(IndOrValue, ParsedError), GetInverseTrafo.(ParsedError)
-    FixedError && !all(isa.(IndOrValue,Number)) && @warn "Approximating data uncertainties as fixed although the error parameters are estimated for $(ObsNames[collect(.!isa.(IndOrValue,Number))])."
+    FixedError && !all(isa.(IndOrValue,Number)) && @warn "Approximating data uncertainties as fixed in dataset object although the error parameters are estimated for $(ObsNames[collect(.!isa.(IndOrValue,Number))])."
     FixedError && return [Transform(Value) for (Transform, Value) in Iterators.zip(GetInverseTrafo.(ParsedError), MakeConstError.(IndOrValue, ParsedError))]
 end
 
@@ -159,11 +164,17 @@ function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID
     [GetConditionData(P, M, sdf, C; ObsID, CondID, FixedError, Mle) for C in UniqueConds]
 end
 
-function NicifyPEtabNames(PNames::AbstractVector{<:AbstractString})
-    IsLog10 = [startswith(x, "log10_") for x in PNames]
-    IsLog = [startswith(x, "log_") for x in PNames]
+import InformationGeometry: StringOrSymb, NicifyPEtabNames
+# Still need to broadcast apply latexstring, apply EscapeStr before
+NicifyPEtabNames(PNames::AbstractVector{Symbol}; kwargs...) = NicifyPEtabNames(string.(PNames); kwargs...)
+NicifyPEtabNames(PNames::StringOrSymb; kwargs...) = NicifyPEtabNames([string(PNames)]; kwargs...)[1]
+function NicifyPEtabNames(PNames::AbstractVector{<:AbstractString}; Textifier::AbstractString="text")
+    # Don't look for underscore after log, may already be escaped
+    IsLog10 = [startswith(x, "log10") for x in PNames]
+    IsLog = [!startswith(x, "log10") && startswith(x, "log") for x in PNames]
     Clean = [IsLog10[i] || IsLog[i] ? PNames[i][findfirst('_',PNames[i])+1:end] : PNames[i] for i in eachindex(PNames)]
-    [(IsLog[i] ? "\\log(" : "")* (IsLog10[i] ? "\\log_{10}(" : "") * Clean[i] *(IsLog10[i] || IsLog[i] ? ")" : "") for i in eachindex(PNames)] .|> latexstring
+    length(Textifier) > 0 && (Clean = "\\"*Textifier*"{" .* Clean .* "}")
+    [(IsLog[i] ? "\\log(" : "")* (IsLog10[i] ? "\\log_{10}(" : "") * Clean[i] *(IsLog10[i] || IsLog[i] ? ")" : "") for i in eachindex(PNames)]
 end
 
 
