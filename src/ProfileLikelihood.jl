@@ -335,6 +335,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     # Domain for Optimization, ProfileDomain just for early termination of profile
     ParamBounds = isnothing(ProfileDomain) ? (-Inf, Inf) : ProfileDomain[Comp]
+    OnlyBreakOnBounds && @assert all(isfinite, ParamBounds)
 
     if pdim(DM) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
@@ -880,6 +881,7 @@ ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((Tra
 
 
 
+@recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...
 
 # Plot trajectories by default
 @recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfiles && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
@@ -1100,10 +1102,12 @@ end
 
 
 ## Allow for plotting other scalar functions of the parameters, e.g. steady-state constraints
-@recipe function f(P::ParameterProfiles, V::Val{:PlotRelativeParamTrajectories})
+@recipe function f(P::ParameterProfiles, V::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}})
     @assert HasTrajectories(P)
-    RelChange = get(plotattributes, :RelChange, true)
+    RelChange = get(plotattributes, :RelChange, false)
     idxs = get(plotattributes, :idxs, 1:pdim(P))
+    mle = get(plotattributes, :MLE, MLE(P))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
 
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
     @assert RelChange isa Bool
@@ -1112,7 +1116,7 @@ end
     ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && !isnothing(Trajectories(P)[i])]
 
     layout --> length(ToPlotInds)
-    DoBiLog = get(plotattributes, :BiLog, true)
+    DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
 
     for (plotnum, i) in enumerate(ToPlotInds)
@@ -1121,6 +1125,8 @@ end
             TrafoPath := TrafoPath
             RelChange --> RelChange
             idxs --> ToPlotInds
+            MLE --> mle
+            OffsetResults --> OffsetResults
             ParameterFunctions --> ParameterFunctions
             P[i], V
         end
@@ -1130,22 +1136,26 @@ end
 # Kwarg BiLog=true for BiLog scale
 # Kwarg RelChange=false for parameter difference instead of ratio to MLE
 # Kwarg idxs for trajectories to plot
-@recipe function f(PV::ParameterProfilesView, ::Val{:PlotRelativeParamTrajectories})
+# Kwarg MLE and OffsetResults
+@recipe function f(PV::ParameterProfilesView, ::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}})
     @assert HasTrajectories(PV)
-    RelChange = get(plotattributes, :RelChange, true)
+    RelChange = get(plotattributes, :RelChange, false)
+    @assert RelChange isa Bool
     DoRelChange = RelChange && !any(MLE(PV) .== 0)
     Fisher = get(plotattributes, :Fisher, Diagonal(ones(pdim(PV))))
     U = cholesky(Fisher).U
-    idxs = get(plotattributes, :idxs, 1:pdim(PV))
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
-    @assert RelChange isa Bool
+
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
     xguide --> pnames(PV)[i]
 
-    DoBiLog = get(plotattributes, :BiLog, true)
+    mle = get(plotattributes, :MLE, MLE(PV))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
+    DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    ystring = DoRelChange ? "p_i/p_MLE" :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i-p_MLE]" : "p_i-p_MLE")
+    ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
@@ -1157,25 +1167,45 @@ end
             label --> pnames(PV.P)[j]
             lw --> 1.5
             Change = if DoRelChange
-                getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
+                getindex.(Trajectories(PV), j) ./ (OffsetResults ? mle[j] : 1)
             else
-                U[j,j] .* (getindex.(Trajectories(PV), j) .- MLE(PV)[j])
+                U[j,j] .* (getindex.(Trajectories(PV), j) .- (OffsetResults ? mle[j] : 0))
             end
             getindex.(Trajectories(PV), i), TrafoPath.(Change)
         end
     end
-    # Mark MLE
-    @series begin
-        label --> nothing
-        seriescolor --> :red
-        marker --> :hex
-        markersize --> 2.5
-        markerstrokewidth --> 0
-        [MLE(PV)[i]], (DoRelChange ? [TrafoPath(1.0)] : [TrafoPath(0.0)])
+    # if !isnothing(ParameterFunctions)
+    #     @assert ParameterFunctions isa AbstractArray{<:Function}
+    #     for (j,F) in enumerate(ParameterFunctions)
+    #         Vals = map(F, getindex.(Trajectories(PV), i))
+    #         @series begin
+    #             color --> palette(color_palette)[(((2+j+length(ToPlotInds)) % 15) +1)]
+    #             label --> ParameterFunctions isa ParamTrafo ? string(ParameterFunctions.ConditionNames[j]) : "ParameterFunction $j"
+    #             lw --> 1.5
+    #             Change = if RelChange && !any(MLE(PV) .== 0)
+    #             getindex.(Trajectories(PV), j) ./ MLE(PV)[j]
+    #         else
+    #             U[j,j] .* (getindex.(Trajectories(PV), j) .- MLE(PV)[j])
+    #         end
+    #             getindex.(Trajectories(PV), i), TrafoPath(Change)
+    #         end
+    #     end
+    # end
+    if OffsetResults
+        # Mark MLE
+        @series begin
+            label --> nothing
+            seriescolor --> :red
+            marker --> :hex
+            markersize --> 2.5
+            markerstrokewidth --> 0
+            [MLE(PV)[i]], (DoRelChange ? [TrafoPath(1.0)] : [TrafoPath(0.0)])
+        end
     end
 end
 
 PlotRelativeParameterTrajectories(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
+PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePaths); kwargs...)
 
 
 # Bad style but works for now for plotting profiles from different models in one:
