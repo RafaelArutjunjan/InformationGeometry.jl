@@ -92,6 +92,13 @@ _PromoteMutable(X::AbstractArray, Size=size(X)) = MArray{Tuple{Size...}}(X)
 _PromoteStatic(X::AbstractVector, Length=length(X)) = SVector{Length}(X)
 _PromoteStatic(X::AbstractArray, Size=size(X)) = SArray{Tuple{Size...}}(X)
 
+"""
+    IndVec(X::AbstractVector{<:Bool})
+Turn `Bool` vector into vector of integer indices.
+"""
+IndVec(X::AbstractVector{<:Bool}) = [i for i in eachindex(X) if X[i]]
+IndVec(X::AbstractVector{<:Int}) = X
+
 
 DeStatic(X::AbstractArray{T,N}) where T <: Number where N = convert(Array{T, N}, X)
 DeStatic(X::Array{T,N}) where T <: Number where N = X
@@ -128,7 +135,7 @@ Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` 
 """
 function invert(F::Function, x::T, Domain::Tuple{<:Number,<:Number}=(zero(T), 1e4*one(T));
                     tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1()) where T<:Number
-    @assert Domain[1] < Domain[2]
+    @assert Domain[1] < Domain[2] && isfinite(Domain[2])
     try
         if meth isa Roots.AbstractNonBracketing
             find_zero(z-> F(z) - x, 0.5one(T), meth; xatol=tol)

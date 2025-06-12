@@ -861,15 +861,18 @@ function ExtendProfiles(P::ParameterProfiles)
 end
 
 
-function _GetTrafoName(F::Function, GenericName::Bool=false)
-    if F === identity   ""
-    elseif F === BiLog    "BiLog"
-    elseif F === BiRoot   "BiRoot"
-    elseif F === BiExp    "BiExp"
-    elseif F === BiPower  "BiPower"
-    elseif F === BiRoot   "BiRoot"
-    elseif GenericName    "Trafo"  else   string(Symbol(F))   end
-end
+# Empty trafo name for identity
+_GetTrafoName(F::typeof(identity), GenericName::Bool=false) = ""
+
+## Pass through name as is - define this to avoid prefix InformationGeometry.BiLog with generic method
+## Can be overloaded individually for custom trafos
+# for Fname in [:BiLog, :BiRoot, :BiExp, :BiPower]
+#     @eval _GetTrafoName(F::typeof($Fname), GenericName::Bool=false) = string($Fname)
+# end
+
+# Generic method
+_GetTrafoName(F::Function, GenericName::Bool=false) = GenericName ? "Trafo" : string(Symbol(F))
+# Nice function composition
 _GetTrafoName(F::ComposedFunction, GenericName::Bool=false) = _GetTrafoName(F.outer, GenericName) *"∘"*_GetTrafoName(F.inner, GenericName)
 
 function GetTrafoNames(F::Function, GenericName::Bool=false)
