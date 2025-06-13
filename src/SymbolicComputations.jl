@@ -48,6 +48,13 @@ MakeMTKVariables(S::Symbol) = eval(Meta.parse("@variables "*string(S)))[1];     
 # MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
 MakeSymbolicPars(X::AbstractVector) = MakeMTKVariables(X) # eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
 
+# Apply String to make LaTeXStrings into strings as well
+SafeNames(X::AbstractVector) = all(SafeNames, X)
+# const ProblematicChars = ["(", "[", "{", "=", "\$"]
+const ProblematicCharsRegex = r"[()\[\]\{\}=\$]"
+SafeNames(X::AbstractString) = !occursin(ProblematicCharsRegex, String(X))
+SafeNames(X::Symbol) = SafeNames(string(X))
+
 
 SymbolicModelExpr(DM::Union{AbstractDataModel,ModelMap}) = @suppress_err ToExpr(DM)
 """
@@ -57,22 +64,26 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)) && (DM isa ModelMap || Data(DM) isa AbstractFixedUncertaintyDataSet))
+function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
     expr = SymbolicModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
     if sub
-        xold, yold, pold = SymbolicArguments(DM)
+        try
+            xold, yold, pold = SymbolicArguments(DM)
 
-        xnew, ynew = if DM isa AbstractDataModel
-            MakeSymbolicPars(Xnames(DM)), MakeSymbolicPars(Ynames(DM))
-        else
-            xold, yold
+            xnew, ynew = if DM isa AbstractDataModel
+                MakeSymbolicPars(Xnames(DM)), MakeSymbolicPars(Ynames(DM))
+            else
+                xold, yold
+            end
+            pnew = MakeSymbolicPars(Pnames(DM))
+
+            Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
+            expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
+        catch E;
+            verbose && @warn "Could not use variable given names due to: $E"
         end
-        pnew = MakeSymbolicPars(Pnames(DM))
-
-        Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
-        expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
     "y(x,θ) = " * string(expr)
 end
@@ -98,22 +109,26 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!any(contains("("), pnames(DM)) && (DM isa ModelMap || Data(DM) isa AbstractFixedUncertaintyDataSet))
+function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
     expr = SymbolicdModelExpr(DM)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
     if sub
-        xold, yold, pold = SymbolicArguments(DM)
+        try
+            xold, yold, pold = SymbolicArguments(DM)
 
-        xnew, ynew = if DM isa AbstractDataModel
-            MakeSymbolicPars(Xnames(DM)), MakeSymbolicPars(Ynames(DM))
-        else
-            xold, yold
+            xnew, ynew = if DM isa AbstractDataModel
+                MakeSymbolicPars(Xnames(DM)), MakeSymbolicPars(Ynames(DM))
+            else
+                xold, yold
+            end
+            pnew = MakeSymbolicPars(Pnames(DM))
+
+            Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
+            expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
+        catch E;
+            verbose && @warn "Could not use variable given names due to: $E"
         end
-        pnew = MakeSymbolicPars(Pnames(DM))
-
-        Viewer(X::Symbolics.Arr{<:Num, 1}) = view(X,:);    Viewer(X::Num) = X
-        expr = substitute(expr, Dict([Viewer(xold) .=> xnew; Viewer(yold) .=> ynew; Viewer(pold) .=> pnew]); fold=false)
     end
     "(∂y/∂θ)(x,θ) = " * string(expr)
 end
