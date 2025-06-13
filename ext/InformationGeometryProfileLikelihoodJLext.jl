@@ -1,21 +1,21 @@
 module InformationGeometryProfileLikelihoodJLext
 
 
-using InformationGeometry, ProfileLikelihood, Optimization, Optim
+using InformationGeometry, ProfileLikelihood, Optimization, Optim, ADTypes
 using RecipesBase
 
 
 using InformationGeometry: Pnames, Domain, GetDomain, DOF, InvChisqCDF
-using Optimization: AbstractADType
+using ADTypes: AbstractADType
 
 
 """
     ProfileLikelihood.LikelihoodProblem(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); Domain::Union{HyperCube,Nothing}=Domain(DM),
-                adtype::AbstractADType=Optimization.AutoForwardDiff(), syms::AbstractVector{<:Symbol}=Pnames(DM), kwargs...)
+                adtype::AbstractADType=ADTypes.AutoForwardDiff(), syms::AbstractVector{<:Symbol}=Pnames(DM), kwargs...)
 Constructs `LikelihoodProblem` struct from given `DataModel`.
 """
 function ProfileLikelihood.LikelihoodProblem(DM::AbstractDataModel, Mle::AbstractVector=MLE(DM);
-                adtype::AbstractADType=Optimization.AutoForwardDiff(), maxval::Real=1e5, Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval),
+                adtype::AbstractADType=ADTypes.AutoForwardDiff(), maxval::Real=1e5, Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval),
                 syms::AbstractVector{<:Symbol}=Pnames(DM), LogLikelihooodFn::Function=InformationGeometry.loglikelihood(DM),
                 lb=(!isnothing(Domain) ? Domain.L : fill(-maxval,length(Mle))), ub=(!isnothing(Domain) ? Domain.U : fill(maxval,length(Mle))),
                 cons=nothing, lcons=nothing, ucons=nothing, f_kwargs=NamedTuple(), prob_kwargs=NamedTuple(), kwargs...)

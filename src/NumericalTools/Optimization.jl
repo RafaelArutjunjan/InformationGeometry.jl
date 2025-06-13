@@ -224,13 +224,13 @@ end
 Optim.optimize(f, g!, h!, l::AbstractArray, u::AbstractArray, p::AbstractArray, F::Fminbox, args...; kwargs...) = Optim.optimize(f, g!, l, u, p, F, args...; kwargs...)
 
 
-ADtypeConverter(V::Val{true}) = Optimization.AutoForwardDiff()
-ADtypeConverter(V::Val{:ForwardDiff}) = Optimization.AutoForwardDiff()
-ADtypeConverter(V::Val{:ReverseDiff}) = Optimization.AutoReverseDiff()
-ADtypeConverter(V::Val{:Zygote}) = Optimization.AutoZygote()
-ADtypeConverter(V::Val{:FiniteDifferences}) = Optimization.AutoFiniteDifferences()
-ADtypeConverter(V::Val{:FiniteDiff}) = Optimization.AutoFiniteDiff()
-ADtypeConverter(V::Val{:Symbolic}) = Optimization.AutoSymbolics()
+ADtypeConverter(V::Val{true}) = ADTypes.AutoForwardDiff()
+ADtypeConverter(V::Val{:ForwardDiff}) = ADTypes.AutoForwardDiff()
+ADtypeConverter(V::Val{:ReverseDiff}) = ADTypes.AutoReverseDiff()
+ADtypeConverter(V::Val{:Zygote}) = ADTypes.AutoZygote()
+ADtypeConverter(V::Val{:FiniteDifferences}) = ADTypes.AutoFiniteDifferences()
+ADtypeConverter(V::Val{:FiniteDiff}) = ADTypes.AutoFiniteDiff()
+ADtypeConverter(V::Val{:Symbolic}) = ADTypes.AutoSymbolics()
 ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 # Extend with constraint Functions
