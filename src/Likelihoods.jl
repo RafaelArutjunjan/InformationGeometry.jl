@@ -84,7 +84,7 @@ end
 
 
 
-
+AutoScore(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number}->AutoScore(DM, θ; kwargs...)
 AutoScore(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = AutoScore(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
 AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _AutoScore(DS, model, θ; kwargs...)
 function AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
@@ -92,13 +92,29 @@ function AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVect
 end
 _AutoScore(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, x->_loglikelihood(DS, model, x; kwargs...))(θ)
 
+AutoScore!(S::AbstractVector, args...; kwargs...) = copyto!(S, AutoScore(args...; kwargs...))
+AutoScore!(DM::AbstractDataModel; kwargs...) = (S::AbstractVector,θ::AbstractVector)->AutoScore!(S, DM, θ; kwargs...)
 
+
+AutoMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number}->AutoMetric(DM, θ; kwargs...)
 AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = AutoMetric(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
 AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _AutoMetric(DS, model, θ; kwargs...)
 function AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
     _AutoMetric(DS, model, θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPriorFn, θ; ADmode=ADmode)
 end
 _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, x->-_loglikelihood(DS, model, x; kwargs...))(θ)
+
+AutoMetric!(H::AbstractMatrix, args...; kwargs...) = copyto!(H, AutoMetric(args...; kwargs...))
+AutoMetric!(DM::AbstractDataModel; kwargs...) = (H::AbstractMatrix,θ::AbstractVector)->AutoMetric!(H, DM, θ; kwargs...)
+
+
+## Generate Hessian from given Gradient with ADmode
+## E.g. when cost not AutoDiffble but Score manually provided
+## For FiniteDifferences and similar, much faster than using GetHess on original scalar function
+AutoMetricFromScore(DM::AbstractDataModel, S::Function=Score(DM); kwargs...) = AutoMetricFromScore(S; kwargs...)
+AutoMetricFromScore(S::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMethods(GetJac(ADmode, Negate(S)), GetJac!(ADmode, Negate!!(S)))
+# No negation
+AutoMetricFromNegScore(N::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMethods(GetJac(ADmode, N), GetJac!(ADmode, N))
 
 
 

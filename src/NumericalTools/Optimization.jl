@@ -319,7 +319,7 @@ end
 function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(DM), meth=missing, ADmode::Val=Val(:ForwardDiff), 
                     Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)), GenerateNewDerivatives::Bool=Lifted,
                     UseGrad::Bool=true, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : (!GenerateNewDerivatives ? NegScore(DM) : GetGrad!(ADmode, CostFunction))), 
-                    UseHess::Bool=true, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : (!GenerateNewDerivatives ? FisherMetric(DM) : GetHess!(ADmode, CostFunction))), kwargs...)
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : (!GenerateNewDerivatives ? FisherMetric(DM) : GetHess!(ADmode, CostFunction))), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
     # Get constraint function and Hypercube from ModelMap if available?
@@ -334,7 +334,7 @@ end
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, ADmode::Val=Val(:ForwardDiff), 
                     Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : GetNeglogLikelihoodFn(DS,Model,LogPriorFn)), GenerateNewDerivatives::Bool=Lifted,
                     UseGrad::Bool=true, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : GetGrad!(ADmode, CostFunction)), 
-                    UseHess::Bool=true, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : GetHess!(ADmode, CostFunction)), kwargs...)
+                    UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : GetHess!(ADmode, CostFunction)), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
     PassMeth = ((!ismissing(meth) && !isnothing(meth)) ? (; meth=meth) : (;))
     Lcons, Ucons, Cons = GetConstraintFunc(Model, start; inplace=true) # isinplacemodel(DM)
