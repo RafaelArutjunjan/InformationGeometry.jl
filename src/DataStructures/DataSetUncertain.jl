@@ -103,7 +103,7 @@ Xnames(DS::DataSetUncertain) = DS.xnames
 Ynames(DS::DataSetUncertain) = DS.ynames
 name(DS::DataSetUncertain) = DS.name
 
-xsigma(DS::DataSetUncertain) = zeros(length(xdata(DS)))
+xsigma(DS::DataSetUncertain, mle::AbstractVector=Float64[]) = zeros(length(xdata(DS)))
 
 HasXerror(DS::DataSetUncertain) = false
 
@@ -133,15 +133,25 @@ BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    @assert length(c) == length(DS.testp) "ysigma: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
-    map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    C = if length(c) != length(DS.testp) 
+        verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params!"
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map((x,y)->inv(yinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    @assert length(c) == length(DS.testp) "yInvCov: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
-    map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    C = if length(c) != length(DS.testp) 
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map(((x,y)->(S=yinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 

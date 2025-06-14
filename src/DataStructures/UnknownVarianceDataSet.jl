@@ -129,28 +129,48 @@ HasBessel(DS::UnknownVarianceDataSet{T}) where T = T
 
 # Uncertainty must be constructed around prediction!
 function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx; verbose::Bool=true)
-    @assert length(c) == length(DS.testpx) "xsigma: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
-    map((x,y)->inv(xinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    C = if length(c) != length(DS.testpx) 
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[2]
+    else
+        verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map((x,y)->inv(xinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx; verbose::Bool=true)
-    @assert length(c) == length(DS.testpx) "xInvCov: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
-    map(((x,y)->(S=xinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    C = if length(c) != length(DS.testpx) 
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpx)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[2]
+    else
+        verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map(((x,y)->(S=xinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
-    @assert length(c) == length(DS.testpy) "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
-    map((x,y)->inv(yinverrormodel(DS)(x,y,c)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    C = if length(c) != length(DS.testpy) 
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map((x,y)->inv(yinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
-    @assert length(c) == length(DS.testpy) "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
-    verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
-    map(((x,y)->(S=yinverrormodel(DS)(x,y,c); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    C = if length(c) != length(DS.testpy) 
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
+        c
+    end
+    map(((x,y)->(S=yinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 
