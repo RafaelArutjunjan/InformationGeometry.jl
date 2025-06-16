@@ -285,7 +285,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
-                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth,
+                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, OffsetResults::Bool=true,
                         IC::Real=eltype(mle)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e12)), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3,
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
@@ -500,9 +500,16 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPriorFn,mle) : 0.0
     if IsCost
-        @. Res = 2*(Logmax - Res)
-        if SavePriors
-            @. priors = 2*(Priormax - priors)
+        if OffsetResults
+            @. Res = 2*(Logmax - Res)
+            if SavePriors
+                @. priors = 2*(Priormax - priors)
+            end
+        else
+            Res .*= -2
+            if SavePriors
+                priors .*= -2
+            end
         end
     else
         @inbounds for i in eachindex(Res)
