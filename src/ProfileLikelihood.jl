@@ -298,6 +298,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # flatstepconst: mainly controls step size when profile exactly flat
     @assert stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
     @assert IC > 0 && MinSafetyFactor > 1 && MaxSafetyFactor > MinSafetyFactor
+    OnlyBreakOnBounds && adaptive && @warn "OnlyBreakOnBounds does not currently work with adaptive=true!"
     
     # logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
     CostThreshold, MaxThreshold = logLikeMLE .- 0.5 .* (IC*MinSafetyFactor, IC*MaxSafetyFactor)
@@ -1113,7 +1114,7 @@ end
 
 
 ## Allow for plotting other scalar functions of the parameters, e.g. steady-state constraints
-@recipe function f(P::ParameterProfiles, V::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}})
+@recipe function f(P::ParameterProfiles, V::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}, Val{:ProfilePathDiffsIndividual},Val{:PathDiffsIndividual}})
     @assert HasTrajectories(P)
     RelChange = get(plotattributes, :RelChange, false)
     idxs = get(plotattributes, :idxs, 1:pdim(P))
@@ -1215,8 +1216,62 @@ end
     end
 end
 
-PlotRelativeParameterTrajectories(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:PlotRelativeParamTrajectories); kwargs...)
 PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePaths); kwargs...)
+@deprecate PlotRelativeParameterTrajectories PlotProfilePaths
+
+
+@recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathDiffsIndividual},Val{:PathDiffsIndividual}})
+    @assert HasTrajectories(PV)
+    RelChange = get(plotattributes, :RelChange, false)
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
+    mle = get(plotattributes, :MLE, MLE(PV))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
+    ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
+    StepTol = get(plotattributes, :StepTol, 5)
+    verbose = get(plotattributes, :verbose, true)
+
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
+    @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
+    i = PV.i
+    xguide --> pnames(PV)[i]
+
+    mle = get(plotattributes, :MLE, MLE(PV))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
+    DoBiLog = get(plotattributes, :BiLog, false)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    ystring = "Finite Differences"
+    yguide --> ApplyTrafoNames(ystring, TrafoPath)
+    # Also filter out 
+    ToPlotInds = idxs[idxs .!= i]
+    color_palette = get(plotattributes, :color_palette, :default)
+    # Colorize only parameters with 5 strongest changes
+    @series begin
+        st --> :vline
+        label --> "MLE"
+        seriescolor --> :red
+        line --> :dash
+        lw --> 1.5
+        [MLE(PV)[i]]
+    end
+    for j in ToPlotInds
+        @series begin
+            color --> palette(color_palette)[(((2+j) % 15) +1)]
+            label --> pnames(PV.P)[j]
+            lw --> 1.5
+            yDiffs = diff(getindex.(Trajectories(PV), j));      xDiffs = diff(getindex.(Trajectories(PV), i))
+            FiniteDiffs = yDiffs ./ xDiffs
+            X = (XX = getindex.(Trajectories(PV), i); (@views (XX[1:end-1] .+ XX[2:end]) ./ 2))
+            if verbose && any(abs.(median(TrafoPath.(FiniteDiffs)) .- collect(extrema(TrafoPath.(FiniteDiffs)))) .> StepTol)
+                Jumps = X[abs.(median(TrafoPath.(FiniteDiffs)) .- TrafoPath.(FiniteDiffs)) .> StepTol]
+                @info "Detected possible discrete jump"*(length(Jumps) > 1 ? "s" : "")*" in trajectory of parameter "*string(STRING_COLOR, pnames(PV)[j], NO_COLOR)*" of parameter profile "*string(STRING_COLOR, pnames(PV)[i], NO_COLOR)*" at: $(Jumps)"
+            end
+            X, TrafoPath.(FiniteDiffs)
+        end
+    end
+end
+
+PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathDiffsIndividual); kwargs...)
 
 
 # Bad style but works for now for plotting profiles from different models in one:
