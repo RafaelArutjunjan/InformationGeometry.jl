@@ -1114,7 +1114,7 @@ end
 
 
 ## Allow for plotting other scalar functions of the parameters, e.g. steady-state constraints
-@recipe function f(P::ParameterProfiles, V::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}, Val{:ProfilePathDiffsIndividual},Val{:PathDiffsIndividual}})
+@recipe function f(P::ParameterProfiles, V::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}, Val{:ProfilePathDiffs},Val{:PathDiffs}, Val{:ProfilePathNormDiffs},Val{:PathNormDiffs}})
     @assert HasTrajectories(P)
     RelChange = get(plotattributes, :RelChange, false)
     idxs = get(plotattributes, :idxs, 1:pdim(P))
@@ -1220,7 +1220,7 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
 @deprecate PlotRelativeParameterTrajectories PlotProfilePaths
 
 
-@recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathDiffsIndividual},Val{:PathDiffsIndividual}})
+@recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathDiffs},Val{:PathDiffs}})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, false)
     idxs = get(plotattributes, :idxs, 1:pdim(PV))
@@ -1271,7 +1271,56 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
     end
 end
 
-PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathDiffsIndividual); kwargs...)
+PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathDiffs); kwargs...)
+
+@recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathNormDiffs},Val{:PathNormDiffs}})
+    @assert HasTrajectories(PV)
+    RelChange = get(plotattributes, :RelChange, false)
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
+    mle = get(plotattributes, :MLE, MLE(PV))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
+    ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
+    StepTol = get(plotattributes, :StepTol, 5)
+    verbose = get(plotattributes, :verbose, true)
+    pnorm = get(plotattributes, :pnorm, 2)
+
+    idxs = get(plotattributes, :idxs, 1:pdim(PV))
+    @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
+    i = PV.i
+    xguide --> pnames(PV)[i]
+
+    mle = get(plotattributes, :MLE, MLE(PV))
+    OffsetResults = get(plotattributes, :OffsetResults, true)
+    DoBiLog = get(plotattributes, :BiLog, false)
+    TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    ystring = "Finite Differences $pnorm-norm"
+    yguide --> ApplyTrafoNames(ystring, TrafoPath)
+    # Consider all idxs
+    ToPlotInds = idxs
+    @series begin
+        st --> :vline
+        label --> "MLE"
+        seriescolor --> :red
+        line --> :dash
+        lw --> 1.5
+        [MLE(PV)[i]]
+    end
+    @series begin
+        label --> "|| Δp⃗ ||_$pnorm / Δ($(pnames(PV)[i]))"
+        lw --> 1.5
+        yDiffs = diff(Trajectories(PV));      xDiffs = diff(getindex.(Trajectories(PV), i))
+        FiniteDiffs = yDiffs ./ xDiffs;     NormFiniteDiffs = norm.(FiniteDiffs, pnorm)
+        X = (XX = getindex.(Trajectories(PV), i); (@views (XX[1:end-1] .+ XX[2:end]) ./ 2))
+        if verbose && any(abs.(median(TrafoPath.(NormFiniteDiffs)) .- collect(extrema(TrafoPath.(NormFiniteDiffs)))) .> StepTol)
+            Jumps = X[abs.(median(TrafoPath.(NormFiniteDiffs)) .- TrafoPath.(NormFiniteDiffs)) .> StepTol]
+            @info "Detected possible discrete jump"*(length(Jumps) > 1 ? "s" : "")*" in trajectory of parameter profile "*string(STRING_COLOR, pnames(PV)[i], NO_COLOR)*" at: $(Jumps)"
+        end
+        X, TrafoPath.(NormFiniteDiffs)
+    end
+end
+
+PlotProfilePathNormDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathNormDiffs); kwargs...)
 
 
 # Bad style but works for now for plotting profiles from different models in one:
