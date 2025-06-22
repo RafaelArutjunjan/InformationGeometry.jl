@@ -495,14 +495,16 @@ CountInBin(pBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVec
 CountInBin(pxBins::AbstractVector{<:Number}, pyBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}) = [count(LogLikeInd->pxBins[i] ≤ Points[LogLikeInd][idxs[1]] < pxBins[i+1] && pyBins[j] ≤ Points[LogLikeInd][idxs[2]] < pyBins[j+1], 1:length(Points)) for i in 1:length(pxBins)-1, j in 1:length(pyBins)-1]
 
 
+# Already has factor of two
+# Offset optional
 function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
     Res = [_GetStochasticProfile(Points, Likelihoods, i; kwargs...) for i in eachindex(Points[1])]
     Bins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3)
-    LogLikeMle, mleind = findmax(Vals[1]);  mle = Trajs[1][mleind]
-    ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2)  2 .*(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
+    mle = Trajs[1][findmin(Vals[1])[2]]
+    ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) Vals[i] trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
 function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
-                                    UseSorted::Bool=true, pval::AbstractVector=getindex.(Points,ind), pBins::AbstractVector=collect(HistoBins(pval,nbins)), OffsetResults::Bool=false, pnames=String[])
+                                    UseSorted::Bool=true, pval::AbstractVector=getindex.(Points,ind), pBins::AbstractVector=collect(HistoBins(pval,nbins)), OffsetResults::Bool=true, pnames=String[])
     ResInds = if UseSorted && issorted(Likelihoods; rev=true)
         [(X=findfirst(LogLikeInd->pBins[i] .≤ pval[LogLikeInd] .< pBins[i+1], 1:length(Points));  isnothing(X) ? 0 : X) for i in 1:length(pBins)-1]
     else
@@ -515,6 +517,7 @@ function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelih
     Res = [i == 0 ? -Inf : Likelihoods[i] for i in ResInds]
     OffsetResults && (Res .-= Extremizer(Res)[1])
     ResPoints = [i == 0 ? fill(-Inf, length(Points[1])) : Points[i] for i in ResInds]
+    Res .*= -2
     pBins, Res, ResPoints
 end
 
@@ -525,7 +528,7 @@ function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likeli
     # LogLikeMle, mleind = findmax(Vals[1]);  mle = Trajs[1][mleind]
     # ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) 2(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
-function _GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}; Extremizer::Function=findmax, OffsetResults::Bool=false, 
+function _GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}; Extremizer::Function=findmax, OffsetResults::Bool=true, 
                             nxbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), nybins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), 
                             pxval::AbstractVector=getindex.(Points, idxs[1]), pyval::AbstractVector=getindex.(Points, idxs[2]), pnames=String[],
                             UseSorted::Bool=true, pxBins::AbstractVector=collect(HistoBins(pxval, nxbins)), pyBins::AbstractVector=collect(HistoBins(pyval, nybins)))
@@ -543,6 +546,7 @@ function _GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likel
     Res = [i == 0 ? -Inf : Likelihoods[i] for i in ResInds]
     OffsetResults && (Res .-= Extremizer(Res)[1])
     ResPoints = [i == 0 ? fill(-Inf, length(Points[1])) : Points[i] for i in ResInds]
+    Res .*= -2
     pxBins, pyBins, Res, ResPoints
 end
 
