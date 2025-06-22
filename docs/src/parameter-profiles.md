@@ -42,11 +42,7 @@ plot(P3, false) #hide
 This means that arbitrarily small values of ``\theta_2`` are still compatible with the data up to a confidence of ``3\sigma \approx 99.73\%``.
 
 
-Once a profile `P3` has been computed, it can be plotted via `plot(P3)`. It is also possible to just plot any of the individual profiles via `plot(P3[i])` where the integer `i` denotes the profile of the ``i``-th parameter. It is also possible to investigate the optimization paths of individual profile trajectories via `PlotRelativeParameterTrajectories(P3[i])` or simply
-```@example Profiles
-plot(P3[2], true; RelChange=true, BiLog=false)
-```
-In this example, one finds that the first parameter ``\theta_1`` must decrease if the second parameter ``\theta_2`` increases in order to compensate so that the model still describes the data as well as possible. 
+Once a profile `P3` has been computed, it can be plotted via `plot(P3)`. It is also possible to just plot any of the individual profiles via `plot(P3[i])` where the integer `i` denotes the profile of the ``i``-th parameter. 
 
 ```@docs
 ParameterProfiles
@@ -80,3 +76,29 @@ which can either be computed for all profiles together or a single profile of in
 ProfileBox(::ParameterProfiles)
 PracticallyIdentifiable(::ParameterProfiles)
 ```
+
+### Investigating Profile Paths
+
+The paths traced out by the individual profiles in the parameter space encode useful information about the mutual relationships between different parameters.
+For instance, if during the profile of a given parameter `a`, the nuisance parameter `b` remains at a constant value throughout, this indicates that the effects of `a` are independent of the mechanism encoded by `b`.
+In this sense, the influences of the two respective mechanisms on the final model predictions can be considered to be orthogonal.
+Conversely, if the nuisance parameter `b` changes at a somewhat linear or even superlinear rate along the profile of `a`, this means that the effects of the two mechanisms are strongly linked in the sense that changes in the value of the nuisance parameter `b` are able to compensate at least partially for changes in the parameter `a`.
+Moreover, the directionality of the changes in `b` reveals whether the mutual effects of the mechanisms are synergistic or antagonistic.
+This kind of nuanced information is crucial in the process of model reduction.
+
+
+For example, in ODE-based mechanistic models describing biological systems, this can be exploited to perform systematic model reduction in a straightforward, iterative process, where practically non-identifiable parameters are successively removed, by fixing them to their limiting values of zero or infinity, until all remaining parameters of the model are fully identified by the given data.
+A paper outlining this systematic reduction strategy in detail is given by [Driving the model to its limits](https://ideas.repec.org/a/plo/pone00/0162366.html).
+
+The saved paths of a `ParameterProfiles` object `P` can be accessed via `InformationGeometry.Trajectories(P)` for computations.
+They can be plotted via several methods, such as `PlotProfilePaths`:
+```@example Profiles
+PlotProfilePaths(P3; RelChange=false, TrafoPath=identity, idxs=1:length(P3))
+```
+where the `RelChange` kwarg can be used to specify whether the relative change `p_i / p_mle` or the difference `p_i - p_mle` is plotted.
+Also, the `TrafoPath` allows for specifying a transformation which is broadcasted over the results to account for non-linear distortions on the parameter space, making relevant features more easily visible, for instance `TrafoPath=BiLog`.
+
+In the above example, one can see from the trajectories of the profile for ``\theta_2`` that the first parameter ``\theta_1`` must decrease if the second parameter ``\theta_2`` increases in order to compensate, such that the model still describes the data as well as possible.
+
+It is also possible to plot the finite differences of the profile paths (i.e. their discrete first derivative) via `PlotProfilePathDiffs` and `PlotProfilePathNormDiffs`, which can make it easier to visually identify discontinuous jumps in the parameter paths.
+
