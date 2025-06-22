@@ -481,21 +481,27 @@ function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, L
    plot && display(StochasticProfileLikelihoodPlot(R; kwargs...))
    R
 end
+# Refine given MultistartObject with more samples
+function StochasticProfileLikelihood(R::MultistartResults, args...; plot::Bool=false, kwargs...)
+    vcat(R, StochasticProfileLikelihood(args...; plot, seed=ContinuationSeed(R), kwargs...))
+end
 
 
-for F in [:GetStochasticProfile, :GetStochastic2DProfile]
-    @eval $F(R::MultistartResults, args...; kwargs...) = $F(R.FinalPoints, R.FinalObjectives, args...; pnames=pnames(R), kwargs...)
+
+for F in [:GetStochasticProfile, :_GetStochasticProfile, :GetStochastic2DProfile, :_GetStochastic2DProfile]
+    @eval $F(R::MultistartResults, args...; pnames=pnames(R), kwargs...) = $F(R.FinalPoints, R.FinalObjectives, args...; pnames, kwargs...)
 end
 CountInBin(pBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVector}, ind::Int) = [count(LogLikeInd->pBins[i] .≤ Points[LogLikeInd][ind] .< pBins[i+1], 1:length(Points)) for i in 1:length(pBins)-1]
 CountInBin(pxBins::AbstractVector{<:Number}, pyBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}) = [count(LogLikeInd->pxBins[i] ≤ Points[LogLikeInd][idxs[1]] < pxBins[i+1] && pyBins[j] ≤ Points[LogLikeInd][idxs[2]] < pyBins[j+1], 1:length(Points)) for i in 1:length(pxBins)-1, j in 1:length(pyBins)-1]
 
+
 function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
-    Res = [GetStochasticProfile(Points, Likelihoods, i; kwargs...) for i in eachindex(Points[1])]
+    Res = [_GetStochasticProfile(Points, Likelihoods, i; kwargs...) for i in eachindex(Points[1])]
     Bins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3)
     LogLikeMle, mleind = findmax(Vals[1]);  mle = Trajs[1][mleind]
-    ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) 2(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
+    ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2)  2 .*(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
-function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
+function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
                                     UseSorted::Bool=true, pval::AbstractVector=getindex.(Points,ind), pBins::AbstractVector=collect(HistoBins(pval,nbins)), OffsetResults::Bool=false, pnames=String[])
     ResInds = if UseSorted && issorted(Likelihoods; rev=true)
         [(X=findfirst(LogLikeInd->pBins[i] .≤ pval[LogLikeInd] .< pBins[i+1], 1:length(Points));  isnothing(X) ? 0 : X) for i in 1:length(pBins)-1]
@@ -514,12 +520,12 @@ end
 
 
 function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
-    Res = [GetStochastic2DProfile(Points, Likelihoods, i; kwargs...) for i in OrderedIndCombs2D(1:length(Points[1]))]
+    Res = [_GetStochastic2DProfile(Points, Likelihoods, i; kwargs...) for i in OrderedIndCombs2D(1:length(Points[1]))]
     xBins, yBins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3), getindex.(Res,4)
     # LogLikeMle, mleind = findmax(Vals[1]);  mle = Trajs[1][mleind]
     # ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) 2(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
-function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}; Extremizer::Function=findmax, OffsetResults::Bool=false, 
+function _GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}; Extremizer::Function=findmax, OffsetResults::Bool=false, 
                             nxbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), nybins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), 
                             pxval::AbstractVector=getindex.(Points, idxs[1]), pyval::AbstractVector=getindex.(Points, idxs[2]), pnames=String[],
                             UseSorted::Bool=true, pxBins::AbstractVector=collect(HistoBins(pxval, nxbins)), pyBins::AbstractVector=collect(HistoBins(pyval, nybins)))
@@ -566,7 +572,7 @@ end
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
                                  BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), pval::AbstractVector=getindex.(Points, ind), pBins::AbstractVector=collect(HistoBins(pval, nbins)), OffsetResults::Bool=false,
                                  xlabel="Parameter $ind", kwargs...)
-    _, Res, ResPoints = GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults)
+    _, Res, ResPoints = _GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
     Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("Min. Objective", Trafo), label="Conditional Objectives", kwargs...)
@@ -698,7 +704,7 @@ end
     pval = get(plotattributes, :pval, getindex.(Points, ind))
     pBins = get(plotattributes, :pBins, collect(HistoBins(pval, Nbins)))
 
-    _, Res, ResPoints = GetStochasticProfile(Points, Likelihoods, ind; nbins=Nbins, Extremizer, pval=getindex.(Points, ind), pBins, OffsetResults)
+    _, Res, ResPoints = _GetStochasticProfile(Points, Likelihoods, ind; nbins=Nbins, Extremizer, pval=getindex.(Points, ind), pBins, OffsetResults)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
     
@@ -737,7 +743,7 @@ end
     pxBins = get(plotattributes, :pxBins, collect(HistoBins(pxval, nxbins)))
     pyBins = get(plotattributes, :pyBins, collect(HistoBins(pyval, nybins)))
 
-    _, _, Res, ResPoints = GetStochastic2DProfile(Points, Likelihoods, idxs; Extremizer, OffsetResults, nxbins, nybins, pxval, pyval, pxBins, pyBins)
+    _, _, Res, ResPoints = _GetStochastic2DProfile(Points, Likelihoods, idxs; Extremizer, OffsetResults, nxbins, nybins, pxval, pyval, pxBins, pyBins)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pxBins, pyBins, Points, idxs));  HitsPerBin ./= maximum(HitsPerBin)
 
