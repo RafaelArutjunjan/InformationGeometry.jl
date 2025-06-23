@@ -243,24 +243,24 @@ function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth
 
     optf = if length(Fs) == 1
         OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
-    else
-        @warn "minimize(): Currently ignoring manually given derivatives and using adtype=$adtype instead."
-        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
-    # elseif length(Fs) == 2
-    #     numarg = MaximalNumberOfArguments(Fs[2])
-    #     if numarg == 1
-    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x))
-    #     else
-    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x))
-    #     end
     # else
-    #     @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
-    #     numarg = MaximalNumberOfArguments(Fs[2])
-    #     if numarg == 1
-    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x), hess=(x,p)->Fs[3](x))
-    #     else
-    #         OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
-    #     end
+    #     @warn "minimize(): Currently ignoring manually given derivatives in $Fs and using adtype=$adtype instead."
+    #     OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
+    elseif length(Fs) == 2
+        numarg = MaximalNumberOfArguments(Fs[2])
+        if numarg == 1
+            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x))
+        else
+            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x))
+        end
+    else
+        @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
+        numarg = MaximalNumberOfArguments(Fs[2])
+        if numarg == 1
+            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x), hess=(x,p)->Fs[3](x))
+        else
+            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
+        end
     end
     minimizeOptimizationJL(optf, Start, meth; lcons=lcons, ucons=ucons, kwargs...)
 end
@@ -268,13 +268,18 @@ end
 # For Optimizers from the Optimization.jl ecosystem
 function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
                     tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, 
-                    lb=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.L : nothing), ub=((SciMLBase.allowsbounds(meth) && !isnothing(Domain)) ? Domain.U : nothing), lcons=nothing, ucons=nothing, 
+                    lb=(!isnothing(Domain) ? convert(typeof(Start),Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(typeof(Start),Domain.U) : nothing), lcons=nothing, ucons=nothing, # cons already captured in optf
                     Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), 
                     retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...)
     
     @assert !retry || !isnothing(retrymeth)
-    SciMLBase.requiresbounds(meth) && isnothing(lb) && (lb = fill(-Inf, length(Start)))
-    SciMLBase.requiresbounds(meth) && isnothing(ub) && (ub = fill(Inf, length(Start)))
+    if SciMLBase.requiresbounds(meth)
+        isnothing(lb) && (lb = fill(-Inf, length(Start)))
+        isnothing(ub) && (ub = fill(Inf, length(Start)))
+    elseif !SciMLBase.allowsbounds(meth)
+        !isnothing(lb) && (lb = nothing)
+        !isnothing(ub) && (ub = nothing)
+    end
     
     prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
