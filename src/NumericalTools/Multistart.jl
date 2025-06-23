@@ -579,8 +579,8 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     _, Res, ResPoints = _GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
-    Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("Min. Objective", Trafo), label="Conditional Objectives", kwargs...)
-    Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
+    Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("SPLA", Trafo), label="Conditional Objectives", kwargs...)
+    Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(-res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
     Plt
 end
 
@@ -638,10 +638,10 @@ end
 
 ## Plot recipes to replace `StochasticProfileLikelihoodPlot`, not used yet though
 for F in [Symbol("plot"), Symbol("plot!")]
-    @eval RecipesBase.$F(R::MultistartResults, V::Val{:StochasticProfiles}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
-    @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::Val{:StochasticProfiles}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
 end
-@recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::Val{:StochasticProfiles})
+@recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}})
                                 # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity))
     Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
@@ -666,9 +666,9 @@ end
     @series begin
         subplot := length(pnames) + 1
         xlabel --> "Run index (sorted)"
-        ylabel --> TrafoName * "Objective" * TrafoNameEnd
+        ylabel --> TrafoName * "-2*Objective" * TrafoNameEnd
         label --> "Waterfall"
-        1:length(Likelihoods), -Trafo.(Likelihoods)
+        1:length(Likelihoods), Trafo.(-2 .*Likelihoods)
     end
     if length(pnames) ≤ 3
         @series begin
@@ -676,7 +676,7 @@ end
             subplot := length(pnames) + 2
             c --> :viridis
             colorbar --> true
-            zcolor --> Trafo.(Likelihoods)
+            zcolor --> Trafo.(2 .*Likelihoods)
             msw --> 0
             xlabel --> pnames[1]
             ylabel --> pnames[2]
@@ -696,7 +696,7 @@ end
     end
     # RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
 end
-@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::Val{:StochasticProfiles})
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::Union{Val{:StochasticProfile},Val{:StochasticProfiles}})
                 # Nbins=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), Extremizer=maximum, BiLog=true, Trafo=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults=false)
     Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
@@ -718,9 +718,9 @@ end
         bar_width --> diff(pBins)
         lw --> 0.5
         xlabel := pnames[ind]
-        ylabel := TrafoName * "Min. Objective" * TrafoNameEnd
+        ylabel := TrafoName * "SPLA" * TrafoNameEnd
         label --> "Conditional Objectives"
-        (@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), -res
+        (@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), res
     end
     if Extremizer === findmax   @series begin
         st := :vline
@@ -728,9 +728,9 @@ end
         lc --> :red
         lw --> 1.5
         xlabel := pnames[ind]
-        ylabel := TrafoName * "Min. Objective" * TrafoNameEnd
+        ylabel := TrafoName * "SPLA" * TrafoNameEnd
         label --> "Best Objective"
-        [ResPoints[Extremizer(res)[2]][ind]]
+        [ResPoints[Extremizer(-res)[2]][ind]]
     end end
 end
 
@@ -760,9 +760,9 @@ end
         ylabel := pnames[idxs[2]]
         # alpha --> max.(0,HitsPerBin)
         lw --> 0.5
-        label --> ApplyTrafoNames("Min. Objective", Trafo)
+        label --> ApplyTrafoNames("-SPLA", Trafo)
         # heatmap order needs transposed matrix and xy
-        (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), res'
+        (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), -res'
     end
     if Extremizer === findmax   @series begin
         st := :scatter
@@ -772,7 +772,7 @@ end
         ylabel := pnames[idxs[2]]
         ms --> 1.5
         label --> "Best Objective"
-        [ResPoints[Extremizer(res)[2]][idxs]]
+        [ResPoints[Extremizer(-res)[2]][idxs]]
     end end
 end
 ## Recipe Passthrough
