@@ -80,10 +80,10 @@ PracticallyIdentifiable(::ParameterProfiles)
 ### Investigating Profile Paths
 
 The paths traced out by the individual profiles in the parameter space encode useful information about the mutual relationships between different parameters.
-For instance, if during the profile of a given parameter `a`, the nuisance parameter `b` remains at a constant value throughout, this indicates that the effects of `a` are independent of the mechanism encoded by `b`.
+For instance, if during the profile of a given parameter ``a``, the nuisance parameter ``b`` remains at a constant value throughout, this indicates that the effects of ``a`` are independent of the mechanism encoded by ``b``.
 In this sense, the influences of the two respective mechanisms on the final model predictions can be considered to be orthogonal.
-Conversely, if the nuisance parameter `b` changes at a somewhat linear or even superlinear rate along the profile of `a`, this means that the effects of the two mechanisms are strongly linked in the sense that changes in the value of the nuisance parameter `b` are able to compensate at least partially for changes in the parameter `a`.
-Moreover, the directionality of the changes in `b` reveals whether the mutual effects of the mechanisms are synergistic or antagonistic.
+Conversely, if the nuisance parameter `b` changes at a somewhat linear or even superlinear rate along the profile of ``a``, this means that the effects of the two mechanisms are strongly linked in the sense that changes in the value of the nuisance parameter ``b`` are able to compensate at least partially for changes in the parameter ``a``.
+Moreover, the directionality of the changes in ``b`` reveals whether the mutual effects of the respective mechanisms are synergistic or antagonistic.
 This kind of nuanced information is crucial in the process of model reduction.
 
 
