@@ -281,7 +281,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true,
-                        CostHessian::Union{Function,Nothing}=(UseHess ? (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM)) : nothing),
+                        CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
@@ -310,7 +310,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     elseif Multistart > 0
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
-        ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
+        ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, parallel=false, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
     else
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))

@@ -595,7 +595,11 @@ end
     DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
 
     PU = ParameterProfiles(DMU, 2; N=30, plot=false, verbose=false)
-    PU2 = ParameterProfiles(DMU, 2; N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+    # Problem here: For some reason, this overflows if verbose = false is used but only with default NewtonTrustRegion or LBFGS!
+    # SOME Trajectories missing for these
+    # PU2 = ParameterProfiles(DMU, 2; N=30, maxval=15, Multistart=15, plot=false, verbose=false)
+
+    PU2 = ParameterProfiles(DMU, 2; N=30, maxval=15, Multistart=15, plot=false)
 
     BU = ProfileBox(PU, 2)
     BU2 = ProfileBox(PU2, 2)

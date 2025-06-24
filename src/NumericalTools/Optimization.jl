@@ -286,7 +286,7 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
 
     sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
-        verbose && @warn "minimize(): Optimization appears to not have converged." maxlog=5
+        verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             verbose && @warn "minimize(): Try to continue with $retrymeth."
             prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)

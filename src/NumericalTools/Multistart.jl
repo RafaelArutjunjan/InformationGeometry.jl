@@ -135,7 +135,7 @@ function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVe
     if Full
         Iterations = GetIterations.(Res)
         # By internal optimizer criterion:
-        Converged = HasConverged.(Res; verbose=false)
+        Converged = map(x->HasConverged(x; verbose=false), Res)
         PNames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
         R = MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
         plot && display(RecipesBase.plot(R))
@@ -194,7 +194,7 @@ struct MultistartResults <: AbstractMultistartResults
             for i in eachindex(FinalObjectives)
                 (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
             end
-            if all(isinf, FinalObjectives)
+            if !any(isfinite, FinalObjectives)
                 if any(isfinite, InitialObjectives)
                     @warn "ALL multistart optimizations with $(typeof(OptimMeth)) crashed! Most likely the options supplied to the optimizer were wrong. Automatic catching of optimizer errors can be disabled with kwarg TryCatchOptimizer=false."
                 else
