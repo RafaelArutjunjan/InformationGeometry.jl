@@ -220,27 +220,48 @@ RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=
 end
 
 
-function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; OffsetResults::Bool=true, kwargs...)
-   Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
-   for i in 1:pdim(CG)
-      if PopulatedInds[i]
-         k += 1
-         for j in eachindex(Conditions(CG))
-            L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], Trajectories(P)[i])
-            OffsetResults && (L .-= minimum(L))
-            RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), L; color=j+2, label="Contribution "*string(name(Conditions(CG)[j])), lw=1.5, legend=true, subplot=k, kwargs...)
-         end
-      end
-   end;  Plt
+
+function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, Trafo::Function=identity, kwargs...)
+    Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
+    for i in idxs
+        if PopulatedInds[i]
+            k += 1
+            for j in eachindex(Conditions(CG))
+                L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], Trajectories(P)[i])
+                OffsetResults && (L .-= minimum(L))
+                RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), Trafo.(L); color=j+2, label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, legend=true, subplot=k, kwargs...)
+            end
+        end
+    end;  Plt
 end
 
 function ConditionSpecificWaterFalls(CG::ConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, kwargs...)
-   Plt = RecipesBase.plot(; xlabel="Run (sorted)", ylabel=(BiLog ? "BiLog(" : "")*"CostFunction"*(BiLog ? ")" : ""))
-   for j in eachindex(Conditions(CG))
-       L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], R.FinalPoints)
-       L = @view L[1:findlast(isfinite, L)]
-       OffsetResults && (L .-= minimum(L))
-       BiLog && (L .= Trafo.(L))
-       RecipesBase.plot!(Plt, L; label="Contribution "*string(name(Conditions(CG)[j])), lw=1.5, color=j, legend=true, kwargs...)
-   end;  Plt
+    Plt = RecipesBase.plot(; xlabel="Run (sorted)", ylabel=ApplyTrafoNames("CostFunction", Trafo))
+    for j in eachindex(Conditions(CG))
+        L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], R.FinalPoints)
+        L = @view L[1:findlast(isfinite, L)]
+        OffsetResults && (L .-= minimum(L))
+        RecipesBase.plot!(Plt, Trafo.(L); label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, color=j, legend=true, kwargs...)
+    end;  Plt
+end
+
+
+
+"""
+    SplitObservablesIntoConditions(DM::DataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]) -> ConditionGrid
+Takes `DataModel` with ydim > 1 and artificially splits the different observed components it into `ConditionGrid` with different conditions according to given `Structure`.
+"""
+function SplitObservablesIntoConditions(DM::DataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]; kwargs...)
+    @assert ydim(DM) > 1 "Not enough observables for splitting"
+    @assert all(s->allunique(s) && all(1 .≤ s .≤ ydim(DM)), Structure)
+    # No double counting of observables
+    @assert all(isempty, [Si ∩ Sj for (i,Si) in enumerate(Structure), (j,Sj) in enumerate(Structure) if i > j])
+    # Check if any observables missing
+    sort(reduce(union, Structure)) != 1:ydim(DM) && @warn "SplitObservablesIntoConditions: Missing components $(setdiff(1:ydim(DM), reduce(union, Structure))) in given Structure."
+
+    DMs = [DataModel(SubDataSetComponent(Data(DM), Structure[i]), 
+        SubComponentModel(Predictor(DM), Structure[i], ydim(DM)),
+        SubComponentDModel(dPredictor(DM), Structure[i], ydim(DM)),
+        MLE(DM), true; name=Symbol(Structure[i])) for i in eachindex(Structure)]
+    ConditionGrid(DMs, InformationGeometry.ParamTrafo([identity for i in eachindex(Structure)], Symbol.(Structure)), LogPrior(DM), MLE(DM); name=name(DM), SkipOptim=true, SkipTests=true)
 end

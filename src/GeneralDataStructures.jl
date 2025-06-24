@@ -396,18 +396,20 @@ end
     SubDataSetComponent(DS::AbstractDataSet, i::Int)
 Get a dataset containing only the `i`-th y-components as observations.
 """
-function SubDataSetComponent(DS::AbstractDataSet, i::Int)
-    DS isa CompositeDataSet && return Data(DS)[i]
-    @assert 1 ≤ i ≤ ydim(DS)
-    keep = repeat((X=falses(ydim(DS)); X[i]=true; X), Npoints(DS))
+function SubDataSetComponent(DS::AbstractFixedUncertaintyDataSet, i::Union{Int,AbstractVector{<:Int}})
+    DS isa CompositeDataSet && return Data(DS)[i] # CompositeDataSet defined downstream
+    idxs = i isa AbstractVector ? i : [i]
+    @assert all(1 .≤ idxs .≤ ydim(DS)) && allunique(idxs)
+    keep = repeat([j ∈ idxs for j in 1:ydim(DS)], Npoints(DS))
     if !HasXerror(DS)
-        DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
-                xnames=Xnames(DS), ynames=[Ynames(DS)[i]], name=name(DS))
+        DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]), (Npoints(DS), xdim(DS), length(idxs));
+                xnames=Xnames(DS), ynames=Ynames(DS)[idxs], name=name(DS))
     else
-        DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]);
-                xnames=Xnames(DS), ynames=[Ynames(DS)[i]], name=name(DS))
+        DataSetExact(xdata(DS), xsigma(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]), (Npoints(DS), xdim(DS), length(idxs));
+                xnames=Xnames(DS), ynames=Ynames(DS)[idxs], name=name(DS))
     end
 end
+
 
 """
     SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},BoolVector,Int})
