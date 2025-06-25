@@ -1,13 +1,17 @@
 
 
-struct ParamTrafo{F<:Function} <: AbstractVector{F}
+abstract type AbstractParameterTransformations{F<:Function} <: AbstractVector{F} end
+
+struct ParameterTransformations{F<:Function} <: AbstractParameterTransformations{F}
     Trafos::AbstractVector{F}
     ConditionNames::AbstractVector{<:Symbol}
-    function ParamTrafo(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol})
+    function ParameterTransformations(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol})
         @assert allunique(ConditionNames)
         new{eltype(Trafos)}(Trafos, ConditionNames)
     end
 end
+const ParamTrafo = ParameterTransformations
+
 (P::ParamTrafo)(θ::AbstractVector{<:Number}; Cond::Union{Nothing,Symbol}=nothing) = _ExecuteParamTrafo(P, θ, Cond)
 (P::ParamTrafo)(θ::AbstractVector{<:Number}, i::Int; kwargs...) = P.Trafos[i](θ)
 
@@ -23,7 +27,6 @@ for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
     @eval Base.$F(P::ParamTrafo, args...) = $F(P.Trafos, args...)
 end
 
-const ParameterTransformations = ParamTrafo
 
 
 # function TryToInferPnames()
