@@ -45,7 +45,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, startp::Abst
     MultistartFit(CostFunction, startp; LogPriorFn, MultistartDomain, kwargs...)
 end
 # This is where PerformStepGeneral! from ProfileLikelihood lands
-function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number}; MultistartDomain::Union{HyperCube,Nothing}=nothing, maxval::Real=1e5, N::Int=100, 
+function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number}, MDom::Union{HyperCube,Nothing}=nothing; MultistartDomain::Union{HyperCube,Nothing}=MDom, maxval::Real=1e5, N::Int=100, 
                             seed::Int=rand(1000:15000), resampling::Bool=true, verbose::Bool=true, kwargs...)
     Dom = MakeMultistartDomain(length(startp), MultistartDomain, maxval; verbose)
     InitialPointGen = (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(Dom, maxval; N, seed)
@@ -174,9 +174,9 @@ struct MultistartResults <: AbstractMultistartResults
             InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
             FinalObjectives::AbstractVector{<:Number},
             InitialObjectives::AbstractVector{<:Number},
-            Iterations::AbstractVector{<:Int},
-            Converged::AbstractVector{<:Bool},
-            pnames::AbstractVector{<:StringOrSymb},
+            Iterations::AbstractVector{<:Int}=zeros(Int, length(FinalObjectives)),
+            Converged::AbstractVector{<:Bool}=map(isfinite, FinalObjectives),
+            pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(FinalPoints[1])),
             meth=missing,
             seed::Union{Int,Nothing}=nothing,
             MultistartDomain::Union{Nothing,HyperCube}=nothing,
