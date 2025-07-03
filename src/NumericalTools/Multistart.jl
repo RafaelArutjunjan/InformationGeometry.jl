@@ -192,7 +192,7 @@ struct MultistartResults <: AbstractMultistartResults
             # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
             nans = 0
             for i in eachindex(FinalObjectives)
-                (!isfinite(FinalObjectives[i]) || all(isinf, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
+                (!isfinite(FinalObjectives[i]) || !any(isfinite, FinalPoints[i])) && (FinalObjectives[i] = -Inf;    isfinite(InitialObjectives[i]) && (nans += 1))
             end
             if !any(isfinite, FinalObjectives)
                 if any(isfinite, InitialObjectives)
@@ -259,6 +259,20 @@ pnames(R::MultistartResults) = R.pnames .|> string
 Pnames(R::MultistartResults) = R.pnames
 Domain(R::MultistartResults) = R.MultistartDomain
 pdim(R::MultistartResults) = length(MLE(R))
+
+
+SubsetMultistartResults(R::MultistartResults, LastInd::Int; idxs::AbstractVector{<:Int}=1:LastInd, kwargs...) = SubsetMultistartResults(R, idxs; kwargs...)
+function SubsetMultistartResults(R::MultistartResults, idxs::AbstractVector{<:Int}; kwargs...)
+    @assert all(1 .≤ idxs .≤ length(R.FinalObjectives)) && allunique(idxs)
+    remake(R; FinalPoints=(@view R.FinalPoints[idxs]), 
+        InitialPoints=(@view R.InitialPoints[idxs]), 
+        FinalObjectives=(@view R.FinalObjectives[idxs]), 
+        InitialObjectives=(@view R.InitialObjectives[idxs]), 
+        Iterations=(@view R.Iterations[idxs]), Converged=(@view R.Converged[idxs]), 
+        (R.OptimMeth isa AbstractVector ? (;meth=(@view R.OptimMeth[idxs])) : (;))..., 
+        (R.FullOptimResults isa AbstractVector ? (; FullOptimResults=(@view R.FullOptimResults[idxs])) : (;))..., 
+        verbose=false, kwargs...)
+end
 
 
 """
@@ -494,6 +508,7 @@ end
 CountInBin(pBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVector}, ind::Int) = [count(LogLikeInd->pBins[i] .≤ Points[LogLikeInd][ind] .< pBins[i+1], 1:length(Points)) for i in 1:length(pBins)-1]
 CountInBin(pxBins::AbstractVector{<:Number}, pyBins::AbstractVector{<:Number}, Points::AbstractVector{<:AbstractVector}, idxs::AbstractVector{<:Int}) = [count(LogLikeInd->pxBins[i] ≤ Points[LogLikeInd][idxs[1]] < pxBins[i+1] && pyBins[j] ≤ Points[LogLikeInd][idxs[2]] < pyBins[j+1], 1:length(Points)) for i in 1:length(pxBins)-1, j in 1:length(pyBins)-1]
 
+CenteredVec(X::AbstractVector) = @views (X[1:end-1] .+ X[2:end]) ./ 2
 
 # Already has factor of two
 # Offset optional
@@ -579,7 +594,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     _, Res, ResPoints = _GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
-    Plt = RecipesBase.plot((@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("SPLA", Trafo), label="Conditional Objectives", kwargs...)
+    Plt = RecipesBase.plot(CenteredVec(pBins), res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("SPLA", Trafo), label="Conditional Objectives", kwargs...)
     Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(-res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
     Plt
 end
@@ -720,7 +735,7 @@ end
         xlabel := pnames[ind]
         ylabel := TrafoName * "SPLA" * TrafoNameEnd
         label --> "Conditional Objectives"
-        (@views (pBins[1:end-1] .+ pBins[2:end]) ./ 2), res
+        CenteredVec(pBins), res
     end
     if Extremizer === findmax   @series begin
         st := :vline
@@ -762,7 +777,7 @@ end
         lw --> 0.5
         label --> ApplyTrafoNames("-SPLA", Trafo)
         # heatmap order needs transposed matrix and xy
-        (@views (pxBins[1:end-1] .+ pxBins[2:end]) ./ 2), (@views (pyBins[1:end-1] .+ pyBins[2:end]) ./ 2), -res'
+        CenteredVec(pxBins), CenteredVec(pyBins), -res'
     end
     if Extremizer === findmax   @series begin
         st := :scatter

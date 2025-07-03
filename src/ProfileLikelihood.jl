@@ -1261,7 +1261,7 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
             lw --> 1.5
             yDiffs = diff(getindex.(Trajectories(PV), j));      xDiffs = diff(getindex.(Trajectories(PV), i))
             FiniteDiffs = yDiffs ./ xDiffs
-            X = (XX = getindex.(Trajectories(PV), i); (@views (XX[1:end-1] .+ XX[2:end]) ./ 2))
+            X = CenteredVec(getindex.(Trajectories(PV), i))
             if verbose && any(abs.(median(TrafoPath.(FiniteDiffs)) .- collect(extrema(TrafoPath.(FiniteDiffs)))) .> StepTol)
                 Jumps = X[abs.(median(TrafoPath.(FiniteDiffs)) .- TrafoPath.(FiniteDiffs)) .> StepTol]
                 @info "Detected possible discrete jump"*(length(Jumps) > 1 ? "s" : "")*" in trajectory of parameter "*string(STRING_COLOR, pnames(PV)[j], NO_COLOR)*" of parameter profile "*string(STRING_COLOR, pnames(PV)[i], NO_COLOR)*" at: $(Jumps)"
@@ -1311,7 +1311,7 @@ PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs.
         lw --> 1.5
         yDiffs = diff(Trajectories(PV));      xDiffs = diff(getindex.(Trajectories(PV), i))
         FiniteDiffs = yDiffs ./ xDiffs;     NormFiniteDiffs = norm.(FiniteDiffs, pnorm)
-        X = (XX = getindex.(Trajectories(PV), i); (@views (XX[1:end-1] .+ XX[2:end]) ./ 2))
+        X = CenteredVec(getindex.(Trajectories(PV), i))
         if verbose && any(abs.(median(TrafoPath.(NormFiniteDiffs)) .- collect(extrema(TrafoPath.(NormFiniteDiffs)))) .> StepTol)
             Jumps = X[abs.(median(TrafoPath.(NormFiniteDiffs)) .- TrafoPath.(NormFiniteDiffs)) .> StepTol]
             @info "Detected possible discrete jump"*(length(Jumps) > 1 ? "s" : "")*" in trajectory of parameter profile "*string(STRING_COLOR, pnames(PV)[i], NO_COLOR)*" at: $(Jumps)"
