@@ -56,6 +56,9 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle)), PlanarLogPrior, true; LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
 end
 
+# Add planar embedding for models
+
+
 # Performance gains of using static vectors is lost if their length exceeds 32
 BasisVectorSV(Slot::Int, dims::Int) = SVector{dims}(Float64(i == Slot) for i in 1:dims)
 
@@ -352,7 +355,7 @@ CubeVol(Cube::HyperCube) = prod(CubeWidths(Cube))
     Center(Cube::HyperCube) -> Vector
 Returns center of mass of `Cube`.
 """
-Center(Cube::HyperCube) = 0.5 * (Cube.L + Cube.U)
+Center(Cube::HyperCube) = 0.5 .* (Cube.L .+ Cube.U)
 
 """
     TranslateCube(Cube::HyperCube,x::AbstractVector{<:Number}) -> HyperCube
@@ -375,11 +378,20 @@ Base.:*(C::HyperCube, a::Number) = Base.:*(a, C)
 Base.:*(Mat::AbstractMatrix, C::HyperCube) = HyperCube(Mat*C.L, Mat*C.U)
 
 """
-    ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number}) -> HyperCube
+    ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number}; kwargs...) -> HyperCube
+    ModifyCubeDirection(Cube::HyperCube, idxs::AbstractVector{<:Int}, Repl::AbstractVector{<:Tuple{<:Number,<:Number}}; kwargs...) -> HyperCube
 Replaces the `i`-th components of `Cube` with the given tuple `Tup`.
 """
-function ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number})
-    L, U = convert(Vector,Cube.L), convert(Vector,Cube.U);      L[i], U[i] = Tup;       HyperCube(L, U)
+function ModifyCubeDirection(Cube::HyperCube, i::Int, Tup::Tuple{Number,Number}; kwargs...)
+    L, U = convert(Vector,Cube.L), convert(Vector,Cube.U);      L[i], U[i] = Tup;       HyperCube(L, U; kwargs...)
+end
+function ModifyCubeDirection(C::HyperCube, idxs::AbstractVector{<:Int}, Repl::AbstractVector{<:Tuple{<:Number,<:Number}}; kwargs...)
+    @assert all(1 .≤ idxs .≤ length(C)) && allunique(idxs) && length(idxs) == length(Repl)
+    @assert all(getindex.(Repl,1) .≤ getindex.(Repl,2))
+    L, U = convert(Vector,C.L), convert(Vector,C.U)
+    for i in Base.OneTo(length(L))
+        i ∈ idxs && ((L[i], U[i]) = Repl[findfirst(isequal(i), idxs)])
+    end;    HyperCube(L, U; kwargs...)
 end
 
 

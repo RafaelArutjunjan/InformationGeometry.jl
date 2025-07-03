@@ -526,7 +526,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     perm = sortperm(visitedps)
     # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
-    ResMat = SavePriors ? [visitedps[perm] Res[perm] priors[perm] Converged[perm]] : [visitedps[perm] Res[perm] Converged[perm]]
+    # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
+    ResMat = SavePriors ? VectorOfArray([visitedps[perm], Res[perm], priors[perm], Converged[perm]]) : VectorOfArray([visitedps[perm], Res[perm], Converged[perm]])
     SaveTrajectories ? (ResMat, path[perm]) : ResMat
 end
 
@@ -571,6 +572,7 @@ end
 
 GetConverged(M::AbstractMatrix) = BitVector(@view M[:, end])
 Convergify(Values::AbstractVector{<:Number}, Converged::BoolVector) = [Values .+ (NaN .* .!Converged)  Values .+ (NaN .* ShrinkTruesByOne(Converged))]
+GetConverged(M::VectorOfArray) = BitVector(M[end])
 
 
 # Grow Falses to their next neighbors to avoid holes in plot
@@ -590,9 +592,9 @@ HasTrajectories(M::AbstractVector{<:Tuple}) = any(HasTrajectories, M)
 HasTrajectories(M::AbstractMatrix) = false
 HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = false
 
-HasPriors(M::AbstractVector{<:AbstractMatrix}) = any(HasPriors, M)
+HasPriors(M::AbstractVector{<:Union{<:AbstractMatrix, <:VectorOfArray}}) = any(HasPriors, M)
 HasPriors(M::Tuple) = HasPriors(M[1])
-HasPriors(M::AbstractMatrix) = size(M,2) > 3
+HasPriors(M::Union{<:AbstractMatrix, <:VectorOfArray}) = size(M,2) > 3
 
 
 
@@ -726,7 +728,7 @@ Further `kwargs` can be passed to the optimization.
 For visualization of the results, multiple methods are available, see e.g. [`PlotProfileTrajectories`](@ref), [`PlotRelativeParameterTrajectories`](@ref).
 """
 mutable struct ParameterProfiles <: AbstractProfiles
-    Profiles::AbstractVector{<:AbstractMatrix}
+    Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{Symbol}
     mle::AbstractVector{<:Number}
@@ -748,13 +750,13 @@ mutable struct ParameterProfiles <: AbstractProfiles
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
+    function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:AbstractMatrix}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfiles; Meta::Symbol=meta, verbose::Bool=true)
+    function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfiles; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
         verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
         new(Profiles, Trajectories, Symbol.(Names), mle, dof, IsCost, Meta)
@@ -892,7 +894,6 @@ end
 ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((TrafoName, TrafoNameEnd)=GetTrafoNames(F, GenericName);    TrafoName * S * TrafoNameEnd)
 
 
-
 @recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...
 
 # Plot trajectories by default
@@ -952,7 +953,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     layout --> sum(PopulatedInds)
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
-    maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
+    maxy = median(vcat(0.0, [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && sum(GetConverged(T)) > 0 && maximum(view(T[2], GetConverged(T))) > tol]))
     maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     @series begin
@@ -1054,7 +1055,7 @@ end
     @series begin
         label --> ["Profile Likelihood" nothing]
         lw --> 1.5
-        view(Profiles(PV),:,1), Trafo.(Convergify(view(Profiles(PV),:,2), GetConverged(Profiles(PV))))
+        Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[2], GetConverged(Profiles(PV))))
     end
     # Draw prior contribution
     if HasPriors(Profiles(PV))
@@ -1063,7 +1064,7 @@ end
             linealpha --> 0.75
             line --> :dash
             lw --> 1.5
-            view(Profiles(PV),:,1), Trafo.(Convergify(view(Profiles(PV),:,3), GetConverged(Profiles(PV))))
+            Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[3], GetConverged(Profiles(PV))))
         end
     end
     ## Mark MLE in profile
@@ -1079,7 +1080,7 @@ end
     Confnum = get(plotattributes, :Confnum, 1:5)
     if IsCost(PV) && all(Confnum .> 0)
         dof = get(plotattributes, :dof, DOF(PV))
-        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV),GetConverged(Profiles(PV)),2); init=-Inf))
+        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV)[2],GetConverged(Profiles(PV))); init=-Inf))
         for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
             if Thresh < MaxLevel
                 @series begin

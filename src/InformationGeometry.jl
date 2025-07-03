@@ -5,7 +5,7 @@ module InformationGeometry
 # @reexport
 using LinearAlgebra, Random, Distributions, DistributionsAD, DataFrames, ComponentArrays
 
-using Distributed, StaticArrays, ForwardDiff, PreallocationTools
+using Distributed, StaticArrays, ForwardDiff, PreallocationTools, RecursiveArrayTools
 using OrdinaryDiffEqCore, OrdinaryDiffEqVerner, OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK, OrdinaryDiffEqRosenbrock
 using DiffEqCallbacks
 using Symbolics, DataInterpolations

@@ -512,11 +512,12 @@ CenteredVec(X::AbstractVector) = @views (X[1:end-1] .+ X[2:end]) ./ 2
 
 # Already has factor of two
 # Offset optional
-function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
-    Res = [_GetStochasticProfile(Points, Likelihoods, i; kwargs...) for i in eachindex(Points[1])]
+function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), pBins::Union{Nothing,AbstractVector{<:AbstractVector{<:Number}}}=nothing, kwargs...)
+    # Allow for Vector{Vector} pBins to be passed for setting the pBins of all profiles manually
+    Res = [_GetStochasticProfile(Points, Likelihoods, i; (!isnothing(pBins) ? (; pBins=pBins[i]) : (;))..., kwargs...) for i in eachindex(Points[1])]
     Bins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3)
     mle = Trajs[1][findmin(Vals[1])[2]]
-    ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) Vals[i] trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
+    ParameterProfiles([VectorOfArray([CenteredVec(Bins[i]), Vals[i], trues(size(Vals[i],1))]) for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
 function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
                                     UseSorted::Bool=true, pval::AbstractVector=getindex.(Points,ind), pBins::AbstractVector=collect(HistoBins(pval,nbins)), OffsetResults::Bool=true, pnames=String[])
@@ -606,6 +607,22 @@ function FindGoodStart(DM::AbstractDataModel, args...; plot::Bool=false, kwargs.
 end
 
 
+
+"""
+    CleanupStochasticProfile(R::MultistartResults; nbins::Int=8)
+Takes `MultistartResults` object and reduces all samples where the objective function is worse than the largest value used in any profile with `nbins` number of bins.
+
+Note that since the bin widths are based on the observed samples `GetStochasticProfile`, the recalculated profiles often look different since the bin structure has changed!
+To retain the same bin structure, supply the keyword argument `pBins` to `_GetStochasticProfile` manually.
+"""
+function CleanupStochasticProfile(R::MultistartResults; nbins::Int=8, OffsetResults::Bool=true, kwargs...)
+    @assert OffsetResults
+    # Factor of two already included in stochastic profile but not in MultistartResults
+    P = GetStochasticProfile(R; nbins, OffsetResults, kwargs...)
+    # Undo profile transform 2(Lmax - L)
+    Value = R.FinalObjectives[1] - 0.5*maximum([maximum(@view Prof[:,2]) for Prof in Profiles(P)])
+    SubsetMultistartResults(R, 1:findlast(L->L≥Value, R.FinalObjectives))
+end
 
 
 ## SubspaceProjection plots for sampling results in MultistartResults format
