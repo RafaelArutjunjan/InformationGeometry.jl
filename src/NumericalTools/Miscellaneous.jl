@@ -215,6 +215,27 @@ similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
 The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exponential has slope `1/C`.
 """
 BiExp(y::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(y) * inv(C) * (exp(abs(y)) - one(T))
+"""
+    BiLog10(x::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number
+Computes bi-symmetric logarithm of base 10, which can also be applied to negative numbers
+```math
+BiLog10(x) = \\sgn(x) \\sgn(C) \\cdot \\log_{10}(1 + |C| \\cdot |x|)
+```
+similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
+The constant `C` controls the slope of the bi-logarithm at zero.
+The inverse transformation is given by [`BiExp10`](@ref).
+"""
+BiLog10(x::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(x) * Sgn(C) * log10(1 + abs(C)*abs(x))
+"""
+    BiExp10(y::Union{T, AbstractVector{T}}; C::Real=one(T)) where T<:Number
+Computes bi-symmetric exponential of base 10, which is the inverse transformation to [`BiLog10`](@ref)
+```math
+BiExp10(y) = \\sgn(y) \\cdot 1/C \\cdot (\\exp10(|y|) - 1)
+```
+similar to the definition in https://doi.org/10.1088/0957-0233/24/2/027001
+The constant `C` controls the slope of the bi-logarithm at zero, i.e. the bi-exponential has slope `1/C`.
+"""
+BiExp10(y::Union{T, AbstractArray{T}}; C::Real=one(T)) where T<:Number = @. Sgn(y) * inv(C) * (exp10(abs(y)) - one(T))
 
 """
     BiRoot(x::Union{T, AbstractVector{T}}, m::Real=2.0; C::Real=one(T)) where T<:Number

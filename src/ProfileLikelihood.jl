@@ -571,8 +571,9 @@ end
 
 
 GetConverged(M::AbstractMatrix) = BitVector(@view M[:, end])
-Convergify(Values::AbstractVector{<:Number}, Converged::BoolVector) = [Values .+ (NaN .* .!Converged)  Values .+ (NaN .* ShrinkTruesByOne(Converged))]
 GetConverged(M::VectorOfArray) = BitVector(M[end])
+# Convergify(Values::AbstractVector{<:Number}, Converged::Union{BitVector,BoolVector}) = [Values .+ (NaN .* .!Converged) Values .+ (NaN .* ShrinkTruesByOne(Converged))]
+Convergify(Values::AbstractVector{<:Number}, Converged::Union{BitVector,BoolVector}) = [Values .+ (Inf .* .!Converged) Values .+ (Inf .* ShrinkTruesByOne(Converged))]
 
 
 # Grow Falses to their next neighbors to avoid holes in plot
@@ -698,8 +699,8 @@ Determines the maximum confidence level (in units of standard deviations σ) at 
 """
 PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=isloaded(:Plots), N::Int=100, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, IsCost=IsCost, kwargs...))
 
-function PracticallyIdentifiable(Mats::AbstractVector{<:AbstractMatrix{<:Number}})
-    function Minimax(M::AbstractMatrix)
+function PracticallyIdentifiable(Mats::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}})
+    function Minimax(M::Union{<:AbstractMatrix,<:VectorOfArray})
         finitevals = isfinite.(view(M,:,2))
         sum(finitevals) == 0 && return Inf
         V = @view M[finitevals, 2]

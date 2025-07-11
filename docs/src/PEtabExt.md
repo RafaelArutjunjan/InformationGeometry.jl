@@ -8,9 +8,9 @@ Most prominently, the [**PEtab**](https://petab.readthedocs.io/en/latest) standa
 
 Currently, it is possible to convert a `PEtabODEProblem` from the [**PEtab.jl**](https://github.com/sebapersson/PEtab.jl) package into a `DataModel`, (or a `ConditionGrid` if it consists of more than one condition) via by applying the `DataModel` constructor. For instance, for the Böhm model with .yaml saved under `BöhmYamlPath`:
 ```julia
-using InformationGeometry, PEtab, Plots
+using InformationGeometry, PEtab, Optim, Plots
 Böhm = PEtabODEProblem(PEtabModel(BöhmYamlPath); gradient_method=:ForwardEquations, hessian_method=:ForwardDiff)
-DM = DataModel(Böhm; FixedError=true)
+DM = Refit(DataModel(Böhm; FixedError=true); meth=IPNewton())
 ```
 This will automatically extract a simplified representation of the dataset. 
 If error models are used in the `PEtabODEProblem` to estimate the data uncertainties, they are currently dropped and the uncertainties are fixed to the values dictated by the error model at the best fit values of the error parameters. However, since the likelihood function and its gradient are directly accessed from the given `PEtabODEProblem`, this does not affect optimisation (such as during profile likelihood computation or multistart optimisation), where changes in the given error parameters are properly accounted for.
@@ -21,7 +21,7 @@ Most other functionality of `InformationGeometry.jl` should be unaffected by thi
 ```julia
 plot(DM; Confnum=0)
 R = MultistartFit(DM; N=5000)
-P = ParameterProfiles(DM; N=20, meth=NelderMead())
+P = ParameterProfiles(DM; N=50, meth=Newton(), Domain=nothing, ProfileDomain=InformationGeometry.Domain(DM))
 ```
 
 !!! note

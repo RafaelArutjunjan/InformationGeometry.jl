@@ -571,15 +571,16 @@ end
 StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives, ind; xlabel=string(pnames(R)[ind]), kwargs...))
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
-function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; Inds::AbstractVector{<:Int}=1:findlast(isfinite,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; CutoffVal::Real=Inf, Inds::AbstractVector{<:Int}=1:findlast(x->isfinite(x) && abs(x)<CutoffVal,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
                                 pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, Cutoff::Int=400000, kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
+    Offset = OffsetResults ? Likelihoods[1] : 0.0
     AddedPlots = []
-    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.(@view Likelihoods[Inds]); xlabel="Run index (sorted)", ylabel=ApplyTrafoNames("Objective", Trafo), label="Waterfall", legend))
+    push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.((@view Likelihoods[Inds]) .-Offset); xlabel="Run index (sorted)", ylabel=ApplyTrafoNames("Objective", Trafo), label="Waterfall", legend))
     if length(pnames) ≤ 3
         # Cutoff elements in plot to avoid overloading backend
         ReducedInds = length(Inds) > Cutoff ? (@view Inds[1:Cutoff]) : Inds
-        SP = RecipesBase.plot((@view Points[ReducedInds]); st=:scatter, zcolor=Trafo.(@view Likelihoods[ReducedInds]), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label="log-likelihood", legend, colorbar=true)
+        SP = RecipesBase.plot((@view Points[ReducedInds]); st=:scatter, zcolor=Trafo.((@view Likelihoods[ReducedInds]) .- Offset), msw=0, xlabel=pnames[1], ylabel=pnames[2], zlabel=(length(pnames) ≥ 3 ? pnames[3] : ""), c=:viridis, label="log-likelihood", legend, colorbar=true)
         if Extremizer === findmax
             maxind = Extremizer(Likelihoods)[2]
             RecipesBase.plot!(SP, Points[maxind:maxind]; st=:scatter, color=:red, msw=0, label="Best")
@@ -615,12 +616,12 @@ Takes `MultistartResults` object and reduces all samples where the objective fun
 Note that since the bin widths are based on the observed samples `GetStochasticProfile`, the recalculated profiles often look different since the bin structure has changed!
 To retain the same bin structure, supply the keyword argument `pBins` to `_GetStochasticProfile` manually.
 """
-function CleanupStochasticProfile(R::MultistartResults; nbins::Int=8, OffsetResults::Bool=true, kwargs...)
+function CleanupStochasticProfile(R::MultistartResults, Buffer::Real=0; nbins::Int=8, OffsetResults::Bool=true, kwargs...)
     @assert OffsetResults
     # Factor of two already included in stochastic profile but not in MultistartResults
     P = GetStochasticProfile(R; nbins, OffsetResults, kwargs...)
     # Undo profile transform 2(Lmax - L)
-    Value = R.FinalObjectives[1] - 0.5*maximum([maximum(@view Prof[:,2]) for Prof in Profiles(P)])
+    Value = R.FinalObjectives[1] - 0.5*maximum([maximum(@view Prof[:,2]) for Prof in Profiles(P)]) - abs(Buffer)
     SubsetMultistartResults(R, 1:findlast(L->L≥Value, R.FinalObjectives))
 end
 

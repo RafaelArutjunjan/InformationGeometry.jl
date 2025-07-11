@@ -195,7 +195,7 @@ export ConditionGrid, Conditions, ConditionSpecificProfiles, ConditionSpecificWa
 
 
 include("NumericalTools/Miscellaneous.jl")
-export BiLog, BiExp, BiRoot, BiPower, SoftAbs, SoftLog, ViewElements
+export BiLog, BiExp, BiLog10, BiExp10, BiRoot, BiPower, SoftAbs, SoftLog, ViewElements
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
