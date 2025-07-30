@@ -3,7 +3,9 @@ module InformationGeometryModelingToolkitExt
 
 using InformationGeometry, ModelingToolkit, Optim, LineSearches
 
-import ModelingToolkit: AbstractTimeDependentSystem
+
+# ODESystem deprecated in version ≥ 10. Change ODESystem -> System for v11
+import ModelingToolkit: AbstractSystem
 
 import InformationGeometry: StringOrSymb, BoolArray
 import InformationGeometry: xnames, ynames, xdim, ydim, Xnames, Ynames, CreateSymbolNames
@@ -14,7 +16,7 @@ import InformationGeometry: InformNames, GetModel, DataModel
     InformNames(DS::AbstractDataSet, sys::ODESystem, observables::AbstractVector{<:Int})
 Copy the state names saved in `ODESystem` to `DS`.
 """
-function InformNames(DS::AbstractDataSet, sys::AbstractTimeDependentSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
+function InformNames(DS::AbstractDataSet, sys::AbstractSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
     newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : Xnames(DS)
     newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : Ynames(DS)
     InformNames(DS, newxnames, newynames)
@@ -22,7 +24,7 @@ end
 
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
 # Extend for other DEFunctions in the future
-function DataModel(DS::AbstractDataSet, sys::AbstractTimeDependentSystem, u0::Union{Number,AbstractArray{<:Number},Function},
+function DataModel(DS::AbstractDataSet, sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function},
                         observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, OptimTol::Real=tol*1e-2, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
     newDS = observables isa Union{Int,AbstractVector{<:Int}} ? InformNames(DS, sys, observables) : DS
     DataModel(newDS, GetModel(sys, u0, observables; tol, Domain, kwargs...), args...; OptimMeth, OptimTol)
@@ -40,7 +42,7 @@ function _PerformGetModel(sys; jac=true, inplace::Bool=true, kwargs...)
     throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.ODESystem first.")
 end
 
-function GetModel(sys::AbstractTimeDependentSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
+function GetModel(sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
                 Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.parameters(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
@@ -100,7 +102,7 @@ import InformationGeometry: SystemTransform
     SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys)))) -> ODESystem
 Transforms the parameters of an `ODESystem` according to a component-wise function `F`.
 """
-function SystemTransform(Sys::AbstractTimeDependentSystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))))
+function SystemTransform(Sys::AbstractSystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))))
     SubstDict = Dict(parameters(Sys) .=> [(idxs[i] ? F(x) : x) for (i,x) in enumerate(parameters(Sys))])
     NewEqs = [(equations(Sys)[i].lhs ~ substitute(equations(Sys)[i].rhs, SubstDict)) for i in eachindex(equations(Sys))]
     # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
@@ -116,7 +118,7 @@ export SystemTransform
 Applies [`TimeRetardation`](@ref) the to given `ODESystem` by multiplying all equations with the sigmodial derivative of the time retardation transformation.
 The new parameters `T_shift` and `r` are appended to the ODE parameters.
 """
-function InformationGeometry.ODESystemTimeRetardation(Sys::AbstractTimeDependentSystem)
+function InformationGeometry.ODESystemTimeRetardation(Sys::AbstractSystem)
     t = independent_variables(Sys)[1]
     @parameters T_shift r_coupling
     RetFactor = exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
