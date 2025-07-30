@@ -21,7 +21,7 @@ Most other functionality of `InformationGeometry.jl` should be unaffected by thi
 ```julia
 plot(DM; Confnum=0)
 R = MultistartFit(DM; N=5000)
-P = ParameterProfiles(DM; N=50, meth=Newton(), Domain=nothing, ProfileDomain=InformationGeometry.Domain(DM))
+P = ParameterProfiles(DM; N=50, meth=LBFGS(), Domain=nothing, ProfileDomain=InformationGeometry.Domain(DM))
 ```
 
 !!! note
