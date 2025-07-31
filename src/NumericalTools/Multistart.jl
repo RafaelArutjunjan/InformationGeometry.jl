@@ -669,12 +669,16 @@ end
 end
 
 
-## Plot recipes to replace `StochasticProfileLikelihoodPlot`, not used yet though
+# Synonyms in plot recipe
+const StochasticProfileVal = Union{Val{:StochasticProfile},Val{:StochasticProfiles}}
+const StochasticProfile2DVal = Union{Val{:StochasticProfile2D},Val{:StochasticProfiles2D},Val{:Stochastic2DProfile},Val{:Stochastic2DProfiles}}
+
+## Plot recipe passthrough for replacing `StochasticProfileLikelihoodPlot`, not used yet though
 for F in [Symbol("plot"), Symbol("plot!")]
-    @eval RecipesBase.$F(R::MultistartResults, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
-    @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfileVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::StochasticProfileVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
 end
-@recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::Union{Val{:StochasticProfile},Val{:StochasticProfiles}})
+@recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfileVal)
                                 # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity))
     Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
@@ -729,7 +733,7 @@ end
     end
     # RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
 end
-@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::Union{Val{:StochasticProfile},Val{:StochasticProfiles}})
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int, ::StochasticProfileVal)
                 # Nbins=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), Extremizer=maximum, BiLog=true, Trafo=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults=false)
     Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
@@ -767,8 +771,15 @@ end
     end end
 end
 
+
+## Recipe Passthrough
+for F in [Symbol("plot"), Symbol("plot!")]
+    @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfile2DVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, idxs, V::StochasticProfile2DVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfile2DVal, args...; kwargs...) = RecipesBase.$F(Points, Likelihoods, OrderedIndCombs2D(1:length(Points[1])), V, args...; kwargs...)
+end
 ## 2D stochastic profiles
-@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, ::Val{:Stochastic2DProfile};
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, ::StochasticProfile2DVal;
                 nxbins = Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))),
                 nybins = Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))),
                 pnames = CreateSymbolNames(length(Points[1])),
@@ -808,12 +819,7 @@ end
         [ResPoints[Extremizer(-res)[2]][idxs]]
     end end
 end
-## Recipe Passthrough
-for F in [Symbol("plot"), Symbol("plot!")]
-    @eval RecipesBase.$F(R::MultistartResults, V::Val{:Stochastic2DProfile}, args...; kwargs...) = RecipesBase.$F(R, OrderedIndCombs2D(1:pdim(R)), V, args...; kwargs...)
-    @eval RecipesBase.$F(R::MultistartResults, idxs::AbstractVector, V::Val{:Stochastic2DProfile}, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
-end
-@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Combos::AbstractVector{<:AbstractVector{<:Int}}, V::Val{:Stochastic2DProfile})
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Combos::AbstractVector{<:AbstractVector{<:Int}}, V::StochasticProfile2DVal)
     @assert allunique(Combos) && 2 ≤ ConsistentElDims(Combos) ≤ 3
     length(Points[1]) == 2 && return Points, Likelihoods, [1,2], V
     layout --> length(Combos)
