@@ -162,13 +162,13 @@ function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests)
 end
 
-function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString, Number}; kwargs...)
-    Comps = Int[];  Vals = []
+function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T}; kwargs...) where T<:Number
+    Comps = Int[];  Vals = T[]
     for i in 1:pdim(DM)
         pnames(DM)[i] ∈ keys(ParamDict) && (push!(Comps, i);  push!(Vals, ParamDict[pnames(DM)[i]]))
     end
     @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
-    PinParameters(DM, Comps, Vals; kwargs...)
+    PinParameters(DM, Comps, float.(Vals); kwargs...)
 end
 
 

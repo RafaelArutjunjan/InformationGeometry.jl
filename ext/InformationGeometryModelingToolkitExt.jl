@@ -7,7 +7,7 @@ using InformationGeometry, ModelingToolkit, Optim, LineSearches
 # ODESystem deprecated in version ≥ 10. Change ODESystem -> System for v11
 import ModelingToolkit: AbstractSystem
 
-import InformationGeometry: StringOrSymb, BoolArray
+import InformationGeometry: StringOrSymb, BoolArray, isloaded
 import InformationGeometry: xnames, ynames, xdim, ydim, Xnames, Ynames, CreateSymbolNames
 import InformationGeometry: InformNames, GetModel, DataModel
 
@@ -34,21 +34,22 @@ end
 import InformationGeometry: pnames, Domain, MaximalNumberOfArguments, GetArgLength, GetStartP, ModelMap
 
 # Extend this for other System types, i.e. SDE, PDE etc.
-function _PerformGetModel(sys::ODESystem; jac=true, inplace::Bool=true, kwargs...)
-    ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : ModelingToolkit.complete(sys)); jac, kwargs...)
+# Add sparse=isloaded(:Sparspak)
+function _PerformGetModel(sys::ODESystem; jac=true, inplace::Bool=true, sparse=isloaded(:Sparspak), kwargs...)
+    ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : ModelingToolkit.complete(sys)); jac, sparse, kwargs...)
 end
 # Fallback
-function _PerformGetModel(sys; jac=true, inplace::Bool=true, kwargs...)
+function _PerformGetModel(sys; kwargs...)
     throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.ODESystem first.")
 end
 
 function GetModel(sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.parameters(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, jac=true, sparse=isloaded(:Sparspak), pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.parameters(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     
     Model = begin
-        odefunc = _PerformGetModel(sys; jac=true, inplace)
+        odefunc = _PerformGetModel(sys; jac, sparse, inplace)
         GetModel(odefunc, u0, observables; Domain=Domain, inplace=inplace, kwargs...)
     end
     if !isnothing(Domain) && (length(pnames) != length(Domain))

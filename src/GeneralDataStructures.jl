@@ -450,4 +450,4 @@ Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))
     Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); kwargs...)
 Refits `DM` via `InformationGeometry.minimize` and returns result as new `DataModel`.
 """
-Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); kwargs...) = (X=GetMinimizer(InformationGeometry.minimize(DM, startp; kwargs...));    remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X)))
+Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); SkipTests::Bool=false, kwargs...) = (X=GetMinimizer(InformationGeometry.minimize(DM, startp; kwargs...));    remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X), SkipTests))
