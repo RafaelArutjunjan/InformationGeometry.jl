@@ -512,9 +512,9 @@ CenteredVec(X::AbstractVector) = @views (X[1:end-1] .+ X[2:end]) ./ 2
 
 # Already has factor of two
 # Offset optional
-function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), pBins::Union{Nothing,AbstractVector{<:AbstractVector{<:Number}}}=nothing, kwargs...)
+function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Idxs::AbstractVector{<:Int}=1:length(Points[1]); dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), pBins::Union{Nothing,AbstractVector{<:AbstractVector{<:Number}}}=nothing, kwargs...)
     # Allow for Vector{Vector} pBins to be passed for setting the pBins of all profiles manually
-    Res = [_GetStochasticProfile(Points, Likelihoods, i; (!isnothing(pBins) ? (; pBins=pBins[i]) : (;))..., kwargs...) for i in eachindex(Points[1])]
+    Res = [_GetStochasticProfile(Points, Likelihoods, i; (!isnothing(pBins) ? (; pBins=pBins[i]) : (;))..., kwargs...) for i in Idxs]
     Bins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3)
     mle = Trajs[1][findmin(Vals[1])[2]]
     ParameterProfiles([VectorOfArray([CenteredVec(Bins[i]), Vals[i], trues(size(Vals[i],1))]) for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
@@ -538,8 +538,8 @@ function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelih
 end
 
 
-function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
-    Res = [_GetStochastic2DProfile(Points, Likelihoods, i; kwargs...) for i in OrderedIndCombs2D(1:length(Points[1]))]
+function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(1:length(Points[1])); dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), kwargs...)
+    Res = [_GetStochastic2DProfile(Points, Likelihoods, idxs; kwargs...) for idxs in Idxs]
     xBins, yBins, Vals, Trajs = getindex.(Res,1), getindex.(Res,2), getindex.(Res,3), getindex.(Res,4)
     # LogLikeMle, mleind = findmax(Vals[1]);  mle = Trajs[1][mleind]
     # ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) 2(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
@@ -626,7 +626,7 @@ function CleanupStochasticProfile(R::MultistartResults, Buffer::Real=0; nbins::I
 end
 
 
-## SubspaceProjection plots for sampling results in MultistartResults format
+## OrderedIndCombs is row-first
 OrderedIndCombs2D(paridxs::AbstractVector{<:Int}) = [[paridxs[j],paridxs[i]] for j in 1:length(paridxs)-1, i in 2:length(paridxs) if j < i]
 OrderedIndCombs3D(paridxs::AbstractVector{<:Int}) = [[paridxs[k],paridxs[j],paridxs[i]] for k in 1:length(paridxs)-2, j in 2:length(paridxs)-1, i in 3:length(paridxs) if k < j < i]
 

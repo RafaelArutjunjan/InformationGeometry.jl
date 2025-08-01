@@ -414,7 +414,7 @@ function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Int})
 end
 function DropCubeDims(Cube::HyperCube, dims::AbstractVector{<:Bool})
     @assert length(Cube) == length(dims)
-    DropCubeDims(Cube, (1:length(dims))[dims])
+    DropCubeDims(Cube, IndVec(dims))
 end
 
 
@@ -514,11 +514,11 @@ Base.exp10(C::HyperCube) = HyperCube(exp10.(C.L), exp10.(C.U))
 Base.firstindex(Cube::HyperCube) = 1
 Base.lastindex(Cube::HyperCube) = length(Cube)
 Base.getindex(C::HyperCube, i::Int) = (C.L[i], C.U[i])
-Base.getindex(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
+Base.getindex(C::HyperCube, inds::AbstractVector{<:Int}) = @views HyperCube(C.L[inds], C.U[inds])
 Base.getindex(C::HyperCube, ::Colon) = [C[i] for i in eachindex(C)]
 
 
-SubHyperCube(C::HyperCube, inds::AbstractVector{<:Int}) = HyperCube(C.L[inds], C.U[inds])
+SubHyperCube(C::HyperCube, inds::AbstractVector{<:Int}) = @views HyperCube(C.L[inds], C.U[inds])
 Base.Tuple(C::HyperCube) = [(C.L[i], C.U[i]) for i in eachindex(C)]
 
 isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)
