@@ -1090,30 +1090,55 @@ end
     ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), kwargs...)
-    @assert pdim(DM) > 2
-    @assert Confnum > 0 && allunique(paridxs) && all(1 .≤ paridxs .≤ pdim(DM))
-    Cube = LinearCuboid(DM, Confnum);    widths = CubeWidths(Cube);    Planes = Plane[]
-    inds = Vector{Int}[]
-    for j in 1:length(paridxs)-1, i in 2:length(paridxs) 
-        if j < i
-            push!(Planes, Plane(MLE(DM), 
-                0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 
-                0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))))
-            push!(inds, [j,i])
-        end
-    end
+function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), 
+                                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), kwargs...)
+    @assert pdim(DM) > 2 && Confnum > 0
+    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
+
+    Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
+    Planes = [Plane(MLE(DM), 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))) for (i,j) in idxs]
+
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
-    esols = [EmbeddedODESolution(sols[k], ViewElements(inds[k])∘PlaneCoordinates(Planes[k])) for k in eachindex(inds)]
+    esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(idxs)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
     if plot
-        Plts = [(p = RecipesBase.plot([MLE(DM)[inds[k]]]; label="MLE$(inds[k])", xlabel=pnames(DM)[inds[k][1]], ylabel=pnames(DM)[inds[k][2]], seriestype=:scatter);
-                RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for k in eachindex(inds)]
-        RecipesBase.plot(Plts...; layout=length(Plts)) |> display
-    end
-    esols
+        Plts = [(p = RecipesBase.plot([MLE(DM)[inds]]; label="MLE$(inds)", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], seriestype=:scatter);
+                RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])) for (k,inds) in enumerate(idxs)]
+        RecipesBase.plot(Plts...; layout=length(Plts), size) |> display
+    end;    esols
 end
 
+"""
+    ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
+Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
+"""
+function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), 
+                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], # (Idxs=[[x,y] for y in paridxs, x in paridxs];    Idxs = (@view Idxs[2:end, :]);	Idxs = (@view Idxs[:, 1:end-1])),
+                idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, kwargs...)
+    @assert pdim(DM) > 2 && Confnum > 0
+    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
+
+    Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
+    finalidxs = [[i,j] for (i,j) in idxs if comparison(i,j)]
+    Planes = [Plane(MLE(DM), 0.5widths[i]*BasisVector(i, length(Cube)), 0.5widths[j]*BasisVector(j, length(Cube))) for (i,j) in finalidxs]
+    sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
+    esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(finalidxs)]
+    eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
+    if plot
+        k = 0;  Plts = []
+        for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
+            inds = IndMat[i,j]
+            if comparison(j,i)
+                k += 1
+                plt = RecipesBase.plot([MLE(DM)[inds]]; label="MLE$(inds)", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], seriestype=:scatter)
+                RecipesBase.plot!(plt, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlims=eCubes[k][1], ylims=eCubes[k][2])
+                push!(Plts, plt)
+            else
+                push!(Plts, RecipesBase.plot(; framestyle = :none))
+            end
+        end;    RecipesBase.plot(Plts...; layout=(length(paridxs)-1, length(paridxs)-1), size) |> display
+    end;    esols
+end
 
 
 function Thinner(S::AbstractVector{<:AbstractVector{<:Number}}; threshold::Real=0.2)

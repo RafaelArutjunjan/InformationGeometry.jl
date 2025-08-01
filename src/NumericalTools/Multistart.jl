@@ -831,3 +831,59 @@ end
         end
     end
 end
+
+
+const StochasticProfile2DValLower = Union{Val{:Stochastic2DProfilesLowerTriangular},Val{:Stochastic2DProfilesLower}}
+
+for F in [Symbol("plot"), Symbol("plot!")]
+    @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfile2DValLower, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(R::MultistartResults, idxs, V::StochasticProfile2DValLower, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
+    @eval RecipesBase.$F(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfile2DValLower, args...; kwargs...) = RecipesBase.$F(Points, Likelihoods, 1:length(Points[1]), V, args...; kwargs...)
+end
+@recipe function f(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, paridxs::AbstractVector{<:Int}, V::StochasticProfile2DValLower; 
+                IndMat=[[x,y] for y in paridxs, x in paridxs], idxs=vec(IndMat), comparison=Base.isless)
+    @assert IndMat isa AbstractMatrix{<:AbstractVector{<:Int}}
+    @assert idxs isa AbstractVector{<:AbstractVector{<:Int}}
+    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 
+    @assert all(1 .≤ getindex.(idxs,1) .≤ length(Points[1])) && all(1 .≤ getindex.(idxs,2) .≤ length(Points[1]))
+    
+    size --> (1500,1500)
+    layout --> (length(paridxs)-1, length(paridxs)-1)
+
+    k = 0
+    for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
+        inds = IndMat[i,j];     k += 1
+        if comparison(j,i)
+            @series begin
+                subplot := k
+                Points, Likelihoods, inds, Val(:Stochastic2DProfiles)
+            end
+        else
+            @series begin
+                subplot := k
+                framestyle := :none
+                label := nothing
+                alpha := 0
+                Points[1][inds[1:1]], Points[1][inds[2:2]]
+            end
+        end
+    end
+end
+
+function LowerTriangular2DSPLA(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, paridxs::AbstractVector{<:Int}=1:length(Points[1]); 
+                                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs],
+                                idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, size=(1500,1500), kwargs...)
+    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 
+    @assert all(1 .≤ getindex.(idxs,1) .≤ length(Points[1])) && all(1 .≤ getindex.(idxs,2) .≤ length(Points[1]))
+    # RecipesBase.plot([RecipesBase.plot(Points, Likelihoods, inds, Val(:Stochastic2DProfiles); kwargs...) for inds in idxs]...; layout=length(idxs), size)
+    Plts = Plots.Plot[]
+    for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
+        inds = IndMat[i,j]
+        if comparison(j,i)
+            push!(Plts, RecipesBase.plot(Points, Likelihoods, inds, Val(:Stochastic2DProfiles); kwargs...))
+        else
+            push!(Plts, RecipesBase.plot(; framestyle = :none))
+        end
+    end;    RecipesBase.plot(Plts...; layout=(length(paridxs)-1, length(paridxs)-1), size) |> display
+end
+LowerTriangular2DSPLA(R::MultistartResults, args...; kwargs...) = LowerTriangular2DSPLA(R.FinalPoints, R.FinalObjectives, args...; pnames=pnames(R), kwargs...)

@@ -232,7 +232,7 @@ export Pullback, Pushforward
 export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
-export ContourDiagram
+export ContourDiagram, ContourDiagramLowerTriangular
 
 export ApproxInRegion, ShadowTheatre, CastShadow, CrossValidation
 
