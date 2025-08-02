@@ -876,7 +876,7 @@ function LowerTriangular2DSPLA(Points::AbstractVector{<:AbstractVector}, Likelih
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 
     @assert all(1 .≤ getindex.(idxs,1) .≤ length(Points[1])) && all(1 .≤ getindex.(idxs,2) .≤ length(Points[1]))
     # RecipesBase.plot([RecipesBase.plot(Points, Likelihoods, inds, Val(:Stochastic2DProfiles); kwargs...) for inds in idxs]...; layout=length(idxs), size)
-    Plts = Plots.Plot[]
+    Plts = []
     for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
         inds = IndMat[i,j]
         if comparison(j,i)

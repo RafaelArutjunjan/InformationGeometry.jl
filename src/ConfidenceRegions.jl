@@ -160,6 +160,10 @@ function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, 
     S = transpose(Projector(PL)) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; ADmode=ADmode, kwargs...))
     P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
 end
+function OrthVF(DM::AbstractConditionGrid, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=nothing; kwargs...)
+    S = transpose(Projector(PL)) * (-Score(DM, PlaneCoordinates(PL,θ); kwargs...))
+    P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
+end
 
 """
     OrthVF!(du::AbstractVector, DM::DataModel, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff)) -> Vector
@@ -411,7 +415,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     CB = !isnothing(Boundaries) ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, PL),terminate!)) : CB
-    CB = Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)),PL),terminate!)) : CB
+    CB = DM isa DataModel && Predictor(DM) isa ModelMap ? CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)),PL),terminate!)) : CB
     prob = ODEProblem(IntCurveODE!,u0,(0.,1e5))
     sol = if mfd
         solve(prob, meth; reltol=tol, abstol=tol, callback=CallbackSet(CB, ManifoldProjection(g!; autodiff)), kwargs...)
@@ -1091,9 +1095,11 @@ end
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
 function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), 
-                                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), kwargs...)
+                                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), SkipTests::Bool=false, kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
+
+    !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
     Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
     Planes = [Plane(MLE(DM), 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))) for (i,j) in idxs]
@@ -1112,11 +1118,14 @@ end
     ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), 
-                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], # (Idxs=[[x,y] for y in paridxs, x in paridxs];    Idxs = (@view Idxs[2:end, :]);	Idxs = (@view Idxs[:, 1:end-1])),
+function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); 
+                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), SkipTests::Bool=false, 
+                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs],
                 idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
+
+    !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
     Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
     finalidxs = [[i,j] for (i,j) in idxs if comparison(i,j)]

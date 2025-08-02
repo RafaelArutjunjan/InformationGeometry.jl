@@ -27,6 +27,9 @@ for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
     @eval Base.$F(P::ParamTrafo, args...) = $F(P.Trafos, args...)
 end
 
+function Base.ComposedFunction(P::InformationGeometry.ParameterTransformations, inner::Function)
+    InformationGeometry.ParameterTransformations(map(x->x∘inner, P.Trafos), P.ConditionNames)
+end
 
 
 # function TryToInferPnames()
@@ -42,7 +45,7 @@ Implements condition grid inspired by R package dMod.
 Connects different given `DataModel`s via a vector of parameter transformations, which read from the same collective vector of outer parameter values and compute from them the individual parameter configurations of the respective `DataModel`s from this at every step.
 Thus, this allows for easily connecting different datasets with distinct models while performing simultaneous inference with shared parameters between the models.
 """
-struct ConditionGrid <: AbstractDataModel
+struct ConditionGrid <: AbstractConditionGrid
     DMs::AbstractVector{<:AbstractDataModel}
     Trafos::ParamTrafo
     LogPriorFn::Union{Function,Nothing}
@@ -184,6 +187,16 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::Ab
     EmbeddingMatrix!(J, Conditions(CG)[i], CG.Trafos[i](θ), woundX; kwargs...)
 end
 
+## Create Master Methods which simply concatenate?
+function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, kwargs...)
+    verbose && @warn "EmbeddingMap: Simply concatenating all predictions for all conditions."
+    reduce(vcat, [EmbeddingMap(CG, θ, S; kwargs...) for S in CG.Trafos.ConditionNames])
+end
+
+function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, ADmode::Val=Val(:ForwardDiff), kwargs...)
+    verbose && @warn "EmbeddingMatrix: Simply concatenating all Jacobians for all conditions."
+    reduce(vcat, [EmbeddingMatrix(CG, θ, S; kwargs...) * GetJac(ADmode, CG.Trafos[i])(θ) for (i,S) in enumerate(CG.Trafos.ConditionNames)])
+end
 
 
 function TrafoLength(P::ParamTrafo; max::Int=200)

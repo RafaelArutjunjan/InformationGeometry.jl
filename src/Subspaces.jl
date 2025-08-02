@@ -56,6 +56,15 @@ function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<
     DataModel(Data(DM), newmod, dnewmod, mle, loglikelihood(DM, PlaneCoordinates(PL, mle)), PlanarLogPrior, true; LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
 end
 
+function PlanarDataModel(CG::AbstractConditionGrid, PL::Plane, mle::AbstractVector{<:Number}=DecomposeWRTPlane(PL, ProjectOntoPlane(PL, MLE(DM))))
+    PlanarLogPrior = EmbedLogPrior(CG, PL)
+    LogLikelihoodFn = loglikelihood(CG)∘PlaneCoordinates(PL)
+    # ScoreFn = MergeOneArgMethods(Score(DM)∘PlaneCoordinates(PL), nothing)
+    # FisherInfoFn = MergeOneArgMethods(FisherMetric(DM)∘PlaneCoordinates(PL), nothing)
+    ConditionGrid(Conditions(CG), CG.Trafos∘PlaneCoordinates(PL), mle, PlanarLogPrior; verbose=false, SkipOptim=true, SkipTests=true, LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
+end
+
+
 # Add planar embedding for models
 
 
