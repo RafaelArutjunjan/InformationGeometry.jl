@@ -160,7 +160,8 @@ function OrthVF(DM::AbstractDataModel, PL::Plane, θ::AbstractVector{<:Number}, 
     S = transpose(Projector(PL)) * (-Score(Data(DM), Predictor(DM), dPredictor(DM), PlaneCoordinates(PL,θ), PlanarLogPrior; ADmode=ADmode, kwargs...))
     P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
 end
-function OrthVF(DM::AbstractConditionGrid, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=nothing; kwargs...)
+# Catch ADmode
+function OrthVF(DM::AbstractConditionGrid, PL::Plane, θ::AbstractVector{<:Number}, PlanarLogPrior::Union{Nothing,Function}=nothing; ADmode::Val=Val(:ForwardDiff), kwargs...)
     S = transpose(Projector(PL)) * (-Score(DM, PlaneCoordinates(PL,θ); kwargs...))
     P = prod(S);    normalize(SA[-P/S[1],P/S[2]])
 end

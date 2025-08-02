@@ -136,7 +136,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
 end
 
 # Get all data for single condition
-function GetConditionData(P::PEtabODEProblem, M::PEtabModel, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
+function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== C, :]
     verbose && @info "Starting Condition $C."
     df = Long2WidePEtabMeasurements(cdf; UniqueObsids=GetObservablesInCondition(M, C; ObsID, CondID))
@@ -214,17 +214,17 @@ end
 InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); kwargs...) = InformationGeometry.DataModel(P, Mle; kwargs...)
 
 
-function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId)
+function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false)
     @unpack model_info, probinfo = petab_prob
 
     # Decide all observables which should be returned here and mind their order!
     ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
     # Make dict of unique obsids per condition and apply later to get local UniqueObsids
 
-    function GetPredictions(xs, θ::AbstractVector; cid::Symbol=cond, Error::Bool=false)
+    function GetPredictions(xs, θ::AbstractVector; cid::Symbol=cond, Error::Bool=Error)
         UniqueObsids = ObsidsInCondDict[cid]
         odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
-
+        
         Res = Matrix{eltype(xs)}(undef, length(xs), length(UniqueObsids))
         Xnom = collect(petab_prob.xnominal)
         sol = odesols[cid]
@@ -252,10 +252,14 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
     end
 end
 
-# using SnoopPrecompile
-
-# SnoopPrecompile.@precompile_all_calls begin
-    
-# end
+### Do not commit
+using SnoopPrecompile
+SnoopPrecompile.@precompile_all_calls begin
+    BenchmarkModels_PEtab_Path = "/home/rafael/Software/Benchmark-Models-PEtab/Benchmark-Models"
+    ModelFolderName = "Boehm_JProteomeRes2014"
+    PEtabODEProblem(PEtabModel(joinpath(BenchmarkModels_PEtab_Path, ModelFolderName, ModelFolderName *".yaml")); 
+                        gradient_method=:ForwardEquations, hessian_method=:ForwardDiff)
+    nothing
+end
 
 end # module
