@@ -319,14 +319,14 @@ end
 
 # Called by GetStartP
 """
-    pdim(DS::AbstractDataSet, model::ModelOrFunction) -> Int
+    pdim(DS::AbstractDataSet, model::ModelOrFunction; max::Int=200) -> Int
 Infers the (minimal) number of components that the given function `F` accepts as input by successively testing it on vectors of increasing length.
 """
-function pdim(DS::AbstractDataSet, model::Function)
+function pdim(DS::AbstractDataSet, model::Function; max::Int=MaxArgLen)
     pModel = if !isinplacemodel(model)
-        GetArgLength(p->model(WoundX(DS)[1],p))
+        GetArgLength(p->model(WoundX(DS)[1],p); max)
     else #inplace model
-        GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p))
+        GetArgLength((Res,p)->model(Res,WoundX(DS)[1],p); max)
     end
     # Error parameter definitely not accounted for in pModel yet
     pModel + errormoddim(DS)

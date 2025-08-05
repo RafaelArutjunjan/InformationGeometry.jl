@@ -26,6 +26,7 @@ import SciMLBase: AbstractODESolution, AbstractODEFunction, AbstractODEAlgorithm
 import SciMLBase: remake
 export remake
 
+const MaxArgLen = 200
 
 import DerivableFunctionsBase: suff, MaximalNumberOfArguments, KillAfter, GetArgLength, Builder
 import DerivableFunctionsBase: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF

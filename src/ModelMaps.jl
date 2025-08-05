@@ -21,8 +21,8 @@ function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, Is
     end
 end
 
-function ConstructModelxyp(model::Function)
-    xp = GetArgSize(model)
+function ConstructModelxyp(model::Function; max::Int=MaxArgLen)
+    xp = GetArgSize(model; max)
     (xp[1], length(_TestOut(model, GetStartP(xp[2]), xp[1])), xp[2])
 end
 
@@ -61,7 +61,7 @@ struct ModelMap{Inplace, Custom}
         ModelMap(model, startp, InDomain, Domain; kwargs...)
     end
     function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
-        xlen = isinplacemodel(model) ? GetArgLength((Res,x)->model(Res,x,startp)) : GetArgLength(x->model(x,startp))
+        xlen = isinplacemodel(model) ? GetArgLength((Res,x)->model(Res,x,startp); max=MaxArgLen) : GetArgLength(x->model(x,startp); max=MaxArgLen)
         testout = _TestOut(model, startp, xlen)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
     end
@@ -437,7 +437,7 @@ end
 # Unlike "ComponentwiseModelTransform" EmbedModelVia should be mainly performant for use e.g. in ProfileLikelihood
 # Also only vector-valued transformations
 """
-    EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F),Inf)) -> Union{Function,ModelMap}
+    EmbedModelVia(model, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F; max=200),Inf)) -> Union{Function,ModelMap}
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, F(θ))`.
 A `Domain` for the new model can optionally be specified for `ModelMap`s.
 """
@@ -467,7 +467,7 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
         mul!(y, Ycache, Jac(θ))
     end
 end
-function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, name::StringOrSymb=name(dM), Meta=dM.Meta, kwargs...)
+function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, name::StringOrSymb=name(dM), Meta=dM.Meta, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
     ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
@@ -482,7 +482,7 @@ An initial parameter configuration `start` as well as a `Domain` can optionally 
 
 For component-wise transformations see [`ComponentwiseModelTransform`](@ref).
 """
-function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F)); Domain::HyperCube=FullDomain(length(start),Inf), kwargs...)
+function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F; max=MaxArgLen)); Domain::HyperCube=FullDomain(length(start),Inf), kwargs...)
     DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, EmbedLogPrior(DM, F); kwargs...)
 end
 

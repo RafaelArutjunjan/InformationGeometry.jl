@@ -17,7 +17,7 @@ end
     SpeedifyTransform(F::Function, X::AbstractArray{<:Num}; inplace::Bool=false) -> Function
 Takes function and runs it through Symbolics toolbox for performance optimization.
 """
-function SpeedifyTransform(F::Function, X::AbstractArray{<:DerivableFunctionsBase.SymbolicScalar}=(Symbolics.@variables x[1:GetArgLength(F)])[1], args...; inplace::Bool=false, kwargs...)
+function SpeedifyTransform(F::Function, X::AbstractArray{<:DerivableFunctionsBase.SymbolicScalar}=(Symbolics.@variables x[1:GetArgLength(F; max=MaxArgLen)])[1], args...; inplace::Bool=false, kwargs...)
     Symbolics.build_function(F(X, args...), X, args...; expression=Val{false}, kwargs...)[inplace ? 2 : 1]
 end
 

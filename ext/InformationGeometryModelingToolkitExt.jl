@@ -8,7 +8,7 @@ using InformationGeometry, ModelingToolkit, Optim, LineSearches
 import ModelingToolkit: AbstractSystem
 
 import InformationGeometry: StringOrSymb, BoolArray, isloaded
-import InformationGeometry: xnames, ynames, xdim, ydim, Xnames, Ynames, CreateSymbolNames
+import InformationGeometry: xnames, ynames, xdim, ydim, Xnames, Ynames, CreateSymbolNames, MaxArgLen
 import InformationGeometry: InformNames, GetModel, DataModel
 
 
@@ -61,7 +61,7 @@ function GetModel(sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},
         argnum = MaximalNumberOfArguments(observables)
         F = if argnum==1  z->observables(z)   elseif argnum==2  z->observables(z,0.1)
             elseif argnum==3 z->observables(z,0.1,GetStartP(length(pnames)))    else throw("Error") end
-        num = GetArgLength(F)
+        num = GetArgLength(F; max=MaxArgLen)
         length(F(ones(num)))
     else
         observables isa BoolArray ? sum(observables) : length(observables)
@@ -75,7 +75,7 @@ function GetModel(sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},
         length(pnames)
     else        # SplitterFunction
         # May well fail depending on how splitter function is implemented
-        GetArgLength(u0)
+        GetArgLength(u0; max=MaxArgLen)
     end
     xyp = (1, ylen, plen)
     Domain = isnothing(Domain) ? FullDomain(xyp[3], 1e5) : Domain

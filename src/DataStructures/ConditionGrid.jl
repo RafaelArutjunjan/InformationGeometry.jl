@@ -199,7 +199,7 @@ function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbos
 end
 
 
-function TrafoLength(P::ParamTrafo; max::Int=200)
+function TrafoLength(P::ParamTrafo; max::Int=MaxArgLen)
     for i in 1:max
         try P(ones(i)); return i catch; end
     end;    max

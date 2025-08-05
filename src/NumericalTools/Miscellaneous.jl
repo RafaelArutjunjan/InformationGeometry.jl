@@ -296,23 +296,23 @@ end
 
 
 """
-    GetArgSize(model::ModelOrFunction; max::Int=100)
+    GetArgSize(model::ModelOrFunction; max::Int=200)
 Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
 """
-GetArgSize(model::Function; max::Int=100) = GetArgSize(model, Val(isinplacemodel(model)); max=max)
-function GetArgSize(model::Function, inplace::Val{false}; max::Int=100)
+GetArgSize(model::Function; max::Int=MaxArgLen) = GetArgSize(model, Val(isinplacemodel(model)); max=max)
+function GetArgSize(model::Function, inplace::Val{false}; max::Int=MaxArgLen)
     try return (1, GetArgLength(p->model(rand(),p); max=max)) catch; end
     for i in 2:max
         try return (i,GetArgLength(p->model(rand(i),p); max=max)) catch; end
     end;    throw("Wasn't able to find config for max=$max.")
 end
-function GetArgSize(model!::Function, inplace::Val{true}; max::Int=100)
+function GetArgSize(model!::Function, inplace::Val{true}; max::Int=MaxArgLen)
     try return (1, GetArgLength((Res,p)->model!(Res,rand(),p); max=max)) catch; end
     for i in 2:max
         try return (i,GetArgLength((Res,p)->model!(Res,rand(i),p); max=max)) catch; end
     end;    throw("Wasn't able to find config for max=$max.")
 end
-GetArgSize(model::ModelMap; max::Int=100) = (model.xyp[1], model.xyp[3])
+GetArgSize(model::ModelMap; max::Int=MaxArgLen) = (model.xyp[1], model.xyp[3])
 
 
 # overload non-static out-of-place method
