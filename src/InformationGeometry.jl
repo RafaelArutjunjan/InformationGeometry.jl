@@ -14,7 +14,7 @@ using LsqFit, Optim, LineSearches, ADTypes, Optimization
 using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using ProgressMeter, Suppressor
-using RecipesBase, Requires, PlotUtils
+using RecipesBase, PlotUtils
 using TreeViews, PrettyTables
 
 import Sobol as SOBOL

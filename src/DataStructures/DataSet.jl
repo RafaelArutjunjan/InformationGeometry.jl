@@ -116,10 +116,12 @@ xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 
 ysigma(DS::DataSet) = _ysigma_fromInvCov(DS, yInvCov(DS))
-_ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix) = inv(M) |> _TryVectorize
-@init @require SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf" begin
-    using SparseArrays
-    _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractSparseMatrix) = inv(convert(Matrix, M)) |> _TryVectorize
+function _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix) = 
+    try
+        inv(M) |> _TryVectorize
+    catch;
+        inv(convert(Matrix, M)) |> _TryVectorize
+    end
 end
 _TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
 _TryVectorize(D::Diagonal) = sqrt.(D.diag)
