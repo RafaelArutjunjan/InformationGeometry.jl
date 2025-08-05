@@ -13,7 +13,7 @@ using DerivableFunctionsBase
 using LsqFit, Optim, LineSearches, ADTypes, Optimization
 using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
-using LibGEOS, ProgressMeter, Suppressor
+using ProgressMeter, Suppressor
 using RecipesBase, Requires, PlotUtils
 using TreeViews, PrettyTables
 

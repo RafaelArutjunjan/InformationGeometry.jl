@@ -178,11 +178,9 @@ function RadialGeodesics(DM::AbstractDataModel, Cube::HyperCube; N::Int=50, tol:
     (parallel ? progress_pmap : progress_map)(Constructor, initialvels; progress=Prog)
 end
 
-# No need for precompilation, so can leave Requires.jl rather than native extension
+# Use Extension for loading BoundaryValueDiffEq methods
 LazyShooting(M) = throw("Need to load BoundaryValueDiffEq.jl (or just BoundaryValueDiffEqShooting.jl) first.")
-@init @require BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757" begin
-    LazyShooting(M::SciMLBase.AbstractSciMLAlgorithm) = BoundaryValueDiffEqShooting.Shooting(M)
-end
+
 
 
 """

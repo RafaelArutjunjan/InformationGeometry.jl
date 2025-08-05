@@ -6,7 +6,6 @@ version = "1.19.3"
 [deps]
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
-BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -18,7 +17,6 @@ Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DistributionsAD = "ced4e74d-a319-5a8a-b0ac-84af2272839c"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
-LibGEOS = "a90b1aa1-3769-5649-ba7e-abc5a9d163eb"
 LineSearches = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
@@ -52,10 +50,14 @@ TreeViews = "a2a6695c-b41b-5b7d-aed9-dbfdeacea5d7"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [weakdeps]
+BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757"
+LibGEOS = "a90b1aa1-3769-5649-ba7e-abc5a9d163eb"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 
 [extensions]
+InformationGeometryBoundaryValueDiffEqExt = ["BoundaryValueDiffEqShooting"]
+InformationGeometryLibGEOSExt = ["LibGEOS"]
 InformationGeometryModelingToolkitExt = ["ModelingToolkit"]
 InformationGeometryPEtabExt = ["PEtab", "ModelingToolkit"]
 
