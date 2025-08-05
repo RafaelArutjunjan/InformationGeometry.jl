@@ -104,7 +104,7 @@ LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherInfoFn::Function=x->[-Inf],
 LogLikeMLE::Number=-Inf, 
-SkipOptim::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE, SkipOptim, kwargs...)
+SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)
 

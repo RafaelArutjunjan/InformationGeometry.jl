@@ -285,7 +285,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=Domain, tol::Real=1e-9,
-                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.NewtonTrustRegion()), OptimMeth=meth, OffsetResults::Bool=true,
+                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.LBFGS()), OptimMeth=meth, OffsetResults::Bool=true,
                         IC::Real=eltype(mle)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e12)), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3,
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
@@ -308,11 +308,11 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && Data(DM) isa AbstractFixedUncertaintyDataSet
         ((args...; Kwargs...)->curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
-        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.LBFGS() : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
         ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, parallel=false, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
     else
-        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.NewtonTrustRegion() : OptimMeth
+        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? Optim.LBFGS() : OptimMeth
         ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
     end
     
