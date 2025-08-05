@@ -116,7 +116,7 @@ xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 
 ysigma(DS::DataSet) = _ysigma_fromInvCov(DS, yInvCov(DS))
-function _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix) = 
+function _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix)
     try
         inv(M) |> _TryVectorize
     catch;
