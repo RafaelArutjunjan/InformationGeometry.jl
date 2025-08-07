@@ -133,7 +133,8 @@ function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs.
 end
 function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame; xerrs::Bool=false, stripedYs::Bool=false, kwargs...)
     # Enforce stripedYs=false
-    CompositeDataSet(hcat(xdf, ydf, sigdf), (xerrs ? Int(size(xdf,2)/2) : size(xdf,2)), size(ydf,2); stripedYs=false, xerrs=xerrs, kwargs...)
+    @assert !stripedYs
+    CompositeDataSet(hcat(xdf, ydf, sigdf), (xerrs ? Int(size(xdf,2)/2) : size(xdf,2)), size(ydf,2); xerrs, stripedYs, kwargs...)
 end
 
 # For SciMLBase.remake

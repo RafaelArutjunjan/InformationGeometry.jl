@@ -29,6 +29,10 @@ function Long2WidePEtabMeasurements(measurements::AbstractDataFrame, ObsID=:obse
     sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame(float.(Matrix(df)), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)]), Time)
 end
 
+function Long2WidePEtabMeasurementsWithErrors(measurements::AbstractDataFrame, ObsID=:observableId, Time=:time, Meas=:measurement, NoiseParam=:noiseParameters; UniqueObsids::AbstractVector{<:Symbol}=unique(measurements[!, ObsID]))
+    gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas, NoiseParam]) for ID in UniqueObsids]
+    sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame([vec(col) for col in eachcol(df)], [Time, UniqueObsids[i], Symbol("sd_"*string(UniqueObsids[i]))]) for (i,df) in enumerate(gdf)]), Time)
+end
 
 import PEtab: PEtabODEProblemInfo, ModelInfo
 ## Change via Pull Request:
@@ -74,6 +78,15 @@ GetDynamicParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x
 GetErrorParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[2])
 GetNondynamicParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[3])
 GetObservableParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(get_x(X)) .∈ Ref(SplitParamsIntoCategories(X)[4])
+
+
+HasErrorModel(P::PEtabODEProblem, args...; kwargs...) = HasErrorModel(P.model_info.model, args...; kwargs...)
+function HasErrorModel(P::PEtabModel, CondName::Symbol; CondID=:simulationConditionId, NoiseParam=:noiseParameters)
+    df = P.petab_tables[:measurements][Symbol.(P.petab_tables[:measurements][!,CondID]) .=== CondName, :]
+    @assert !isempty(df) "Condition Name wrong? Got $CondName."
+    IsFloat(x::Number) = true;  IsFloat(x) = Meta.parse(x) isa Number
+    !all(IsFloat, df[!, NoiseParam])
+end
 
 
 # for F in [:GetNllh]

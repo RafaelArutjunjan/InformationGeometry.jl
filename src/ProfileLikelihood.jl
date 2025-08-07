@@ -743,8 +743,13 @@ mutable struct ParameterProfiles <: AbstractProfiles
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
         Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(inds))
         if !(inds == 1:pdim(DM))
+            EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
+            EmptyTraj = [fill(NaN, pdim(DM))]
             for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
-                i ∉ inds && (insert!(Profs, i, fill(NaN, size(Profs[1])));  Profs[i][:,end] .= 0;    SaveTrajectories ? insert!(Trajs, i, [fill(NaN, pdim(DM))]) : insert!(Trajs, i, nothing))
+                if i ∉ inds
+                    insert!(Profs, i, EmptyProf)
+                    SaveTrajectories ? insert!(Trajs, i, EmptyTraj) : insert!(Trajs, i, nothing)
+                end
             end
         end
         P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof, Meta)
