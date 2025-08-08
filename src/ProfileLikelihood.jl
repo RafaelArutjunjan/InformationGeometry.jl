@@ -605,7 +605,7 @@ function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=PNames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
     length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
-    RecipesBase.plot(PlotObjects...; layout=length(PlotObjects))
+    RecipesBase.plot(PlotObjects...; layout=length(PlotObjects), size=PlotSizer(length(PlotObjects)))
 end
 # Plot trajectories of Profile Likelihood
 """
@@ -900,6 +900,10 @@ end
 ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((TrafoName, TrafoNameEnd)=GetTrafoNames(F, GenericName);    TrafoName * S * TrafoNameEnd)
 
 
+# Size layout plot according to number of plots
+PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(300,300)) = (s=Int(ceil(sqrt(n)));  s .* size)
+
+
 @recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...
 
 # Plot trajectories by default
@@ -907,10 +911,13 @@ ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((Tra
 
 # DoBiLog for paths, i.e. TrafoPath
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
-    layout := sum(IsPopulated(P)) + 1
     Trafo = get(plotattributes, :Trafo, identity)
     DoBiLog = get(plotattributes, :BiLog, true)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+
+    layout := sum(IsPopulated(P)) + 1
+    size --> PlotSizer(sum(IsPopulated(P)) + 1)
+
     @series begin
         layout := sum(IsPopulated(P)) + 1
         Trafo := Trafo
@@ -930,6 +937,8 @@ end
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
     PopulatedInds = IsPopulated(P) 
     layout --> sum(PopulatedInds)
+    size --> PlotSizer(sum(PopulatedInds))
+
     P.Meta !== :ParameterProfiles && (plot_title --> string(P.Meta))
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
@@ -957,6 +966,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     @assert length(trueparams) == length(Profiles(P))
     PopulatedInds = IsPopulated(P) 
     layout --> sum(PopulatedInds)
+    size --> PlotSizer(sum(PopulatedInds))
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && sum(GetConverged(T)) > 0 && maximum(view(T[2], GetConverged(T))) > tol]))
@@ -1038,6 +1048,7 @@ end
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
+    size --> PlotSizer(length(PVs))
     Trafo = get(plotattributes, :Trafo, identity)
     for i in eachindex(PVs)
         @series begin
@@ -1135,6 +1146,7 @@ end
     ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && !isnothing(Trajectories(P)[i])]
 
     layout --> length(ToPlotInds)
+    size --> PlotSizer(length(ToPlotInds))
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
 
@@ -1333,7 +1345,7 @@ PlotProfilePathNormDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwa
 # Bad style but works for now for plotting profiles from different models in one:
 function RecipesBase.plot(Ps::AbstractArray{<:Union{ParameterProfiles, ParameterProfilesView}}; kwargs...)
     Plts = [RecipesBase.plot(Ps[i]) for i in eachindex(Ps)]
-    RecipesBase.plot(Plts...; layout=length(Plts), kwargs...)
+    RecipesBase.plot(Plts...; layout=length(Plts), size=PlotSizer(length(Plts)), kwargs...)
 end
 
 

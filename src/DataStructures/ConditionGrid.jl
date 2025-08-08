@@ -230,6 +230,7 @@ end
 RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))
     plot_title --> string(name(CG))
     layout --> length(Conditions(CG))
+    size --> PlotSizer(length(Conditions(CG)))
     for i in eachindex(Conditions(CG))
         @series begin
             subplot := i

@@ -1096,7 +1096,7 @@ end
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
 function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), 
-                                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), SkipTests::Bool=false, kwargs...)
+                                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=PlotSizer(length(idxs)), SkipTests::Bool=false, kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
 
@@ -1120,7 +1120,7 @@ end
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
 function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); 
-                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=(1000,1000), SkipTests::Bool=false, 
+                tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=PlotSizer(length(idxs)), SkipTests::Bool=false, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs],
                 idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0

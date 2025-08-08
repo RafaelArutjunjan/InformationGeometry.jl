@@ -233,6 +233,7 @@ RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, 
 RecipesBase.@recipe function f(DSs::Union{<:AbstractVector{<:AbstractDataSet},<:AbstractVector{<:AbstractDataModel}})
     leg --> false
     layout --> length(DSs)
+    size --> PlotSizer(length(DSs))
     for i in eachindex(DSs)
         @series begin
             subplot := i
@@ -255,6 +256,7 @@ end
 
 RecipesBase.@recipe function f(X::AbstractVector{<:DataInterpolations.AbstractInterpolation})
     layout --> length(X)
+    size --> PlotSizer(length(X))
     for i in eachindex(X)
         @series begin
             subplot := i

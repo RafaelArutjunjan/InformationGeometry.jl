@@ -572,7 +572,7 @@ StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@a
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; CutoffVal::Real=Inf, Inds::AbstractVector{<:Int}=1:findlast(x->isfinite(x) && abs(x)<CutoffVal,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
-                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, Cutoff::Int=400000, kwargs...)
+                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, Cutoff::Int=400000, size=PlotSizer(length(pnames)), kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults) for i in eachindex(pnames)]
     Offset = OffsetResults ? Likelihoods[1] : 0.0
     AddedPlots = []
@@ -587,7 +587,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
         end
         push!(AddedPlots, SP)
     end
-    RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), kwargs...)
+    RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), size, kwargs...)
 end
 # Individual Parameter
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
@@ -638,7 +638,7 @@ end
    @assert allunique(Combos) && 2 ≤ ConsistentElDims(Combos) ≤ 3
    pdim(R) == 2 && return R, [1,2], V, FiniteInds
    layout --> length(Combos)
-   size --> (1500,1500)
+   size --> PlotSizer(length(Combos))
    for (i,inds) in enumerate(Combos)
       @series begin
          subplot := i
@@ -688,6 +688,7 @@ end
     pnames = get(plotattributes, :pnames, CreateSymbolNames(length(Points[1])))
     legend --> false
     layout --> length(pnames) + 1 + (length(pnames) ≤ 3 ? 1 : 0)
+    size --> PlotSizer(length(pnames) + 1)
     for i in eachindex(pnames)
         @series begin
             subplot := i
@@ -823,7 +824,7 @@ end
     @assert allunique(Combos) && 2 ≤ ConsistentElDims(Combos) ≤ 3
     length(Points[1]) == 2 && return Points, Likelihoods, [1,2], V
     layout --> length(Combos)
-    length(Combos) > 1 && (size --> (1500,1500))
+    size --> PlotSizer(length(Combos))
     for (i,inds) in enumerate(Combos)
         @series begin
             subplot := i
@@ -847,8 +848,8 @@ end
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 
     @assert all(1 .≤ getindex.(idxs,1) .≤ length(Points[1])) && all(1 .≤ getindex.(idxs,2) .≤ length(Points[1]))
     
-    size --> (1500,1500)
     layout --> (length(paridxs)-1, length(paridxs)-1)
+    size --> PlotSizer((length(paridxs)-1)^2)
 
     k = 0
     for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
@@ -872,7 +873,7 @@ end
 
 function LowerTriangular2DSPLA(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, paridxs::AbstractVector{<:Int}=1:length(Points[1]); 
                                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs],
-                                idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, size=(1500,1500), kwargs...)
+                                idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, size=PlotSizer((length(paridxs)-1)^2), kwargs...)
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 
     @assert all(1 .≤ getindex.(idxs,1) .≤ length(Points[1])) && all(1 .≤ getindex.(idxs,2) .≤ length(Points[1]))
     # RecipesBase.plot([RecipesBase.plot(Points, Likelihoods, inds, Val(:Stochastic2DProfiles); kwargs...) for inds in idxs]...; layout=length(idxs), size)
