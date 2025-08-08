@@ -9,7 +9,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
             if Data(DM) isa DataSetUncertain
-                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+                keep = Data(DM).keep
+                ysig = if isnothing(keep)
+                    ysigma(DM, mle)
+                else
+                    view(ysigma(DM, mle), keep)
+                end
+                yerror := Unpack(Windup(ysig, ydim(DM)))
             elseif Data(DM) isa UnknownVarianceDataSet
                 xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
                 yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
@@ -160,7 +166,13 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     @series begin
         if Data(DM) isa AbstractUnknownUncertaintyDataSet
             if Data(DM) isa DataSetUncertain
-                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+                keep = Data(DM).keep
+                ysig = if isnothing(keep)
+                    ysigma(DM, mle)
+                else
+                    view(ysigma(DM, mle), keep)
+                end
+                yerror := Unpack(Windup(ysig, ydim(DM)))
             elseif Data(DM) isa UnknownVarianceDataSet
                 xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
                 yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))

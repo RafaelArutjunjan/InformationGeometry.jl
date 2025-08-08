@@ -31,6 +31,8 @@ function Base.ComposedFunction(P::InformationGeometry.ParameterTransformations, 
     InformationGeometry.ParameterTransformations(map(x->x∘inner, P.Trafos), P.ConditionNames)
 end
 
+ConditionNames(P::ParameterTransformations) = P.ConditionNames
+
 
 # function TryToInferPnames()
 # end
@@ -142,6 +144,8 @@ GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[];
 # Return nothing instead of producing MethodErrors
 Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
+ConditionNames(CG::ConditionGrid) = ConditionNames(CG.Trafos)
+
 
 DataspaceDim(CG::ConditionGrid) = sum(length.(ydata.(Conditions(CG))))
 
