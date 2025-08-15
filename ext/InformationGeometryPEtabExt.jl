@@ -265,14 +265,5 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
     end
 end
 
-### Do not commit
-using SnoopPrecompile
-SnoopPrecompile.@precompile_all_calls begin
-    BenchmarkModels_PEtab_Path = "/home/rafael/Software/Benchmark-Models-PEtab/Benchmark-Models"
-    ModelFolderName = "Boehm_JProteomeRes2014"
-    PEtabODEProblem(PEtabModel(joinpath(BenchmarkModels_PEtab_Path, ModelFolderName, ModelFolderName *".yaml")); 
-                        gradient_method=:ForwardEquations, hessian_method=:ForwardDiff)
-    nothing
-end
 
 end # module
