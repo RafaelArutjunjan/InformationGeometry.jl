@@ -99,7 +99,7 @@ function SymbolicdModelExpr(DM::AbstractDataModel)
 end
 function SymbolicdModelExpr(M::ModelMap)
     X, Y, θ = SymbolicArguments(M)
-    M(X, θ)
+    isinplacemodel(M) ? (Res=Matrix{Num}(undef,length(Y),length(θ));  M(Res,X,θ)) : M(X, θ)
 end
 
 """

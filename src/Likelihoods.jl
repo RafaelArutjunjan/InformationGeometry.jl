@@ -32,9 +32,13 @@ function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::Abstrac
     -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...)))
 end
 
-function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=false, levels::Int=3, Kwargs...)
     # Pre-Computations or buffers here
-    BareLikelihood(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
+    BareLikelihood = if inplace
+        GetInplaceLikelihood(DS, model; levels)
+    else
+        OutOfPlaceLikelihood(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
+    end
     if isnothing(LogPriorFn)
         """
             LogLikelihoodWithoutPrior(θ::AbstractVector; kwargs...) -> Real
@@ -93,6 +97,24 @@ end
 function InnerProductChol(Mat::AbstractMatrix, Y::AbstractVector{T})::T where T <: Number
     @assert size(Mat,1) == size(Mat,2) == length(Y)
     sum(abs2, Mat*Y)
+end
+
+GetInplaceLikelihood(DM::AbstractDataModel; kwargs...) = GetInplaceLikelihood(Data(DM), Predictor(DM); kwargs...)
+function GetInplaceLikelihood(DS::AbstractFixedUncertaintyDataSet, model::ModelOrFunction; levels::Int=3)
+    @assert !HasXerror(DS)
+    ydat = ydata(DS);    invCov = yInvCov(DS);      woundX = WoundX(DS)
+    Ycache = DiffCache(similar(ydat); levels)
+    NormalizationConst = DataspaceDim(DS)*log(2π) - logdetInvCov(DS)
+    function _Like!(Z::Union{AbstractVector,DiffCache{<:AbstractVector}}, invCov::AbstractMatrix, NormalizationConst::Number)    
+        -0.5.*(NormalizationConst .+ InnerProduct(invCov, Z))
+    end
+    function InplaceLikelihood(θ::AbstractVector{<:Number}; kwargs...)
+        Y = UnrollCache(Ycache, θ, woundX)
+        fill!(Y, zero(eltype(Y)))
+        EmbeddingMap!(Y, DS, model, θ, woundX; kwargs...)
+        Y .-= ydat
+        _Like!(Y, invCov, NormalizationConst)
+    end
 end
 
 

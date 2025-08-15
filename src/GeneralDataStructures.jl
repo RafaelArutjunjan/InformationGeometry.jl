@@ -207,7 +207,7 @@ Christen(F::Function, name::StringOrSymb) = (@warn "Cannot add name to function,
 Christen(DM::AbstractDataModel, name::StringOrSymb) = remake(DM; name=Symbol(name))
 
 
-function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Val=Val(:ForwardDiff), Kwargs...)
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Val=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), Kwargs...)
     Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
     GradPass, JacPass = DerivableFunctionsBase._GetGradPass, DerivableFunctionsBase._GetJacPass
     ## Allow for symbolic passthrough here
@@ -246,10 +246,10 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=fals
         @info "Falling back to ForwardDiff for model jacobian."
         ADmode = Val(:ForwardDiff)
     end
-    AutoDiffDmodel(DS, model; custom=custom, ADmode=ADmode, kwargs...)
+    AutoDiffDmodel(DS, model; custom, ADmode, kwargs...)
 end
-function DetermineDmodel(DS::AbstractDataSet, M::ModelMap; custom::Bool=iscustommodel(M), kwargs...)
-    ModelMap(DetermineDmodel(DS, M.Map; custom=custom, kwargs...), M)
+function DetermineDmodel(DS::AbstractDataSet, M::ModelMap; custom::Bool=iscustommodel(M), inplace::Bool=isinplacemodel(M), kwargs...)
+    ModelMap(DetermineDmodel(DS, M.Map; custom, inplace, kwargs...), M)
 end
 
 """
