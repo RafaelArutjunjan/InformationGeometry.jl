@@ -597,7 +597,7 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
     Plt = RecipesBase.plot(CenteredVec(pBins), res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("SPLA", Trafo), label="Conditional Objectives", kwargs...)
-    Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(-res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=1.5, label="Best Objective")
+    Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(-res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=2, label="sMLE")
     Plt
 end
 
