@@ -901,7 +901,7 @@ ApplyTrafoNames(S::AbstractString, F::Function; GenericName::Bool=false) = ((Tra
 
 
 # Size layout plot according to number of plots
-PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(300,300)) = (s=Int(ceil(sqrt(n)));  s .* size)
+PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(250,250)) = (s=Int(ceil(sqrt(n)));  s .* size)
 
 
 @recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...

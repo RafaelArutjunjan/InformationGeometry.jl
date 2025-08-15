@@ -53,7 +53,20 @@ function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPrio
 end
 GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; kwargs...))
 
-InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = transpose(Y) * Mat * Y
+
+# dot(Y, Mat, Y) faster for differentiation than transpose(Y) * Mat * Y due to fewer allocations
+InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = _InnerProduct(Mat, Y)
+_InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:Number}) = transpose(Y) * Mat * Y
+_InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:ForwardDiff.Dual}) = dot(Y, Mat, Y)
+
+function InnerProduct(Mat::Diagonal, Y::AbstractVector{T}) where T <: Number
+    d = Mat.diag
+    @boundscheck length(d) == length(Y)
+    s = zero(T)
+    @inbounds @simd for i in eachindex(Y)
+        s += abs2(Y[i]) * d[i]
+    end;    s
+end
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
 
 InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Mat[i,j] * Y[j]
