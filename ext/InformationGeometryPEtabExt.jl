@@ -45,7 +45,7 @@ import PEtab: PEtabODEProblemInfo, ModelInfo
 # const GetNllhHesses = PEtab._get_hess
 
 #### Debugging:
-import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
+import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetFixedDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
 import InformationGeometry: SplitParamsIntoCategories, DataSet
 
 # Pass model from PEtabODEProblem
@@ -101,7 +101,7 @@ end
 import InformationGeometry: DataModel, DataSet, CompositeDataSet, ModelMap, ConditionGrid, Negate, Negate!!, NegateBoth, ydim, MergeOneArgMethods
 
 # Get fixed uncertainties based on error parameter values from P
-function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.petab_tables[:observables], ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
+function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.petab_tables[:observables], ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
                         FixedError::Bool=true, ObsID=:observableId, CondID=:simulationConditionId, Formula=:noiseFormula, ObsTrafo=:observableTransformation, NoiseDist=:noiseDistribution, Pscale=:parameterScale, ParamID=:parameterId, debug::Bool=false, kwargs...)
     Odf = @view (observablesDF[[findfirst(isequal(O),Symbol.(observablesDF[!,ObsID])) for O in ObsNames], :])
     # @assert all(Symbol.(Odf[!,ObsTrafo]) .=== :lin)
@@ -129,6 +129,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
         i, S = FindLineInParamTable(Symb)
         Symbol(P.petab_tables[:parameters][i,Pscale]) === :lin ? S : Symbol(string(Symbol(P.petab_tables[:parameters][i,Pscale]))*"_"*string(S))
     end
+    GetInverseTrafo(x) = (@warn "GetInverseTrafo: Got $x, trying to continue.";  x)
     GetInverseTrafo(x::Number) = identity
     function GetInverseTrafo(Symb::Symbol)
         i, S = FindLineInParamTable(Symb)
@@ -139,6 +140,7 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
         throw("Do not know how to invert Trafo $Traf yet.")
     end
     GetInds(x::Symbol) = [findfirst(isequal(x), InformationGeometry.GetNamesSymb(Mle))];    GetInds(x::Number) = x
+    GetInds(x) = (@warn "GetInds: Got $x, trying to continue.";  x)
     MakeConstError(X::AbstractVector{<:Int}, S::Symbol) = (R=Mle[X];   length(R) == 1 ? R[1] : R);  MakeConstError(x::Number, S) = x
     NameOrValue = GetFullParameterName.(ParsedError)
     IndOrValue = GetInds.(NameOrValue)
@@ -148,25 +150,38 @@ function GetDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.pe
     FixedError && return [Transform(Value) for (Transform, Value) in Iterators.zip(GetInverseTrafo.(ParsedError), MakeConstError.(IndOrValue, ParsedError))]
 end
 
-# Get all data for single condition
-function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDF(M), C::Symbol=sdf[!,:simulationConditionId][1]; ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
-    cdf = sdf[sdf[!, CondID] .=== C, :]
-    verbose && @info "Starting Condition $C."
-    df = Long2WidePEtabMeasurements(cdf; UniqueObsids=GetObservablesInCondition(M, C; ObsID, CondID))
-    Xdf, Ydf = MissingToNan.(float.(df[:,1:1])), MissingToNan.(float.(df[:,2:end]))
-    Constructor = !any(ismissing.(Matrix(df))) ? DataSet : CompositeDataSet
 
-    try 
-        ConstError = GetDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); FixedError, debug, Mle)
-        SigmaDf = if length(ConstError) == length(names(Ydf)) || eltype(ConstError) <: Number
-            DataFrame(reduce(hcat, [fill(x,size(Ydf,1)) for x in ConstError]), :auto)
+function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDF(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
+                        FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
+    cdf = sdf[sdf[!, CondID] .=== CondName, :]
+    verbose && @info "Starting Condition $C."
+    df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
+    Xdf = MissingToNan.(df[!,[Time]]);    YdfE = broadcast(x->ismissing(x) ? NaN : x, df[!,Not(Time)])
+    Ydf = broadcast(x->ismissing(x) ? NaN : x, YdfE[!,map(!startswith("sd_"), names(YdfE))])
+    Sdf = if HasErrorModel(M, CondName; CondID, NoiseParam)
+        if FixedError
+            # Approximate error model as constant from best fit
+            ConstError = try
+                GetFixedDataUncertainty(M, M.petab_tables[:observables], Symbol.(names(Ydf)); FixedError, debug, Mle)
+            catch;
+                debug && @warn "Tried getting fixed errors but could not because of $E. Continuing with uncertainties=1."
+                ones(length(names(Ydf)))
+            end
+            if length(ConstError) == length(names(Ydf)) || eltype(ConstError) <: Number
+                DataFrame(reduce(hcat, [fill(x,size(Ydf,1)) for x in ConstError]), [Symbol("sd_"*yn) for yn in string.(names(Ydf))])
+            else
+                throw("Do not know how to handle case $ConstError yet.")
+            end
         else
-            throw("Do not know how to handle case $ConstError yet.")
+            throw("Not programmed for reading error models yet.")
         end
-        Constructor(Xdf, Ydf, SigmaDf; xnames=names(Xdf), ynames=names(Ydf), name=C)
-    catch E;
-        debug && @warn "Tried getting errors but could not because of $E."
-        Constructor(Xdf, Ydf; xnames=names(Xdf), ynames=names(Ydf), name=C)
+    else
+        MissingToNan.(YdfE[!,map(startswith("sd_"), names(YdfE))])
+    end
+    if Sdf isa AbstractDataFrame
+        (any(ismissing, eachrow(df)) ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+    else
+        throw("Not programmed for reading error models yet.")
     end
 end
 

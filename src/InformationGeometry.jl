@@ -303,7 +303,7 @@ include("CustomIO.jl")
 function GetNllh end
 function GetNllhGrads end
 function GetNllhHesses end
-function GetDataUncertainty end
+function GetFixedDataUncertainty end
 function GetConditionData end
 function GetDataSets end
 function GetModelFunction end
