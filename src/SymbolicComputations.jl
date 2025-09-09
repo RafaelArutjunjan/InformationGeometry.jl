@@ -44,9 +44,11 @@ function ToExpr(M::ModelMap, xyp::Tuple{Int,Int,Int}=M.xyp; timeout::Real=5)
 end
 
 ## Alternatively: (need to catch LaTeXStrings before this to avoid $ though)
-MakeMTKVariables(S::Symbol) = eval(Meta.parse("@variables "*string(S)))[1];      MakeMTKVariables(S::AbstractArray{<:Symbol}) = [MakeMTKVariables(s) for s in S]
-# MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
-MakeSymbolicPars(X::AbstractVector) = MakeMTKVariables(X) # eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeMTKVariables(S::Symbol; base::AbstractString="@variables") = eval(Meta.parse(base*" "*string(S)))[1]
+MakeMTKVariables(S::AbstractArray{<:Symbol}; kwargs...) = [MakeMTKVariables(s; kwargs...) for s in S]
+
+MakeMTKParameters(S; base="@parameters", kwargs...) = MakeMTKVariables(S; base, kwargs...)
+MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
 
 # Apply String to make LaTeXStrings into strings as well
 SafeNames(X::AbstractVector) = all(SafeNames, X)

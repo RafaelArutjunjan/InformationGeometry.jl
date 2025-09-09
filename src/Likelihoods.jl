@@ -29,7 +29,7 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
 
 # Specialize this for different DataSet types
 function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    -0.5*(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...)))
+    (DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...))) / (-2)
 end
 
 function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=false, levels::Int=3, Kwargs...)
@@ -74,7 +74,7 @@ end
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
 
 InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Mat[i,j] * Y[j]
-InnerProductV(Mat::Diagonal, Y::AbstractVector) = @tullio Res := Mat.diag[j] * Y[j]^2
+InnerProductV(Mat::Diagonal, Y::AbstractVector) = (d = Mat.diag;  @tullio Res := d[j] * Y[j]^2)
 
 # Does not hit BLAS, sadly
 """
@@ -248,9 +248,9 @@ end
     GetRemainderFunction(DM::AbstractDataModel)
 Returns remainder function ``R(θ) = ℓ(θ) - QuadraticApprox(θ)``.
 """
-function GetRemainderFunction(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM))
-    F = FisherMetric(DM, mle)
-    QuadraticApprox(θ::AbstractVector{<:Number}) = LogLikeMLE(DM) - 0.5 * InformationGeometry.InnerProduct(F, θ-mle)
+function GetRemainderFunction(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...)
+    F = FisherMetric(DM, mle; kwargs...)
+    QuadraticApprox(θ::AbstractVector{<:Number}) = LogLikeMLE(DM) - 0.5 * InformationGeometry.InnerProduct(F, θ - mle)
     Remainder(θ::AbstractVector{<:Number}) = loglikelihood(DM, θ) - QuadraticApprox(θ)
 end
 
