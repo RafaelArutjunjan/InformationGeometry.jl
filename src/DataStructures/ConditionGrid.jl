@@ -27,11 +27,9 @@ for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
     @eval Base.$F(P::ParamTrafo, args...) = $F(P.Trafos, args...)
 end
 
-function Base.ComposedFunction(P::InformationGeometry.ParameterTransformations, inner::Function)
-    InformationGeometry.ParameterTransformations(map(x->x∘inner, P.Trafos), P.ConditionNames)
-end
+Base.ComposedFunction(P::ParamTrafo, inner::Function) = ParamTrafo(map(x->x∘inner, P.Trafos), P.ConditionNames)
 
-ConditionNames(P::ParameterTransformations) = P.ConditionNames
+ConditionNames(P::ParamTrafo) = P.ConditionNames
 
 
 # function TryToInferPnames()
@@ -73,7 +71,7 @@ struct ConditionGrid <: AbstractConditionGrid
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         FisherInfoFn::Function=MergeOneArgMethods(GetHess(ADmode,Negate(LogLikelihoodFn)), GetHess!(ADmode,Negate(LogLikelihoodFn))), # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
-        LogLikeMLE::Number=LogLikelihoodFn(mle), SkipOptim::Bool=false, SkipTests::Bool=false, verbose::Bool=true, kwargs...)
+        LogLikeMLE::Union{Nothing,Number}=nothing, SkipOptim::Bool=false, SkipTests::Bool=false, verbose::Bool=true, kwargs...)
         # Check pnames correct?
         # Condition names already unique from ParamTrafo
         @assert length(Trafos) == length(DMs)
@@ -87,9 +85,10 @@ struct ConditionGrid <: AbstractConditionGrid
             mle
         else
             InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
-        end            
+        end
+        logLikeMLE = isnothing(LogLikeMLE) ? LogLikelihoodFn(Mle) : LogLikeMLE
 
-        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE)
+        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, logLikeMLE)
     end
 end
 
@@ -105,7 +104,7 @@ name::Symbol=Symbol(),
 LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherInfoFn::Function=x->[-Inf],
-LogLikeMLE::Number=-Inf, 
+LogLikeMLE::Union{Nothing,Number}=-Inf, 
 SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)

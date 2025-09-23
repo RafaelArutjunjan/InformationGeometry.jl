@@ -300,7 +300,9 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     @assert IC > 0 && MinSafetyFactor > 1 && MaxSafetyFactor > MinSafetyFactor
     OnlyBreakOnBounds && adaptive && @warn "OnlyBreakOnBounds does not currently work with adaptive=true!"
     
-    # logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum)) > loglike
+    # Point IS OUTSIDE confidence interval if: loglike < logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum))
+    # Until final rescaling after profile computation Res is likelihood without offset (larger is better) ⟹ CostThresh and MaxThreshold < 0 with offset already included
+    # Should technically be called ObjectiveThreshold inside function
     CostThreshold, MaxThreshold = logLikeMLE .- 0.5 .* (IC*MinSafetyFactor, IC*MaxSafetyFactor)
 
     OptimDomain = Drop(Domain, Comp)
@@ -433,8 +435,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             len = length(visitedps) -1
             
             @inline function DoAdaptive(visitedps, Res, path, priors, Converged)
-                while Res[end] > CostThreshold
-
+                while !(Res[end] < CostThreshold) # break if threshold is passed
                     approx_curv = approx_PL_curvature((@view visitedps[end-2:end]), (@view Res[end-2:end]))
                     approx_grad = (Res[end]-Res[end-1]) / (visitedps[end]-visitedps[end-1])
                     newδ = stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(abs(approx_curv)) + gradientsensitivity*abs(approx_grad)))
@@ -666,9 +667,9 @@ function _ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=t
     else
         # Already 2(loglikeMLE - loglike) in Profile
         CostThresh = if !isnothing(CostThreshold)
+            # Allow for computation of F-based threshold here?
             CostThreshold
         else
-            # Allow for computation of F-based threshold here?
             InvChisqCDF(dof, ConfVol(Confnum))
         end
         FindZerosWrapper(x->(F(x)-CostThresh), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
