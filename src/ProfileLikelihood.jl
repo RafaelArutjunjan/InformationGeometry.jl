@@ -498,7 +498,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     end
 
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
-    Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger than the previously stored LogLikeMLE. Continuing anyway."
+    Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger (i.e. better) than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPriorFn,mle) : 0.0
     if IsCost
