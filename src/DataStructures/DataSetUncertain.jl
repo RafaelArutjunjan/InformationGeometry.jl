@@ -77,7 +77,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
 end
 
 function (::Type{T})(DS::DataSetUncertain{B}; kwargs...) where T<:Number where B
-	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), DS.keep, Xnames(DS), Ynames(DS), name(DS); BesselCorrection=B, kwargs...)
+	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), Xnames(DS), Ynames(DS), name(DS); keep=DS.keep, BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake

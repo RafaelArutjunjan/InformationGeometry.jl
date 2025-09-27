@@ -94,7 +94,7 @@ end
 
 function (::Type{T})(DS::DataSet; kwargs...) where T<:Number
 	NewInvCov = T.(yInvCov(DS))
-    DataSet(T.(xdata(DS)), T.(ydata(DS)), NewInvCov, dims(DS), logdet(NewInvCov), [SVector{xdim(dims(DS))}(Z) for Z in Windup(T.(xdata(DS)),xdim(dims(DS)))]; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+    DataSet(T.(xdata(DS)), T.(ydata(DS)), NewInvCov, dims(DS), logdet(NewInvCov), (isnothing(DS.WoundX) ? nothing : [SVector{xdim(dims(DS))}(Z) for Z in Windup(T.(xdata(DS)),xdim(dims(DS)))]); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
 end
 
 

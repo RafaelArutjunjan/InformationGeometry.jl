@@ -695,10 +695,10 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5
 
 
 """
-    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1; plot::Bool=isloaded(:Plots), IsCost::Bool=false, kwargs...) -> Real
+    PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=3; plot::Bool=isloaded(:Plots), IsCost::Bool=false, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=1.0; plot::Bool=isloaded(:Plots), N::Int=100, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, IsCost=IsCost, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=3; plot::Bool=isloaded(:Plots), N::Int=100, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, IsCost=IsCost, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}})
     function Minimax(M::Union{<:AbstractMatrix,<:VectorOfArray})
