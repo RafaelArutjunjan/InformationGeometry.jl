@@ -126,12 +126,14 @@ function TestDataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::Mode
     end
     if LogPriorFn isa Function
         @assert LogPriorFn(MLE) isa Real
-        !all(x->x ≤ 0.0, eigvals(EvalLogPriorHess(LogPriorFn, MLE))) && @warn "Hessian of specified LogPrior does not appear to be negative-semidefinite at MLE."
+        !all(x->x ≤ 0.0, svdvals(EvalLogPriorHess(LogPriorFn, MLE))) && @warn "Hessian of specified LogPrior does not appear to be negative-semidefinite at MLE."
     end
-    !isfinite(LogLikeMLE) && @warn "Got non-finite likelihood value at MLE $LogLikeMLE."
+    !isfinite(LogLikeMLE) && @warn "Got non-finite likelihood value $LogLikeMLE at MLE $MLE."
     S = ScoreFn(MLE)
+    !all(isfinite, S) && @warn "Got non-finite gradient $S at MLE $MLE."
     norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherInfoFn(MLE)
+    !all(isfinite, g) && @warn "Got non-finite Hessian $g at MLE $MLE."
     det(g) == 0 && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
     !isposdef(Symmetric(g)) && @warn "Hessian of likelihood at supposed MLE $MLE not negative-definite: Consider passing an appropriate initial parameter configuration 'init' for the estimation of the MLE to DataModel e.g. via DataModel(DS,model,init)."
 end
