@@ -107,6 +107,12 @@ TotalLeastSquaresV(args...; kwargs...) = reduce(vcat, TotalLeastSquares(args...;
 # Currently, Fminbox errors for: SimulatedAnnealing, ParticleSwarm, AbstractNGMRES
 # Apparently by design cannot handle: AcceleratedGradientDescent, MomentumGradientDescent, Newton, NewtonTrustRegion, KrylovTrustRegion
 
+allowsfminbox(meth::Union{NelderMead, BFGS, LBFGS, GradientDescent, ConjugateGradient}) = true
+# allowsfminbox(meth::Union{SimulatedAnnealing, ParticleSwarm, AbstractNGMRES, AcceleratedGradientDescent, 
+#                         MomentumGradientDescent, Newton, NewtonTrustRegion, KrylovTrustRegion}) = false
+allowsfminbox(meth) = false
+
+
 ConstrainMeth(meth::Optim.AbstractOptimizer, Domain::Nothing; verbose::Bool=true) = meth
 function ConstrainMeth(meth::Optim.AbstractOptimizer, Domain::HyperCube; verbose::Bool=true)
     if meth isa Optim.AbstractConstrainedOptimizer

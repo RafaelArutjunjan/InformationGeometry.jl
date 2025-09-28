@@ -112,10 +112,10 @@ function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(D
     OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
     if !isnothing(IsLin) && any(IsLin)
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
         H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        pretty_table([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
 function ParamSummary(io::IO, DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))

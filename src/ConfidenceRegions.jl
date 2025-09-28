@@ -237,10 +237,9 @@ function FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM
     FindMLEBig(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing; ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
-                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
-                tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/30)), meth::Optim.AbstractOptimizer=NewtonTrustRegion(), verbose::Bool=true, kwargs...)
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction), tol::Real=1e-14, verbose::Bool=true, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
-    InformationGeometry.minimize(CostFunction, ScoreFn, BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); meth=meth, tol=tol, verbose=verbose, kwargs...)
+    InformationGeometry.minimize(CostFunction, ScoreFn, BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); tol, verbose, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing; kwargs...)
     FindMLEBig(DS, model, start, LogPriorFn; kwargs...)
@@ -260,9 +259,9 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVec
         curve_fit(DS, model, start; tol=tol).param
     else
         if isnothing(meth)
-            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol, verbose, kwargs...)
         else
-            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, meth=meth, verbose=verbose, kwargs...)
+            InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol, meth, verbose, kwargs...)
         end
     end
 end
