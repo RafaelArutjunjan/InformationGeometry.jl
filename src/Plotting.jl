@@ -100,9 +100,12 @@ function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{Ab
     RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", linewidth=2, kwargs...)
 end
 
+
+RecipesBase.@recipe f(DS::AbstractDataSet, positions::AbstractVector{<:Number}=xdata(DS)) = xdim(DS) == 1 ? (DS, Val(:Default), positions) : (DS, Val(:ManyPredictors))
+
 # xpositions for PDE Datasets
-RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<:Number}=xdata(DS))
-    xdim(DS) != 1 && throw("Not programmed for plotting xdim != 1 yet.")
+RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS))
+    @assert xdim(DS) == 1 "Use a different plotting method with Val(:ManyPredictors) or Val(:IgnoreX)"
     ysig = ysigma(DS)
     Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
     xsig = xsigma(DS)
@@ -134,12 +137,8 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, xpositions::AbstractVector{<
     else
         Unpack(Windup(ydata(DS), ydim(DS))) |> transpose
     end
-    if ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)
-        # Discard xpositions if xpositions == xdata but ydim > Npoints
-        return Y
-    else
-        return xpositions, Y
-    end
+    # Discard xpositions if xpositions == xdata but ydim > Npoints
+    (ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)) ? Y : (xpositions, Y)
 end
 
 RecipesBase.@recipe f(DS::AbstractDataSet, S::Symbol, xpositions::AbstractVector{<:Number}=xdata(DS)) = DS, Val(S), xpositions
@@ -225,6 +224,49 @@ end
 # Forward to other methods
 RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, args...) = (DM, Val(S))
 
+
+@recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}; rectangular=true)
+    layout --> (rectangular ? (ydim(DS),xdim(DS)) : xdim(DS)*ydim(DS))
+    plot_title --> string(name(DS))
+    ysig = ysigma(DS)
+    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    xsig = xsigma(DS)
+    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    for j in 1:ydim(DS)
+        for i in 1:xdim(DS)
+            @series begin
+                xguide := xnames(DS)[i]
+                yguide := ynames(DS)[j]
+                label --> "Data"
+                leg --> false
+                seriestype --> :scatter
+                yerror --> getindex.(Windup(Σ_y, ydim(DS)), j)
+                !isnothing(Σ_x) && (xerror --> getindex.(Windup(Σ_x, xdim(DS)), i))
+                getindex.(WoundX(DS),i), getindex.(WoundY(DS),j)
+            end
+        end
+    end
+end
+
+# Just plot data points in order
+@recipe function f(DS::AbstractDataSet, V::Val{:IgnoreX}; collapse=false)
+    !collapse && (layout --> ydim(DS))
+    plot_title --> string(name(DS))
+    ysig = ysigma(DS)
+    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    for j in 1:ydim(DS)
+        @series begin
+            xguide := "Data Point Index"
+            yguide := collapse ? "Observations" : ynames(DS)[j]
+            label --> "Data"
+            leg --> false
+            seriestype --> :scatter
+            yerror --> getindex.(Windup(Σ_y, ydim(DS)), j)
+            Ys = getindex.(WoundY(DS),j)
+            1:length(Ys), Ys
+        end
+    end
+end
 
 ## Bad form but works
 # RecipesBase.plot(DSs::AbstractVector{<:AbstractDataSet}; kwargs...) = RecipesBase.plot([RecipesBase.plot(DS; leg=false, kwargs...) for DS in DSs]...; layout=length(DSs))
