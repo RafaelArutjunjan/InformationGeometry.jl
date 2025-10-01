@@ -101,7 +101,7 @@ function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{Ab
 end
 
 
-RecipesBase.@recipe f(DS::AbstractDataSet, positions::AbstractVector{<:Number}=xdata(DS)) = xdim(DS) == 1 ? (DS, Val(:Default), positions) : (DS, Val(:ManyPredictors))
+RecipesBase.@recipe f(DS::AbstractDataSet, positions::AbstractVector{<:Number}=xdata(DS)) = xdim(DS) == 1 ? (DS, Val(:Default), positions) : (DS, Val(xdim(DS) ≤ 10 ? :ManyPredictors : :IgnoreX))
 
 # xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS))
@@ -224,8 +224,8 @@ end
 # Forward to other methods
 RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, args...) = (DM, Val(S))
 
-
-@recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}; rectangular=true)
+# Plot multiple (~10) independent variables separately
+@recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}; rectangular=(xdim(DS) ≤ 10))
     layout --> (rectangular ? (ydim(DS),xdim(DS)) : xdim(DS)*ydim(DS))
     plot_title --> string(name(DS))
     ysig = ysigma(DS)
@@ -248,8 +248,8 @@ RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, 
     end
 end
 
-# Just plot data points in order
-@recipe function f(DS::AbstractDataSet, V::Val{:IgnoreX}; collapse=false)
+# Just plot data points in order when number of independent variables > 10
+@recipe function f(DS::AbstractDataSet, V::Val{:IgnoreX}; collapse=(ydim(DS) ≤ 5))
     !collapse && (layout --> ydim(DS))
     plot_title --> string(name(DS))
     ysig = ysigma(DS)
