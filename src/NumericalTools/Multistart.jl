@@ -500,6 +500,15 @@ function StochasticProfileLikelihood(R::MultistartResults, args...; plot::Bool=f
     vcat(R, StochasticProfileLikelihood(args...; plot, seed=ContinuationSeed(R), kwargs...))
 end
 
+"""
+    StochasticProfileLikelihood(df::AbstractDataFrame, LikelihoodCol::Int=size(df,2); plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=DataFrames.names(df)[Not(LikelihoodCol)], kwargs...)
+Converts `AbstractDataFrame` of sampled points into MultistartResults object for subsequent SPLA analysis.
+Assumes by default that last column is log-likelihood values, and remaining part of rows are corresponding parameter configuration.
+"""
+function StochasticProfileLikelihood(df::AbstractDataFrame, LikelihoodCol::Int=size(df,2); pnames::AbstractVector{<:AbstractString}=DataFrames.names(df)[Not(LikelihoodCol)], kwargs...)
+    StochasticProfileLikelihood([Vector(x) for x in eachrow(df[:,Not(LikelihoodCol)])], Vector(df[:,LikelihoodCol]); pnames, kwargs...)
+end
+
 
 
 for F in [:GetStochasticProfile, :_GetStochasticProfile, :GetStochastic2DProfile, :_GetStochastic2DProfile]
@@ -512,6 +521,7 @@ CenteredVec(X::AbstractVector) = @views (X[1:end-1] .+ X[2:end]) ./ 2
 
 # Already has factor of two
 # Offset optional
+# Converts sampled points into `ParameterProfiles` object for reusing plotting functionality for paths etc.
 function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, Idxs::AbstractVector{<:Int}=1:length(Points[1]); dof::Int=length(Points[1]), pnames::AbstractVector=CreateSymbolNames(length(Points[1])), pBins::Union{Nothing,AbstractVector{<:AbstractVector{<:Number}}}=nothing, kwargs...)
     # Allow for Vector{Vector} pBins to be passed for setting the pBins of all profiles manually
     Res = [_GetStochasticProfile(Points, Likelihoods, i; (!isnothing(pBins) ? (; pBins=pBins[i]) : (;))..., kwargs...) for i in Idxs]
