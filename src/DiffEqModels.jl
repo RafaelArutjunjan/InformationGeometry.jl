@@ -34,7 +34,7 @@ end
 
 
 # Although specialized methods for constant initial condition and specification of observed components in terms of arrays is faster than using functions, also use general method here.
-function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observables; kwargs...) where T
+function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observables, args...; kwargs...) where T
     SplitterFunction = if Initial isa Function
         Initial
     else
@@ -42,10 +42,13 @@ function GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Initial, Observable
         # θ -> (u0, θ)
         θ -> (Initial, θ)
     end
-    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : ViewElements(Observables)); kwargs...)
+    GetModel(func, SplitterFunction, (Observables isa Function ? Observables : ViewElements(Observables)), args...; kwargs...)
 end
 
-function GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, ObservationFunction::Function; kwargs...)
+function _GetModelFast(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, ObservationFunction::Function, args...; kwargs...)
+    throw("If you see this error, it is most likely because no specialized method has been implemented for $(typeof(func)) yet.")
+end
+function _GetModelRobust(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, ObservationFunction::Function, args...; kwargs...)
     throw("If you see this error, it is most likely because no specialized method has been implemented for $(typeof(func)) yet.")
 end
 
@@ -54,7 +57,7 @@ end
 # Retain argument-type specific docstrings but allow for robust
 
 """
-    GetModel(func::ODEFunction, u0::AbstractArray, ObservationFunction::Function; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+    GetModel(func::SciMLBase.AbstractDiffEqFunction, u0::AbstractArray, ObservationFunction::Function, args...; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
 Returns a `ModelMap` which evolves the given system of ODEs from the initial configuration `u0` and afterwards applies the `ObservationFunction` to produce its predictions.
 
 `ObservationFunction` should either be of the form `F(u) -> Vector` or `F(u,t) -> Vector` or `F(u,t,θ) -> Vector`.
@@ -62,10 +65,10 @@ Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if
 
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
-GetModel(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, ObservationFunc::Function; kwargs...) where T = GetModelFastOrRobust(func,u0,ObservationFunc; kwargs...)
+GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, ObservationFunc::Function, args...; kwargs...) where T = GetModelFastOrRobust(func,u0,ObservationFunc, args...; kwargs...)
 
 """
-    GetModel(func::ODEFunction, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+    GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, observables::Union{AbstractVector{<:Int},BoolArray}, args...; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
 Returns a `ModelMap` which evolves the given system of ODEs and returns `u[observables]` to produce its predictions.
 Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
 
@@ -74,10 +77,10 @@ Typically, a fair bit of performance can be gained from ensuring that `SplitterF
 
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
-GetModel(func::AbstractODEFunction{T}, Splitter::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1; kwargs...) where T = GetModelFastOrRobust(func, Splitter, Observables; kwargs...)
+GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter::Function, Observables::Union{Int,AbstractVector{<:Int},BoolArray}, args...; kwargs...) where T = GetModelFastOrRobust(func, Splitter, Observables, args...; kwargs...)
 
 """
-    GetModel(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
+    GetModel(func::SciMLBase.AbstractDiffEqFunction, SplitterFunction::Function, PreObservationFunction::Function, args...; tol::Real=1e-7, meth::AbstractODEAlgorithm=Tsit5(), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true)
 Returns a `ModelMap` which evolves the given system of ODEs and afterwards applies the `ObservationFunction` to produce its predictions.
 Here, the initial conditions for the ODEs are produced from the parameters `θ` using the `SplitterFunction` which for instance allows one to estimate them from data.
 
@@ -93,7 +96,7 @@ Internally, the `ObservationFunction` is automatically wrapped as `F(u,t,θ)` if
 
 A `Domain` can be supplied to constrain the parameters of the model to particular ranges which can be helpful in the fitting process.
 """
-GetModel(func::AbstractODEFunction{T}, Splitter::Function, ObservationFunc::Function; kwargs...) where T = GetModelFastOrRobust(func, Splitter, ObservationFunc; kwargs...)
+GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter::Function, ObservationFunc::Function, args...; kwargs...) where T = GetModelFastOrRobust(func, Splitter, ObservationFunc, args...; kwargs...)
 
 
 
@@ -103,10 +106,11 @@ ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{ForwardDiff.Dual{
 ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = var
 
 function GetModelFast(args...; Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
-    ODEmodel, Meta = _GetModelFast(args...; Domain, kwargs...)
-    MakeCustom(ODEmodel, Domain; Meta, verbose=false)
+    DEmodel, Meta = _GetModelFast(args...; Domain, kwargs...)
+    MakeCustom(DEmodel, Domain; Meta, verbose=false)
 end
 
+### Fast ODE methods
 # Vanilla version with constant array of initial conditions and vector of observables.
 function _GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractArray{<:Number}}, Observables::Union{Int,AbstractVector{<:Int},BoolArray}=1:length(u0); tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
@@ -231,16 +235,16 @@ end
 """
 Switch between possibly slightly faster method which does not allow for time autodifferentiation vs 'robust' method which additionally includes backward integration.
 """
-function GetModelFastOrRobust(func::AbstractODEFunction{T}, Splitter, ObservationFunc; robust::Bool=true, pnames=nothing, kwargs...) where T
+function GetModelFastOrRobust(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter, ObservationFunc, args...; robust::Bool=true, pnames=nothing, kwargs...) where T
     Mod = if robust
-        GetModelRobust(func, Splitter, ObservationFunc; kwargs...)
+        GetModelRobust(func, Splitter, ObservationFunc, args...; kwargs...)
     else
-        GetModelFast(func, Splitter, ObservationFunc; kwargs...)
+        GetModelFast(func, Splitter, ObservationFunc, args...; kwargs...)
     end
     !isnothing(pnames) ? InformNames(Mod, pnames) : Mod
 end
 
-function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
+function GetModelRobust(func::SciMLBase.AbstractDiffEqFunction, u0, Observables, args...; kwargs...)
     SplitterFunction = if u0 isa Function
         u0
     elseif u0 isa Union{Number, AbstractArray}
@@ -256,14 +260,15 @@ function GetModelRobust(func::AbstractODEFunction, u0, Observables; kwargs...)
     else
         throw("ObservationFunction must be either Function, AbstractArray or Number.")
     end
-    GetModelRobust(func, SplitterFunction, ObservationFunction; kwargs...)
+    GetModelRobust(func, SplitterFunction, ObservationFunction, args...; kwargs...)
 end
 
-function GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; Domain::Union{HyperCube,Nothing}=nothing, kwargs...) where T
-    ODEmodel, Meta = _GetModelRobust(func, SplitterFunction, PreObservationFunction; Domain, kwargs...)
-    MakeCustom(ODEmodel, Domain; Meta, verbose=false)
+function GetModelRobust(func::SciMLBase.AbstractDiffEqFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, args...; Domain::Union{HyperCube,Nothing}=nothing, kwargs...) where T
+    DEmodel, Meta = _GetModelRobust(func, SplitterFunction, PreObservationFunction, args...; Domain, kwargs...)
+    MakeCustom(DEmodel, Domain; Meta, verbose=false)
 end
 
+### Robust ODE methods
 function _GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; tol::Real=1e-7,
                     meth::AbstractODEAlgorithm=GetMethod(tol), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     # @assert T == inplace
