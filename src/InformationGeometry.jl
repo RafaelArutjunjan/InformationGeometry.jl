@@ -311,6 +311,12 @@ function SplitParamsIntoCategories end
 function NicifyPEtabNames end
 
 
+function NeuralNet end
+function NormalizedNeuralModel end
+
+export NeuralNet, NormalizedNeuralModel
+
+
 using SnoopPrecompile
 
 SnoopPrecompile.@precompile_all_calls begin

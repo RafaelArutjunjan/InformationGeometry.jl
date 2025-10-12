@@ -51,12 +51,14 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 [weakdeps]
 BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757"
 LibGEOS = "a90b1aa1-3769-5649-ba7e-abc5a9d163eb"
+Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 
 [extensions]
 InformationGeometryBoundaryValueDiffEqExt = ["BoundaryValueDiffEqShooting"]
 InformationGeometryLibGEOSExt = ["LibGEOS"]
+InformationGeometryLuxExt = ["Lux"]
 InformationGeometryModelingToolkitExt = ["ModelingToolkit"]
 InformationGeometryPEtabExt = ["PEtab", "ModelingToolkit"]
 
@@ -77,7 +79,8 @@ GenericLinearAlgebra = "0.3"
 HCubature = "1.4"
 LibGEOS = "0.6, 0.7, 0.8, 0.9"
 LineSearches = "5, 6, 7"
-LsqFit = "0.9, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15"
+LsqFit = "0.9 - 0.15"
+Lux = "1"
 Measurements = "2"
 ModelingToolkit = "5 - 10"
 Optim = "1"
@@ -101,7 +104,7 @@ Sobol = "1.3, 1.4"
 SpecialFunctions = "0.9, 0.10, 1, 2"
 StaticArrays = "0.11, 0.12, 1"
 Suppressor = "0.1, 0.2"
-SymbolicUtils = "0.11.3 - 0.17, 0.18, 0.19, 0.20, 1, 2 - 9"
+SymbolicUtils = "0.11.3 - 9"
 Symbolics = "1 - 6"
 TreeViews = "0.3"
 Tullio = "0.3"
