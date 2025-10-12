@@ -68,7 +68,8 @@ struct DataModel <: AbstractDataModel
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector, LogPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode=ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
+                                    ADmode::Union{Symbol,Val}=Val(:ForwardDiff), SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
         if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && length(Domain(model)) + errormoddim(DS) == length(startp)
             # Error parameters not accounted for in Domain yet and recognized by GetStartP
             @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
@@ -79,17 +80,17 @@ struct DataModel <: AbstractDataModel
             model = remake(M; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom)
             dmodel isa ModelMap && (dmodel = remake(dmodel; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom))
         end
-        mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth)
+        mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode)
         # Optimization already happened, propagate SkipOptim=true explicitly for later
-        DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, kwargs...)
+        DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
                         ADmode::Union{Symbol,Val}=Val(:ForwardDiff), LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
         LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
         logLikelihoodFn = isnothing(LogLikelihoodFn) ? GetLogLikelihoodFn(DS, model, logPriorFn; ADmode) : LogLikelihoodFn
-        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth)
+        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth, ADmode)
         LogLikeMLE = SkipTests ? (try logLikelihoodFn(Mle) catch; -Inf end) : logLikelihoodFn(Mle)
-        DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; LogLikelihoodFn=logLikelihoodFn, SkipTests, SkipOptim=true, kwargs...)
+        DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; LogLikelihoodFn=logLikelihoodFn, SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Mle::AbstractVector{<:Number}, LogLikeMLE::Real, SkipOptimAndTests::Bool=false; kwargs...)
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, nothing, SkipOptimAndTests; kwargs...)

@@ -1416,6 +1416,7 @@ struct ConfidenceBoundary <: AbstractConfidenceBoundary
     Slices::AbstractVector{<:AbstractBoundarySlice}
 end
 
+function Slices end # Do not intend to refer to Base.Slices here
 Slices(CB::ConfidenceBoundary) = CB.Slices
 Base.length(CB::ConfidenceBoundary) = CB |> Slices |> length
 Base.firstindex(CB::ConfidenceBoundary) = firstindex(Slices(CB))
