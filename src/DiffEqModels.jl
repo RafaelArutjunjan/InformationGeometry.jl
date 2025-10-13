@@ -314,6 +314,91 @@ function _GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Functio
 end
 
 
+import SciMLBase: AbstractDDEFunction
+## Fast and robust versions for DelayDiffEqs
+function _GetModelFast(func::AbstractDDEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, HistoryFunction::Function; tol::Real=1e-7, constant_lags=[], dependent_lags=[], 
+                    meth::SciMLBase.AbstractDDEAlgorithm=MethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    # @assert T == inplace
+    @assert MaximalNumberOfArguments(func.f) == 5
+    @assert 2 ≤ MaximalNumberOfArguments(HistoryFunction) ≤ 3
+
+    CB = callback
+    ObservationFunction = CompleteObservationFunction(PreObservationFunction)
+
+    function GetSol(θ::AbstractVector{<:Number}, HistoryFunction::Function, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., constant_lags=constant_lags, dependent_lags=dependent_lags, 
+                                                    meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        solve(ddeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+    end
+    function DelayDEmodel(t::Number, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
+                                                    ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                                    tol::Real=tol, max_t::Number=t, meth::SciMLBase.AbstractDDEAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, HistoryFunction, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, constant_lags=constant_lags, dependent_lags=dependent_lags, kwargs...)
+        sol = GetSol(θ, HistoryFunction, SplitterFunction; tol=tol, max_t=max_t, meth=meth, save_everystep=false, save_start=false, save_end=true, constant_lags=constant_lags, dependent_lags=dependent_lags, kwargs...)
+        ObservationFunction(sol.u[end], sol.t[end], θ)
+    end
+    function DelayDEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
+                                            ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Number=maximum(ts), meth::SciMLBase.AbstractDDEAlgorithm=meth, FullSol::Bool=false, kwargs...)
+        FullSol && return GetSol(θ, HistoryFunction, SplitterFunction; tol=tol, max_t=max_t, meth=meth, tstops=ts, constant_lags=constant_lags, dependent_lags=dependent_lags, kwargs...)
+        sol = GetSol(θ, HistoryFunction, SplitterFunction; tol=tol, max_t=max_t, meth=meth, saveat=ts, constant_lags=constant_lags, dependent_lags=dependent_lags, kwargs...)
+        length(sol.u) != length(ts) && throw("DDE integration failed, maybe try using a lower tolerance value. θ=$θ.")
+        [ObservationFunction(sol.u[i], sol.t[i], θ) for i in eachindex(ts)] |> Reduction
+    end
+    # MakeCustom(DelayDEmodel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback, HistoryFunction), verbose=false)
+    Meta = (func, SplitterFunction, ObservationFunction, callback, HistoryFunction)
+    DelayDEmodel, Meta
+end
+
+
+function _GetModelRobust(func::AbstractDDEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, HistoryFunction::Function; tol::Real=1e-7, constant_lags=[], dependent_lags=[], 
+                    meth::SciMLBase.AbstractDDEAlgorithm=MethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+    # @assert T == inplace
+    CB = callback
+    ObservationFunction = CompleteObservationFunction(PreObservationFunction)
+
+    function _DDEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
+                                            ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        sol = solve(ddeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        FullSol ? sol : Reduction([ObservationFunction(sol(t), t, θ) for t in ts])
+    end
+    # ts sorted ascending, smallest element is first
+    function _DDEmodelbacksorted(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; max_t::Number=maximum(ts), FullSol::Bool=false, kwargs...)
+        @assert !FullSol "Cannot provide FullSol for backwards integration."
+        lastind = findfirst(x->x≥0.0, ts)
+        if isnothing(lastind)
+            _DDEmodel(ts, θ; max_t=ts[1], kwargs...)
+        else
+            [_DDEmodel(view(ts,1:lastind-1), θ; max_t=ts[1], kwargs...); _DDEmodel(view(ts,lastind:length(ts)), θ; max_t=max_t, kwargs...)]
+        end
+    end
+    function _DDEmodelback(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
+                                            ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
+                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+        @assert !FullSol "Cannot provide FullSol for backwards integration."
+        u0, p = SplitterFunction(θ)
+        negTs = map(x->x<0.0, ts);  min_t = minimum(ts)
+
+        ddeprob1 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(min_t), min_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        ddeprob2 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+
+        sol1 = solve(ddeprob1, meth; reltol=tol, abstol=tol, saveat=ts[negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol2 = solve(ddeprob2, meth; reltol=tol, abstol=tol, saveat=ts[.!negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        [ObservationFunction((t < 0.0 ? sol1(t) : sol2(t)) , t, θ) for t in ts] |> Reduction
+    end
+
+    DDEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = all(x->x≥0.0, ts) ? _DDEmodel(ts, θ; kwargs...) : (issorted(ts) ? _DDEmodelbacksorted(ts, θ; kwargs...) : _DDEmodelback(ts, θ; kwargs...))
+    DDEmodel(t::Number, θ::AbstractVector{<:Number}; kwargs...) = DDEmodel([t], θ; kwargs...)
+
+    # MakeCustom(DDEmodel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback, HistoryFunction), verbose=false)
+    Meta = (func, SplitterFunction, ObservationFunction, callback, HistoryFunction)
+    DDEmodel, Meta
+end
+
+
+
 """
     ModifyODEmodel(DM::AbstractDataModel, NewObservationFunc::Function) -> ModelMap
 Constructs a new `ModelMap` with new observation function `f(u,t,θ)` from a given ODE-based `DataModel`.
