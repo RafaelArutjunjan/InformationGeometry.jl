@@ -97,9 +97,10 @@ struct DataModel <: AbstractDataModel
     end
     # Block kwargs here.
     function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real, Logprior::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode,
-                                    LogPriorFn::Union{Function,Nothing}=Logprior, # Prior(Logprior, MLE, (-1,length(MLE))), 
+                                    SafeScore::Bool=UnsafeScore(ADmode), LogPriorFn::Union{Function,Nothing}=Logprior, # Prior(Logprior, MLE, (-1,length(MLE))), 
                                     LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn; ADmode),
-                                    ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode),
+                                    ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; SafeScore, ADmode=EnsureNoSymbolic(ADmode)), 
+                                    FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=EnsureNoSymbolic(ADmode)),
                                     SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model))
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         # length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
@@ -115,8 +116,6 @@ struct DataModel <: AbstractDataModel
         new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, Symbol.(name))
     end
 end
-
-
 
 
 function TestDataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, MLE::AbstractVector{<:Number}, LogLikeMLE::Real, LogPriorFn::Union{Function,Nothing},
@@ -208,8 +207,8 @@ Prior(D::DFunction, args...; kwargs...) = D
 EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
 # EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
 # EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
-EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = GetGrad(P; kwargs...)(θ)
-EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = GetHess(P; kwargs...)(θ)
+EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, P; kwargs...)(θ)
+EvalLogPriorHess(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, P; kwargs...)(θ)
 
 EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zero(T)
 EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x))

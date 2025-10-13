@@ -233,9 +233,12 @@ function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int
     X
 end
 
+# Make sure the given ADmode is valid for optimization in InformationGeometry.minimize
 EnsureNoSymbolic(V::Val{:Symbolic}) = Val(isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff)
 EnsureNoSymbolic(V::Val) = V
 EnsureNoSymbolic(S::Symbol) = S === :Symbolic ? (isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff) : S
+# false should use FiniteDifferences, will throw error if not loaded but ForwardDiff clearly not intended anyway
+EnsureNoSymbolic(B::Bool) = B ? Val(:ForwardDiff) : Val(:FiniteDifferences)
 
 function FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); LogLikelihoodFn::Function=loglikelihood(DM), kwargs...)
     FindMLEBig(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)

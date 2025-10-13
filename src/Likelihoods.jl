@@ -32,12 +32,30 @@ function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::Abstrac
     (DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...))) / (-2)
 end
 
-function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=false, levels::Int=3, Kwargs...)
+# function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+#     __loglikelihood(DS, model, θ, ydata(DS), yInvCov(DS, θ); kwargs...)
+# end
+
+# function __loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, Ydata::AbstractVector, YinvCov::AbstractMatrix; kwargs...)
+#     Y = EmbeddingMap(DS, model, θ; kwargs...)
+#     @inline (DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(YinvCov, Ydata .- Y)) / (-2)
+# end
+# function __loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
+#     (DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...))) / (-2)
+# end
+
+
+## Fully symbolic representation
+# function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Num}; kwargs...)
+#     -(DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), MakeMTKVariables(Symbol.(CreateSymbolNames(length(ydata(DS)), "y_data"))) .- EmbeddingMap(DS, model, θ; kwargs...))) // (2)
+# end
+
+function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Union{Nothing,Function}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), levels::Int=3, Kwargs...)
     # Pre-Computations or buffers here
     BareLikelihood = if inplace
         GetInplaceLikelihood(DS, model; levels)
     else
-        OutOfPlaceLikelihood(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; Kwargs..., kwargs...)
+        OutOfPlaceLikelihood(θ::AbstractVector{<:Number}; kwargs...) = _loglikelihood(DS, model, θ; kwargs...)
     end
     if isnothing(LogPriorFn)
         """
@@ -45,14 +63,14 @@ function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPrio
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         No prior was given for the parameters.
         """
-        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; kwargs...)
+        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; Kwargs..., kwargs...)
     else
         """
             LogLikelihoodWithPrior(θ::AbstractVector; kwargs...) -> Real
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         The given prior information is already incorporated.
         """
-        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; kwargs...) + EvalLogPrior(LogPriorFn, θ)
+        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
     end
 end
 GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; kwargs...))
@@ -182,8 +200,15 @@ function _Score(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunc
     # transpose(EmbeddingMatrix(DS,dmodel,θ; kwargs...)) * (yInvCov(DS) * (ydata(DS) - EmbeddingMap(DS,model,θ; kwargs...)))
 end
 
-function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    if !(ADmode isa Val{false})
+# Checks whether Val(false) should be used for score, in order to be safe.
+# Slower than direct AD but safe since it reuses the given dmodel
+const SafeScores = [:ForwardDiff, :FiniteDiff, :FiniteDifferences, :ReverseDiff, :Zygote]
+UnsafeScore(S::Symbol) = S ∉ SafeScores
+UnsafeScore(B::Bool) = !B
+UnsafeScore(V::Val{T}) where T = UnsafeScore(T)
+
+function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), SafeScore::Bool=UnsafeScore(ADmode), Kwargs...)
+    if !SafeScore
         # In this case, performance gain from in-place score is usually marginal since it uses out-of-place EmbeddingMap
         ADS, ADS! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
         """
@@ -197,11 +222,11 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
         LogLikelihoodGradient(θ::AbstractVector{<:Number}; kwargs...) = ADS(θ; Kwargs..., kwargs...)
         LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADS!(dl, θ; Kwargs..., kwargs...)
     else
-        @warn "No smart way for switching back to other ADmode via kwarg yet. You are stuck with manually computed Score. To switch, remake the DataModel."
-        @warn "Also, the currently provided in-place method is fake."
-        S = ((θ::AbstractVector; kwargs...) -> _Score(DS, model, dmodel, θ, Val(false); Kwargs..., kwargs...))
+        @warn "The currently provided in-place method for Score is fake."
+        V = Val(false)
+        S = ((θ::AbstractVector; ADmode=V, kwargs...) -> _Score(DS, model, dmodel, θ, V; Kwargs..., kwargs...))
         # This is where the buffer magic should happen for inplace EmbeddingMap! and EmbeddingMatrix!
-        S! = ((dl::AbstractVector, θ::AbstractVector; kwargs...) -> copyto!(dl,_Score(DS, model, dmodel, θ, Val(false); Kwargs..., kwargs...)))
+        S! = ((dl::AbstractVector, θ::AbstractVector; ADmode=V, kwargs...) -> copyto!(dl,_Score(DS, model, dmodel, θ, V; Kwargs..., kwargs...)))
 
         if isnothing(LogPriorFn)
             """
@@ -223,9 +248,9 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
             !!! note
                 The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
             """
-            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) + EvalLogPriorGrad(LogPriorFn, θ)
+            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) + EvalLogPriorGrad(LogPriorFn, θ; ADmode)
             function ScoreWithPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
-                S!(dl, θ; kwargs...);    dl += EvalLogPriorGrad(LogPriorFn, θ);    dl
+                S!(dl, θ; kwargs...);    dl += EvalLogPriorGrad(LogPriorFn, θ; ADmode);    dl
             end
         end
     end
