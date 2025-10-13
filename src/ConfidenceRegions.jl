@@ -233,11 +233,15 @@ function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int
     X
 end
 
+EnsureNoSymbolic(V::Val{:Symbolic}) = Val(isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff)
+EnsureNoSymbolic(V::Val) = V
+EnsureNoSymbolic(S::Symbol) = S === :Symbolic ? (isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff) : S
+
 function FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); LogLikelihoodFn::Function=loglikelihood(DM), kwargs...)
     FindMLEBig(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)
 end
 function FindMLEBig(DS::AbstractDataSet,model::ModelOrFunction,start::AbstractVector{<:Number}=GetStartP(DS,model),LogPriorFn::Union{Function,Nothing}=nothing; ADmode::Union{Val,Symbol}=Val(:ForwardDiff),
-                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction), tol::Real=1e-14, verbose::Bool=true, kwargs...)
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(EnsureNoSymbolic(ADmode), CostFunction), tol::Real=1e-14, verbose::Bool=true, kwargs...)
     verbose && HasXerror(DS) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     InformationGeometry.minimize(CostFunction, ScoreFn, BigFloat.(start), (model isa ModelMap ? Domain(model) : nothing); tol, verbose, kwargs...)
 end
@@ -250,7 +254,7 @@ function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM),
     FindMLE(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)
 end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
-                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(EnsureNoSymbolic(ADmode), CostFunction),
                 tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
@@ -268,7 +272,7 @@ end
 
 
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
-                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(ADmode, CostFunction),
+                LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(EnsureNoSymbolic(ADmode), CostFunction),
                 tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)

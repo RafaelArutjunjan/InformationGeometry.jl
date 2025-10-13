@@ -57,19 +57,19 @@ struct DataModel <: AbstractDataModel
     name::Symbol
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
-        DataModel(DS,model,DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), SkipOptimAndTests; ADmode=ADmode, kwargs...)
+        DataModel(DS,model,DetermineDmodel(DS,model; custom, ADmode), SkipOptimAndTests; ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
-        DataModel(DS, model, DetermineDmodel(DS,model; custom=custom, ADmode=ADmode), mle, SkipOptimAndTests; ADmode=ADmode, kwargs...)
+        DataModel(DS, model, DetermineDmodel(DS,model; custom, ADmode), mle, SkipOptimAndTests; ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, SkipOptimAndTests::Bool=false; kwargs...)
         DataModel(DS, model, dmodel, mle, nothing, SkipOptimAndTests; kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector, LogPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
-        DataModel(DS, model, DetermineDmodel(DS, model; custom=custom, ADmode=ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode=ADmode, kwargs...)
+        DataModel(DS, model, DetermineDmodel(DS, model; custom, ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
-                                    ADmode::Union{Symbol,Val}=Val(:ForwardDiff), SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
+                                    ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
         if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && length(Domain(model)) + errormoddim(DS) == length(startp)
             # Error parameters not accounted for in Domain yet and recognized by GetStartP
             @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
@@ -80,15 +80,15 @@ struct DataModel <: AbstractDataModel
             model = remake(M; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom)
             dmodel isa ModelMap && (dmodel = remake(dmodel; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom))
         end
-        mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode)
+        mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)
         # Optimization already happened, propagate SkipOptim=true explicitly for later
         DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
-                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
+                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
         LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
         logLikelihoodFn = isnothing(LogLikelihoodFn) ? GetLogLikelihoodFn(DS, model, logPriorFn; ADmode) : LogLikelihoodFn
-        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth, ADmode)
+        Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)
         LogLikeMLE = SkipTests ? (try logLikelihoodFn(Mle) catch; -Inf end) : logLikelihoodFn(Mle)
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, LogPriorFn, SkipOptimAndTests; LogLikelihoodFn=logLikelihoodFn, SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
@@ -96,10 +96,10 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, Mle, LogLikeMLE, nothing, SkipOptimAndTests; kwargs...)
     end
     # Block kwargs here.
-    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real, Logprior::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; ADmode::Union{Symbol,Val}=Val(:ForwardDiff),
+    function DataModel(DS::AbstractDataSet,model::ModelOrFunction,dmodel::ModelOrFunction,MLE::AbstractVector{<:Number},LogLikeMLE::Real, Logprior::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode,
                                     LogPriorFn::Union{Function,Nothing}=Logprior, # Prior(Logprior, MLE, (-1,length(MLE))), 
                                     LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn; ADmode),
-                                    ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=ADmode),
+                                    ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode), FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode),
                                     SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model))
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         # length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
@@ -202,7 +202,7 @@ InformNames(DM::AbstractDataModel, xnames::AbstractVector{<:StringOrSymb}, yname
 # Dot not create Prior object when there is no prior.
 Prior(Func::Nothing, args...; kwargs...) = nothing
 # DFunction uses :Symbolic by default which can lead to problems
-Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFunction(args...; ADmode=ADmode, kwargs...)
+Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFunction(args...; ADmode, kwargs...)
 Prior(D::DFunction, args...; kwargs...) = D
 
 EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
