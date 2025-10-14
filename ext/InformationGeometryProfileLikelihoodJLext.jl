@@ -29,10 +29,10 @@ end
 
 
 """
-    ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, OptimMeth=Optim.LBFGS(), parallel::Bool=true, kwargs...)
+    ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), parallel::Bool=true, kwargs...)
 Computes profiles for given `idxs` up to given confidence threshold `Confnum` in units of `σ` via the `ProfileLikelihood.jl` package.
 """
-function ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, meth=Optim.LBFGS(), OptimMeth=meth, alg=OptimMeth, 
+function ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, alg=OptimMeth, 
                                     parallel::Bool=true, resolution=N, maxval::Real=1e5, Mle::AbstractVector=MLE(DM), Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval), 
                                     lb=(!isnothing(Domain) ? Domain.L : fill(-maxval,length(Mle))), ub=(!isnothing(Domain) ? Domain.U : fill(maxval,length(Mle))), kwargs...)
     prob = ProfileLikelihood.LikelihoodProblem(DM; Domain, maxval, lb, ub)
@@ -43,10 +43,10 @@ end
 
 
 """
-    ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, OptimMeth=Optim.LBFGS(), parallel::Bool=true, kwargs...)
+    ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), parallel::Bool=true, kwargs...)
 Computes bivariate profiles for given `idxs` up to given confidence threshold `Confnum` in units of `σ`, where pairs of parameters are fixed at different values and the remaining parameters are re-optimized.
 """
-function ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, meth=Optim.LBFGS(), OptimMeth=meth, alg=OptimMeth, 
+function ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, alg=OptimMeth, 
                                         parallel::Bool=true, resolution=N, maxval::Real=1e5, Mle::AbstractVector=MLE(DM), Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval),
                                         lb=(!isnothing(Domain) ? Domain.L : fill(-maxval,length(Mle))), ub=(!isnothing(Domain) ? Domain.U : fill(maxval,length(Mle))), kwargs...)
     prob = ProfileLikelihood.LikelihoodProblem(DM; Domain, maxval, lb, ub)

@@ -73,13 +73,13 @@ The keyword `TransformSample` can be used to specify a function which is applied
 """
 function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; 
                                         CostFunction::Function=Negate(loglikelihood(DM)), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
-                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.LBFGS()), kwargs...)
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=false, p::Real=2, timeout::Real=120, verbose::Bool=false, 
-                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : Optim.LBFGS()), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     

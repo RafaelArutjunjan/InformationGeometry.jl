@@ -150,7 +150,7 @@ ConstrainStart(start::AbstractVector{T}, Dom::Nothing; kwargs...) where T<:Numbe
 
 """
     minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
-    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
+    minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=LBFGS(;linesearch=LineSearches.BackTracking()), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
     minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
 Minimizes the scalar input function using the given `start` using any algorithms from the `Optimation.jl` ecosystem specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
@@ -162,7 +162,7 @@ minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args..
 
 
 function minimize(Fs::Tuple, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
-                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? Optim.LBFGS(;linesearch=LineSearches.BackTracking()) : Optim.NewtonTrustRegion())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
+                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? LBFGS(;linesearch=LineSearches.BackTracking()) : Optim.NewtonTrustRegion())), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
     minimize(Fs, Start, meth; Domain, maxtime, kwargs...)
 end
 
