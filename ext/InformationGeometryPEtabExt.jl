@@ -7,6 +7,9 @@ InformationGeometry.MLE(P::PEtabODEProblem) = PEtab.get_x(P)
 InformationGeometry.HyperCube(P::PEtabODEProblem) = HyperCube(P.lower_bounds, P.upper_bounds)
 InformationGeometry.MLE(R::PEtabOptimisationResult) = R.xmin
 
+InformationGeometry.pdim(M::PEtabModel) = length(ModelingToolkit.parameters(M.sys_mutated))
+InformationGeometry.pdim(P::PEtabODEProblem) = InformationGeometry.pdim(P.model_info.model)
+
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
 GetAllUniqueObservables(M::PEtabModel; ObsID=:observableId) = Symbol.(M.petab_tables[:measurements][!, ObsID]) |> unique
