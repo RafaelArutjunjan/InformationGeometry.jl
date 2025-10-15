@@ -455,12 +455,18 @@ ContinuationSeed(R::MultistartResults) = R.seed + length(R.FinalObjectives)
 
 
 GetNFromTargetTime(DM::AbstractDataModel, args...; kwargs...) = GetNFromTargetTime(loglikelihood(DM), MLE(DM), args...; kwargs...)
-function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; minval=2, maxval=Inf, verbose::Bool=true)
+"""
+    GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; parallel::Bool=true, verbose::Bool=true)
+Computes number of samples `N` to approximately fill `TargetTime` from how long a single evaluation of `L` takes.
+If `parallel=true`, the estimate for one core is multiplied by `nworkers()`.
+Printing is disabled for `verbose=false`.
+"""
+function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; parallel::Bool=true, verbose::Bool=true)
     L(startp);  Tsingle = @elapsed L(startp)
-    # Tsingle = @belapsed $L($startp)
-    N = TargetTime / Tsingle |> floor |> Int
-    Nsingle = clamp(N^(1/length(startp)), minval, maxval) |> floor |> Int
-    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting approximately N=$N samples in total (Nsingle=$Nsingle, $Nsingle^$(length(startp))=$(Nsingle^length(startp))) to fill allotted $(TargetTime)s."
+    NperCore = TargetTime / Tsingle |> floor |> Int
+    N = NperCore * (parallel ? nworkers() : 1)
+    Nsingle = round(N^(1/length(startp)); sigdigits=4)
+    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting N≈$N samples in total to fill allotted $(TargetTime)s (Nsingle=N^(1/$(length(startp)))≈$Nsingle."
     N
 end
 
@@ -478,11 +484,11 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
-function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=30, Nsingle::Union{Nothing,Int}=nothing, N::Int=isnothing(Nsingle) ? GetNFromTargetTime(DM, TargetTime) : Nsingle^length(C), 
+function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=30, Nsingle::Union{Nothing,Int}=nothing, parallel::Bool=true, N::Int=isnothing(Nsingle) ? GetNFromTargetTime(DM, TargetTime; parallel) : Nsingle^length(C), 
                                                         nbins::Int=isnothing(Nsingle) ? Int(ceil(clamp(0.5*(N^(1/length(C))),3,100))) : Nsingle, maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, seed::Int=rand(0:Int(1e7)), kwargs...)
     Points = GenerateSobolPoints(Domain; seed, N, maxval)
     !(TransformSample === identity) && (Points .= TransformSample.(Points))
-    StochasticProfileLikelihood(DM, Points; Domain, nbins, seed, kwargs...)
+    StochasticProfileLikelihood(DM, Points; Domain, nbins, seed, parallel, kwargs...)
 end
 function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVector{<:AbstractVector}; LogLikelihoodFn::Function=loglikelihood(DM), parallel::Bool=true, pnames::AbstractVector{<:AbstractString}=pnames(DM), kwargs...)
    @info "Starting $(length(Points)) samples."

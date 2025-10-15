@@ -146,7 +146,7 @@ Conditions(CG::ConditionGrid) = CG.DMs
 ConditionNames(CG::ConditionGrid) = ConditionNames(CG.Trafos)
 
 
-DataspaceDim(CG::ConditionGrid) = sum(length.(ydata.(Conditions(CG))))
+DataspaceDim(CG::ConditionGrid) = sum(length∘ydata, Conditions(CG))
 
 function GetDomainSafe(DM::AbstractDataModel; maxval::Real=1e2, verbose::Bool=true)
     !isnothing(GetDomain(DM)) && return GetDomain(DM)

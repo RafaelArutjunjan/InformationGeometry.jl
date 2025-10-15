@@ -152,6 +152,7 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
 """
     PinParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat=MLE(DM)[Component])
     PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
+    PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
     PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
@@ -160,6 +161,10 @@ function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests)
+end
+function PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
+    @assert length(Components) == pdim(DM)
+    PinParameters(DM, IndVec(Components), args...; kwargs...)
 end
 
 function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T}; kwargs...) where T<:Number

@@ -1,7 +1,7 @@
 module InformationGeometryProfileLikelihoodJLext
 
 
-using InformationGeometry, ProfileLikelihood, Optimization, Optim, ADTypes
+using InformationGeometry, ProfileLikelihood, Optimization, Optim, ADTypes, LineSearches
 using RecipesBase
 
 
