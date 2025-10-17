@@ -309,8 +309,13 @@ function GetDataSets end
 function GetModelFunction end
 function SplitParamsIntoCategories end
 function NicifyPEtabNames end
+function GetDynamicParams end
+function GetErrorParams end
+function GetNondynamicParams end
+function GetObservableParams end
 
 
+## LuxExt
 function NeuralNet end
 function NormalizedNeuralModel end
 

@@ -186,7 +186,10 @@ InvChisqCDF(k::Int, p::T; kwargs...) where T<:Number = 2gamma_inc_inv(T(k)/2, p,
 InvChisqCDF(k::Int, p::T; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), maxval*one(T)), kwargs...) where T<:BigFloat = invert(x->ChisqCDF(k, x), p, Domain; kwargs...)
 
 
-
+for F in [:Sgn, :BiLog, :BiExp,  :BiLog10, :BiExp10,
+            :BiRoot, :BiPower, :SoftAbs, :SoftLog]
+    @eval $F(m::Missing, args...; kwargs...) = m
+end
 """
     Sgn(x::Number) -> Number
 Sign function with the right-continuous convention that `Sgn(0) = 1` which means that the derivative is formally defined as zero everywhere.

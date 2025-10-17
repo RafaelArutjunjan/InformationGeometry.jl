@@ -412,8 +412,12 @@ function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
 end
 
 function Base.range(C::HyperCube; length::Int=101, kwargs...)
-    @assert size(C.L, 1) == 1 && length > 1
+    @assert Base.length(C) == 1 && length > 1
     range(C.L[1], C.U[1]; length=length, kwargs...)
+end
+function Base.range(C::HyperCube, ind::Int; length::Int=101, kwargs...)
+    @assert 1 ≤ ind ≤ Base.length(C) && length > 1
+    range(C.L[ind], C.U[ind]; length=length, kwargs...)
 end
 
 DropCubeDims(Cube::HyperCube, dim::Int) = DropCubeDims(Cube, [dim])

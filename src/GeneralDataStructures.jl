@@ -398,8 +398,8 @@ end
 Get a dataset containing only the `i`-th y-components as observations.
 """
 function SubDataSetComponent(DS::AbstractFixedUncertaintyDataSet, i::Union{Int,AbstractVector{<:Int}})
-    DS isa CompositeDataSet && return Data(DS)[i] # CompositeDataSet defined downstream
     idxs = i isa AbstractVector ? i : [i]
+    DS isa CompositeDataSet && return (length(idxs) == 1 ? Data(DS)[idxs[1]] : CompositeDataSet(Data(DS)[idxs])) # CompositeDataSet defined downstream
     @assert all(1 .≤ idxs .≤ ydim(DS)) && allunique(idxs)
     keep = repeat([j ∈ idxs for j in 1:ydim(DS)], Npoints(DS))
     if !HasXerror(DS)
