@@ -30,6 +30,8 @@ NoADmodel = DisallowAD(LinearModel)
 # Works because using dmodel directly via EmbeddingMatrix in LsqFit.jl
 @test DataModel(DS, NoADmodel; ADmode=Val(:Symbolic), meth=nothing) isa DataModel
 
+# ADmode Zygote also works for Score in ADmodeOptim
+@test DataModel(DS, NoADmodel; ADmode=Val(:Zygote), meth=Newton()) isa DataModel
 # Use ADmodeOptim kwarg if FiniteDifferences not loaded
 @test DataModel(DS, NoADmodel; ADmode=Val(:Symbolic), ADmodeOptim=Val(:Zygote), meth=Newton()) isa DataModel
 ## Default ForwardDiff should not work here!

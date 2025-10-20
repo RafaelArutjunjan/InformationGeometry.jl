@@ -314,10 +314,12 @@ function _GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Functio
 end
 
 
+LazyMethodOfSteps(x) = throw("Need to load DelayDiffEq.jl first.")
+
 import SciMLBase: AbstractDDEFunction
 ## Fast and robust versions for DelayDiffEqs
 function _GetModelFast(func::AbstractDDEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, HistoryFunction::Function; tol::Real=1e-7, constant_lags=[], dependent_lags=[], 
-                    meth::SciMLBase.AbstractDDEAlgorithm=MethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+                    meth::SciMLBase.AbstractDDEAlgorithm=LazyMethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     # @assert T == inplace
     @assert MaximalNumberOfArguments(func.f) == 5
     @assert 2 ≤ MaximalNumberOfArguments(HistoryFunction) ≤ 3
@@ -352,7 +354,7 @@ end
 
 
 function _GetModelRobust(func::AbstractDDEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, HistoryFunction::Function; tol::Real=1e-7, constant_lags=[], dependent_lags=[], 
-                    meth::SciMLBase.AbstractDDEAlgorithm=MethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
+                    meth::SciMLBase.AbstractDDEAlgorithm=LazyMethodOfSteps(GetMethod(tol)), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, callback=nothing, Kwargs...) where T
     # @assert T == inplace
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
