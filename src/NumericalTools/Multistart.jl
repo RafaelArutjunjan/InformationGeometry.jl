@@ -78,7 +78,7 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
-                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=false, p::Real=2, timeout::Real=120, verbose::Bool=false, 
+                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=false, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
@@ -98,7 +98,7 @@ function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVe
     # Allow for disabling try catch;
     # TotalFunc(θ::AbstractVector{<:Number}) = try    InformationGeometry.TotalLeastSquaresV()    catch;  fill(-Inf, length(θ))   end
     
-    TryCatchWrapper(F::Function, Default=-Inf) = x -> try F(x) catch;   Default   end
+    TryCatchWrapper(F::Function, Default=-Inf; verbose::Bool=verbose) = x -> try F(x) catch E; verbose && println("Failed with $E");  Default   end
     # Double negation... Use LogLikelihoodFn instead? Make this consistent with GetProfile()
     LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(Negate(CostFunction))
 
@@ -461,12 +461,13 @@ Computes number of samples `N` to approximately fill `TargetTime` from how long 
 If `parallel=true`, the estimate for one core is multiplied by `nworkers()`.
 Printing is disabled for `verbose=false`.
 """
-function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; parallel::Bool=true, verbose::Bool=true)
+function GetNFromTargetTime(L::Function, startp::AbstractVector, TargetTime::Real=60; maxval::Int=300, parallel::Bool=true, verbose::Bool=true)
     L(startp);  Tsingle = @elapsed L(startp)
     NperCore = TargetTime / Tsingle |> floor |> Int
     N = NperCore * (parallel ? nworkers() : 1)
     Nsingle = round(N^(1/length(startp)); sigdigits=4)
-    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting N≈$N samples in total to fill allotted $(TargetTime)s (Nsingle=N^(1/$(length(startp)))≈$Nsingle."
+    Nsingle > maxval && (Nsingle = maxval;  N = Nsingle^length(startp))
+    verbose && @info "Single evaluation took $(round(Tsingle; sigdigits=3))s, suggesting N≈$N samples in total to fill allotted $(TargetTime)s Nsingle=N^(1/$(length(startp)))≈$Nsingle."
     N
 end
 

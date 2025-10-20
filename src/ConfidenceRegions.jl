@@ -234,11 +234,20 @@ function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int
 end
 
 # Make sure the given ADmode is valid for optimization in InformationGeometry.minimize
-EnsureNoSymbolic(V::Val{:Symbolic}) = Val(isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff)
+EnsureNoSymbolic(V::Val{:Symbolic}) = Val(EnsureNoSymbolic(:Symbolic))
 EnsureNoSymbolic(V::Val) = V
-EnsureNoSymbolic(S::Symbol) = S === :Symbolic ? (isloaded(:FiniteDifferences) ? :FiniteDifferences : :ForwardDiff) : S
+function EnsureNoSymbolic(S::Symbol)
+    S !== :Symbolic && return S
+    if isloaded(:FiniteDifferences)
+        @warn "Choosing ADmodeOptim=:FiniteDifferences since :Symbolic not possible. If undesired, supply other legal choice from diff_backends() via kwarg ADmodeOptim to DataModel constructor."
+        :FiniteDifferences
+    else
+        @warn "Choosing ADmodeOptim=:ForwardDiff since :Symbolic not possible. If this does not work, load package FiniteDifferences.jl or supply other legal choice from diff_backends() via kwarg ADmodeOptim to DataModel constructor."
+        :ForwardDiff
+    end
+end
 # false should use FiniteDifferences, will throw error if not loaded but ForwardDiff clearly not intended anyway
-EnsureNoSymbolic(B::Bool) = B ? Val(:ForwardDiff) : Val(:FiniteDifferences)
+EnsureNoSymbolic(B::Bool) = B ? Val(:ForwardDiff) : (@warn "Choosing ADmodeOptim=:FiniteDifferences. If undesired, supply other legal choice from diff_backends() via kwarg ADmodeOptim to DataModel constructor.";   Val(:FiniteDifferences))
 
 function FindMLEBig(DM::AbstractDataModel,start::AbstractVector{<:Number}=MLE(DM),LogPriorFn::Union{Function,Nothing}=LogPrior(DM); LogLikelihoodFn::Function=loglikelihood(DM), kwargs...)
     FindMLEBig(Data(DM), Predictor(DM), start, LogPriorFn; LogLikelihoodFn, kwargs...)

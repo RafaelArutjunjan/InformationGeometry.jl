@@ -222,7 +222,7 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
         LogLikelihoodGradient(θ::AbstractVector{<:Number}; kwargs...) = ADS(θ; Kwargs..., kwargs...)
         LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADS!(dl, θ; Kwargs..., kwargs...)
     else
-        @warn "The currently provided in-place method for Score is fake."
+        @warn "The currently provided in-place method for Score is fake since fallback SafeScore=true was chosen."
         V = Val(false)
         S = ((θ::AbstractVector; ADmode=V, kwargs...) -> _Score(DS, model, dmodel, θ, V; Kwargs..., kwargs...))
         # This is where the buffer magic should happen for inplace EmbeddingMap! and EmbeddingMatrix!

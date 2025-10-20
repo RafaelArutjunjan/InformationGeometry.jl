@@ -62,9 +62,9 @@ end
     include("testsets/differential_geometry_geodesics.jl")
 end
 
-# @safetestset "Differential Geometry - Curvature" begin 
-#     include("testsets/differential_geometry_curvature.jl")
-# end
+@safetestset "Differential Geometry - Curvature" begin 
+    include("testsets/differential_geometry_curvature.jl")
+end
 
 
 
