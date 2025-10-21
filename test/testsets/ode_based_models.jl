@@ -39,3 +39,43 @@ dm = DataModel(DataSet([0.2,1,2], [0.9,0.4,0.25], [0.1,0.1,0.1]), sys, Split, Ob
 using ForwardDiff
 @assert 0 < ForwardDiff.derivative(t->Predictor(SIRDM)(t, MLE(SIRDM))[1], 1.)
 @assert isposdef(ForwardDiff.jacobian(x->EmbeddingMap(SIRDM, MLE(SIRDM), x), [1,2,3.]))
+
+
+# ## DDE tests
+# # DDE example taken from https://docs.sciml.ai/DiffEqDocs/stable/tutorials/dde_example/
+using DelayDiffEq
+out = rand(3)
+## Docs and tests
+function bc_model(du, u, h!, p, t)
+    p0 = 0.2; q0 = 0.3; v0 = 1; d0 = 5
+    p1 = 0.2; q1 = 0.3; v1 = 1; d1 = 1; d2 = 1
+    # p0, q0, v0, d0, p1, q1, v1, d1, d2, beta0, beta1, tau = p
+    beta0, beta1, tau = p
+    h!(out, p, t - tau)
+    u3_past_sq = out[3]^2
+    du[1] = (v0 / (1 + beta0 * (u3_past_sq))) * (p0 - q0) * u[1] - d0 * u[1]
+    du[2] = (v0 / (1 + beta0 * (u3_past_sq))) * (1 - p0 + q0) * u[1] +
+            (v1 / (1 + beta1 * (u3_past_sq))) * (p1 - q1) * u[2] - d1 * u[2]
+    du[3] = (v1 / (1 + beta1 * (u3_past_sq))) * (1 - p1 + q1) * u[2] - d2 * u[3]
+end
+h!(out, p, t) = (out .= 1.0)
+tau = 1
+lags = [tau]
+
+p0 = 0.2;   q0 = 0.3;  v0 = 1;   d0 = 5;    p1 = 0.2;   q1 = 0.3;  v1 = 1;   d1 = 1;    d2 = 1; beta0 = 1;   beta1 = 1;
+p = [beta0, beta1, tau]
+tspan = (0.0, 10.0)
+u0 = [1.0, 1.0, 1.0]
+
+DDEDS = DataSet([0.3, 1.0, 3.0], [0.209, 0.825, 0.918, 0.0026, 0.364, 0.62, 0.0656, 0.0172, 0.179], 0.05ones(9), (3,1,3))
+
+
+using FiniteDifferences, Optimization
+
+# Often need to choose AutoFiniteDiff() for implicit solvers, i.e. meth = MethodOfSteps(Rosenbrock23(autodiff = AutoFiniteDiff()))
+model = GetModel(DDEFunction(bc_model), (θ)->(u0, (@view θ[1:3])), identity, h!; tol=1e-8, dependent_lags=((u,p,t)->p[end],), 
+        Domain=HyperCube(zeros(3), 5ones(3)), pnames=["β₀", "β₁", "τ"])
+
+@test DataModel(DDEDS, model; meth=nothing, ADmode=Val(:FiniteDifferences)) isa AbstractDataModel
+
+# ## Add SDE test
