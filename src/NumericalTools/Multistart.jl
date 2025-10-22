@@ -627,6 +627,53 @@ end
 
 
 """
+    CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::Int; N::Int=20)
+Varies single component `vary` in range specified by HyperCube `C` while keeping the remaing indices fixed at the values in `center`.
+"""
+function CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::Int; N::Int=20)
+    @assert length(center) == length(C)
+    @assert 1 ≤ vary ≤ length(center)
+    _CrossPatternSampling(center, vary, range(C, vary; length=N))
+end
+## Vary single component
+function _CrossPatternSampling(center::AbstractVector{T}, vary::Int, ran::AbstractVector{T}) where T <: Number
+    @boundscheck @assert 1 ≤ vary ≤ length(center)
+    Res = [copy(center) for i in eachindex(ran)]
+    for i in eachindex(ran)
+        Res[i][vary] = ran[i]
+    end;    Res
+end
+"""
+    CrossPatternSampling(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+Varies components `Vary` one component at a time in range specified by HyperCube `C` while keeping the remaing indices fixed at the values in `center`.
+See also [`CrossPatternSamplingCombined`](@ref).
+"""
+function CrossPatternSampling(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+    @assert length(center) == length(C)
+    @assert 1 ≤ vary ≤ length(center)
+    _CrossPatternSampling(center, vary, range(C, vary; length=N))
+end
+
+
+"""
+    CrossPatternSamplingCombined(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+Varies components `Vary` in range specified by HyperCube `C` in all possible combinations while keeping the remaing indices fixed at the values in `center`.
+See also [`CrossPatternSampling`](@ref).
+"""
+function CrossPatternSamplingCombined(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+    @assert length(center) == length(C)
+    @assert allunique(Vary) && all(1 .≤ Vary .≤ length(center))
+    _CrossPatternSamplingCombined(center, Vary, [range(C, vary; length=N) for vary in Vary])
+end
+# Vary multiple components
+function _CrossPatternSamplingCombined(center::AbstractVector{T}, indices::AbstractVector{<:Int}, ranges::AbstractVector{<:AbstractVector{T}}) where T <: Number
+    @assert length(indices) == length(ranges)
+    [(v=copy(center);   for (i, val) in zip(indices, combo)  v[i] = val end;    v) for combo in Iterators.product(ranges...)] |> vec
+end
+
+
+
+"""
     CleanupStochasticProfile(R::MultistartResults; nbins::Int=8)
 Takes `MultistartResults` object and reduces all samples where the objective function is worse than the largest value used in any profile with `nbins` number of bins.
 
