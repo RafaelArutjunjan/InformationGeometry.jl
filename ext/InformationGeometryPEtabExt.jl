@@ -10,6 +10,25 @@ InformationGeometry.MLE(R::PEtabOptimisationResult) = R.xmin
 InformationGeometry.pdim(M::PEtabModel) = length(ModelingToolkit.parameters(M.sys_mutated))
 InformationGeometry.pdim(P::PEtabODEProblem) = InformationGeometry.pdim(P.model_info.model)
 
+## Wrap DataModel or ConditionGrid together with its contituent PEtabODEProblem for later reference or modification
+struct PEtabConditionGrid <: InformationGeometry.AbstractDataModel
+    DM::AbstractDataModel
+    P::PEtabODEProblem
+    PEtabConditionGrid(P::PEtabModel; kwargs...) = PEtabConditionGrid(PEtabODEProblem(P); kwargs...) 
+    PEtabConditionGrid(P::PEtabODEProblem; kwargs...) = PEtabConditionGrid(DataModel(P; kwargs...), P)
+    PEtabConditionGrid(DM::AbstractDataModel, P::PEtabODEProblem) = new(DM, P)
+end
+const PEtabDataModel = PEtabConditionGrid
+
+for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix]
+    @eval InformationGeometry.$F(P::PEtabConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
+end
+# Only single arg
+for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
+        :Data, :Conditions, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames]
+    @eval InformationGeometry.$F(P::PEtabConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
+end
+
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
 GetAllUniqueObservables(M::PEtabModel; ObsID=:observableId) = Symbol.(M.petab_tables[:measurements][!, ObsID]) |> unique
@@ -231,13 +250,14 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
         DataModel(DS, NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
-                ADmode, name=Symbol(P.model_info.model.name), SkipOptim, kwargs...)
+                ADmode, name=Symbol(P.model_info.model.name), SkipOptim, kwargs...) |> x->PEtabConditionGrid(x,P)
     else
         # NewModels = [remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
         # Give Prior to ConditionGrid, not individual DMs
         DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
                             ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])), name=C, SkipTests=true, SkipOptim=true) for (i,C) in enumerate(UniqueConds)]
-        InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...)
+        InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); 
+                    ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...) |> x->PEtabConditionGrid(x,P)
     end
 end
 
