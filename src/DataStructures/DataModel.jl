@@ -155,7 +155,7 @@ kwargs...,
 
 # Specialized methods for DataModel
 Conditions(DM::DataModel) = [DM]
-ConditionNames(DM::DataModel) = [name(DM)]
+ConditionNames(DM::DataModel) = [Symbol(name(DM))]
 Domain(DM::DataModel) = Domain(Predictor(DM))
 Data(DM::DataModel) = DM.Data
 Predictor(DM::DataModel) = DM.model

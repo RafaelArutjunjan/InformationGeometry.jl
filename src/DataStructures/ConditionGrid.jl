@@ -283,7 +283,7 @@ Takes `DataModel` with ydim > 1 and artificially splits the different observed c
 """
 function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]; kwargs...)
     @assert length(Conditions(DM)) == 1 "Given DataModel already has multiple conditions! Split each condition separately."
-    @assert ydim(DM) > 1 "Not enough observables for splitting"
+    @assert ydim(DM) > 1 "Not enough observables for splitting, ydim=1!"
     @assert all(s->allunique(s) && all(1 .≤ s .≤ ydim(DM)), Structure)
     # No double counting of observables
     @assert all(isempty, [Si ∩ Sj for (i,Si) in enumerate(Structure), (j,Sj) in enumerate(Structure) if i > j])
