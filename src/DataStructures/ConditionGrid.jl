@@ -148,6 +148,16 @@ ConditionNames(CG::ConditionGrid) = ConditionNames(CG.Trafos)
 
 DataspaceDim(CG::ConditionGrid) = sum(length∘ydata, Conditions(CG))
 
+ydim(CG::ConditionGrid) = sum(ydim, Conditions(CG))
+Ynames(CG::ConditionGrid) = mapreduce(ydim, vcat, Conditions(CG))
+
+xdim(CG::ConditionGrid) = (xd=xdim.(Conditions(CG));  @assert all(isequal(xd[1]), xd);  xd[1])
+Xnames(CG::ConditionGrid) = (xd=Xnames.(Conditions(CG));  @assert all(isequal(xd[1]), xd);  xd[1])
+
+xnames(CG::ConditionGrid) = Xnames(CG) .|> string
+ynames(CG::ConditionGrid) = Ynames(CG) .|> string
+
+
 function GetDomainSafe(DM::AbstractDataModel; maxval::Real=1e2, verbose::Bool=true)
     !isnothing(GetDomain(DM)) && return GetDomain(DM)
     verbose && @warn "Making Domain [-$maxval, $maxval]^$(pdim(DM)) for $(typeof(DM)) $(name(DM))"
@@ -271,7 +281,8 @@ end
     SplitObservablesIntoConditions(DM::DataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]) -> ConditionGrid
 Takes `DataModel` with ydim > 1 and artificially splits the different observed components it into `ConditionGrid` with different conditions according to given `Structure`.
 """
-function SplitObservablesIntoConditions(DM::DataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]; kwargs...)
+function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]; kwargs...)
+    @assert length(Conditions(DM)) == 1 "Given DataModel already has multiple conditions! Split each condition separately."
     @assert ydim(DM) > 1 "Not enough observables for splitting"
     @assert all(s->allunique(s) && all(1 .≤ s .≤ ydim(DM)), Structure)
     # No double counting of observables

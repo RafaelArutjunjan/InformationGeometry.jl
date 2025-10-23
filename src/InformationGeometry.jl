@@ -309,10 +309,10 @@ function GetDataSets end
 function GetModelFunction end
 function SplitParamsIntoCategories end
 function NicifyPEtabNames end
-function GetDynamicParams end
-function GetErrorParams end
-function GetNondynamicParams end
-function GetObservableParams end
+function GetDynamicParamInds end
+function GetErrorParamInds end
+function GetNondynamicParamInds end
+function GetObservableParamInds end
 
 
 ## LuxExt
