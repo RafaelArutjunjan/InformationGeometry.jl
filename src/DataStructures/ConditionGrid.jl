@@ -251,26 +251,26 @@ end
 
 
 
-function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, Trafo::Function=identity, kwargs...)
+function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, kwargs...)
     Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
     for i in idxs
         if PopulatedInds[i]
             k += 1
             for j in eachindex(Conditions(CG))
                 L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], Trajectories(P)[i])
-                OffsetResults && (L .-= minimum(L))
+                OffsetResults && (isnothing(OffsetResultsBy) ? (L .-= minimum(L)) : (L .-= OffsetResultsBy))
                 RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), Trafo.(L); color=j+2, label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, legend=true, subplot=k, kwargs...)
             end
         end
     end;  Plt
 end
 
-function ConditionSpecificWaterFalls(CG::ConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, kwargs...)
+function ConditionSpecificWaterFalls(CG::ConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, kwargs...)
     Plt = RecipesBase.plot(; xlabel="Run (sorted)", ylabel=ApplyTrafoNames("CostFunction", Trafo))
     for j in eachindex(Conditions(CG))
         L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], R.FinalPoints)
         L = @view L[1:findlast(isfinite, L)]
-        OffsetResults && (L .-= minimum(L))
+        OffsetResults && (isnothing(OffsetResultsBy) ? (L .-= minimum(L)) : (L .-= OffsetResultsBy))
         RecipesBase.plot!(Plt, Trafo.(L); label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, color=j, legend=true, kwargs...)
     end;  Plt
 end
