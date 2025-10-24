@@ -20,14 +20,25 @@ struct PEtabConditionGrid <: InformationGeometry.AbstractDataModel
 end
 const PEtabDataModel = PEtabConditionGrid
 
-for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix]
+for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
     @eval InformationGeometry.$F(P::PEtabConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end
 # Only single arg
 for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
-        :Data, :Conditions, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames]
+        :Data, :Conditions, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
+        :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
+        :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
+        :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
+        :xdataMat, :ydataMat, :SplitErrorParams, :GetDomain,
+        :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
     @eval InformationGeometry.$F(P::PEtabConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end
+
+Base.summary(P::PEtabConditionGrid) = Base.summary(P.DM)
+# Multi-line display when used on its own in REPL
+Base.show(io::IO, m::MIME"text/plain", P::PEtabConditionGrid) = Base.show(io, m, P.DM)
+# Single line display
+Base.show(io::IO, P::PEtabConditionGrid) = Base.show(io, P.DM)
 
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
