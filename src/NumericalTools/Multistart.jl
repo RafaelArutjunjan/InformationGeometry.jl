@@ -589,8 +589,8 @@ StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@a
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; CutoffVal::Real=Inf, Inds::AbstractVector{<:Int}=1:findlast(x->isfinite(x) && abs(x)<CutoffVal,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
-                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, OffsetResultsBy::Union{Nothing,Number}=nothing, Cutoff::Int=400000, size=PlotSizer(length(pnames)), kwargs...)
-    P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults, OffsetResultsBy) for i in eachindex(pnames)]
+                                pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, OffsetResultsBy::Union{Nothing,Number}=nothing, Cutoff::Int=400000, MLE::Union{Nothing,AbstractVector{<:Number}}=nothing, size=PlotSizer(length(pnames)), kwargs...)
+    P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults, OffsetResultsBy, MLE) for i in eachindex(pnames)]
     Offset = OffsetResults ? (isnothing(OffsetResultsBy) ? Likelihoods[1] : OffsetResultsBy) : 0.0
     AddedPlots = []
     push!(AddedPlots, RecipesBase.plot(1:length(Inds), -Trafo.((@view Likelihoods[Inds]) .-Offset); xlabel="Run index (sorted)", ylabel=ApplyTrafoNames("Objective", Trafo), label="Waterfall", legend))
@@ -609,12 +609,13 @@ end
 # Individual Parameter
 function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
                                  BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), pval::AbstractVector=getindex.(Points, ind), pBins::AbstractVector=collect(HistoBins(pval, nbins)), OffsetResults::Bool=false, OffsetResultsBy::Union{Nothing,Number}=nothing, 
-                                 xlabel="Parameter $ind", kwargs...)
+                                 xlabel="Parameter $ind", MLE::Union{Nothing,AbstractVector{<:Number}}=nothing, kwargs...)
     _, Res, ResPoints = _GetStochasticProfile(Points, Likelihoods, ind; nbins, Extremizer, pval, pBins, OffsetResults, OffsetResultsBy)
     res = Trafo.(Res)
     HitsPerBin = float.(CountInBin(pBins, Points, ind));  HitsPerBin ./= maximum(HitsPerBin)
     Plt = RecipesBase.plot(CenteredVec(pBins), res; st=:bar, alpha=HitsPerBin, bar_width=diff(pBins), lw=0.5, xlabel, ylabel=ApplyTrafoNames("SPLA", Trafo), label="Conditional Objectives", kwargs...)
     Extremizer === findmax && RecipesBase.plot!(Plt, [ResPoints[Extremizer(-res)[2]][ind]]; st=:vline, line=:dash, c=:red, lw=2, label="sMLE")
+    !isnothing(MLE) && length(MLE) == length(Points[1]) && RecipesBase.plot!(Plt, [MLE[ind]]; st=:vline, line=:dash, c=:green, lw=2, label="MLE")
     Plt
 end
 
