@@ -476,7 +476,7 @@ HistoBins(X::AbstractVector{<:Number}, Bins::Int=Int(ceil(sqrt(length(X)))); nbi
 HistoBins(X::AbstractVector{<:AbstractVector}, ind::Int, Bins::Int=Int(ceil(sqrt(length(X)))); nbins::Int=Bins) = range(Measurements.value.(extrema(x->x[ind],X))...; length=nbins+1)
 
 """
-   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime=30, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=0.5Nsingle, parallel::Bool=true, maxval::Real=1e5, BiLog::Bool=true, kwargs...)
+   StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=Domain(DM); TargetTime=30, Nsingle::Int=5, N::Int=Nsingle^length(C), nbins::Int=Nsingle, parallel::Bool=true, maxval::Real=1e5, BiLog::Bool=true, kwargs...)
 Samples the likelihood over the parameter space, splits the value range of each parameter into bins and visualizes the best observed likelihood value from all samples with the respective parameter value in this bin.
 Therefore, it gives a coarse-grained global approximation to the profile likelihood, approaching the true profile likelihood in the large sample limit as `N` ⟶ ∞, which is however much cheaper to compute as no re-optimization of nuisance parameters is required.
 This can already give hints for good candidates for initial parameter values from which to start optimization and conversely also illustrate parts of the parameter ranges which can be excluded from multistart fitting due to their consistently unsuitable likelihood values.
@@ -486,7 +486,7 @@ The results of this sampling are saved in the `FinalPoints` and `FinalObjectives
 The `TargetTime` kwarg can be used to choose the number of samples such that the sampling is expected to require approximately the allotted time in seconds.
 """
 function StochasticProfileLikelihood(DM::AbstractDataModel, C::HyperCube=GetDomainSafe(DM); TargetTime::Real=30, Nsingle::Union{Nothing,Int}=nothing, parallel::Bool=true, N::Int=isnothing(Nsingle) ? GetNFromTargetTime(DM, TargetTime; parallel) : Nsingle^length(C), 
-                                                        nbins::Int=isnothing(Nsingle) ? Int(ceil(clamp(0.5*(N^(1/length(C))),3,100))) : Nsingle, maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, seed::Int=rand(0:Int(1e7)), kwargs...)
+                                                factor::Real=1, nbins::Int=isnothing(Nsingle) ? Int(ceil(clamp(factor*(N^(1/length(C))),3,100))) : Nsingle, maxval::Real=1e5, Domain::HyperCube=C∩FullDomain(length(C),maxval), TransformSample::Function=identity, seed::Int=rand(0:Int(1e7)), kwargs...)
     Points = GenerateSobolPoints(Domain; seed, N, maxval)
     !(TransformSample === identity) && (Points .= TransformSample.(Points))
     StochasticProfileLikelihood(DM, Points; Domain, nbins, seed, parallel, kwargs...)
@@ -513,7 +513,7 @@ Converts `AbstractDataFrame` of sampled points into MultistartResults object for
 Assumes by default that last column is log-likelihood values, and remaining part of rows are corresponding parameter configuration.
 """
 function StochasticProfileLikelihood(df::AbstractDataFrame, LikelihoodCol::Int=size(df,2); pnames::AbstractVector{<:AbstractString}=DataFrames.names(df)[Not(LikelihoodCol)], kwargs...)
-    StochasticProfileLikelihood([Vector(x) for x in eachrow(df[:,Not(LikelihoodCol)])], Vector(df[:,LikelihoodCol]); pnames, kwargs...)
+    StochasticProfileLikelihood([Vector(x) for x in eachrow(df[:,Not(LikelihoodCol)])], Vector(@view df[:,LikelihoodCol]); pnames, kwargs...)
 end
 
 
@@ -536,7 +536,7 @@ function GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likeliho
     mle = Trajs[1][findmin(Vals[1])[2]]
     ParameterProfiles([VectorOfArray([CenteredVec(Bins[i]), Vals[i], trues(size(Vals[i],1))]) for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
-function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; nbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
+function _GetStochasticProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, ind::Int; factor::Real=1, nbins::Int=Int(ceil(clamp(factor*(length(Likelihoods)^(1/length(Points[1]))),3,100))), Extremizer::Function=findmax, 
                                     UseSorted::Bool=true, pval::AbstractVector=getindex.(Points,ind), pBins::AbstractVector=collect(HistoBins(pval,nbins)), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, pnames=String[])
     ResInds = if UseSorted && issorted(Likelihoods; rev=true)
         [(X=findfirst(LogLikeInd->pBins[i] .≤ pval[LogLikeInd] .< pBins[i+1], 1:length(Points));  isnothing(X) ? 0 : X) for i in 1:length(pBins)-1]
@@ -562,7 +562,7 @@ function GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likeli
     # ParameterProfiles([[(((@view Bins[i][1:end-1]) .+ (@view Bins[i][2:end]))./2) 2(LogLikeMle .-Vals[i]) trues(size(Vals[i],1))] for i in eachindex(Bins)], Trajs, pnames, mle, dof, true, :StochasticProfiles)
 end
 function _GetStochastic2DProfile(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}; Extremizer::Function=findmax, OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, 
-                            nxbins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), nybins::Int=Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))), 
+                            factor::Real=1, nxbins::Int=Int(ceil(clamp(factor*(length(Likelihoods)^(1/length(Points[1]))),3,100))), nybins::Int=Int(ceil(clamp(factor*(length(Likelihoods)^(1/length(Points[1]))),3,100))), 
                             pxval::AbstractVector=getindex.(Points, idxs[1]), pyval::AbstractVector=getindex.(Points, idxs[2]), pnames=String[],
                             UseSorted::Bool=true, pxBins::AbstractVector=collect(HistoBins(pxval, nxbins)), pyBins::AbstractVector=collect(HistoBins(pyval, nybins)))
     @assert length(idxs) == 2 && allunique(idxs) && all(1 .≤ idxs .≤ length(Points[1]))
@@ -588,7 +588,7 @@ end
 StochasticProfileLikelihoodPlot(R::MultistartResults, ind::Int; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives, ind; xlabel=string(pnames(R)[ind]), kwargs...))
 StochasticProfileLikelihoodPlot(R::MultistartResults; kwargs...) = (@assert R.Meta === :SampledLikelihood;  StochasticProfileLikelihoodPlot(R.FinalPoints, R.FinalObjectives; pnames=string.(pnames(R)), kwargs...))
 # Collective
-function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; CutoffVal::Real=Inf, Inds::AbstractVector{<:Int}=1:findlast(x->isfinite(x) && abs(x)<CutoffVal,Likelihoods), nbins::Int=Int(ceil(clamp(0.5*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
+function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; CutoffVal::Real=Inf, Inds::AbstractVector{<:Int}=1:findlast(x->isfinite(x) && abs(x)<CutoffVal,Likelihoods), factor::Real=1, nbins::Int=Int(ceil(clamp(factor*(length(Inds)^(1/length(Points[1]))),3,100))), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), Extremizer::Function=findmax,
                                 pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), legend=false, OffsetResults::Bool=false, OffsetResultsBy::Union{Nothing,Number}=nothing, Cutoff::Int=400000, MLE::Union{Nothing,AbstractVector{<:Number}}=nothing, size=PlotSizer(length(pnames)), kwargs...)
     P = [StochasticProfileLikelihoodPlot((@view Points[Inds]), (@view Likelihoods[Inds]), i; nbins, Trafo, Extremizer, xlabel=string(pnames[i]), legend, OffsetResults, OffsetResultsBy, MLE) for i in eachindex(pnames)]
     Offset = OffsetResults ? (isnothing(OffsetResultsBy) ? Likelihoods[1] : OffsetResultsBy) : 0.0
@@ -750,7 +750,8 @@ for F in [Symbol("plot"), Symbol("plot!")]
 end
 @recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfileVal)
                                 # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity))
-    Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(0.5*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
+    factor = get(plotattributes, :factor, 1)                            
+    Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(factor*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
     DoBiLog = get(plotattributes, :BiLog, true)
     Trafo = get(plotattributes, :Trafo, (DoBiLog ? BiLog : identity))

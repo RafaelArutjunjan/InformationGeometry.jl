@@ -1,7 +1,7 @@
 module InformationGeometryPEtabExt
 
 
-using InformationGeometry, PEtab, DataFrames, ModelingToolkit, ForwardDiff
+using InformationGeometry, PEtab, DataFrames, SciMLBase, ModelingToolkit, ForwardDiff
 
 InformationGeometry.MLE(P::PEtabODEProblem) = PEtab.get_x(P)
 InformationGeometry.HyperCube(P::PEtabODEProblem) = HyperCube(P.lower_bounds, P.upper_bounds)
@@ -33,6 +33,9 @@ for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, 
         :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
     @eval InformationGeometry.$F(P::PEtabConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end
+
+# Pass remake to DataModel / ConditionGrid part
+SciMLBase.remake(PDM::PEtabConditionGrid; P::PEtabODEProblem=PDM.P, kwargs...) = PEtabConditionGrid(remake(PDM.DM; kwargs...), P)
 
 Base.summary(P::PEtabConditionGrid) = Base.summary(P.DM)
 # Multi-line display when used on its own in REPL
