@@ -604,6 +604,11 @@ function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector
         end
         push!(AddedPlots, SP)
     end
+    getylims(P) = P.series_list[1].plotattributes[:y_extrema]
+    try
+        ymin, ymax = minimum(getylims(p)[1] for p in P), maximum(getylims(p)[2] for p in P)
+        for p in P  RecipesBase.plot!(p; ylims=(ymin,ymax))     end
+    catch; end
     RecipesBase.plot([P; AddedPlots]...; layout=length(P)+length(AddedPlots), size, kwargs...)
 end
 # Individual Parameter
