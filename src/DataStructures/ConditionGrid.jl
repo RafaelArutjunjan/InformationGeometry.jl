@@ -144,7 +144,7 @@ GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[];
 Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
 ConditionNames(CG::ConditionGrid) = ConditionNames(CG.Trafos)
-
+Trafos(CG::ConditionGrid) = CG.Trafos
 
 DataspaceDim(CG::ConditionGrid) = sum(length∘ydata, Conditions(CG))
 

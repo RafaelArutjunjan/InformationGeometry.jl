@@ -25,7 +25,7 @@ for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
 end
 # Only single arg
 for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
-        :Data, :Conditions, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
+        :Data, :Conditions, :Trafos, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
         :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
