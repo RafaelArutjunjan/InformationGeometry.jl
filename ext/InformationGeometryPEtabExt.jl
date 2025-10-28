@@ -10,8 +10,10 @@ InformationGeometry.MLE(R::PEtabOptimisationResult) = R.xmin
 InformationGeometry.pdim(M::PEtabModel) = length(ModelingToolkit.parameters(M.sys_mutated))
 InformationGeometry.pdim(P::PEtabODEProblem) = InformationGeometry.pdim(P.model_info.model)
 
+
+import InformationGeometry: AbstractPEtabBasedConditionGrid
 ## Wrap DataModel or ConditionGrid together with its contituent PEtabODEProblem for later reference or modification
-struct PEtabConditionGrid <: InformationGeometry.AbstractDataModel
+struct PEtabConditionGrid <: AbstractPEtabBasedConditionGrid
     DM::AbstractDataModel
     P::PEtabODEProblem
     PEtabConditionGrid(P::PEtabModel; kwargs...) = PEtabConditionGrid(PEtabODEProblem(P); kwargs...) 

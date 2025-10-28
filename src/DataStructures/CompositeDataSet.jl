@@ -283,3 +283,26 @@ function ResidualStandardError(CDS::CompositeDataSet, model::ModelOrFunction, ML
     @assert (startind - 1) == DataspaceDim(CDS)
     ydim(CDS) == 1 ? Res[1] : Res
 end
+
+
+
+function ReadLongTableSingleCondition(Df::AbstractDataFrame; Time::Symbol=:time, Measurement::Symbol=:measurement, Noise::Symbol=:noiseParameters, SimulationId::Symbol=:simulationConditionId, ObservableId::Symbol=:observableId, kwargs...)
+    df = copy(Df);  df[!, ObservableId] .= Symbol.(df[!, ObservableId]);    df[!, SimulationId] .= Symbol.(df[!, SimulationId])
+    @assert length(unique(df[!,SimulationId])) == 1 "Only single value for $SimulationId allowed, got $df."
+    L = [(keep = df[!, ObservableId] .== Name;    perm=sortperm(df[!, Time][keep]);   (df[!,SimulationId][1], Name, df[!, Time][keep][perm], df[!, Measurement][keep][perm], df[!, Noise][keep][perm])) for Name in sort(Symbol.(unique(df[!, ObservableId])))]
+    if eltype(df[!,Noise]) <: Number
+        CompositeDataSet([DataSet(T[3], T[4], T[5], (length(T[4]), 1, 1); xnames=["time"], ynames=[T[2]], name=string(T[1])*"_"*string(T[2])) for T in L]; name=df[!,SimulationId][1], kwargs...)
+    else
+        throw("Only implemented for fixed known uncertainties, got eltype(df.$Noise)=$(eltype(eltype(df[!,Noise]))).")
+    end
+end
+
+"""
+    ReadLongTable(df::AbstractDataFrame; Time::Symbol=:time, Measurement::Symbol=:measurement, Noise::Symbol=:noiseParameters, SimulationId::Symbol=:simulationConditionId, ObservableId::Symbol=:observableId, kwargs...)
+Reads a `DataFrame` in so-called "long" format into (Vector of) `CompositeDataSet`.
+Currently only works for fixed known uncertainties, i.e. observation noise.
+"""
+function ReadLongTable(df::AbstractDataFrame; SimulationId::Symbol=:simulationConditionId, kwargs...)
+    Gs = groupby(df, SimulationId)
+    map(i->ReadLongTableSingleCondition(Gs[i]; SimulationId, kwargs...), collect(eachindex(Gs)))
+end
