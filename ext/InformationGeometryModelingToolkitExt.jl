@@ -128,10 +128,17 @@ function InformationGeometry.ODESystemTimeRetardation(Sys::AbstractSystem)
     ODESystem(NewEqs, t, try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, [ModelingToolkit.parameters(Sys); [T_shift, r_coupling]]; name=Symbol("Time-Retarded " * string(nameof(Sys))))
 end
 
-import InformationGeometry: MakeSymbolicPars
+import InformationGeometry: MakeSymbolicPars, MakeSymbolicParsOld, MakeSymbolicVarsOld
 # MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
+# Updates actually used definition
 MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeSymbolicPars(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicPars
 
 
+MakeSymbolicParsOld(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeSymbolicVarsOld(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:variables, Real, X, ModelingToolkit.toparam))
+
+MakeSymbolicParsOld(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicParsOld
+MakeSymbolicVarsOld(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicVarsOld
 
 end # module

@@ -143,8 +143,8 @@ function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verb
     else
         verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map((x,y)->inv(yinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    end;    errmod = yinverrormodel(DS)
+    map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
@@ -154,17 +154,17 @@ function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; ver
     else
         verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map(((x,y)->(S=yinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    end;    errmod = yinverrormodel(DS)
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 
 function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
-    normalparams, errorparams = SplitErrorParams(DS)(θ)
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams; kwargs...), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
-    woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
-    woundY = WoundY(DS)
+    woundY = WoundY(DS);    woundX = WoundX(DS)
+    woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
         Res::T = -DataspaceDim(DS)*log(2π)
         @inbounds for i in eachindex(woundY)
@@ -179,18 +179,19 @@ end
 # Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
 function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
-    normalparams, errorparams = SplitErrorParams(DS)(θ)
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
-    woundInvσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,errorparams), WoundX(DS), woundYpred)
+    woundX = WoundX(DS)
+    woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
 
     SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(DS, dmodel, θ) # Using θ for correct F size
     F_m = transpose(SJ) * SJ
 
     Σposhalf = BlockReduce(map(inv, woundInvσ))
     function InvSqrtCovFromFull(θ)
-        normalparams, errorparams = SplitErrorParams(DS)(θ)
-        BlockReduce(map((x,y)->yinverrormodel(DS)(x,y,errorparams), WoundX(DS), Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))))
+        normalparams, errorparams = Splitter(θ)
+        BlockReduce(map((x,y)->yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))))
     end
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 

@@ -84,15 +84,23 @@ _InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:ForwardDiff.Dual}) = dot(
 function InnerProduct(Mat::Diagonal, Y::AbstractVector{T}) where T <: Number
     d = Mat.diag
     @boundscheck length(d) == length(Y)
-    s = zero(T)
+    Res = zero(T)
     @inbounds @simd for i in eachindex(Y)
-        s += abs2(Y[i]) * d[i]
-    end;    s
+        Res += abs2(Y[i]) * d[i]
+    end;    Res
 end
 # InnerProduct(Mat::PDMats.PDMat, Y::AbstractVector) = (R = Mat.chol.U * Y;  dot(R,R))
 
+## Only marginally faster than simd loop for Diagonal
+function InnerProduct(D::LinearAlgebra.UniformScaling, Y::AbstractVector{T}) where T<:Number
+    d = D.λ;    Res = zero(T)
+    @inbounds @simd for y in Y
+        Res += abs2(y)
+    end;    Res *= d;    Res
+end
+
 InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Mat[i,j] * Y[j]
-InnerProductV(Mat::Diagonal, Y::AbstractVector) = (d = Mat.diag;  @tullio Res := d[j] * Y[j]^2)
+InnerProductV(Mat::Diagonal, Y::AbstractVector) = (d = Mat.diag;  @tullio Res := d[j] * abs2(Y[j]))
 
 # Does not hit BLAS, sadly
 """
