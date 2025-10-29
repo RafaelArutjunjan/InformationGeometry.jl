@@ -135,8 +135,8 @@ function xsigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testp
     else
         verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map((x,y)->inv(xinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    end;    errmod = xinverrormodel(DS)
+    map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpx; verbose::Bool=true)
@@ -146,8 +146,8 @@ function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
     else
         verbose && c === DS.testpx && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map(((x,y)->(S=xinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    end;    errmod = xinverrormodel(DS)
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 # Uncertainty must be constructed around prediction!
@@ -158,8 +158,8 @@ function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testp
     else
         verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map((x,y)->inv(yinverrormodel(DS)(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    end;    errmod = yinverrormodel(DS)
+    map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
@@ -169,13 +169,13 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
     else
         verbose && c === DS.testpy && @warn "Cheating by not constructing uncertainty around given prediction."
         c
-    end
-    map(((x,y)->(S=yinverrormodel(DS)(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    end;    errmod = yinverrormodel(DS)
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
 end
 
 
 function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
-    Splitter = SplitErrorParams(DS)
+    Splitter = SplitErrorParams(DS);    xinverrmod = xinverrormodel(DS);    yinverrmod = yinverrormodel(DS)
     normalparams, xerrorparams, yerrorparams = Splitter(θ)
     # Emb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS)))
 
@@ -189,16 +189,16 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
     woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
-    woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
-    woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
+    woundInvXσ = map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred)
+    woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
     woundX = WoundX(DS);    woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvYσ, woundY, woundXpred, woundInvXσ, woundX)
-        Res = -(length(ydata(DS)) + length(xdata(DS)))*log(2π)
-        for i in eachindex(woundY)
+        Res::T = -(length(ydata(DS)) + length(xdata(DS)))*log(2π)
+        @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvYσ[i])
             Res -= sum(abs2, woundInvYσ[i] * (woundY[i] - woundYpred[i]))
         end
-        for j in eachindex(woundX)
+        @inbounds for j in eachindex(woundX)
             Res += 2logdet(woundInvXσ[j])
             Res -= sum(abs2, woundInvXσ[j] * (woundX[j] - woundXpred[j]))
         end
@@ -212,47 +212,49 @@ end
 # Potential for optimization by specializing on Type of invcov
 function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; 
                         ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
-    normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
+    Splitter = SplitErrorParams(DS);    xinverrmod = xinverrormodel(DS);    yinverrmod = yinverrormodel(DS)
+    normalparams, xerrorparams, yerrorparams = Splitter(θ)
     # normalinds, xerrorinds, yerrorinds = SplitErrorParams(DS)(1:length(θ))
 
     # Lets xp pass through to model UNLIKE LiftedEmbedding currently!
+    Xinds = 1:length(xdata(DS))
     function LiftedEmb(ξ::AbstractVector; kwargs...)
-        xdat = view(ξ, 1:length(xdata(DS)))
+        xdat = view(ξ, Xinds)
         [xdat; EmbeddingMap(DS, model, ξ, Windup(xdat, xdim(DS)); kwargs...)]
     end
-    XY = LiftedEmb(normalparams)
-    woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
-    woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
+    XY = LiftedEmb(normalparams);   NonXinds = length(xdata(DS))+1:length(XY)
+    woundXpred = Windup(view(XY, Xinds), xdim(DS))
+    woundYpred = Windup(view(XY, NonXinds), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
-    woundInvXσ = map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred)
-    woundInvYσ = map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred)
+    woundInvXσ = map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred)
+    woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
 
     J = BlockMatrix(BlockReduce(woundInvXσ), BlockReduce(woundInvYσ)) * GetJac(ADmode, LiftedEmb, length(θ))(θ)
     F_m = transpose(J) * J
 
     yΣposhalf = map(inv, woundInvYσ) |> BlockReduce
     function InvSqrtyCovFromFull(θ)
-        normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
+        normalparams, xerrorparams, yerrorparams = Splitter(θ)
         XY = LiftedEmb(normalparams)
-        woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
-        woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-        BlockReduce(map((x,y)->Bessel .* yinverrormodel(DS)(x,y,yerrorparams), woundXpred, woundYpred))
+        woundXpred = Windup(view(XY, Xinds), xdim(DS))
+        woundYpred = Windup(view(XY, NonXinds), ydim(DS))
+        BlockReduce(map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred))
     end
     yΣneghalfJac = GetMatrixJac(ADmode, InvSqrtyCovFromFull, length(θ), size(yΣposhalf))(θ)
     @tullio F_ey[i,j] := 2 * yΣposhalf[a,b] * yΣneghalfJac[b,c,i] * yΣposhalf[c,d] * yΣneghalfJac[d,a,j]
     
     xΣposhalf = map(inv, woundInvXσ) |> BlockReduce
     function InvSqrtxCovFromFull(θ)
-        normalparams, xerrorparams, yerrorparams = SplitErrorParams(DS)(θ)
+        normalparams, xerrorparams, yerrorparams = Splitter(θ)
         XY = LiftedEmb(normalparams)
-        woundXpred = Windup(view(XY, 1:length(xdata(DS))), xdim(DS))
-        woundYpred = Windup(view(XY, length(xdata(DS))+1:length(XY)), ydim(DS))
-        BlockReduce(map((x,y)->Bessel .* xinverrormodel(DS)(x,y,xerrorparams), woundXpred, woundYpred))
+        woundXpred = Windup(view(XY, Xinds), xdim(DS))
+        woundYpred = Windup(view(XY, NonXinds), ydim(DS))
+        BlockReduce(map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred))
     end
     xΣneghalfJac = GetMatrixJac(ADmode, InvSqrtxCovFromFull, length(θ), size(xΣposhalf))(θ)
     @tullio F_ex[i,j] := 2 * xΣposhalf[a,b] * xΣneghalfJac[b,c,i] * xΣposhalf[c,d] * xΣneghalfJac[d,a,j]
     
-    F_m + F_ey + F_ex
+    F_m .+ F_ey .+ F_ex
 end
 
 # function _Score(DSE::DataSetExact, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
