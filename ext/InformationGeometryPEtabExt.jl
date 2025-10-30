@@ -31,7 +31,7 @@ for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, 
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
         :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
-        :xdataMat, :ydataMat, :SplitErrorParams, :GetDomain,
+        :xdataMat, :ydataMat, :SplitErrorParams, :GetDomain, :GetInDomain, :GetConstraintFunc,
         :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
     @eval InformationGeometry.$F(P::PEtabConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end
