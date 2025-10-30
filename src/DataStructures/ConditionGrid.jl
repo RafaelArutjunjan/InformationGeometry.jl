@@ -116,7 +116,7 @@ end
 
 MLE(CG::ConditionGrid) = CG.MLE
 pdim(CG::ConditionGrid) = length(MLE(CG))
-DOF(CG::ConditionGrid, mle::AbstractVector=MLE(CG)) = length(mle) - sum(map(NumberOfErrorParameters, Conditions(CG), CG.Trafos(mle)))
+DOF(CG::ConditionGrid, mle::AbstractVector=MLE(CG)) = length(mle) - sum(map(NumberOfErrorParameters, Conditions(CG), Trafos(CG)(mle)))
 
 LogLikeMLE(CG::ConditionGrid) = CG.LogLikeMLE
 pnames(CG::ConditionGrid) = Pnames(CG) .|> string
@@ -143,7 +143,7 @@ GetConstraintFunc(CG::ConditionGrid, startp::AbstractVector{<:Number}=Float64[];
 # Return nothing instead of producing MethodErrors
 Data(CG::ConditionGrid) = nothing
 Conditions(CG::ConditionGrid) = CG.DMs
-ConditionNames(CG::ConditionGrid) = ConditionNames(CG.Trafos)
+ConditionNames(CG::ConditionGrid) = ConditionNames(Trafos(CG))
 Trafos(CG::ConditionGrid) = CG.Trafos
 
 DataspaceDim(CG::ConditionGrid) = sum(length∘ydata, Conditions(CG))
@@ -163,7 +163,7 @@ function GetDomainSafe(DM::AbstractDataModel; maxval::Real=1e2, verbose::Bool=tr
     verbose && @warn "Making Domain [-$maxval, $maxval]^$(pdim(DM)) for $(typeof(DM)) $(name(DM))"
     FullDomain(length(MLE(DM)), maxval)
 end
-function MultistartFit(CG::ConditionGrid; maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), verbose::Bool=true, kwargs...)
+function MultistartFit(CG::AbstractConditionGrid; maxval::Real=1e2, Domain::Union{Nothing,HyperCube}=Domain(CG), verbose::Bool=true, kwargs...)
     if isnothing(Domain)
         pdim(CG) != sum(pdim.(Conditions(CG))) && throw(ArgumentError("Domain HyperCube or Distribution for sampling must be specified as second argument for ConditionGrids."))
         @warn "Using naively constructed Domain for Multistart. If you get an error, try specifying the Domain manually!"
@@ -175,40 +175,40 @@ end
 
 ## Prediction Functions
 function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
-    i = findfirst(x-> x === S, CG.Trafos.ConditionNames);    EmbeddingMap(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
+    i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMap(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
 function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
-    i = findfirst(x-> x === S, CG.Trafos.ConditionNames);    EmbeddingMatrix(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
+    i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMatrix(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
-    i = findfirst(x-> x === S, CG.Trafos.ConditionNames);    EmbeddingMap!(Y, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
+    i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMap!(Y, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
 function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
-    i = findfirst(x-> x === S, CG.Trafos.ConditionNames);    EmbeddingMatrix!(J, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
+    i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMatrix!(J, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
 
-function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, CG.Trafos.ConditionNames); kwargs...)
-    EmbeddingMap(Conditions(CG)[i], CG.Trafos[i](θ), woundX; kwargs...)
+function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+    EmbeddingMap(Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, CG.Trafos.ConditionNames); kwargs...)
-    EmbeddingMatrix(Conditions(CG)[i], CG.Trafos[i](θ), woundX; kwargs...)
+function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+    EmbeddingMatrix(Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, CG.Trafos.ConditionNames); kwargs...)
-    EmbeddingMap!(Y, Conditions(CG)[i], CG.Trafos[i](θ), woundX; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+    EmbeddingMap!(Y, Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, CG.Trafos.ConditionNames); kwargs...)
-    EmbeddingMatrix!(J, Conditions(CG)[i], CG.Trafos[i](θ), woundX; kwargs...)
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+    EmbeddingMatrix!(J, Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
 
 ## Create Master Methods which simply concatenate?
 function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, kwargs...)
     verbose && @warn "EmbeddingMap: Simply concatenating all predictions for all conditions."
-    reduce(vcat, [EmbeddingMap(CG, θ, S; kwargs...) for S in CG.Trafos.ConditionNames])
+    reduce(vcat, [EmbeddingMap(CG, θ, S; kwargs...) for S in ConditionNames(CG)])
 end
 
 function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, ADmode::Val=Val(:ForwardDiff), kwargs...)
     verbose && @warn "EmbeddingMatrix: Simply concatenating all Jacobians for all conditions."
-    reduce(vcat, [EmbeddingMatrix(CG, θ, S; kwargs...) * GetJac(ADmode, CG.Trafos[i])(θ) for (i,S) in enumerate(CG.Trafos.ConditionNames)])
+    reduce(vcat, [EmbeddingMatrix(CG, θ, S; kwargs...) * GetJac(ADmode, Trafos(CG)[i])(θ) for (i,S) in enumerate(ConditionNames(CG))])
 end
 
 
@@ -218,14 +218,14 @@ function TrafoLength(P::ParamTrafo; max::Int=MaxArgLen)
     end;    max
 end
 
-function SymbolicParamTrafo(CG::ConditionGrid; GenericNames::Bool=true)
+function SymbolicParamTrafo(CG::AbstractConditionGrid; GenericNames::Bool=true)
     Pars = GenericNames ? SymbolicArguments((1,1,pdim(CG)))[end] : MakeSymbolicPars(Pnames(CG))
-    SymbolicParamTrafo(CG.Trafos, Pars)
+    SymbolicParamTrafo(Trafos(CG), Pars)
 end
 function SymbolicParamTrafo(P::ParamTrafo, Pars::Union{AbstractArray{<:Num}, Symbolics.Arr}=SymbolicArguments((1,1,TrafoLength(P)))[end]; GenericNames::Bool=true)
     [F === identity ? "θ" : F(Pars) for F in P]
 end
-function ParamTrafoString(CG::Union{ConditionGrid,ParamTrafo}, args...; GenericNames::Bool=true, kwargs...)
+function ParamTrafoString(CG::Union{AbstractConditionGrid,ParamTrafo}, args...; GenericNames::Bool=true, kwargs...)
    Shorten(S::AbstractString) = !startswith(S, "θ") ? (@view S[findfirst('[', S):end]) : S
    if GenericNames
       "[" * join("θ->" .* Shorten.(string.(SymbolicParamTrafo(CG, args...; GenericNames, kwargs...))), ", ") * "]"
@@ -236,7 +236,7 @@ end
 
 
 # Plotrecipe: plot all dms individually
-RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))
+RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))
     plot_title --> string(name(CG))
     layout --> length(Conditions(CG))
     size --> PlotSizer(length(Conditions(CG)))
@@ -244,20 +244,20 @@ RecipesBase.@recipe function f(CG::ConditionGrid, mle::AbstractVector{<:Number}=
         @series begin
             subplot := i
             dof --> DOF(CG)
-            Conditions(CG)[i], CG.Trafos[i](mle)
+            Conditions(CG)[i], Trafos(CG)[i](mle)
         end
     end
 end
 
 
 
-function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, kwargs...)
+function ConditionSpecificProfiles(CG::AbstractConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, kwargs...)
     Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
     for i in idxs
         if PopulatedInds[i]
             k += 1
             for j in eachindex(Conditions(CG))
-                L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], Trajectories(P)[i])
+                L = map(Negloglikelihood(Conditions(CG)[j])∘Trafos(CG)[j], Trajectories(P)[i])
                 OffsetResults && (isnothing(OffsetResultsBy) ? (L .-= minimum(L)) : (L .-= OffsetResultsBy))
                 RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), Trafo.(L); color=j+2, label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, legend=true, subplot=k, kwargs...)
             end
@@ -265,10 +265,10 @@ function ConditionSpecificProfiles(CG::ConditionGrid, P::AbstractProfiles; idxs:
     end;  Plt
 end
 
-function ConditionSpecificWaterFalls(CG::ConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, kwargs...)
+function ConditionSpecificWaterFalls(CG::AbstractConditionGrid, R::AbstractMultistartResults; BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, kwargs...)
     Plt = RecipesBase.plot(; xlabel="Run (sorted)", ylabel=ApplyTrafoNames("CostFunction", Trafo))
     for j in eachindex(Conditions(CG))
-        L = map(Negloglikelihood(Conditions(CG)[j])∘CG.Trafos[j], R.FinalPoints)
+        L = map(Negloglikelihood(Conditions(CG)[j])∘Trafos(CG)[j], R.FinalPoints)
         L = @view L[1:findlast(isfinite, L)]
         OffsetResults && (isnothing(OffsetResultsBy) ? (L .-= minimum(L)) : (L .-= OffsetResultsBy))
         RecipesBase.plot!(Plt, Trafo.(L); label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, color=j, legend=true, kwargs...)

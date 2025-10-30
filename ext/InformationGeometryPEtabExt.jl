@@ -1,7 +1,7 @@
 module InformationGeometryPEtabExt
 
 
-using InformationGeometry, PEtab, DataFrames, SciMLBase, ModelingToolkit, ForwardDiff
+using InformationGeometry, PEtab, DataFrames, SciMLBase, ModelingToolkit, ForwardDiff, RecipesBase
 
 InformationGeometry.MLE(P::PEtabODEProblem) = PEtab.get_x(P)
 InformationGeometry.HyperCube(P::PEtabODEProblem) = HyperCube(P.lower_bounds, P.upper_bounds)
@@ -46,6 +46,12 @@ Base.summary(P::PEtabConditionGrid) = Base.summary(P.DM)
 Base.show(io::IO, m::MIME"text/plain", P::PEtabConditionGrid) = Base.show(io, m, P.DM)
 # Single line display
 Base.show(io::IO, P::PEtabConditionGrid) = Base.show(io, P.DM)
+
+
+for F in [:plot, :plot!]
+    RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; kwargs...) = RecipesBase.$F(CG.DM, mle, args...; kwargs...)
+end
+
 
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
