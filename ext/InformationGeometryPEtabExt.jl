@@ -23,7 +23,7 @@ end
 const PEtabDataModel = PEtabConditionGrid
 
 for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
-    @eval InformationGeometry.$F(P::PEtabConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
+    @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end
 # Only single arg
 for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
@@ -31,10 +31,12 @@ for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, 
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
         :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
-        :xdataMat, :ydataMat, :SplitErrorParams, :GetDomain, :GetInDomain, :GetConstraintFunc,
+        :xdataMat, :ydataMat, :SplitErrorParams, :GetDomain, :GetInDomain,
         :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
-    @eval InformationGeometry.$F(P::PEtabConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
+    @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end
+
+InformationGeometry.GetConstraintFunc(CG::AbstractPEtabBasedConditionGrid, startp::AbstractVector{<:Number}=Float64[]; kwargs...) = (nothing, nothing, nothing)
 
 # Pass remake to DataModel / ConditionGrid part
 SciMLBase.remake(PDM::PEtabConditionGrid; P::PEtabODEProblem=PDM.P, kwargs...) = PEtabConditionGrid(remake(PDM.DM; kwargs...), P)
