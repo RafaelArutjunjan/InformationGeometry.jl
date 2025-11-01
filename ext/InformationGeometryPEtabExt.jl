@@ -49,7 +49,7 @@ Base.show(io::IO, P::PEtabConditionGrid) = Base.show(io, P.DM)
 
 
 for F in [:plot, :plot!]
-    RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; kwargs...) = RecipesBase.$F(CG.DM, mle, args...; kwargs...)
+    @eval RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; kwargs...) = RecipesBase.$F(CG.DM, mle, args...; kwargs...)
 end
 
 

@@ -744,7 +744,7 @@ const StochasticProfileVal = Union{Val{:StochasticProfile},Val{:StochasticProfil
 const StochasticProfile2DVal = Union{Val{:StochasticProfile2D},Val{:StochasticProfiles2D},Val{:Stochastic2DProfile},Val{:Stochastic2DProfiles}}
 
 ## Plot recipe passthrough for replacing `StochasticProfileLikelihoodPlot`, not used yet though
-for F in [Symbol("plot"), Symbol("plot!")]
+for F in [:plot, :plot!]
     @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfileVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(R::MultistartResults, ind::Int, V::StochasticProfileVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, ind, V, args...; pnames, kwargs...)
 end
@@ -846,7 +846,7 @@ end
 
 
 ## Recipe Passthrough
-for F in [Symbol("plot"), Symbol("plot!")]
+for F in [:plot, :plot!]
     @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfile2DVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(R::MultistartResults, idxs, V::StochasticProfile2DVal, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfile2DVal, args...; kwargs...) = RecipesBase.$F(Points, Likelihoods, OrderedIndCombs2D(1:length(Points[1])), V, args...; kwargs...)
@@ -908,7 +908,7 @@ end
 
 const StochasticProfile2DValLower = Union{Val{:Stochastic2DProfilesLowerTriangular},Val{:Stochastic2DProfilesLower}}
 
-for F in [Symbol("plot"), Symbol("plot!")]
+for F in [:plot, :plot!]
     @eval RecipesBase.$F(R::MultistartResults, V::StochasticProfile2DValLower, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(R::MultistartResults, idxs, V::StochasticProfile2DValLower, args...; pnames=pnames(R), kwargs...) = RecipesBase.$F(R.FinalPoints, R.FinalObjectives, idxs, V, args...; pnames, kwargs...)
     @eval RecipesBase.$F(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfile2DValLower, args...; kwargs...) = RecipesBase.$F(Points, Likelihoods, 1:length(Points[1]), V, args...; kwargs...)
