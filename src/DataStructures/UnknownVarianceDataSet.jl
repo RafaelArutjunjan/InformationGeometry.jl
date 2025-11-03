@@ -30,8 +30,12 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int}
-    invxerrormodel::Function # σ_x⁻¹
-    invyerrormodel::Function # σ_y⁻¹
+    invxerrormodelraw::Function # σ_x⁻¹ as Number, Vector or Matrix
+    invyerrormodelraw::Function # σ_y⁻¹ as Number, Vector or Matrix
+    testoutx::Union{Number,<:AbstractVector,<:AbstractMatrix}
+    testouty::Union{Number,<:AbstractVector,<:AbstractMatrix}
+    invxerrormodel::Function # σ_x⁻¹ wrapped as AbstractMatrix, e.g. Diagonal
+    invyerrormodel::Function # σ_y⁻¹ wrapped as AbstractMatrix, e.g. Diagonal
     testpx::AbstractVector{<:Number}
     testpy::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, xERRORMODEL), view(θ, yERRORMODEL))
@@ -43,8 +47,8 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     function UnknownVarianceDataSet(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); 
                         testpx::AbstractVector=0.1ones(xdim(dims)), testpy::AbstractVector=0.1ones(ydim(dims)), kwargs...)
         @info "Assuming error models σ(x,y,c) = exp10.(c)"
-        xerrmod = xdim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
-        yerrmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
+        xerrmod = xdim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
+        yerrmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; kwargs...)
     end
     function UnknownVarianceDataSet(DS::AbstractDataSet, invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector=0.1ones(xdim(DS)), testpy::AbstractVector=0.1ones(ydim(DS)); kwargs...)
@@ -63,24 +67,41 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
             UnknownVarianceDataSet(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, xnames, ynames, name; kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
-        invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
+        invxerrormodelraw::Function, invyerrormodelraw::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
         xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
-        @warn "Missing error model tests"
+        
         ## Check that inverrormodel either outputs Matrix for ydim > 1
-        Q = invxerrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpx)
-        M = invyerrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
-        xdim(dims) == 1 ? (@assert Q isa Number && Q > 0) : (@assert Q isa AbstractMatrix && size(Q,1) == size(Q,2) == xdim(dims) && det(Q) > 0)
-        ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
-        new{BesselCorrection}(x, y, dims, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        Q = invxerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpx)
+        M = invyerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
+        Invxerrormodelraw, Invxerrormodel = if Q isa AbstractVector
+            invxerrormodelraw, (x,y,c::AbstractVector)->Diagonal(invxerrormodelraw(x,y,c)) # Wrap vector in Diagonal
+        elseif Q isa Number || Q isa AbstractMatrix
+            invxerrormodelraw, invxerrormodelraw # Do nothing
+        else
+            throw("Not implemented for error model output $Q of type $(typeof(Q)) yet.")
+        end
+        Invyerrormodelraw, Invyerrormodel = if M isa AbstractVector
+            invyerrormodelraw, (x,y,c::AbstractVector)->Diagonal(invyerrormodelraw(x,y,c)) # Wrap vector in Diagonal
+        elseif M isa Number || M isa AbstractMatrix
+            invyerrormodelraw, invyerrormodelraw # Do nothing
+        else
+            throw("Not implemented for error model output $M of type $(typeof(M)) yet.")
+        end
+        xdim(dims) == 1 && (@assert Q isa Number && Q > 0)
+        xdim(dims) > 1 && @assert (Q isa AbstractVector && length(Q) == xdim(dims) && all(Q .> 0)) || (Q isa AbstractMatrix && size(Q,1) == size(Q,2) == xdim(dims) && det(Q) > 0)
+        ydim(dims) == 1 && (@assert M isa Number && M > 0)
+        ydim(dims) > 1 && @assert (M isa AbstractVector && length(M) == ydim(dims) && all(M .> 0)) || (M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
+        
+        new{BesselCorrection}(x, y, dims, Invxerrormodelraw, Invyerrormodelraw, Q, M, Invxerrormodel, Invyerrormodel, testpx, testpy, errorparamsplitter, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
 
 function (::Type{T})(DS::UnknownVarianceDataSet{B}; kwargs...) where T<:Number where B
-	UnknownVarianceDataSet(T.(xdata(DS)), T.(ydata(DS)), dims(DS), xinverrormodel(DS), yinverrormodel(DS), 
+	UnknownVarianceDataSet(T.(xdata(DS)), T.(ydata(DS)), dims(DS), xinverrormodelraw(DS), yinverrormodelraw(DS), 
                 T.(DS.testpx), T.(DS.testpy), SplitErrorParams(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), BesselCorrection=B, kwargs...)
 end
 
@@ -121,6 +142,8 @@ SplitErrorParams(DS::UnknownVarianceDataSet) = DS.errorparamsplitter
 xinverrormodel(DS::UnknownVarianceDataSet) = DS.invxerrormodel
 yinverrormodel(DS::UnknownVarianceDataSet) = DS.invyerrormodel
 
+xinverrormodelraw(DS::UnknownVarianceDataSet) = DS.invxerrormodelraw
+yinverrormodelraw(DS::UnknownVarianceDataSet) = DS.invyerrormodelraw
 
 xerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[2]
 yerrorparams(DS::UnknownVarianceDataSet, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[3]

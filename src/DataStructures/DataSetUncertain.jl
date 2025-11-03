@@ -30,7 +30,9 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int} # Nxy
-    inverrormodel::Function # 1./errormodel
+    inverrormodelraw::Function # 1/errormodel as Number, Vector or Matrix
+    testout::Union{Number,<:AbstractVector,<:AbstractMatrix}
+    inverrormodel::Function # 1./errormodel wrapped as AbstractMatrix, e.g. Diagonal
     testp::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
     keep::Union{Nothing, AbstractVector{<:Bool}}
@@ -41,7 +43,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     DataSetUncertain(DS::AbstractDataSet; kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error model σ(x,y,c) = exp10.(c)"
-        errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->inv(exp10(c[1]))) : (x,y,c::AbstractVector)->Diagonal(inv.(exp10.(c)))
+        errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
         DataSetUncertain(Unwind(X), Unwind(Y), errmod, 0.1ones(ydim(dims)), dims; verbose, kwargs...)
     end
     function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testp::AbstractVector; kwargs...)
@@ -62,22 +64,33 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
             name::StringOrSymb=Symbol(), kwargs...)
         DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector,
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testp::AbstractVector,
             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); keep::Union{Nothing, AbstractVector{<:Bool}}=nothing, BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         @assert isnothing(keep) || length(keep) == length(y)
+
+        M = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
+        Inverrormodelraw, Inverrormodel = if M isa AbstractVector
+            inverrormodelraw, (x,y,c::AbstractVector)->Diagonal(inverrormodelraw(x,y,c)) # Wrap vector in Diagonal
+        elseif M isa Number || M isa AbstractMatrix
+            inverrormodelraw, inverrormodelraw # Do nothing
+        else
+            throw("Not implemented for error model output $M of type $(typeof(M)) yet.")
+        end
+        ## Todo: also check via ForwardDiff whether error model as x / y dependence.
+
         # Check that inverrormodel either outputs Matrix for ydim > 1
-        M = inverrormodel(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
-        ydim(dims) == 1 ? (@assert M isa Number && M > 0) : (@assert M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
+        ydim(dims) == 1 && (@assert M isa Number && M > 0)
+        ydim(dims) > 1 && @assert (M isa AbstractVector && length(M) == ydim(dims) && all(M .> 0)) || (M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
         
-        new{BesselCorrection}(x, y, dims, inverrormodel, testp, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection}(x, y, dims, Inverrormodelraw, M, Inverrormodel, testp, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
 function (::Type{T})(DS::DataSetUncertain{B}; kwargs...) where T<:Number where B
-	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodel(DS), SplitErrorParams(DS), T.(DS.testp), Xnames(DS), Ynames(DS), name(DS); keep=DS.keep, BesselCorrection=B, kwargs...)
+	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodelraw(DS), SplitErrorParams(DS), T.(DS.testp), Xnames(DS), Ynames(DS), name(DS); keep=DS.keep, BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake
@@ -119,7 +132,7 @@ errormoddim(DS::DataSetUncertain) = length(DS.testp)
 SplitErrorParams(DS::DataSetUncertain) = DS.errorparamsplitter
 
 yinverrormodel(DS::DataSetUncertain) = DS.inverrormodel
-
+yinverrormodelraw(DS::DataSetUncertain) = DS.inverrormodelraw
 
 xerrorparams(DS::DataSetUncertain, mle::AbstractVector) = nothing
 yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(mle))[2]
