@@ -31,7 +31,7 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2
         Yerrs = stripedYs ? ((xdims+2):2:(xdims + 2ydims)) : ((xdims+ydims+1):(xdims + 2ydims))
     end
     Xnames = isnothing(xnames) ? names(df[:,Xcols]) : xnames;    Ynames = isnothing(ynames) ? names(df[:,Ycols]) : ynames
-    verbose && (isnothing(xnames) || isnothing(ynames)) && @info "Variable names inferred from DataFrame: xnames=$Xnames, ynames=$Ynames."
+    verbose && (isnothing(xnames) || isnothing(ynames)) && @info "Variable names inferred from DataFrame: xnames=$Xnames, ynames=$Ynames, yerrors=$(names(df[:,Yerrs]))."
     DSs = _ReadIn(df, Xcols, Xerrs, Ycols, Yerrs)
     InformNames(DSs, Xnames, Ynames)
 end

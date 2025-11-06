@@ -11,8 +11,8 @@ Reduction(X::AbstractVector{<:SubArray{<:Number, 0}}) = [@inbounds X[i][1] for i
 
 # h(θ) ∈ Dataspace
 """
-    EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}) -> Vector
-Returns a vector of the collective predictions of the `model` as evaluated at the x-values and the parameter configuration ``\\theta``.
+    EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM)) -> Vector
+Returns a vector of the collective predictions of the `model` as evaluated at the parameter configuration ``\\theta`` and the vector of x-values `woundX`.
 ```
 h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}(x_N;\\theta)\\big) \\in \\mathcal{D}
 ```
@@ -79,8 +79,8 @@ end
 
 
 """
-    EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}) -> Matrix
-Returns the jacobian of the embedding map as evaluated at the x-values and the parameter configuration ``\\theta``.
+    EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM)) -> Matrix
+Returns the jacobian of the embedding map as evaluated at the parameter configuration ``\\theta`` and the vector of x-values `woundX`.
 """
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ, woundX; kwargs...)
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
