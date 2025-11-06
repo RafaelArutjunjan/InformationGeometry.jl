@@ -81,7 +81,7 @@ InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = _InnerProduct(Mat, Y)
 _InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:Number}) = transpose(Y) * Mat * Y
 _InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:ForwardDiff.Dual}) = dot(Y, Mat, Y)
 
-function InnerProduct(Mat::Diagonal, Y::AbstractVector{T}) where T <: Number
+function InnerProduct(Mat::DiagonalType, Y::AbstractVector{T}) where T <: Number
     d = Mat.diag
     @boundscheck length(d) == length(Y)
     Res = zero(T)
@@ -100,7 +100,7 @@ function InnerProduct(D::LinearAlgebra.UniformScaling, Y::AbstractVector{T}) whe
 end
 
 InnerProductV(Mat::AbstractMatrix, Y::AbstractVector) = @tullio Res := Y[i] * Mat[i,j] * Y[j]
-InnerProductV(Mat::Diagonal, Y::AbstractVector) = (d = Mat.diag;  @tullio Res := d[j] * abs2(Y[j]))
+InnerProductV(Mat::DiagonalType, Y::AbstractVector) = (d = Mat.diag;  @tullio Res := d[j] * abs2(Y[j]))
 
 # Does not hit BLAS, sadly
 """
@@ -115,7 +115,7 @@ function InnerProductChol(Mat::UpperTriangular, Y::AbstractVector{T})::T where T
         Res += temp^2
     end;    Res
 end
-function InnerProductChol(Mat::Diagonal, Y::AbstractVector{T})::T where T <: Number
+function InnerProductChol(Mat::DiagonalType, Y::AbstractVector{T})::T where T <: Number
     @assert length(Mat.diag) == length(Y)
     # sum(abs2, Mat.diag .* Y)
     sum((Mat.diag .* Y).^2) # faster for differentiation

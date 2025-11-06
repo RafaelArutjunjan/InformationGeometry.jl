@@ -142,7 +142,7 @@ HasBessel(DS::DataSetUncertain{T}) where T = T
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
 _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.BlockReduce(X) |> _TryVectorizeNoSqrt
 _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M
-_TryVectorizeNoSqrt(D::Diagonal) = D.diag
+_TryVectorizeNoSqrt(D::DiagonalType) = D.diag
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 

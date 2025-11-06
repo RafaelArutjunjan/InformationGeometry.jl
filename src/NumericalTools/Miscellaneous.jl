@@ -269,6 +269,11 @@ SoftAbs(x::Union{T, AbstractArray{T}}; eps::Real=1e-100) where T<:Number = @. sq
 Computes `log(x + eps)` to avoid `NaN` errors in automatic differentiation.
 """
 SoftLog(x::Union{T, AbstractArray{T}}; eps::Real=1e-20) where T<:Number = @. log(x + eps)
+"""
+    SoftNorm(x::Union{T, AbstractVector{T}}; eps::Real=1e-100) where T<:Number
+Computes differentiable approximation of 1-norm `sum∘abs` as `sqrt(sum(abs2,x) + eps)`.
+"""
+SoftNorm(x::AbstractArray{<:Number}; eps::Real=1e-100) = sqrt(sum(abs2, x) + eps)
 
 
 
@@ -351,7 +356,7 @@ function BlockMatrix(M::AbstractMatrix, N::Int)
         Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
     end;    Res
 end
-BlockMatrix(M::Diagonal, N::Int) = Diagonal(repeat(M.diag, N))
+BlockMatrix(M::DiagonalType, N::Int) = Diagonal(repeat(M.diag, N))
 
 """
     BlockMatrix(A::AbstractMatrix, B::AbstractMatrix)
@@ -364,7 +369,7 @@ function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Numbe
     Res[size(A,1)+1:end, size(A,1)+1:end] .= B
     Res
 end
-BlockMatrix(A::Diagonal, B::Diagonal) = Diagonal(vcat(A.diag, B.diag))
+BlockMatrix(A::DiagonalType, B::DiagonalType) = Diagonal(vcat(A.diag, B.diag))
 
 BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)

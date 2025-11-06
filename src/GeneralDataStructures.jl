@@ -27,7 +27,7 @@ function HealthyCovariance(M::AbstractMatrix{<:Number}; verbose::Bool=true, tol:
     end
     return M
 end
-HealthyCovariance(D::Diagonal; kwargs...) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
+HealthyCovariance(D::DiagonalType; kwargs...) = all(x->x>0, D.diag) ? D : throw("Given covariance Matrix has non-positive values on diagonal: $(D.diag)")
 # Interpret vector as uncertainties, therefore square before converting to Matrix
 HealthyCovariance(X::AbstractVector{<:Number}; kwargs...) = all(x->x>0, X) ? Diagonal(floatify(X).^2) : throw("Not all given uncertainties positive: $(X)")
 HealthyCovariance(X::AbstractVector{<:AbstractVector{<:Number}}; kwargs...) = Unwind(X)
@@ -48,7 +48,7 @@ WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 WoundY(DS::AbstractDataSet) = Windup(ydata(DS),ydim(DS))
 
 WoundInvCov(DS::AbstractDataSet) = _WoundMatrix(yInvCov(DS), ydim(DS))
-_WoundMatrix(D::Diagonal, Yd::Int) = Windup(D.diag, Yd)
+_WoundMatrix(D::DiagonalType, Yd::Int) = Windup(D.diag, Yd)
 _WoundMatrix(M::AbstractMatrix, Yd::Int) = throw("WoundInvCov can only be used with diagonal covariance matrices.")
 
 # Becomes dangerous now that there is a distinction between yInvCov and xInvCov

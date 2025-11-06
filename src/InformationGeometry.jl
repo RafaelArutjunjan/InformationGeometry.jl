@@ -122,6 +122,8 @@ const BoolArray = Union{BitArray,AbstractArray{<:Bool}}
 const BoolVector = Union{BitVector,AbstractVector{<:Bool}}
 const StringOrSymb = Union{Symbol, <:AbstractString}
 
+const DiagonalType = Union{LinearAlgebra.Diagonal, FillArrays.Eye}
+
 function BiLog end
 function BiExp end
 function BiRoot end
@@ -199,7 +201,7 @@ export ConditionGrid, Conditions, ConditionSpecificProfiles, ConditionSpecificWa
 
 
 include("NumericalTools/Miscellaneous.jl")
-export BiLog, BiExp, BiLog10, BiExp10, BiRoot, BiPower, SoftAbs, SoftLog, ViewElements
+export BiLog, BiExp, BiLog10, BiExp10, BiRoot, BiPower, SoftAbs, SoftLog, SoftNorm, ViewElements
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")

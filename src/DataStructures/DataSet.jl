@@ -124,7 +124,7 @@ function _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix)
     end
 end
 _TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
-_TryVectorize(D::Diagonal) = sqrt.(D.diag)
+_TryVectorize(D::DiagonalType) = sqrt.(D.diag)
 
 xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
 HasXerror(DS::DataSet) = false
