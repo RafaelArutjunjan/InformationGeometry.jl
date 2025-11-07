@@ -109,14 +109,14 @@ function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::Abstra
         mle .± sqrt.(Diagonal(inv(F)).diag)
     catch y;
         if y isa SingularException
-            verbose && @warn "MLEuncert: FisherMetric singular, estimating only diagonal uncertainty."
+            verbose && @warn "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
         elseif y isa DomainError
-            verbose && @warn "MLEuncert: inverse Fisher metric not positive-definite, estimating only diagonal uncertainty."
+            verbose && @warn "MLEuncert: inverse Fisher metric not positive-definite, trying to estimate conservative uncertainties for non-degenerate eigendirections."
         else
             rethrow(y)
         end
         # Larger than Diagonal∘pinv
-        mle .± sqrt.(inv.(Diagonal(F).diag))
+        mle .± sqrt.(Diagonal(ConservativeInverse(F)).diag)
     end
 end
 

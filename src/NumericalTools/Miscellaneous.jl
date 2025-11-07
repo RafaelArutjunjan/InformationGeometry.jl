@@ -347,6 +347,23 @@ end
 
 
 """
+    ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-11)
+Computes inverse of symmetric matrix `F` based on Eigendecomposition by eliminating degenerate eigendirections with eigenvalue smaller than `threshold`.
+In order to retain conservative estimates on the diagonal of the resulting inverse, the value `Inf` is imputed for the diagonal entry corresponding to the degenerate direction.
+"""
+function ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-11; Impute::Real=Inf)
+    @assert threshold > 0;    D, Vt = eigen(F);   i = findlast(x-> threshold>x, D);    isnothing(i) && return inv(F)
+    # Throw away degenerate eigendirections in inverse
+    R = Vt * Diagonal(vcat(zeros(i), inv.(@view D[i+1:end]))) * Vt'
+    for j in 1:i
+        # Which diagonal entry of inverse corresponds most strongly to degenerate eigendirection?
+        v = view(Vt, :, j);    ind = findmax(v .* v)[2];    R[ind,ind] = Impute
+    end;    R
+end
+
+
+
+"""
     BlockMatrix(M::AbstractMatrix, N::Int)
 Returns matrix which contains `N` many blocks of the matrix `M` along its diagonal.
 """
