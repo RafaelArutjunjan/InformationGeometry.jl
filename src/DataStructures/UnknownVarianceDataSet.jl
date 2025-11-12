@@ -75,21 +75,11 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         
         ## Check that inverrormodel either outputs Matrix for ydim > 1
         Q = invxerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpx)
+        Invxerrormodelraw, Invxerrormodel = ErrorModelTester(invxerrormodelraw, Q)
+        
         M = invyerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
-        Invxerrormodelraw, Invxerrormodel = if Q isa AbstractVector
-            invxerrormodelraw, (x,y,c::AbstractVector)->Diagonal(invxerrormodelraw(x,y,c)) # Wrap vector in Diagonal
-        elseif Q isa Number || Q isa AbstractMatrix
-            invxerrormodelraw, invxerrormodelraw # Do nothing
-        else
-            throw("Not implemented for error model output $Q of type $(typeof(Q)) yet.")
-        end
-        Invyerrormodelraw, Invyerrormodel = if M isa AbstractVector
-            invyerrormodelraw, (x,y,c::AbstractVector)->Diagonal(invyerrormodelraw(x,y,c)) # Wrap vector in Diagonal
-        elseif M isa Number || M isa AbstractMatrix
-            invyerrormodelraw, invyerrormodelraw # Do nothing
-        else
-            throw("Not implemented for error model output $M of type $(typeof(M)) yet.")
-        end
+        Invyerrormodelraw, Invyerrormodel = ErrorModelTester(invyerrormodelraw, M)
+
         xdim(dims) == 1 && (@assert Q isa Number && Q > 0)
         xdim(dims) > 1 && @assert (Q isa AbstractVector && length(Q) == xdim(dims) && all(Q .> 0)) || (Q isa AbstractMatrix && size(Q,1) == size(Q,2) == xdim(dims) && det(Q) > 0)
         ydim(dims) == 1 && (@assert M isa Number && M > 0)

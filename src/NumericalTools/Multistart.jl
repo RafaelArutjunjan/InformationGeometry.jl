@@ -313,7 +313,8 @@ function GetStepRanges(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R), St
 end
 
 function GetFirstStepInd(R::MultistartResults, ymaxind::Int=FindLastIndSafe(R); StepTol::Real=1e-3)
-    !isnothing(R.Meta) || (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0);  F=-R.FinalObjectives
+    !isnothing(R.Meta) || (@assert 1 ≤ ymaxind ≤ length(R) && StepTol > 0 "Given MultistartResults object had zero successful runs. Most likely there was an error in your arguments to MultistartFit(). Try adding TryCatchOptimizer=false and rerun to see error message.") 
+    F=-R.FinalObjectives
     FirstStepInd = findfirst(i->isfinite(F[i+1]) && abs(F[i+1]-F[i]) > StepTol, 1:ymaxind-1)
     isnothing(FirstStepInd) ? ymaxind : FirstStepInd
 end

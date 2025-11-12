@@ -1,4 +1,19 @@
 
+## Todo: also check via ForwardDiff whether error model as x / y dependence.
+## Add optimized inplace methods and full matrix builder
+function ErrorModelTester(inverrormodelraw::Function, testoutput)
+    Inverrormodelraw, Inverrormodel = if testoutput isa AbstractVector
+        inverrormodelraw, (x,y,c::AbstractVector)->Diagonal(inverrormodelraw(x,y,c)) # Wrap vector in Diagonal
+    elseif testoutput isa Diagonal
+        (x,y,c::AbstractVector)->inverrormodelraw(x,y,c).diag, inverrormodelraw # Unwrap Diagonal in raw model
+    elseif testoutput isa Number || testoutput isa AbstractMatrix
+        inverrormodelraw, inverrormodelraw # Do nothing
+    else
+        throw("Not implemented for error model output $testoutput of type $(typeof(testoutput)) yet.")
+    end
+    Inverrormodelraw, Inverrormodel
+end
+
 
 # Use general bitvector mask to implement missing values
 
@@ -72,14 +87,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         @assert isnothing(keep) || length(keep) == length(y)
 
         M = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
-        Inverrormodelraw, Inverrormodel = if M isa AbstractVector
-            inverrormodelraw, (x,y,c::AbstractVector)->Diagonal(inverrormodelraw(x,y,c)) # Wrap vector in Diagonal
-        elseif M isa Number || M isa AbstractMatrix
-            inverrormodelraw, inverrormodelraw # Do nothing
-        else
-            throw("Not implemented for error model output $M of type $(typeof(M)) yet.")
-        end
-        ## Todo: also check via ForwardDiff whether error model as x / y dependence.
+        Inverrormodelraw, Inverrormodel = ErrorModelTester(inverrormodelraw, M)
 
         # Check that inverrormodel either outputs Matrix for ydim > 1
         ydim(dims) == 1 && (@assert M isa Number && M > 0)
