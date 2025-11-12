@@ -16,7 +16,7 @@ using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using ProgressMeter, Suppressor
 using RecipesBase, PlotUtils
-using TreeViews, PrettyTables
+using PrettyTables
 
 import Sobol as SOBOL
 

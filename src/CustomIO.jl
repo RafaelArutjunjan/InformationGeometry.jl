@@ -79,26 +79,6 @@ function Base.summary(CG::ConditionGrid)
     " with pdim=", string(pdim(CG)), " containing ", string(length(Conditions(CG))), " conditions")
 end
 
-# http://docs.junolab.org/stable/man/info_developer/#
-# hastreeview, numberofnodes, treelabel, treenode
-TreeViews.hastreeview(x::Union{AbstractDataSet,AbstractDataModel,ModelMap}) = true
-TreeViews.numberofnodes(x::AbstractDataSet) = 4
-TreeViews.numberofnodes(x::AbstractDataModel) = 4
-TreeViews.numberofnodes(x::ModelMap) = 4
-TreeViews.numberofnodes(x::CompositeDataSet) = 1
-TreeViews.numberofnodes(x::GeneralizedDataSet) = 1
-TreeViews.numberofnodes(x::DataSetUncertain) = 5
-
-
-# function TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, mime::MIME"text/plain"=MIME"text/plain"())
-#     show(io, mime, Text(Base.summary(DS)))
-# end
-
-TreeViews.treelabel(io::IO, DS::Union{AbstractDataSet,AbstractDataModel,ModelMap}, ::MIME"text/plain") = print(io, Base.summary(DS))
-
-
-# To hide the treenode display, simply return missing:
-# treenode(x::Foo, i::Int) = missing
 
 
 function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))
@@ -108,33 +88,15 @@ function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(D
     else
         fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
     end
-    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
-    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
+    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200;    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
+    H = [TextHighlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))), crayon"fg:red bold")]
     if !isnothing(IsLin) && any(IsLin)
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
     else
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
     end
 end
-function ParamSummary(io::IO, DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))
-    IsLin = try IsLinearParameter(DM) catch; nothing end
-    L, U = if Predictor(DM) isa ModelMap
-        round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
-    else
-        fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
-    end
-    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200
-    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
-    if !isnothing(IsLin) && any(IsLin)
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U IsLin]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
-    else
-        H = Highlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))); bold=true, foreground=:red)
-        pretty_table(io, [1:pdim(DM) pnames(DM) L MLEuncert(DM, mle, FisherFn(mle);verbose=false) U]; crop=:none, header=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
-    end
-end
+ParamSummary(io::IO, args...; kwargs...) = show(io, ParamSummary(args...; kwargs...))
 
 
 #### Need proper show() methods for DataSet, DataModel, ModelMap
