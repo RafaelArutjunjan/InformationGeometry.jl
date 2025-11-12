@@ -81,14 +81,14 @@ end
 
 
 
-function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM))
+function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200)
     IsLin = try IsLinearParameter(DM) catch; nothing end
-    L, U = if Predictor(DM) isa ModelMap
-        round.(Predictor(DM).Domain.L; sigdigits=2), round.(Predictor(DM).Domain.U; sigdigits=2)
+    L, U = if Domain(DM) isa HyperCube
+        round.(Domain(DM).L; sigdigits=2), round.(Domain(DM).U; sigdigits=2)
     else
         fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
     end
-    OnLowerBoundary = @. (mle-L) / (U-L) < 1/200;    OnUpperBoundary = @. (U-mle) / (U-L) < 1/200
+    OnLowerBoundary = @. (mle-L) / (U-L) < BoundaryThreshold;    OnUpperBoundary = @. (U-mle) / (U-L) < BoundaryThreshold
     H = [TextHighlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))), crayon"fg:red bold")]
     if !isnothing(IsLin) && any(IsLin)
         PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
@@ -128,9 +128,14 @@ function Base.show(io::IO, GDS::GeneralizedDataSet)
     print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
 end
 
+# Implement cache later and provide fallback
+CachedSymbolicModel(DM) = SymbolicModel(DM)
+
+
+
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
-    Expr = string(SymbolicModel(DM))
+    Expr = string(CachedSymbolicModel(DM))
     LogPr = !isnothing(LogPrior(DM)) ? LogPrior(DM)(MLE(DM)) : nothing
     println(io, Base.summary(DM))
     println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
@@ -143,7 +148,7 @@ end
 
 # Single line display
 function Base.show(io::IO, DM::AbstractDataModel)
-    # Expr = SymbolicModel(DM)
+    # Expr = CachedSymbolicModel(DM)
     print(io, Base.summary(DM))
     print(io, ", Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
@@ -152,7 +157,7 @@ end
 
 # Multi-line display when used on its own in REPL
 function Base.show(io::IO, ::MIME"text/plain", M::ModelMap)
-    Expr = string(SymbolicModel(M))
+    Expr = string(CachedSymbolicModel(M))
     print(io, Base.summary(M))
     Expr[1] == 'y' && print(io, "\nModel Expr:  " * Expr)
     PNames = string.(Pnames(M))
@@ -161,7 +166,7 @@ end
 
 # Single line display
 function Base.show(io::IO, M::ModelMap)
-    # Expr = SymbolicModel(M)
+    # Expr = CachedSymbolicModel(M)
     print(io, Base.summary(M))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
     PNames = string.(Pnames(M))
