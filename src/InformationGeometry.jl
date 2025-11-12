@@ -11,7 +11,7 @@ using OrdinaryDiffEqCore, OrdinaryDiffEqVerner, OrdinaryDiffEqTsit5, OrdinaryDif
 using DiffEqCallbacks
 using Symbolics, DataInterpolations
 using DerivableFunctionsBase
-using LsqFit, Optim, LineSearches, ADTypes, Optimization
+using LsqFit, Optim, LineSearches, ADTypes, OptimizationBase
 using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using ProgressMeter, Suppressor

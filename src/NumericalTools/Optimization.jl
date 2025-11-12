@@ -288,15 +288,15 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
         !isnothing(ub) && (ub = nothing)
     end
     
-    prob = OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
+    prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
-    sol = Optimization.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
+    sol = OptimizationBase.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
         verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             verbose && @warn "minimize(): Try to continue with $retrymeth."
-            prob = OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
-            sol = Optimization.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
+            prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
+            sol = OptimizationBase.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
                 verbose && @warn "minimize(): Repeated Optimization with $retrymeth appears to not have converged, too."
             end
@@ -377,8 +377,9 @@ TracePlot(Pars)
 function ParameterSavingCallback(X::AbstractVector{<:Number})
     SavedParams = typeof(X)[]
     GetCurPar(S::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
-    GetCurPar(S::Optimization.OptimizationState) = S.u
-    GetCurPar(S) = throw("Got $S instead of OptimizationState.")
+    ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
+    # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
+    GetCurPar(S) = try  S.u  catch;   throw("Got $S instead of OptimizationState.") end
     SaveOptimizationpath(State, args...) = (push!(SavedParams, GetCurPar(State));   false)
     SavedParams, SaveOptimizationpath
 end
