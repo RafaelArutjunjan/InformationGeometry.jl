@@ -47,6 +47,7 @@ struct ModelMap{Inplace, Custom}
     CustomEmbedding::Val
     name::Symbol
     Meta
+    SymbolicCache
     # Given: Bool-valued domain function
     ModelMap(model::Function, InDomain::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = ModelMap(model, InDomain, nothing, xyp; kwargs...)
     # Given: HyperCube
@@ -67,8 +68,9 @@ struct ModelMap{Inplace, Custom}
     end
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; name::StringOrSymb=Symbol(), Meta=nothing, 
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), pnames::AbstractVector{<:StringOrSymb}=GetParameterNames(startp),
-                            inplace::Bool=isinplacemodel(model), IsCustom::Bool=CheckIfIsCustom(model, startp, xyp, inplace), kwargs...)
-        ModelMap(model, InDomain, Domain, xyp, pnames, Val(inplace), Val(IsCustom), name, Meta; kwargs...)
+                            inplace::Bool=isinplacemodel(model), IsCustom::Bool=CheckIfIsCustom(model, startp, xyp, inplace), TrySymbolic::Bool=true, kwargs...)
+        SymbolicCache = TrySymbolic ? ToExpr(model, xyp) : nothing
+        ModelMap(model, InDomain, Domain, xyp, pnames, Val(inplace), Val(IsCustom), name, Meta, SymbolicCache; kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
     ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, InDomain(M), Domain(M), M.xyp, M.pnames, Val(inplace), M.CustomEmbedding, name(M), M.Meta)
@@ -79,15 +81,13 @@ struct ModelMap{Inplace, Custom}
     #     InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
     #     new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding, name)
     # end
-    (@deprecate ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                    pnames::AbstractVector{<:StringOrSymb}, StaticOutput::Val, inplace::Val, CustomEmbedding::Val, name::Symbol) ModelMap(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, nothing))
 
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                        pnames::AbstractVector{<:StringOrSymb}, inplace::Val, CustomEmbedding::Val, name::StringOrSymb=Symbol(), Meta=nothing)
+                        pnames::AbstractVector{<:StringOrSymb}, inplace::Val, CustomEmbedding::Val, name::StringOrSymb=Symbol(), Meta=nothing, symbolicCache=nothing; SymbolicCache=symbolicCache)
         @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
         isnothing(Domain) ? (Domain = FullDomain(xyp[3], Inf)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
         InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
-        new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, Symbol.(pnames), inplace, CustomEmbedding, Symbol(name), Meta)
+        new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, Symbol.(pnames), inplace, CustomEmbedding, Symbol(name), Meta, SymbolicCache)
     end
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
@@ -106,7 +106,8 @@ pnames::AbstractVector{<:StringOrSymb}=[:θ],
 inplace::Val=Val(true),
 CustomEmbedding::Val=Val(true),
 name::Symbol=Symbol(),
-Meta=nothing) = ModelMap(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta)
+SymbolicCache=nothing,
+Meta=nothing, kwargs...) = ModelMap(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta, SymbolicCache; kwargs...)
 
 
 

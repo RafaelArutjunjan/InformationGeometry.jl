@@ -128,9 +128,12 @@ function Base.show(io::IO, GDS::GeneralizedDataSet)
     print(io, "Combined x-y covariance: ");    show(io, Sigma(dist(GDS)));    print(io, "\n")
 end
 
-# Implement cache later and provide fallback
-CachedSymbolicModel(DM) = SymbolicModel(DM)
 
+## Use cached symbolic representation (in ModelMap only) and otherwise omit symbolic expression in printing for performance
+const SymbolicCacheErrorString = "Unable to represent given model symbolically."
+CachedSymbolicModel(DM::Union{Function,AbstractDataModel}) = SymbolicCacheErrorString
+CachedSymbolicModel(DM::DataModel) = CachedSymbolicModel(Predictor(DM))
+CachedSymbolicModel(M::ModelMap) = SymbolicModel(M; expr=M.SymbolicCache)
 
 
 # Multi-line display when used on its own in REPL

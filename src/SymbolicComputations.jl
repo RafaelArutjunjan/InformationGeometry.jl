@@ -70,8 +70,7 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
-    expr = SymbolicModelExpr(DM)
+function SymbolicModel(DM::Union{AbstractDataModel,ModelMap}; expr=SymbolicModelExpr(DM), sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
     if sub
@@ -115,8 +114,7 @@ Produces `String` of symbolic expression for the model map if possible.
 Kwarg `sub` controls whether the given variable names are taken from `DM` (`sub=true`)
 or whether generic variable names, e.g. `θ[1]` are used (`sub=false`) for better copyability.
 """
-function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
-    expr = SymbolicdModelExpr(DM)
+function SymbolicdModel(DM::Union{AbstractDataModel,ModelMap}; expr=SymbolicdModelExpr(DM), sub::Bool=!(DM isa ModelMap) && SafeNames(pnames(DM)) && SafeNames(xnames(DM)) && SafeNames(ynames(DM)), verbose::Bool=true)
     isnothing(expr) && return "Unable to represent given model symbolically."
     # substitute symbol names with xnames, ynames and pnames?
     if sub
