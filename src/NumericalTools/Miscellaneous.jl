@@ -470,8 +470,8 @@ function MergeOneArgMethods(::Nothing, Inplace!::Function, args...; OutIn::Tuple
 ## Convert from ADmode keyword syntax using Vals to corresponding ADtype
 ADtypeConverter(V::Val{true}) = ADTypes.AutoForwardDiff()
 ADtypeConverter(V::Val{false}) = SciMLBase.NoAD()
-ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 ADtypeConverter(V::Val{:Symbolic}) = ADTypes.AutoSymbolics()
+ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 ADtypeConverter(V::Val{:ChainRules}) = ADTypes.AutoChainRules()
 ADtypeConverter(V::Val{:Diffractor}) = ADTypes.AutoDiffractor()
@@ -492,3 +492,6 @@ ADtypeConverter(V::Val{:Tapir}) = ADTypes.AutoTapir()
 ADtypeConverter(V::Val{:TaylorDiff}) = ADTypes.AutoTaylorDiff()
 ADtypeConverter(V::Val{:Tracker}) = ADTypes.AutoTracker()
 ADtypeConverter(V::Val{:Zygote}) = ADTypes.AutoZygote()
+
+ADtypeConverter(T::ADTypes.AbstractADType) = T
+ADtypeConverter(V::Val{T}) where T = T isa AbstractADType ? T : throw("ADtypeConverter not defined for $T")
