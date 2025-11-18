@@ -231,14 +231,6 @@ end
 Optim.optimize(f, g!, h!, l::AbstractArray, u::AbstractArray, p::AbstractArray, F::Fminbox, args...; kwargs...) = Optim.optimize(f, g!, l, u, p, F, args...; kwargs...)
 
 
-ADtypeConverter(V::Val{true}) = ADTypes.AutoForwardDiff()
-ADtypeConverter(V::Val{:ForwardDiff}) = ADTypes.AutoForwardDiff()
-ADtypeConverter(V::Val{:ReverseDiff}) = ADTypes.AutoReverseDiff()
-ADtypeConverter(V::Val{:Zygote}) = ADTypes.AutoZygote()
-ADtypeConverter(V::Val{:FiniteDifferences}) = ADTypes.AutoFiniteDifferences()
-ADtypeConverter(V::Val{:FiniteDiff}) = ADTypes.AutoFiniteDiff()
-ADtypeConverter(V::Val{:Symbolic}) = ADTypes.AutoSymbolics()
-ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
 
 # Extend with constraint Functions
 function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, lcons=nothing, ucons=nothing, kwargs...)

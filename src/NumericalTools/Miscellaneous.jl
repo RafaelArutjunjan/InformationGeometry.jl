@@ -464,3 +464,31 @@ function MergeOneArgMethods(::Nothing, Inplace!::Function, args...; OutIn::Tuple
     # Allow for splitting tuples generated in composition with ∘
     OverloadedMethod(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = OverloadedMethod(Tup[1], Tup[2]; kwargs...)
  end
+
+
+ 
+## Convert from ADmode keyword syntax using Vals to corresponding ADtype
+ADtypeConverter(V::Val{true}) = ADTypes.AutoForwardDiff()
+ADtypeConverter(V::Val{false}) = SciMLBase.NoAD()
+ADtypeConverter(S::Symbol) = ADtypeConverter(Val(S))
+ADtypeConverter(V::Val{:Symbolic}) = ADTypes.AutoSymbolics()
+
+ADtypeConverter(V::Val{:ChainRules}) = ADTypes.AutoChainRules()
+ADtypeConverter(V::Val{:Diffractor}) = ADTypes.AutoDiffractor()
+ADtypeConverter(V::Val{:Enzyme}) = ADTypes.AutoEnzyme()
+ADtypeConverter(V::Val{:FastDifferentiation}) = ADTypes.AutoFastDifferentiation()
+ADtypeConverter(V::Val{:FiniteDiff}) = ADTypes.AutoFiniteDiff()
+ADtypeConverter(V::Val{:FiniteDifferences}) = ADTypes.AutoFiniteDifferences()
+ADtypeConverter(V::Val{:ForwardDiff}) = ADTypes.AutoForwardDiff()
+ADtypeConverter(V::Val{:GTPSA}) = ADTypes.AutoGTPSA()
+ADtypeConverter(V::Val{:Mooncake}) = ADTypes.AutoMooncake()
+ADtypeConverter(V::Val{:MooncakeForward}) = ADTypes.AutoMooncakeForward()
+ADtypeConverter(V::Val{:PolyesterForwardDiff}) = ADTypes.AutoPolyesterForwardDiff()
+ADtypeConverter(V::Val{:Reactant}) = ADTypes.AutoReactant()
+ADtypeConverter(V::Val{:ReverseDiff}) = ADTypes.AutoReverseDiff()
+ADtypeConverter(V::Val{:Sparse}) = ADTypes.AutoSparse()
+ADtypeConverter(V::Val{:Symbolics}) = ADTypes.AutoSymbolics()
+ADtypeConverter(V::Val{:Tapir}) = ADTypes.AutoTapir()
+ADtypeConverter(V::Val{:TaylorDiff}) = ADTypes.AutoTaylorDiff()
+ADtypeConverter(V::Val{:Tracker}) = ADTypes.AutoTracker()
+ADtypeConverter(V::Val{:Zygote}) = ADTypes.AutoZygote()
