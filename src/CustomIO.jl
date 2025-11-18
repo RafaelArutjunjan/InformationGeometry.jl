@@ -83,8 +83,8 @@ end
 
 function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200)
     IsLin = try IsLinearParameter(DM) catch; nothing end
-    L, U = if Domain(DM) isa HyperCube
-        round.(Domain(DM).L; sigdigits=2), round.(Domain(DM).U; sigdigits=2)
+    L, U = if GetDomain(DM) isa HyperCube
+        round.(GetDomain(DM).L; sigdigits=2), round.(GetDomain(DM).U; sigdigits=2)
     else
         fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
     end

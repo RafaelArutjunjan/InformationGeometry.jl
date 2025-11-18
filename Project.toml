@@ -114,7 +114,7 @@ SpecialFunctions = "0.9, 0.10, 1, 2"
 StaticArrays = "0.11, 0.12, 1"
 Suppressor = "0.1, 0.2"
 SymbolicUtils = "0.11 - 0.20, 1, 2, 3, 4"
-Symbolics = "1 - 6"
+Symbolics = "1 - 6, 7"
 Tullio = "0.3"
 julia = "1"
 
