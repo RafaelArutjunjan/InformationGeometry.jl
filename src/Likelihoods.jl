@@ -256,7 +256,7 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
             !!! note
                 The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
             """
-            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) + EvalLogPriorGrad(LogPriorFn, θ; ADmode)
+            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) .+ EvalLogPriorGrad(LogPriorFn, θ; ADmode)
             function ScoreWithPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
                 S!(dl, θ; kwargs...);    dl += EvalLogPriorGrad(LogPriorFn, θ; ADmode);    dl
             end
@@ -267,7 +267,7 @@ end
 function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     ## Pure autodiff typically slow since must be recompiled!
     if DS isa AbstractUnknownUncertaintyDataSet
-        F, F! = GetHess(ADmode, Negate(LogLikelihoodFn)), GetHess!(ADmode, Negate(LogLikelihoodFn))
+        NL = Negate(LogLikelihoodFn);    F, F! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
         FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
         FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
     else

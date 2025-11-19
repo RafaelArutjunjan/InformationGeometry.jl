@@ -5,8 +5,24 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=1
         model((xlen < 2 ? rand() : rand(xlen)), startp)
     else
         Res = fill(-Inf, max)
-        model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
-        ind = findfirst(isinf, Res)
+        ind = try
+            model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
+            findfirst(isinf, Res)
+        catch E;
+            @warn "Got error $E during attempted evaluation of model."
+            ResInd = nothing
+            for i in 1:max
+                try (model(Res[1:i], (xlen < 2 ? rand() : rand(xlen)), startp);  ResInd=i) catch; end
+            end
+            if isnothing(ResInd)
+                # model output scalar?
+                try
+                    res = zero(eltype(startp))
+                    model(res, (xlen < 2 ? rand() : rand(xlen)), startp)
+                    return res
+                catch E2; @warn "Got error $E2 in attempt to get scalar output." end
+            end; ResInd
+        end
         isnothing(ind) && throw("Could not determine model output size. Consider providing tuple (xdim, ydim, pdim).")
         Res[1:(ind-1)]
     end
@@ -73,14 +89,8 @@ struct ModelMap{Inplace, Custom}
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(inplace), Val(IsCustom), name, Meta, SymbolicCache; kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
-    ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, InDomain(M), Domain(M), M.xyp, M.pnames, Val(inplace), M.CustomEmbedding, name(M), M.Meta)
-    # Careful with inheriting CustomEmbedding to the Jacobian! For automatically generated dmodels (symbolic or autodiff) it should be OFF!
-    # function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-    #                     pnames::AbstractVector{<:StringOrSymb}, StaticOutput::Val, inplace::Val=Val(false), CustomEmbedding::Val=Val(false), name::Symbol=Symbol())
-    #     isnothing(Domain) && (Domain = FullDomain(xyp[3], Inf))
-    #     InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
-    #     new{ValToBool(inplace)}(Map, InDomain, Domain, xyp, pnames, StaticOutput, inplace, CustomEmbedding, name)
-    # end
+    # ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M)) = ModelMap(F, InDomain(M), Domain(M), M.xyp, M.pnames, Val(inplace), M.CustomEmbedding, name(M), M.Meta)
+    ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M), IsCustom::Bool=iscustommodel(M), kwargs...) = remake(M; Map=F, inplace=Val(inplace), CustomEmbedding=Val(IsCustom), kwargs...)
 
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
                         pnames::AbstractVector{<:StringOrSymb}, inplace::Val, CustomEmbedding::Val, name::StringOrSymb=Symbol(), Meta=nothing, symbolicCache=nothing; SymbolicCache=symbolicCache)
@@ -92,7 +102,15 @@ struct ModelMap{Inplace, Custom}
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
 (M::ModelMap{true})(y, x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(y, x, θ; kwargs...)
-(M::ModelMap{true})(x, θ::AbstractVector{T}; kwargs...) where T<:Number = (Res=Vector{T}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res)
+
+(M::ModelMap{false})(y, x, θ::AbstractVector{<:Number}; kwargs...) = copyto!(y, M.Map(x, θ; kwargs...))
+function (M::ModelMap{true})(x, θ::AbstractVector{T}; kwargs...) where T<:Number
+    try
+        Res=Vector{T}(undef, M.xyp[2]);   M.Map(Res, x, θ; kwargs...);    Res
+    catch
+        Res=Matrix{T}(undef, M.xyp[2], M.xyp[3]);   M.Map(Res, x, θ; kwargs...);    Res
+    end
+end
 const ModelOrFunction = Union{Function,ModelMap}
 
 
