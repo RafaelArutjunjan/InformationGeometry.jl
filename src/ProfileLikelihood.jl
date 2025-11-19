@@ -156,7 +156,7 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=false)
+function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true)
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
@@ -176,6 +176,7 @@ function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T
     PinParameters(DM, Comps, float.(Vals); kwargs...)
 end
 
+const FixParameters = PinParameters
 
 _WithoutInd(X::AbstractVector{<:Bool}, ind::Int=findfirst(X)) = (Z=copy(X);  Z[ind]=false;  Z)
 function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked))

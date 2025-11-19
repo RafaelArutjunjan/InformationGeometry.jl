@@ -235,7 +235,7 @@ end
 """
 Switch between possibly slightly faster method which does not allow for time autodifferentiation vs 'robust' method which additionally includes backward integration.
 """
-function GetModelFastOrRobust(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter, ObservationFunc, args...; robust::Bool=true, pnames=nothing, kwargs...) where T
+function GetModelFastOrRobust(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter, ObservationFunc, args...; robust::Bool=true, startp=nothing, pnames=nothing, kwargs...) where T
     Mod = if robust
         GetModelRobust(func, Splitter, ObservationFunc, args...; kwargs...)
     else
