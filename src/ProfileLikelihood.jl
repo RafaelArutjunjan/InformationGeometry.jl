@@ -178,6 +178,18 @@ end
 
 const FixParameters = PinParameters
 
+"""
+    FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, kwargs...)
+Fixes all structuraly non-identified parameters to their current values.
+"""
+function FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, SkipOptim::Bool=true, kwargs...)
+    mle = MLEuncert(DM)
+    Fix = .!isfinite.(Measurements.uncertainty.(mle)) |> IndVec
+    verbose && println("Fixing structurally non-idenfied parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
+    PinParameters(DM, Fix; SkipOptim, kwargs...)
+end
+
+
 _WithoutInd(X::AbstractVector{<:Bool}, ind::Int=findfirst(X)) = (Z=copy(X);  Z[ind]=false;  Z)
 function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked))
     @assert 1 ≤ MainIndBefore ≤ length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainIndBefore=$MainIndBefore."
