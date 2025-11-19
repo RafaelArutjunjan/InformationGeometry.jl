@@ -12,11 +12,16 @@ F(x) = x[1]^2 + 0.5x[2]^4;    initial = 10ones(2) + rand(2);    Cube = HyperCube
 @test norm(minimize(F, initial; tol=1e-5, meth=Optim.LBFGS())) < 5e-2
 @test norm(minimize(F, initial; tol=1e-5, meth=Optim.Newton())) < 5e-2
 
+
+
+using Optimization, OptimizationNLopt
+@test norm(minimize(F, initial, Cube; tol=1e-5, meth=NLopt.LD_LBFGS())) < 5e-1
+@test norm(minimize(F, initial; tol=1e-5, meth=NLopt.LD_LBFGS())) < 5e-1
+
+
 # Check optimization with non-linear constraints and box constraints
 
 # Check in-place and out-of-place optimization
-
-# Test Optimization.jl
 
 # Test RobustFit
 
