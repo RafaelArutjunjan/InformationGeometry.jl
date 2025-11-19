@@ -247,7 +247,7 @@ export ApproxInRegion, ShadowTheatre, CastShadow, CrossValidation
 include("ProfileLikelihood.jl")
 # export ProfileLikelihood
 export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
-export ValInserter, InsertIntoFirst, InsertIntoLast, PinParameters, FixParameters, FixNonIdentifiable, LinkParameters
+export ValInserter, InsertIntoFirst, InsertIntoLast, FixParameters, FixNonIdentifiable, LinkParameters
 export ParameterProfiles
 export PlotProfilePaths, PlotProfilePathDiffs, PlotProfilePathNormDiffs
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles

@@ -29,7 +29,7 @@ DME = DataModel(DataSetExact(DS, 0.3ones(length(xdata(DS)))), LinearModel)
 
 @test Log10Xdata(DS) == DataSet(log10.([0.1,0.5,1,1.5]),[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
 
-@test PinParameters(DataModel(DS, Predictor(DM), dPredictor(DM), MLE(DM), θ->-norm(θ)), 2, 0.5) == DataModel(DS, (x,p)->p[1]*x + 0.5, (x,p)->SMatrix{1,1}([x]), [1.5], x->-norm(SA[x,0.5]))
+@test FixParameters(DataModel(DS, Predictor(DM), dPredictor(DM), MLE(DM), θ->-norm(θ)), 2, 0.5) == DataModel(DS, (x,p)->p[1]*x + 0.5, (x,p)->SMatrix{1,1}([x]), [1.5], x->-norm(SA[x,0.5]))
 
 DS2 = DataSet([-1, 0, 1], [-1 1; 0 0; 1.1 -1.1], transpose(hcat(0.75ones(2), 0.5ones(2), 0.85ones(2))))
 DM2 = DataModel(DS2, ModelMap((x,p)->[p[1]*x + p[2]-1, p[3]*x + p[4]-1]; pnames=["a", "b", "c", "d"]))

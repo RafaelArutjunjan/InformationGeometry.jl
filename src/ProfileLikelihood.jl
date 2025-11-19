@@ -150,33 +150,35 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
 
 
 """
-    PinParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat=MLE(DM)[Component])
-    PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
-    PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
-    PinParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
+    FixParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat=MLE(DM)[Component])
+    FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
+    FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
+    FixParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function PinParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true)
+function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true)
+    @assert DM isa DataModel
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests)
 end
-function PinParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
+function FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
     @assert length(Components) == pdim(DM)
-    PinParameters(DM, IndVec(Components), args...; kwargs...)
+    FixParameters(DM, IndVec(Components), args...; kwargs...)
 end
 
-function PinParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T}; kwargs...) where T<:Number
+function FixParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T}; kwargs...) where T<:Number
     Comps = Int[];  Vals = T[]
     for i in 1:pdim(DM)
         pnames(DM)[i] ∈ keys(ParamDict) && (push!(Comps, i);  push!(Vals, ParamDict[pnames(DM)[i]]))
     end
     @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
-    PinParameters(DM, Comps, float.(Vals); kwargs...)
+    FixParameters(DM, Comps, float.(Vals); kwargs...)
 end
 
-const FixParameters = PinParameters
+@deprecate PinParameters FixParameters
+
 
 """
     FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, kwargs...)
@@ -186,7 +188,7 @@ function FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, SkipOptim
     mle = MLEuncert(DM)
     Fix = .!isfinite.(Measurements.uncertainty.(mle)) |> IndVec
     verbose && println("Fixing structurally non-idenfied parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
-    PinParameters(DM, Fix; SkipOptim, kwargs...)
+    FixParameters(DM, Fix; SkipOptim, kwargs...)
 end
 
 
