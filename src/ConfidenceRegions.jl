@@ -713,7 +713,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     # Add data uncertainty here if Validation
     function CholeskyU(M::AbstractMatrix, x)
         # `M` denotes the pure prediction variance
-        try     cholesky(Symmetric(YsigmaGenerator(x) + M)).U
+        try     cholesky(Symmetric(YsigmaGenerator(x) .+ M)).U
         catch err
             !isa(err, PosDefException) && rethrow(err)
             UpperTriangular(diagm(zeros(size(M,1))))

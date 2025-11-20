@@ -20,7 +20,7 @@ QuadraticModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:N
 y(x,θ) = exp(θ_{n+1} + x_1 * θ_1 + x_2 * θ_2 + ... + x_n * θ_n)
 ```
 """
-ExponentialModel = exp∘LinearModel
+const ExponentialModel = exp∘LinearModel
 """
     SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number})    
 ```math
@@ -36,6 +36,10 @@ y(x,θ) = θ_1 * x^n + θ_2 * x^{n-1} + ... θ_{n} * x + θ_{n+1}
 ```
 """
 PolynomialModel(degree::Int) = Polynomial(x::Number, θ::AbstractVector{<:Number}) = sum(θ[i] * x^(i-1) for i in 1:(degree+1))
+
+
+## For testing purposes
+NonLinearModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}) = (θ[1]+θ[2]) .* x .+ exp(θ[1]-θ[2])
 
 
 function GetLinearModel(DS::AbstractDataSet)
