@@ -156,12 +156,12 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     FixParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true)
+function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
     @assert DM isa DataModel
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
-    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests)
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
 end
 function FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
     @assert length(Components) == pdim(DM)
