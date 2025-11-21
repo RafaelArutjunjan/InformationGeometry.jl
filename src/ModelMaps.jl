@@ -1,7 +1,7 @@
 
 
-function _TestOut(model::Function, startp::AbstractVector, xlen::Int; max::Int=100)
-    if !isinplacemodel(model)
+function _TestOut(model::Function, startp::AbstractVector, xlen::Int; inplace::Bool=isinplacemodel(model), max::Int=100)
+    if !inplace
         model((xlen < 2 ? rand() : rand(xlen)), startp)
     else
         Res = fill(-Inf, max)
@@ -77,10 +77,10 @@ struct ModelMap{Inplace, Custom}
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
         ModelMap(model, startp, InDomain, Domain; kwargs...)
     end
-    function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; kwargs...)
-        xlen = isinplacemodel(model) ? GetArgLength((Res,x)->model(Res,x,startp); max=MaxArgLen) : GetArgLength(x->model(x,startp); max=MaxArgLen)
-        testout = _TestOut(model, startp, xlen)
-        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); startp=startp, kwargs...)
+    function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; inplace::Bool=isinplacemodel(model), kwargs...)
+        xlen = inplace ? GetArgLength((Res,x)->model(Res,x,startp); max=MaxArgLen) : GetArgLength(x->model(x,startp); max=MaxArgLen)
+        testout = _TestOut(model, startp, xlen; inplace)
+        ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); inplace, startp=startp, kwargs...)
     end
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; name::StringOrSymb=Symbol(), Meta=nothing, 
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), pnames::AbstractVector{<:StringOrSymb}=GetParameterNames(startp),
