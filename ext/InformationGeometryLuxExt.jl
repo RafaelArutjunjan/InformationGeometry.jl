@@ -15,12 +15,14 @@ NeuralNet(DS::AbstractDataSet, args...; kwargs...) = NeuralNet(xdim(DS), ydim(DS
     NeuralNet(DS::AbstractDataSet, N::Int=2, hidden::Int=1; kwargs...)
     NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, HiddenActivation::Function=tanh, 
                             FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, kwargs...)
-`N` is number of neurons in intermediate layers, `hidden` is number of hidden layers.
-Returns `Lux.Chain`.
+`N` is number of neurons in intermediate layers, `hidden` is number of hidden layers, returns `Lux.Chain`.
+If `hidden` is `-1`, the dedicated output layer is also dropped, returning a single dense layer.
 """
 function NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, activation::Function=tanh, HiddenActivation::Function=activation, 
                             FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, 
                             init_weight=Lux.kaiming_uniform(; gain), kwargs...)
+    hidden == -1 && return Lux.Dense(In, Out, HiddenActivation; init_weight, kwargs...)
+
     Lux.Chain(Lux.Dense(In, N, HiddenActivation; init_weight, kwargs...), 
             [Lux.Dense(N, N, HiddenActivation; init_weight, kwargs...) for i in 1:hidden]..., 
             Lux.Dense(N, Out, FinalActivation; init_weight, kwargs...))
