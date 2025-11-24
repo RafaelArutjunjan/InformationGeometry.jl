@@ -1,5 +1,7 @@
 using InformationGeometry, Test, LinearAlgebra, Distributions, Optim
 
+using Random;   Random.seed!(123)
+
 # Detect if error parameters already accounted for in given ModelMap Domain and attempt to fix automatically
 X = 1:5;    Y = rand(5)
 @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel; startp=rand(3))) isa DataModel

@@ -16,7 +16,7 @@ NeuralNet(DS::AbstractDataSet, args...; kwargs...) = NeuralNet(xdim(DS), ydim(DS
     NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, HiddenActivation::Function=tanh, 
                             FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, kwargs...)
 `N` is number of neurons in intermediate layers, `hidden` is number of hidden layers, returns `Lux.Chain`.
-If `hidden` is `-1`, the dedicated output layer is also dropped, returning a single dense layer.
+If `hidden` is `-1`, the dedicated output layer is also dropped, returning a single `Lux.Dense` layer.
 """
 function NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, activation::Function=tanh, HiddenActivation::Function=activation, 
                             FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, 
