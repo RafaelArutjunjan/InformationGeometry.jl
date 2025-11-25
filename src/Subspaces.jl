@@ -47,8 +47,9 @@ end
 function PlanarDataModel(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}=DecomposeWRTPlane(PL, ProjectOntoPlane(PL, MLE(DM))))
     @assert DM isa DataModel
     model = Predictor(DM);      dmodel = dPredictor(DM)
-    newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, (SplitErrorParams(DM)(PlaneCoordinates(PL,θ)))[1]; kwargs...)
-    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, (SplitErrorParams(DM)(PlaneCoordinates(PL,θ)))[1]; kwargs...) * Projector(PL)
+    ModelParamGetter = GetOnlyModelParams(DM)
+    newmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> model(x, ModelParamGetter(PlaneCoordinates(PL,θ)); kwargs...)
+    dnewmod = (x,θ::AbstractVector{<:Number}; kwargs...) -> dmodel(x, ModelParamGetter(PlaneCoordinates(PL,θ)); kwargs...) * Projector(PL)
     PlanarLogPrior = EmbedLogPrior(DM, PL)
     LogLikelihoodFn = loglikelihood(DM)∘PlaneCoordinates(PL)
     # ScoreFn = MergeOneArgMethods(Score(DM)∘PlaneCoordinates(PL), nothing)

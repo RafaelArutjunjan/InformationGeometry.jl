@@ -29,10 +29,10 @@ function tester(DMU::AbstractDataModel, DM::AbstractDataModel, DME::AbstractData
     @test sum(abs, -GetHess(loglikelihood(DM))(mle)[1:pdim(DM),1:pdim(DM)] .+ GetHess(loglikelihood(DME))(mle)[1:pdim(DM),1:pdim(DM)]) < atol
 end
 
-import InformationGeometry: SplitErrorParams
+import InformationGeometry: GetOnlyModelParams
 # Agreement between variance propagation and confidence bands for linearly parametrised models
 function TestAgreement(DM::AbstractDataModel, Value::Real=2e-3; N::Int=51, Confnum::Real=3)
-    Xs = range(XCube(DM); length=N);   Ys = EmbeddingMap(DM, SplitErrorParams(DM)(MLE(DM))[1], Xs)
+    Xs = range(XCube(DM); length=N);   Ys = EmbeddingMap(DM, GetOnlyModelParams(DM)(MLE(DM)), Xs)
     F = VariancePropagation(DM; Confnum)
     S = ConfidenceRegion(DM, Confnum)
     M = (@view ConfidenceBands(DM, S, Xs; plot=false)[:,end]) .- Ys;

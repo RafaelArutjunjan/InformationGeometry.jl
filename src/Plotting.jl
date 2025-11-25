@@ -86,12 +86,11 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         end
     end
 end
-function predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM))
-    predictedY(Data(DM), Predictor(DM), mle, X)
-end
+predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), X::AbstractVector=xdata(DM)) = predictedY(Data(DM), Predictor(DM), mle, X)
+
 function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}, X::AbstractVector=xdata(DS))
     # Ignore structure of missing values for CompositeDataSet for dense prediction curve
-    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, (SplitErrorParams(DS)(mle))[1], X) : EmbeddingMap(DS, model, (SplitErrorParams(DS)(mle))[1], X)
+    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, mle, X) : EmbeddingMap(DS, model, GetOnlyModelParams(DS)(mle), X)
     ydim(DS) == 1 ? Y : (ydim(DS) ≤ Npoints(DS) ? Unpack(Windup(Y, ydim(DS))) : transpose(Unpack(Windup(Y, ydim(DS)))))
 end
 
@@ -347,7 +346,7 @@ end
 ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; verbose::Bool=true)
     Npoints(DS) ≤ length(MLE) && ((verbose && @warn "Too few data points to compute RSE"); return nothing)
-    ydiff = ydata(DS) - EmbeddingMap(DS, model, (SplitErrorParams(DS)(MLE))[1])
+    ydiff = ydata(DS) - EmbeddingMap(DS, model, GetOnlyModelParams(DS)(MLE))
     Res = map(i->sqrt(sum(abs2, view(ydiff, i:ydim(DS):length(ydiff))) / (Npoints(DS) - length(MLE))), 1:ydim(DS))
     ydim(DS) == 1 ? Res[1] : Res
 end
@@ -452,9 +451,9 @@ function PlotErrorModel(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE
     p = RecipesBase.plot(Data(DM); yerror=nothing)
     p = PlotFit(DM; color=:red)
     xran = range(extrema(xdata(DM))...; length=N)
-    Ypred = EmbeddingMap(DM, (SplitErrorParams(DM)(mle))[1], xran)
-    errorpars = (SplitErrorParams(DM)(mle))[end]
-    errmod = (x,y)->inv(Data(DM).inverrormodel(x,y,errorpars))
+    Ypred = EmbeddingMap(DM, GetOnlyModelParams(DM)(mle), xran)
+    yerrorpars = (SplitErrorParams(DM)(mle))[end]
+    errmod = (x,y)->inv(Data(DM).inverrormodel(x,y,yerrorpars))
     Bandwidth = map(errmod, xran, Ypred)
     RecipesBase.plot!(p, xran, Ypred .+ Bandwidth; linewidth, line, color, label=nothing)
     RecipesBase.plot!(p, xran, Ypred .- Bandwidth; linewidth, line, color, label="Error Model", kwargs...)
@@ -903,7 +902,7 @@ function _ConfidenceBands!(Res::AbstractMatrix, Yt::AbstractMatrix, DM::Abstract
     @assert size(Yt) == (ydim(DM), length(woundX))
     @assert size(Res) == (length(woundX), 2ydim(DM))
 
-    copyto!(Yt, EmbeddingMap(DM, (SplitErrorParams(DM)(point))[1], woundX))
+    copyto!(Yt, EmbeddingMap(DM, GetOnlyModelParams(DM)(point), woundX))
     @inbounds for col in 1:2:2ydim(DM)
         Ycol = Int(ceil(col/2))
         for row in axes(Res,1)

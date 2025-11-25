@@ -85,6 +85,12 @@ end
 
 SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, 0:-1)
 
+SkipXs(DS::AbstractDataModel) = SkipXs(Data(DM))
+SkipXs(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
+
+GetOnlyModelParams(DS::AbstractDataModel) = GetOnlyModelParams(Data(DM))
+GetOnlyModelParams(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
+
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!
 pdim(DM::AbstractDataModel) = pdim(Data(DM), Predictor(DM))
@@ -279,7 +285,7 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
 end
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction, P::AbstractVector=GetStartP(DS, model); verbose::Bool=true)
-    out = try  model(WoundX(DS)[1],(SplitErrorParams(DS)(P))[1])   catch Err
+    out = try  model(WoundX(DS)[1],GetOnlyModelParams(DS)(P))   catch Err
         throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
     end
     size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
@@ -337,7 +343,7 @@ function pdim(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap)
     # Check if given ModelMap Domain already includes error parameters
     try
         # Should already compensate for in-place models
-        M(WoundX(DS)[1],(SplitErrorParams(DS)(ElaborateGetStartP(M)))[1])
+        M(WoundX(DS)[1],GetOnlyModelParams(DS)(ElaborateGetStartP(M)))
         pdim(M)
     catch E;
         @warn "pdim(DS,M): It appears that error parameters are not included in given ModelMap Domain $(Domain(M)) yet? Got error $E. Appending $(errormoddim(DS)) component(s) for error parameters to initial parameter guess and trying to continue."

@@ -691,8 +691,8 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
 
-    ConfScaling = quantile(Chisq(dof), ConfVol(Confnum))
-    normalparams, errorparams = (SplitErrorParams(Data(DM))(mle))[1], (SplitErrorParams(Data(DM))(mle))[end]
+    ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
+    normalparams, yerrorparams = SkipXs(DM)((SplitErrorParams(DM)(mle))[1]), (SplitErrorParams(DM)(mle))[end]
     # As function of independent variable x
     YsigmaGenerator = if Data(DM) isa AbstractFixedUncertaintyDataSet
         # If Validation Band, add data uncertainty for single point to 
@@ -707,7 +707,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         ydim(DM) == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
-        !Validation ? (x -> 0.0) : (x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), errorparams));   ConfScaling * (S' * S)))
+        !Validation ? (x -> 0.0) : (x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), yerrorparams));   ConfScaling * (S' * S)))
     end
     
     # Add data uncertainty here if Validation
@@ -720,7 +720,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
-    SplitterJac = Data(DM) isa AbstractFixedUncertaintyDataSet ? (x->1.0) : GetJac(ADmode, x->(SplitErrorParams(DM)(x))[1])
+    SplitterJac = Data(DM) isa AbstractFixedUncertaintyDataSet ? (x->1.0) : GetJac(ADmode, x->SkipXs(DM)((SplitErrorParams(DM)(x))[1]))
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
     SplitterJ = SplitterJac(mle)
     embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJ
