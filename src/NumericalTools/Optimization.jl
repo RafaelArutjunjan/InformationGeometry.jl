@@ -273,8 +273,8 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
     
     @assert !retry || !isnothing(retrymeth)
     if SciMLBase.requiresbounds(meth)
-        isnothing(lb) && (lb = fill(-Inf, length(Start)))
-        isnothing(ub) && (ub = fill(Inf, length(Start)))
+        isnothing(lb) && (lb = Fill(-Inf, length(Start)))
+        isnothing(ub) && (ub = Fill(Inf, length(Start)))
     elseif !SciMLBase.allowsbounds(meth)
         !isnothing(lb) && (lb = nothing)
         !isnothing(ub) && (ub = nothing)

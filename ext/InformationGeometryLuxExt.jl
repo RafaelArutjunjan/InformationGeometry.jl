@@ -2,7 +2,7 @@ module InformationGeometryLuxExt
 
 
 using InformationGeometry, Lux
-using ComponentArrays, Random, StaticArrays, Distributions
+using ComponentArrays, FillArrays, Random, StaticArrays, Distributions
 
 import InformationGeometry: WoundX, WoundY, NeuralNet, NormalizedNeuralModel
 GetWidths(X::AbstractVector{<:AbstractVector}) = [GetWidths(getindex.(X, i)) for i in eachindex(X[1])]
@@ -39,20 +39,20 @@ Returns Tuple `(M, P, U)` where `M` is a `ModelMap` of the neural net with given
 `P` is a random initial `ComponentVector` parameter configuration and `U` is the `Lux.Chain` object of the underlying neural net.
 """
 function NormalizedNeuralModel(xd::Int, yd::Int, args...; rng=Random.default_rng(), 
-                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : zeros(xd)), 
-                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : ones(xd)),
-                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : zeros(yd)), 
-                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : ones(yd)), 
+                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : Zeros(xd)), 
+                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : Ones(xd)),
+                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : Zeros(yd)), 
+                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : Ones(yd)), 
                     PreTransform::Function=x->(x .- Xmean) ./ Xdiv, 
                     PostTransform::Function=y->(Ydiv .* y) .+ Ymean, Domain::Union{Nothing,HyperCube}=nothing, kwargs...)
     U = NeuralNet(xd, yd, args...; kwargs...)
     NormalizedNeuralModel(U, xd, yd; rng, Xmean, Xdiv, Ymean, Ydiv, PreTransform, PostTransform, Domain)
 end
 function NormalizedNeuralModel(U::Lux.AbstractLuxLayer, xd::Int, yd::Int; rng=Random.default_rng(), 
-                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : zeros(xd)), 
-                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : ones(xd)),
-                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : zeros(yd)), 
-                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : ones(yd)), 
+                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : Zeros(xd)), 
+                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : Ones(xd)),
+                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : Zeros(yd)), 
+                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : Ones(yd)), 
                     PreTransform::Function=x->(x .- Xmean) ./ Xdiv, 
                     PostTransform::Function=y->(Ydiv .* y) .+ Ymean, Domain::Union{Nothing,HyperCube}=nothing)
     p_NN_32, _st = Lux.setup(rng, U);    p_NN = ComponentVector{Float64}(p_NN_32)

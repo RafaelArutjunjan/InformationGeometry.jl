@@ -4,7 +4,7 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; inplace::B
     if !inplace
         model((xlen < 2 ? rand() : rand(xlen)), startp)
     else
-        Res = fill(-Inf, max)
+        Res = Fill(-Inf, max)
         ind = try
             model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
             findfirst(isinf, Res)
@@ -32,7 +32,7 @@ function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, Is
     if !IsInplace
         try   length(model(woundX, startp)) == 2xyp[2]   catch;  false   end
     else
-        Res = fill(-Inf, 2xyp[2])
+        Res = Fill(-Inf, 2xyp[2])
         try   model(Res, woundX, startp);   !any(isinf, Res)    catch; false  end
     end
 end
@@ -430,10 +430,10 @@ ScaleTransform(DM::AbstractDataModel, factor::Number, idxs::BoolVector=trues(pdi
 
 
 function TranslationTransform(F::Union{ModelOrFunction, AbstractDataModel}, v::AbstractVector{T}; kwargs...) where T<:Number
-    AffineTransform(F, Diagonal(ones(T,length(v))), v; kwargs...)
+    AffineTransform(F, Diagonal(Ones(T,length(v))), v; kwargs...)
 end
 function LinearTransform(F::Union{ModelOrFunction, AbstractDataModel}, A::AbstractMatrix{T}; kwargs...) where T<:Number
-    AffineTransform(F, A, zeros(T, size(A,1)); kwargs...)
+    AffineTransform(F, A, Zeros(T, size(A,1)); kwargs...)
 end
 
 function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=nothing)

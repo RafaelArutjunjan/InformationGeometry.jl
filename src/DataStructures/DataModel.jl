@@ -211,8 +211,8 @@ EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff),
 EvalLogPriorHess(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, P; kwargs...)(θ)
 
 EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zero(T)
-EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x))
-EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zeros(T, length(x), length(x))
+EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = Zeros(T, length(x))
+EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = Zeros(T, length(x), length(x))
 
 
 """

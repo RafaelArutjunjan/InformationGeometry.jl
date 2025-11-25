@@ -143,8 +143,8 @@ function DataFrames.DataFrame(CDS::CompositeDataSet; kwargs...)
                 end
             end
             for _ in 1:(maxcounts[i]-counts[j][i])
-                push!(ResY, fill(missing, ydim(DS)))
-                push!(ResYσ, fill(missing, ydim(DS)))
+                push!(ResY, Fill(missing, ydim(DS)))
+                push!(ResYσ, Fill(missing, ydim(DS)))
             end
         end
     end

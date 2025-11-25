@@ -54,7 +54,7 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         @info "No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's."
         DataSet(x, y, 1.0; kwargs...)
     end
-    DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real; kwargs...) = DataSet(x, y, allsigmas*ones(length(y)*length(y[1])); kwargs...)
+    DataSet(x::AbstractArray, y::AbstractArray, allsigmas::Real; kwargs...) = DataSet(x, y, Fill(allsigmas,length(y)*length(y[1])); kwargs...)
     # Also make a fancy version for DataFrames that infers the variable names?
     function DataSet(X::AbstractArray, Y::AbstractArray, Σ_y::AbstractArray; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the DataSet constructor.")
@@ -126,7 +126,7 @@ end
 _TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
 _TryVectorize(D::DiagonalType) = sqrt.(D.diag)
 
-xsigma(DS::DataSet) = zeros(Npoints(DS)*xdim(DS))
+xsigma(DS::DataSet) = Zeros(Npoints(DS)*xdim(DS))
 HasXerror(DS::DataSet) = false
 
 yInvCov(DS::DataSet) = DS.InvCov

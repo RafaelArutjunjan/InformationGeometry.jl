@@ -74,7 +74,7 @@ Base.length(d::InformationGeometry.Dirac) = length(d.μ)
 
 Distributions.insupport(d::InformationGeometry.Dirac, x::AbstractVector) = length(d) == length(x) && all(isfinite, x)
 Distributions.mean(d::InformationGeometry.Dirac) = d.μ
-Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(zeros(eltype(d.μ),length(d)))
+Distributions.cov(d::InformationGeometry.Dirac) = Diagonal(Zeros(eltype(d.μ),length(d)))
 Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal(eltype(d.μ)[Inf for i in 1:length(d)])
 Distributions.pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
 Distributions.logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))

@@ -129,7 +129,7 @@ function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs, stripedXs, stripedYs, xnames, ynames); kwargs...)
 end
 function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs...)
-    CompositeDataSet(xdf, ydf, DataFrame(sig*ones(size(ydf)...), names(ydf).*"_σ"); kwargs...)
+    CompositeDataSet(xdf, ydf, DataFrame(Fill(sig,size(ydf)...), names(ydf).*"_σ"); kwargs...)
 end
 function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame; xerrs::Bool=false, stripedYs::Bool=false, kwargs...)
     # Enforce stripedYs=false

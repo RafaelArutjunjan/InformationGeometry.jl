@@ -1,6 +1,6 @@
 
 
-SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(0:Int(1e7)), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -maxval*ones(length(C)), maxval*ones(length(C))), clamp(C.U, -maxval*ones(length(C)), maxval*ones(length(C)))), seed; exact=true)
+SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(0:Int(1e7)), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, Fill(-maxval,length(C)), Fill(maxval,length(C))), clamp(C.U, Fill(-maxval,length(C)), Fill(maxval,length(C)))), seed; exact=true)
 SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e12)))
 GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
 
@@ -78,7 +78,7 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
-                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunc::Bool=false, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
+                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
@@ -174,7 +174,7 @@ struct MultistartResults <: AbstractMultistartResults
             InitialPoints::AbstractVector{<:AbstractVector{<:Number}},
             FinalObjectives::AbstractVector{<:Number},
             InitialObjectives::AbstractVector{<:Number},
-            Iterations::AbstractVector{<:Int}=zeros(Int, length(FinalObjectives)),
+            Iterations::AbstractVector{<:Int}=Zeros(Int, length(FinalObjectives)),
             Converged::AbstractVector{<:Bool}=map(isfinite, FinalObjectives),
             pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(FinalPoints[1])),
             meth=missing,
@@ -434,7 +434,7 @@ function DistanceMatrixWithinStep(DM::AbstractDataModel, R::MultistartResults, I
     @assert 1 ≤ Ind ≤ length(Steps)
     F = FisherMetric(DM, R.FinalPoints[Steps[Ind][1]]) # get first point in ProfileDomain
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[i] - R.FinalPoints[j])) for i in Steps[Ind], j in Steps[Ind]]
-    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(Fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
 end
 
@@ -446,7 +446,7 @@ function DistanceMatrixBetweenSteps(DM::AbstractDataModel, R::MultistartResults;
     ymaxind = FindLastIndSafe(R);    StepInds = GetStepInds(R, ymaxind);     Steps = GetStepRanges(R, ymaxind, StepInds)
     F = FisherMetric(DM, R.FinalPoints[1])
     Dists = [sqrt(InnerProduct(F, R.FinalPoints[Steps[i][1]] - R.FinalPoints[Steps[j][1]])) for i in eachindex(Steps), j in eachindex(Steps)]
-    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
+    plot && display(RecipesBase.plot((logarithmic ? log1p : identity).(Dists + Diagonal(Fill(NaN, size(Dists,1)))); st=:heatmap, clims=(0, Inf), kwargs...))
     Dists
 end
 
@@ -499,7 +499,7 @@ function StochasticProfileLikelihood(DM::AbstractDataModel, Points::AbstractVect
 end
 # Construct MultistartResults and call Plot
 function StochasticProfileLikelihood(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}; plot::Bool=isloaded(:Plots), Domain::Union{HyperCube,Nothing}=nothing, pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(length(Points[1])), Meta=:SampledLikelihood, seed::Union{Nothing,Int}=nothing, kwargs...)
-   R = MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, fill(-Inf, length(Likelihoods)), zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, missing, seed, Domain, nothing, Meta)
+   R = MultistartResults(Points, [eltype(Points[1])[] for i in eachindex(Points)], Likelihoods, Fill(-Inf,length(Likelihoods)), Zeros(Int, length(Likelihoods)), falses(length(Likelihoods)), pnames, missing, seed, Domain, nothing, Meta)
    plot && display(StochasticProfileLikelihoodPlot(R; kwargs...))
    R
 end

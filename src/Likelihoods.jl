@@ -78,6 +78,7 @@ GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; k
 
 # dot(Y, Mat, Y) faster for differentiation than transpose(Y) * Mat * Y due to fewer allocations
 InnerProduct(Mat::AbstractMatrix, Y::AbstractVector) = _InnerProduct(Mat, Y)
+# For sparse arrays, direct multiplication also faster:
 _InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:Number}) = transpose(Y) * Mat * Y
 _InnerProduct(Mat::AbstractMatrix, Y::AbstractVector{<:ForwardDiff.Dual}) = dot(Y, Mat, Y)
 
@@ -264,9 +265,10 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
     end
 end
 
-function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
+                                    UseHess::Bool=DS isa AbstractUnknownUncertaintyDataSet, Kwargs...)
     ## Pure autodiff typically slow since must be recompiled!
-    if DS isa AbstractUnknownUncertaintyDataSet
+    if UseHess
         NL = Negate(LogLikelihoodFn);    F, F! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
         FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
         FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
@@ -312,8 +314,22 @@ Constructs lifted embedding map from initial space into extended dataspace ``\\h
 """
 LiftedEmbedding(DM::AbstractDataModel) = LiftedEmbedding(Data(DM), Predictor(DM), pdim(DM))
 function LiftedEmbedding(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
-    ĥ(ξ::AbstractVector; kwargs...) = ĥ(view(ξ,1:length(ξ)-pd), view(ξ,length(ξ)-pd+1:length(ξ)); kwargs...)
-    ĥ(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, Windup(xdat, xdim(DS)); kwargs...)]
+    ĥ(ξ::AbstractVector; kwargs...) = ĥ2(view(ξ,1:length(ξ)-pd), view(ξ,length(ξ)-pd+1:length(ξ)); kwargs...)
+    ĥ2(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, Windup(xdat, xdim(DS)); kwargs...)]
+    ĥ
+end
+"""
+    LiftedEmbeddingInplace(DM::AbstractDataModel) -> Function
+Constructs lifted embedding map from initial space into extended dataspace ``\\hat{h} : \\mathcal{X}^N \\times \\mathcal{M} \\longrightarrow \\mathcal{X}^N \\times\\mathcal{Y}^N`` effecting
+``\\xi = (x_\\text{opt}, \\theta) \\longmapsto \\hat{h}(\\xi) = (x_\\text{opt}, h(x_\\text{opt}, \\theta))``.
+"""
+LiftedEmbeddingInplace(DM::AbstractDataModel) = LiftedEmbeddingInplace(Data(DM), Predictor(DM), pdim(DM))
+function LiftedEmbeddingInplace(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
+    function ĥ!(XY::AbstractVector, XP::AbstractVector; kwargs...)
+        xlen = length(XP) - pd;     Xinds = 1:xlen;    Xs = view(XP, Xinds)
+        copyto!(view(XY,Xinds), Xs)
+        EmbeddingMap!(view(XY,xlen+1:length(XY)), DS, Model, view(XP, xlen+1:length(XP)), Windup(Xs, xdim(DS)); kwargs...)
+    end
 end
 
 """

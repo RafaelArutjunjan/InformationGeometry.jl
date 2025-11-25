@@ -50,10 +50,7 @@ end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...)
     EmbeddingMap!(Y, Data(DM), Predictor(DM), θ, woundX; kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
-    _EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
-end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{true, false}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::Union{ModelOrFunction,ModelMap{true,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)
     _EmbeddingMap!(Y, model!, θ, woundX, Val(ydim(DS)); kwargs...)
 end
 function EmbeddingMap!(Y::AbstractVector{<:Number}, DS::AbstractDataSet, model!::ModelMap{true, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...)

@@ -158,7 +158,7 @@ RotatePlane(PL::Plane, rads::Real=π/2) = ((S,C) = sincos(rads);   Plane(PL.stü
 function RotationMatrix(PL::Plane, rads::Real)
     V = PL.Vx*transpose(PL.Vx) + PL.Vy*transpose(PL.Vy)
     W = PL.Vx*transpose(PL.Vy) - PL.Vy*transpose(PL.Vx)
-    Diagonal(ones(length(PL.stütz))) + (cos(rads)-1.)*V -sin(rads)*W
+    Diagonal(Ones(length(PL.stütz))) + (cos(rads)-1.)*V -sin(rads)*W
 end
 RotateVector(PL::Plane, v::AbstractVector, rads::Real) = RotationMatrix(PL,rads) * v
 
@@ -181,7 +181,7 @@ function DecomposeWRTPlane(PL::Plane, X::AbstractVector)
     [(ys/(xs*ys - xy^2)) * (Px - xy*Py/ys), (xs/(xs*ys - xy^2)) * (Py - xy*Px/xs)]
 end
 
-DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm
+DistanceToPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = (Diagonal(Ones(length(x))) - ProjectionOp) * (x - PL.stütz) |> norm
 ProjectOntoPlane(PL::Plane, x::AbstractVector, ProjectionOp::AbstractMatrix=ProjectionOperator(PL)) = muladd(ProjectionOp, x .- PL.stütz, PL.stütz)
 
 function ProjectionOperator(A::AbstractMatrix)
@@ -491,11 +491,11 @@ import Base.==
 ==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
 ==(A::Plane, B::Plane) = A.stütz == B.stütz && A.Vx == B.Vx && A.Vy == B.Vy
 
-PositiveDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(1e-16ones(n), fill(maxval,n)))
-PositiveDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube([(indxs[i] ? 1e-16 : -maxval) for i in eachindex(indxs)], fill(maxval,length(indxs))))
-NegativeDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,n), -1e-16ones(n)))
-NegativeDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,length(indxs)), [(indxs[i] ? -1e-16 : maxval) for i in eachindex(indxs)]))
-FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(fill(-maxval,n), fill(maxval,n)))
+PositiveDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(1e-16,n), Fill(maxval,n)))
+PositiveDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube([(indxs[i] ? 1e-16 : -maxval) for i in eachindex(indxs)], Fill(maxval,length(indxs))))
+NegativeDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,n), Fill(-1e-16,n)))
+NegativeDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,length(indxs)), [(indxs[i] ? -1e-16 : maxval) for i in eachindex(indxs)]))
+FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,n), Fill(maxval,n)))
 
 
 """

@@ -128,7 +128,7 @@ Xnames(DS::DataSetUncertain) = DS.xnames
 Ynames(DS::DataSetUncertain) = DS.ynames
 name(DS::DataSetUncertain) = DS.name
 
-xsigma(DS::DataSetUncertain, mle::AbstractVector=Float64[]) = zeros(length(xdata(DS)))
+xsigma(DS::DataSetUncertain, mle::AbstractVector=Float64[]) = Zeros(length(xdata(DS)))
 
 HasXerror(DS::DataSetUncertain) = false
 

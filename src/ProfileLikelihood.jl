@@ -762,10 +762,10 @@ mutable struct ParameterProfiles <: AbstractProfiles
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
-        Trajs = SaveTrajectories ? getindex.(FullProfs,2) : fill(nothing, length(inds))
+        Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
         if !(inds == 1:pdim(DM))
             EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
-            EmptyTraj = [fill(NaN, pdim(DM))]
+            EmptyTraj = [Fill(NaN, pdim(DM))]
             for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
                 if i ∉ inds
                     insert!(Profs, i, EmptyProf)
@@ -773,15 +773,16 @@ mutable struct ParameterProfiles <: AbstractProfiles
                 end
             end
         end
+        # Add check if new MLE was found
         P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof, Meta)
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=Fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; kwargs...)
     end
-    function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
-        ParameterProfiles(Profiles, Trajectories, Names, fill(NaN, length(Names)), dof, IsCost; kwargs...)
+    function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=Fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, Fill(NaN, length(Names)), dof, IsCost; kwargs...)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfiles; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
@@ -796,7 +797,7 @@ InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}
 
 # For SciMLBase.remake
 ParameterProfiles(;
-    Profiles::AbstractVector{<:AbstractMatrix}=[zeros(1,3)],
+    Profiles::AbstractVector{<:AbstractMatrix}=[Zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
     Names::AbstractVector{<:StringOrSymb}=Symbol[],
     mle::AbstractVector{<:Number}=Float64[],
@@ -1194,7 +1195,7 @@ end
     RelChange = get(plotattributes, :RelChange, false)
     @assert RelChange isa Bool
     DoRelChange = RelChange && !any(MLE(PV) .== 0)
-    Fisher = get(plotattributes, :Fisher, Diagonal(ones(pdim(PV))))
+    Fisher = get(plotattributes, :Fisher, Diagonal(Ones(pdim(PV))))
     U = cholesky(Fisher).U
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
 
@@ -1207,7 +1208,7 @@ end
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
@@ -1279,7 +1280,7 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
     ystring = "Finite Differences"
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
@@ -1333,7 +1334,7 @@ PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs.
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    #ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
     ystring = "Finite Differences $pnorm-norm"
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Consider all idxs
@@ -1378,7 +1379,7 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
     ℓ = loglikelihood(DM);    M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - M(t, θ)[yComp] + yoffset))
     VPL(θnew::AbstractVector) = ℓ(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
-    mleNew = [mle; (ypred-yoffset)];    Fisher = Diagonal(σv^-2 * ones(pdim(DM)+1))
+    mleNew = [mle; (ypred-yoffset)];    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
     GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, mle=mleNew, logLikeMLE=VPL(mleNew), Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
@@ -1399,7 +1400,7 @@ function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVecto
         Profs[i] = @views hcat(Profs[i][:,1:end-1], zProf, Profs[i][:,end])
     end
     # If should remain on true scale, add ypreds back on
-    offsetvec = OffsetToZero ? zeros(length(Ts)) : ypreds
+    offsetvec = OffsetToZero ? Zeros(length(Ts)) : ypreds
     for i in eachindex(Ts)   Profs[i][:,1] .+= offsetvec[i];     for j in 1:size(Trajs[i],1)    Trajs[i][j][end] += offsetvec[i]    end    end
     VPL = "VPL"*(ydim(DM) > 1 ? "[$(yComp)]" : "");   ParameterProfiles(Profs, Trajs, [VPL*"($(Ts[i]))" for i in eachindex(Ts)], offsetvec, dof, IsCost; Meta)
 end

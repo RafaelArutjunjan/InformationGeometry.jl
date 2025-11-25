@@ -86,7 +86,7 @@ function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(D
     L, U = if GetDomain(DM) isa HyperCube
         round.(GetDomain(DM).L; sigdigits=2), round.(GetDomain(DM).U; sigdigits=2)
     else
-        fill(-Inf, pdim(DM)), fill(Inf, pdim(DM))
+        Fill(-Inf, pdim(DM)), Fill(Inf, pdim(DM))
     end
     OnLowerBoundary = @. (mle-L) / (U-L) < BoundaryThreshold;    OnUpperBoundary = @. (U-mle) / (U-L) < BoundaryThreshold
     H = [TextHighlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))), crayon"fg:red bold")]

@@ -438,8 +438,8 @@ ParameterPlot(DM::AbstractDataModel, DM2::AbstractDataModel, Names::AbstractVect
 function ParameterPlot(X::AbstractVector{T}, Y::AbstractVector{T}, Names::AbstractVector{<:AbstractString}=CreateSymbolNames(length(X)); noise::Real=0.05, kwargs...) where T<:Number
     @assert length(X) == length(Y) == length(Names)
     Dat = transpose(hcat(X,Y))
-    noisefac = any(x->Measurements.uncertainty(x)>0, Dat) ? noise .* (rand(length(X)) .- 0.5) : zeros(length(X))
-    RecipesBase.plot(Dat, transpose(hcat(zeros(length(X))+noisefac,ones(length(X))+noisefac)); label=reshape(Names, 1, :), lw=1.5, msw=1.5, msc=:auto, yticks=([0,1],["OldParams","NewParams"]), kwargs...)
+    noisefac = any(x->Measurements.uncertainty(x)>0, Dat) ? noise .* (rand(length(X)) .- 0.5) : Zeros(length(X))
+    RecipesBase.plot(Dat, transpose(hcat(Fill(noisefac, length(X)),Fill(1+noisefac,length(X)))); label=reshape(Names, 1, :), lw=1.5, msw=1.5, msc=:auto, yticks=([0,1],["OldParams","NewParams"]), kwargs...)
 end
 
 
@@ -1287,9 +1287,9 @@ function AddCaps(X::M, Y::M, Z::M, fact::Real=1.4) where M <: AbstractMatrix{<:N
     height = dot(n, [X[1,1], Y[1,1], Z[1,1]]-[X[2,1], Y[2,1], Z[2,1]])
     cap1 = rowmean(X, Y, Z, 1) + (fact-1)*height*n
     cap2 = rowmean(X, Y, Z, size(X,1)) - (fact-1)*height*n
-    vcat(transpose(cap1[1]*ones(size(X,2))), X, transpose(cap2[1]*ones(size(X,2)))),
-    vcat(transpose(cap1[2]*ones(size(X,2))), Y, transpose(cap2[2]*ones(size(X,2)))),
-    vcat(transpose(cap1[3]*ones(size(X,2))), Z, transpose(cap2[3]*ones(size(X,2))))
+    vcat(transpose(Fill(cap1[1],size(X,2))), X, transpose(Fill(cap2[1],size(X,2)))),
+    vcat(transpose(Fill(cap1[2],size(X,2))), Y, transpose(Fill(cap2[2],size(X,2)))),
+    vcat(transpose(Fill(cap1[3],size(X,2))), Z, transpose(Fill(cap2[3],size(X,2))))
 end
 
 """

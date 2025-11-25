@@ -218,7 +218,7 @@ function GetStartP(DS::AbstractUnknownUncertaintyDataSet, model::ModelMap, hint:
     # Append error parameter guesses slightly larger than zero
     vcat(ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
 end
-GetStartP(hint::Int) = ones(hint) .+ 0.05*(rand(hint) .- 0.5)
+GetStartP(hint::Int) = Ones(hint) .+ 0.05.*(rand(hint) .- 0.5)
 
 ElaborateGetStartP(M::ModelMap; maxiters::Int=5000) = ElaborateGetStartP(Domain(M), InDomain(M); maxiters=maxiters)
 function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
@@ -338,7 +338,7 @@ function SpatialBoundaryFunction(M::ModelMap)
 end
 
 
-function Rescaling(M::AbstractMatrix, μ::AbstractVector=zeros(size(M,1)); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1.0)
+function Rescaling(M::AbstractMatrix, μ::AbstractVector=Zeros(size(M,1)); Full::Bool=false, Dirs::Tuple{Int,Int}=(1,2), factor::Real=1.0)
     @assert size(M,1) == size(M,2) == length(μ) && Dirs[1] != Dirs[2]
     iS = if Full
         SMatrix{2,2}(cholesky(M[[Dirs[1],Dirs[2]],[Dirs[1],Dirs[2]]]).U ./ factor)
@@ -701,7 +701,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
             verbose && !allequal(ysigma(DM)) && @warn "Need to compute average data uncertainty to plot validation profile between observations!"
             AverageSingleYsigmaMatrix(DM, mle)
         else    # No data uncertainty contribution
-            Diagonal(zeros(ydim(DM)))
+            Diagonal(Zeros(ydim(DM)))
         end
         Ysig *= ConfScaling
         ydim(DM) == 1 && (Ysig = Ysig[1])
@@ -716,7 +716,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         try     cholesky(Symmetric(YsigmaGenerator(x) .+ M)).U
         catch err
             !isa(err, PosDefException) && rethrow(err)
-            UpperTriangular(diagm(zeros(size(M,1))))
+            UpperTriangular(Diagonal(Zeros(size(M,1))))
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
@@ -1056,7 +1056,7 @@ function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; dof::Int=DOF(DM),
 end
 
 # Formula from https://tavianator.com/2014/ellipsoid_bounding_boxes.html
-function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=zeros(size(Σ,1)); Padding::Number=1/30)
+function BoundingBox(Σ::AbstractMatrix, μ::AbstractVector=Zeros(size(Σ,1)); Padding::Number=1/30)
     @assert size(Σ,1) == size(Σ,2) == length(μ)
     E = eigen(Σ)
     @assert all(x->x>0, E.values)
@@ -1086,7 +1086,7 @@ Translates family of `N` planes which are translated approximately from `-v` to 
 If necessary, planes are removed or more planes added such that the maximal family of planes is found.
 """
 function IntersectRegion(DM::AbstractDataModel, PL::Plane, v::AbstractVector{<:Number}, Confnum::Real=1.; N::Int=31, tol::Real=1e-8, dof::Int=DOF(DM))
-    IsOnPlane(Plane(zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
+    IsOnPlane(Plane(Zeros(length(v)), PL.Vx, PL.Vy),v) && throw("Translation vector v = $v lies in given Plane $PL.")
     # Planes = ParallelPlanes(PL, v, range(-0.5,0.5; length=N))
     # AntiPrune(DM, Prune(DM,Planes,Confnum;tol=tol), Confnum; tol=tol)
     DoPruning(DM, ParallelPlanes(PL, v, range(-0.5,0.5;length=N)), Confnum; tol, dof)
