@@ -214,9 +214,13 @@ GetStartP(DS::AbstractDataSet, model::Function, hint::Int=pdim(DS,model)) = GetS
 GetStartP(DS::AbstractFixedUncertaintyDataSet, model::ModelMap, hint::Int=-42) = ElaborateGetStartP(model)
 function GetStartP(DS::AbstractUnknownUncertaintyDataSet, model::ModelMap, hint::Int=pdim(DS,model))
     hint == length(Domain(model)) && return ElaborateGetStartP(model)
-    @assert hint == length(Domain(model)) + errormoddim(DS)
-    # Append error parameter guesses slightly larger than zero
-    vcat(ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
+    if hint == length(Domain(model)) + errormoddim(DS)
+        # Append error parameter guesses slightly larger than zero
+        vcat(ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
+    elseif xpars(DS) > 0 && hint == xpars(DS) + length(Domain(model)) + errormoddim(DS)
+        # Append error parameter guesses slightly larger than zero
+        vcat(xdata(DS), ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
+    end
 end
 GetStartP(hint::Int) = Ones(hint) .+ 0.05.*(rand(hint) .- 0.5)
 

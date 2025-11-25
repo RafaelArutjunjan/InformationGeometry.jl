@@ -269,10 +269,11 @@ end
 
 ## If ModelMap domain does not include error parameters from AbstractUnknownUncertaintyDataSet yet, try appending this at the end
 function FixModelMapDomain(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap; 
-                            pnames::AbstractVector{<:StringOrSymb}=vcat(Pnames(M),Symbol.(CreateSymbolNames(errormoddim(DS), "σ"))), 
-                            σDomain::HyperCube=HyperCube(-5ones(errormoddim(DS)), 5ones(errormoddim(DS))), kwargs...)
-    Xyp = (xdim(M), ydim(M), pdim(M) + errormoddim(DS))
-    model = remake(M; pnames=Symbol.(pnames), xyp=Xyp, Domain=vcat(Domain(M), σDomain), kwargs...)
+                            pnames::AbstractVector{<:StringOrSymb}=vcat(Symbol.(CreateSymbolNames(xpars(DS), "x")), Pnames(M),Symbol.(CreateSymbolNames(errormoddim(DS), "σ"))), 
+                            σDomain::HyperCube=FullDomain(errormoddim(DS), 5),
+                            Domain::HyperCube=xpars(DS) > 0 ? vcat(FullDomain(xpars(DS)), Domain(M), σDomain) : vcat(Domain(M), σDomain), kwargs...)
+    Xyp = (xdim(M), ydim(M), length(Domain))
+    model = remake(M; pnames=Symbol.(pnames), xyp=Xyp, Domain=Domain, kwargs...)
 end
 
 

@@ -70,12 +70,13 @@ struct DataModel <: AbstractDataModel
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
                                     ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
-        if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && length(Domain(model)) + errormoddim(DS) == length(startp)
+        if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(startp)
             # Error parameters not accounted for in Domain yet and recognized by GetStartP
             @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
-            PNames = vcat(Pnames(M), Symbol.(CreateSymbolNames(errormoddim(DS), "σ")))
-            Dom = vcat(Domain(M), HyperCube(-5ones(errormoddim(DS)), 5ones(errormoddim(DS))))
-            model = FixModelMapDomain(DS, model; pnames=PNames, σDomain=Dom)
+            PNames = vcat(Symbol.(CreateSymbolNames(xpars(DS),"x")), Pnames(model), Symbol.(CreateSymbolNames(errormoddim(DS),"σ")))
+            σDomain = FullDomain(errormoddim(DS), 5)
+            Dom = xpars(DS) > 0 ? vcat(FullDomain(xpars(DS)), Domain(model), σDomain) : vcat(Domain(model), σDomain)
+            model = FixModelMapDomain(DS, model; pnames=PNames, Domain=Dom)
             dmodel isa ModelMap && (dmodel = FixModelMapDomain(DS, dmodel; pnames=PNames, σDomain=Dom))
         end
         mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)

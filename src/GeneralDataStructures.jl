@@ -85,10 +85,10 @@ end
 
 SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, 0:-1)
 
-SkipXs(DS::AbstractDataModel) = SkipXs(Data(DM))
+SkipXs(DS::AbstractDataModel) = SkipXs(Data(DS))
 SkipXs(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
 
-GetOnlyModelParams(DS::AbstractDataModel) = GetOnlyModelParams(Data(DM))
+GetOnlyModelParams(DS::AbstractDataModel) = GetOnlyModelParams(Data(DS))
 GetOnlyModelParams(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
 
 
@@ -194,6 +194,7 @@ NumberOfErrorParameters(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector
 # NumberOfErrorParameters(CDS::CompositeDataSet, mle::AbstractVector) = sum(sum(length, (SplitErrorParams(DS)(mle))[2:end]) for DS in Data(CDS))
 
 errormoddim(DS::AbstractFixedUncertaintyDataSet) = 0
+xpars(DS::AbstractDataSet) = 0
 
 # How many degrees of freedom does the model have?
 # Error parameters should not be counted
@@ -347,7 +348,7 @@ function pdim(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap)
         pdim(M)
     catch E;
         @warn "pdim(DS,M): It appears that error parameters are not included in given ModelMap Domain $(Domain(M)) yet? Got error $E. Appending $(errormoddim(DS)) component(s) for error parameters to initial parameter guess and trying to continue."
-        pdim(M) + errormoddim(DS)
+        xpars(DS) + pdim(M) + errormoddim(DS)
     end
 end
 

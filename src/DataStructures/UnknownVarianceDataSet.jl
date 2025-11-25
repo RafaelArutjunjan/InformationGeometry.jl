@@ -196,6 +196,7 @@ function GetOnlyModelParams(DS::UnknownVarianceDataSet)
     mle::AbstractVector->Skipper(Splitter(mle)[1])
 end
 
+xpars(DS::UnknownVarianceDataSet) = length(xdata(DS))
 
 
 function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
