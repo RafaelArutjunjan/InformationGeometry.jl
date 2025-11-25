@@ -81,7 +81,7 @@ end
 
 
 
-function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200)
+function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200, display_size=(-1,PrettyTables.displaysize()[2]), kwargs...) # vertical_crop_mode=:middle
     IsLin = try IsLinearParameter(DM) catch; nothing end
     L, U = if GetDomain(DM) isa HyperCube
         round.(GetDomain(DM).L; sigdigits=2), round.(GetDomain(DM).U; sigdigits=2)
@@ -91,9 +91,9 @@ function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(D
     OnLowerBoundary = @. (mle-L) / (U-L) < BoundaryThreshold;    OnUpperBoundary = @. (U-mle) / (U-L) < BoundaryThreshold
     H = [TextHighlighter((data,zeile,spalte) -> ((OnLowerBoundary[zeile] && spalte ∈ (2,3,4)) || (OnUpperBoundary[zeile] && spalte ∈ (2,4,5))), crayon"fg:red bold")]
     if !isnothing(IsLin) && any(IsLin)
-        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H)
+        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U IsLin]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound", "Linear Dependence"], alignment=[:c, :l, :c, :c, :c, :c], highlighters=H, display_size, kwargs...)
     else
-        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H)
+        PrettyTable([1:pdim(DM) pnames(DM) L round.(MLEuncert(DM, mle, FisherFn(mle);verbose=false); sigdigits=15) U]; column_labels=["i", "Parameter", "Lower Bound", "MLE", "Upper Bound"], alignment=[:c, :l, :c, :c, :c], highlighters=H, display_size, kwargs...)
     end
 end
 ParamSummary(io::IO, args...; kwargs...) = show(io, ParamSummary(args...; kwargs...))
