@@ -81,7 +81,7 @@ end
 
 
 
-function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200, display_size=(-1,PrettyTables.displaysize()[2]), kwargs...) # vertical_crop_mode=:middle
+function ParamSummary(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); FisherFn::Function=FisherMetric(DM), BoundaryThreshold::Real=1/200, display_size=(-1,-1), kwargs...) # vertical_crop_mode=:middle
     IsLin = try IsLinearParameter(DM) catch; nothing end
     L, U = if GetDomain(DM) isa HyperCube
         round.(GetDomain(DM).L; sigdigits=2), round.(GetDomain(DM).U; sigdigits=2)

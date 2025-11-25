@@ -93,10 +93,12 @@ struct ModelMap{Inplace, Custom}
     ModelMap(F::Function, M::ModelMap; inplace::Bool=isinplacemodel(M), IsCustom::Bool=iscustommodel(M), kwargs...) = remake(M; Map=F, inplace=Val(inplace), CustomEmbedding=Val(IsCustom), kwargs...)
 
     function ModelMap(Map::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int},
-                        pnames::AbstractVector{<:StringOrSymb}, inplace::Val, CustomEmbedding::Val, name::StringOrSymb=Symbol(), Meta=nothing, symbolicCache=nothing; SymbolicCache=symbolicCache)
-        @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
-        isnothing(Domain) ? (Domain = FullDomain(xyp[3], Inf)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
-        InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
+                        pnames::AbstractVector{<:StringOrSymb}, inplace::Val, CustomEmbedding::Val, name::StringOrSymb=Symbol(), Meta=nothing, symbolicCache=nothing; SymbolicCache=symbolicCache, SkipTests::Bool=false)
+        if !SkipTests
+            @assert allunique(pnames) "Parameter names must be unique within a model, got $pnames."
+            isnothing(Domain) ? (Domain = FullDomain(xyp[3], Inf)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
+            InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
+        end
         new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, Symbol.(pnames), inplace, CustomEmbedding, Symbol(name), Meta, SymbolicCache)
     end
 end
@@ -262,6 +264,15 @@ function ModelMappize(DM::AbstractDataModel; pnames::AbstractVector{<:StringOrSy
     NewMod = Predictor(DM) isa ModelMap ? Predictor(DM) : ModelMap(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     NewdMod = dPredictor(DM) isa ModelMap ? dPredictor(DM) : ModelMap(dPredictor(DM), (xdim(DM), ydim(DM), pdim(DM)); pnames=pnames)
     DataModel(Data(DM), NewMod, NewdMod, MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
+end
+
+
+## If ModelMap domain does not include error parameters from AbstractUnknownUncertaintyDataSet yet, try appending this at the end
+function FixModelMapDomain(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap; 
+                            pnames::AbstractVector{<:StringOrSymb}=vcat(Pnames(M),Symbol.(CreateSymbolNames(errormoddim(DS), "σ"))), 
+                            σDomain::HyperCube=HyperCube(-5ones(errormoddim(DS)), 5ones(errormoddim(DS))), kwargs...)
+    Xyp = (xdim(M), ydim(M), pdim(M) + errormoddim(DS))
+    model = remake(M; pnames=Symbol.(pnames), xyp=Xyp, Domain=vcat(Domain(M), σDomain), kwargs...)
 end
 
 

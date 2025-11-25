@@ -73,12 +73,10 @@ struct DataModel <: AbstractDataModel
         if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && length(Domain(model)) + errormoddim(DS) == length(startp)
             # Error parameters not accounted for in Domain yet and recognized by GetStartP
             @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
-            M = deepcopy(model)
-            PNames = vcat(pnames(M), CreateSymbolNames(errormoddim(DS), "σ"))
-            Xyp = (xdim(M), ydim(M), pdim(M) + errormoddim(DS))
+            PNames = vcat(Pnames(M), Symbol.(CreateSymbolNames(errormoddim(DS), "σ")))
             Dom = vcat(Domain(M), HyperCube(-5ones(errormoddim(DS)), 5ones(errormoddim(DS))))
-            model = remake(M; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom)
-            dmodel isa ModelMap && (dmodel = remake(dmodel; pnames=Symbol.(PNames), xyp=Xyp, Domain=Dom))
+            model = FixModelMapDomain(DS, model; pnames=PNames, σDomain=Dom)
+            dmodel isa ModelMap && (dmodel = FixModelMapDomain(DS, dmodel; pnames=PNames, σDomain=Dom))
         end
         mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)
         # Optimization already happened, propagate SkipOptim=true explicitly for later
