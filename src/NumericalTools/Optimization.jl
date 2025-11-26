@@ -137,6 +137,7 @@ end
 
 
 function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true) where T <: Number
+    @assert length(Start) == length(Dom) "Got parameter configuration of length $(length(Start)) but Domain has length $(length(Dom))."
     start = if Start ∈ Dom
         Start
     else
