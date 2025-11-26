@@ -1,9 +1,9 @@
 using InformationGeometry, Test, LinearAlgebra, Distributions, Optim
 
-using Random;   Random.seed!(123)
+using Random;   rng=Random.seed!(1234)
 
 # Detect if error parameters already accounted for in given ModelMap Domain and attempt to fix automatically
-X = 1:5;    Y = rand(5)
+X = 1:5;    Y = rand(rng, 5)
 @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel; startp=rand(3))) isa DataModel
 @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel; startp=rand(2))) isa DataModel
 @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel)) isa DataModel
@@ -77,7 +77,7 @@ SIRobservables = [2]
 times = 1:14
 mle = [-0.21161, 0.24626, -0.33957]
 Mod = GetModel(Exp10Transform(SIRsys), SIRinitial, SIRobservables; tol=1e-8, Domain=FullDomain(3,3), meth=Tsit5())
-infected = EmbeddingMap(Val(true), Mod, mle, times) .+ rand(Normal(0,15), length(times))
+infected = EmbeddingMap(Val(true), Mod, mle, times) .+ rand(rng, Normal(0,15), length(times))
 
 
 # infected = [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5]

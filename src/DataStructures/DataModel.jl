@@ -69,15 +69,19 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, DetermineDmodel(DS, model; custom, ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
-                                    ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, kwargs...)
-        if model isa ModelMap && length(Domain(model)) < length(startp) && DS isa AbstractUnknownUncertaintyDataSet && xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(startp)
-            # Error parameters not accounted for in Domain yet and recognized by GetStartP
-            @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
-            PNames = vcat(Symbol.(CreateSymbolNames(xpars(DS),"x")), Pnames(model), Symbol.(CreateSymbolNames(errormoddim(DS),"σ")))
-            σDomain = FullDomain(errormoddim(DS), 5)
-            Dom = xpars(DS) > 0 ? vcat(FullDomain(xpars(DS)), Domain(model), σDomain) : vcat(Domain(model), σDomain)
-            model = FixModelMapDomain(DS, model; pnames=PNames, Domain=Dom)
-            dmodel isa ModelMap && (dmodel = FixModelMapDomain(DS, dmodel; pnames=PNames, σDomain=Dom))
+                                    ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, ModifyModelMap::Bool=true, kwargs...)
+        if model isa ModelMap && length(Domain(model)) < length(startp) && ModifyModelMap && DS isa AbstractUnknownUncertaintyDataSet
+            if xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(startp)
+                # Error parameters and xpars not accounted for in Domain yet, only the bare model parameters
+                @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
+                PNames = vcat(Symbol.(CreateSymbolNames(xpars(DS),"x")), Pnames(model), Symbol.(CreateSymbolNames(errormoddim(DS),"σ")))
+                σDomain = FullDomain(errormoddim(DS), 5)
+                Dom = xpars(DS) > 0 ? vcat(FullDomain(xpars(DS)), Domain(model), σDomain) : vcat(Domain(model), σDomain)
+                model = FixModelMapDomain(DS, model; pnames=PNames, Domain=Dom)
+                dmodel isa ModelMap && (dmodel = FixModelMapDomain(DS, dmodel; pnames=PNames, σDomain=Dom))
+            else
+                throw("Error with given ModelMap Domain $(Domain(model)), it appears that either xpars or error parameters not accounted for yet. Either omit Domain or extend appropriately.")
+            end
         end
         mle = SkipOptim ? startp : FindMLE(DS, model, dmodel, startp; tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)
         # Optimization already happened, propagate SkipOptim=true explicitly for later
@@ -102,15 +106,12 @@ struct DataModel <: AbstractDataModel
                                     FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=EnsureNoSymbolic(ADmode)),
                                     SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model), ModifyModelMap::Bool=true)
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
-        # length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
         
         # Assert that LogPriorFn has MaximalNumberOfArguments == 1, otherwise DFunction will interpret it as in-place
         @assert isnothing(LogPriorFn) || MaximalNumberOfArguments(LogPriorFn) == 1
         
         SkipTests || TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn; ADmode)
-
-        # Check given Score and FisherMetric function and overload to inplace if not yet implemented.
         
         new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, Symbol.(name))
     end

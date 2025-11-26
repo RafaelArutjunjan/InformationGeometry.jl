@@ -221,6 +221,9 @@ function GetStartP(DS::AbstractUnknownUncertaintyDataSet, model::ModelMap, hint:
     elseif xpars(DS) > 0 && hint == xpars(DS) + length(Domain(model)) + errormoddim(DS)
         # Append error parameter guesses slightly larger than zero
         vcat(xdata(DS), ElaborateGetStartP(model), 0.1rand(errormoddim(DS)))
+    else
+        @warn "Got pdim=$hint but xpars + given ModelMap Domain + errormod = $(xpars(DS) + length(Domain(model)) + errormoddim(DS)) parameters."
+        GetStartP(hint)
     end
 end
 GetStartP(hint::Int) = Ones(hint) .+ 0.05.*(rand(hint) .- 0.5)
