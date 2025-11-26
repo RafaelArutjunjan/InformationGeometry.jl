@@ -88,8 +88,21 @@ struct DataModel <: AbstractDataModel
         DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
-                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, kwargs...)
+                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, ModifyModelMap::Bool=true, kwargs...)
         LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
+        if model isa ModelMap && length(Domain(model)) < length(mle) && ModifyModelMap && DS isa AbstractUnknownUncertaintyDataSet
+            if xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(mle)
+                # Error parameters and xpars not accounted for in Domain yet, only the bare model parameters
+                @warn "Appending range [-5,5] for $(errormoddim(DS)) error parameter(s) to the given Domain. If this fails as well, provide both correct Domain including error parameters AND appropriate initial parameter configuration."
+                PNames = vcat(Symbol.(CreateSymbolNames(xpars(DS),"x")), Pnames(model), Symbol.(CreateSymbolNames(errormoddim(DS),"σ")))
+                σDomain = FullDomain(errormoddim(DS), 5)
+                Dom = xpars(DS) > 0 ? vcat(FullDomain(xpars(DS)), Domain(model), σDomain) : vcat(Domain(model), σDomain)
+                model = FixModelMapDomain(DS, model; pnames=PNames, Domain=Dom)
+                dmodel isa ModelMap && (dmodel = FixModelMapDomain(DS, dmodel; pnames=PNames, σDomain=Dom))
+            else
+                throw("Error with given ModelMap Domain $(Domain(model)), it appears that either xpars or error parameters not accounted for yet for given parameters $mle. Either omit Domain or extend appropriately.")
+            end
+        end
         logLikelihoodFn = isnothing(LogLikelihoodFn) ? GetLogLikelihoodFn(DS, model, logPriorFn; ADmode) : LogLikelihoodFn
         Mle = SkipOptim ? mle : FindMLE(DS, model, dmodel, mle, LogPriorFn; LogLikelihoodFn=logLikelihoodFn, tol=OptimTol, meth=OptimMeth, ADmode=ADmodeOptim)
         LogLikeMLE = SkipTests ? (try logLikelihoodFn(Mle) catch; -Inf end) : logLikelihoodFn(Mle)

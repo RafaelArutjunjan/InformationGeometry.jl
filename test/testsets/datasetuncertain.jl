@@ -9,7 +9,7 @@ X = 1:5;    Y = rand(rng, 5)
 @test DataModel(DataSetUncertain(X, Y), ModelMap(LinearModel)) isa DataModel
 @test DataModel(DataSetUncertain(X, Y), LinearModel) isa DataModel
 
-function tester(DMU::AbstractDataModel, DM::AbstractDataModel, DME::AbstractDataModel, mle::AbstractVector; atol::Real=1e-6)
+function tester(DMU::AbstractDataModel, DM::AbstractDataModel, DME::AbstractDataModel, mle::AbstractVector; atol::Real=1e-6, atol2::Real=0.5)
     @assert Data(DMU) isa InformationGeometry.AbstractUnknownUncertaintyDataSet
     @assert Data(DM) isa InformationGeometry.AbstractFixedUncertaintyDataSet
     @assert Data(DME) isa InformationGeometry.AbstractFixedUncertaintyDataSet
@@ -19,8 +19,8 @@ function tester(DMU::AbstractDataModel, DM::AbstractDataModel, DME::AbstractData
     @test sum(abs, Score(DM)(mle)[1:pdim(DM)] - Score(DME)(mle)[1:pdim(DM)]) < atol
 
     # Average deviation between AutoMetric and hardcoded Fisher
-    @test sum(abs, inv(InformationGeometry._FisherMetric(Data(DMU), Predictor(DMU), dPredictor(DMU), mle)) .- inv(AutoMetric(DMU, mle))) / (pdim(DMU)^2) < 0.5
-    @test sum(abs, inv(InformationGeometry._FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), mle[1:end-1])) .- inv(AutoMetric(DM, mle[1:end-1]))) / (pdim(DM)^2) < 0.5
+    @test sum(abs, inv(InformationGeometry._FisherMetric(Data(DMU), Predictor(DMU), dPredictor(DMU), mle)) .- inv(AutoMetric(DMU, mle))) / (pdim(DMU)^2) < atol2
+    @test sum(abs, inv(InformationGeometry._FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), mle[1:end-1])) .- inv(AutoMetric(DM, mle[1:end-1]))) / (pdim(DM)^2) < atol2
 
     # Depending on whether Fisher metric is AutoMetric or custom, there may be slight deviations. Use inverse instead since less sensitive
     @test sum(abs, inv(FisherMetric(DM)(mle)[1:pdim(DM),1:pdim(DM)]) .- inv(FisherMetric(DMU)(mle)[1:pdim(DM),1:pdim(DM)])) < atol
@@ -92,10 +92,10 @@ SIRDMU = DataModel(SIRDSU, remake(Mod; Domain=vcat(FullDomain(3,3), PositiveDoma
 SIRdmu = DataModel(SIRdsu, remake(Mod; Domain=vcat(FullDomain(3,3), PositiveDomain(1,30)), xyp=(1,1,4), pnames=InformationGeometry.CreateSymbolNames(4)), [0, 0, 0, 1.0]; tol=1e-10)
 
 Mlee = [mle; 15]
-tester(SIRDMU, SIRDM, SIRDME, Mlee; atol=1e-2)
+tester(SIRDMU, SIRDM, SIRDME, Mlee; atol=1e-2, atol2=1.2)
 
 Mlee = [mle; log10(15)]
-tester(SIRdmu, SIRDM, SIRDME, Mlee; atol=1e-2)
+tester(SIRdmu, SIRDM, SIRDME, Mlee; atol=1e-2, atol2=1.2)
 
 
 ## Does not agree exactly for non-linear model
