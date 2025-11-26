@@ -104,7 +104,7 @@ end
 function TimeShiftTransform(DM::AbstractDataModel; factor::Real=0.85, kwargs...)
     Cube = (C = XCube(DM);    factor*TranslateCube(C, -Center(C)))
     DataModel(Data(DM), TimeShiftTransform(Predictor(DM), (xdim(DM), ydim(DM), pdim(DM)), iscustommodel(Predictor(DM)), isinplacemodel(Predictor(DM)), Cube), 
-                [MLE(DM); 1e-8ones(xdim(DM))], LogPrior(DM); kwargs...)
+                [MLE(DM); Fill(1e-8,xdim(DM))], LogPrior(DM); kwargs...)
 end
 
 

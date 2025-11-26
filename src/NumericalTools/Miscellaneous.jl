@@ -295,7 +295,7 @@ end
 function ==(DM1::AbstractDataModel, DM2::AbstractDataModel)
     Data(DM1) != Data(DM2) && return false
     pdim(DM1) != pdim(DM2) && return false
-    z1, z2 = MLE(DM1) + rand(length(MLE(DM1))), MLE(DM1) + rand(length(MLE(DM1)))
+    z1, z2 = MLE(DM1) .+ rand(length(MLE(DM1))), MLE(DM1) .+ rand(length(MLE(DM1)))
     !(EmbeddingMap(DM1, z1) ≈ EmbeddingMap(DM2, z1) && EmbeddingMap(DM1, z2) ≈ EmbeddingMap(DM2, z2)) && return false
     !(EmbeddingMatrix(DM1, z1) ≈ EmbeddingMatrix(DM2, z1) && EmbeddingMatrix(DM1, z2) ≈ EmbeddingMatrix(DM2, z2)) && return false
     return true

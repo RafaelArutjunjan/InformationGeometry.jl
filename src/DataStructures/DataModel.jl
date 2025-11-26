@@ -146,8 +146,8 @@ MLE::AbstractVector{<:Number}=[-Inf],
 LogLikeMLE::Real=-Inf,
 LogPrior::Union{Function,Nothing}=nothing,
 LogLikelihoodFn::Function=p->0.0,
-ScoreFn::Function=p->ones(length(p)),
-FisherInfoFn::Function=p->Diagonal(ones(length(p))),
+ScoreFn::Function=p->Ones(length(p)),
+FisherInfoFn::Function=p->Diagonal(Ones(length(p))),
 kwargs...,
 ) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipTests=true, kwargs...)
 

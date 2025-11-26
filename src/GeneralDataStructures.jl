@@ -347,7 +347,7 @@ function pdim(DS::AbstractUnknownUncertaintyDataSet, M::ModelMap)
         M(WoundX(DS)[1],GetOnlyModelParams(DS)(ElaborateGetStartP(M)))
         pdim(M)
     catch E;
-        @warn "pdim(DS,M): It appears that error parameters are not included in given ModelMap Domain $(Domain(M)) yet? Got error $E. Appending $(errormoddim(DS)) component(s) for error parameters to initial parameter guess and trying to continue."
+        @warn "pdim(DS,M): It appears that error parameters are not included in given ModelMap Domain $(Domain(M)) yet? Got error $E. Appending $(errormoddim(DS)) component(s) for error parameters and $(xpars(DS)) xpars to initial parameter guess and trying to continue."
         xpars(DS) + pdim(M) + errormoddim(DS)
     end
 end

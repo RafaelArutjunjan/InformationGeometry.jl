@@ -59,7 +59,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error model σ(x,y,c) = exp10.(c)"
         errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
-        DataSetUncertain(Unwind(X), Unwind(Y), errmod, 0.1ones(ydim(dims)), dims; verbose, kwargs...)
+        DataSetUncertain(Unwind(X), Unwind(Y), errmod, Fill(0.1,ydim(dims)), dims; verbose, kwargs...)
     end
     function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testp::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
@@ -69,7 +69,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testp, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
-    DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=0.1ones(ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
+    DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=Fill(0.1,ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error parameters always given by last $(length(testp)) parameters."
         DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testp)), testp, dims; verbose, kwargs...)

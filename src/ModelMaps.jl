@@ -28,7 +28,7 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; inplace::B
     end
 end
 function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, IsInplace::Bool)
-    woundX = Windup(collect(1:2xyp[1]) .+ 0.1rand(2xyp[1]), xyp[1])
+    woundX = Windup(collect(1:2xyp[1]) .+ 0.1 .* rand(2xyp[1]), xyp[1])
     if !IsInplace
         try   length(model(woundX, startp)) == 2xyp[2]   catch;  false   end
     else

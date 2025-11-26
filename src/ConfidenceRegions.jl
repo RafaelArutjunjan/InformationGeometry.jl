@@ -231,7 +231,7 @@ function ElaborateGetStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxite
 end
 function SobolStartP(C::HyperCube, InDom::Union{Nothing,Function}; maxiters::Int=5000)
     X = rand(length(C));    i = 0
-    S = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, -1e5ones(length(C)), 1e5ones(length(C))), clamp(C.U, -1e5ones(length(C)), 1e5ones(length(C)))), rand(1:10*maxiters); exact=true)
+    S = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, Fill(-1e5,length(C)), Fill(1e5,length(C))), clamp(C.U, Fill(-1e5,length(C)), Fill(1e5,length(C)))), rand(1:10*maxiters); exact=true)
     while i < maxiters
         SOBOL.next!(S, X);    (_TestInDomain(InDom, X) && break);    i += 1
     end
@@ -534,7 +534,7 @@ end
 Checks if jacobian of model wrt parameters has singular values below threshold and provides associated singular directions.
 """
 function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, thresh::Real=1e-12, N::Int=3)
-    J = reduce(vcat, [EmbeddingMatrix(DM, mle + noise .* (rand(length(mle)) .- 0.5)) for i in 1:N])
+    J = reduce(vcat, [EmbeddingMatrix(DM, mle .+ noise .* (rand(length(mle)) .- 0.5)) for i in 1:N])
     _, S, Vt = svd(J)
     nonids = count(x->x<thresh, S)
     if nonids == 0
@@ -978,7 +978,7 @@ CompareCols(A::AbstractMatrix, B::AbstractMatrix) = (@assert size(A) == size(B);
 Checks with respect to which parameters the model function `model(x,θ)` is linear and returns vector of booleans where `true` indicates linearity.
 This test is performed by comparing the Jacobians of the model for two random configurations ``\\theta_1, \\theta_2 \\in \\mathcal{M}`` column by column.
 """
-IsLinearParameter(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), args...; factor::Real=0.1, kwargs...) = CompareCols(EmbeddingMatrix(DM, mle+factor*rand(pdim(DM)), args...; kwargs...), EmbeddingMatrix(DM, mle+factor*rand(pdim(DM)), args...; kwargs...))
+IsLinearParameter(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), args...; factor::Real=0.1, kwargs...) = CompareCols(EmbeddingMatrix(DM, mle.+factor.*rand(pdim(DM)), args...; kwargs...), EmbeddingMatrix(DM, mle.+factor.*rand(pdim(DM)), args...; kwargs...))
 
 """
     IsLinear(DM::DataModel, MLE::AbstractVector) -> Bool
