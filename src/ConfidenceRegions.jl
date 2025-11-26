@@ -130,8 +130,9 @@ inversefactor(m) = 1. / sqrt((m - 1.) + (m - 1.)^2)
 GetAlpha(x::AbstractVector{<:Number}) = GetAlpha(length(x))
 @inline function GetAlpha(n::Int)
     V = Vector{Float64}(undef, n)
-    fill!(V,-inversefactor(n))
-    V[end] = (n-1) * inversefactor(n)
+    Inv = inversefactor(n)
+    fill!(V, -Inv)
+    V[end] = (n-1) * Inv
     V
 end
 

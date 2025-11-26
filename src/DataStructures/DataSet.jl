@@ -50,7 +50,7 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
     function DataSet(Xdf::DataFrame, Ydf::DataFrame, sigma::Union{Real,DataFrame}=1.0, args...; kwargs...)
         DataSet(Matrix(Xdf), Matrix(Ydf), (sigma isa Real ? sigma : Matrix(sigma)); xnames=names(Xdf), ynames=names(Ydf), kwargs...)
     end
-    function DataSet(x::AbstractArray, y::AbstractArray; kwargs...)
+    function DataSet(x::AbstractArray, y::AbstractArray{<:Number}; kwargs...)
         @info "No uncertainties in the y-values were specified for given DataSet, assuming σ=1 for all y's."
         DataSet(x, y, 1.0; kwargs...)
     end
@@ -63,6 +63,7 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
         #Σ_y = size(Σ_y,1) != size(Σ_y,2) ? Unwind(Σ_y) : Σ_y
         DataSet(Unwind(X), Unwind(Y), Σ_y, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
+    DataSet(x::AbstractArray{<:Number}, ys::AbstractArray{<:AbstractArray{<:Measurement}}, args...; kwargs...) = DataSet(x, [Measurements.value.(y) for y in ys], [Measurements.uncertainty.(y) for y in ys], args...; kwargs...)
     DataSet(x::AbstractArray{<:Number}, y::AbstractArray{<:Measurement}, args...; kwargs...) = DataSet(x, Measurements.value.(y), Measurements.uncertainty.(y), args...; kwargs...)
     ####### Only looking at sigma from here on out
     function DataSet(x::AbstractVector, y::AbstractVector, sigma::AbstractVector, dims::Tuple{Int,Int,Int}; kwargs...)

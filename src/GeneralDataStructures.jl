@@ -88,8 +88,14 @@ SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Numb
 SkipXs(DS::AbstractDataModel) = SkipXs(Data(DS))
 SkipXs(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
 
+## DataModel not defined yet
 GetOnlyModelParams(DS::AbstractDataModel) = GetOnlyModelParams(Data(DS))
-GetOnlyModelParams(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
+## For ConditionGrid or fixed uncertainty dataset, MLE has no error params or xpars
+GetOnlyModelParams(DS::Union{AbstractConditionGrid,AbstractFixedUncertaintyDataSet}) = identity
+function GetOnlyModelParams(DS::AbstractUnknownUncertaintyDataSet)
+    Splitter = SplitErrorParams(DS);    Skipper = SkipXs(DS)
+    mle::AbstractVector->Skipper(Splitter(mle)[1])
+end
 
 
 # Generic Methods for AbstractDataModels      -----       May be superceded by more specialized functions!

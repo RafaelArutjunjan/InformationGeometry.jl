@@ -100,7 +100,7 @@ struct DataModel <: AbstractDataModel
                                     LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn; ADmode),
                                     ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; SafeScore, ADmode=EnsureNoSymbolic(ADmode)), 
                                     FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=EnsureNoSymbolic(ADmode)),
-                                    SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model))
+                                    SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model), ModifyModelMap::Bool=true)
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         # length(string(name)) > 0 && (@warn "DataModel does not have own 'name' field, forwarding to model.";    model=Christen(model, name))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))

@@ -257,7 +257,7 @@ end
         @series begin
             xguide := "Data Point Index"
             yguide := collapse ? "Observations" : ynames(DS)[j]
-            label --> "Data"
+            label --> "Data" * (collapse ? ": $(ynames(DS)[j])" : "")
             leg --> false
             seriestype --> :scatter
             yerror --> getindex.(Windup(Σ_y, ydim(DS)), j)

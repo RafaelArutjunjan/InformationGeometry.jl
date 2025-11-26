@@ -191,11 +191,6 @@ end
 
 SkipXs(DS::UnknownVarianceDataSet) = DS.SkipXs
 
-function GetOnlyModelParams(DS::UnknownVarianceDataSet)
-    Splitter = SplitErrorParams(DS);    Skipper = SkipXs(DS)
-    mle::AbstractVector->Skipper(Splitter(mle)[1])
-end
-
 xpars(DS::UnknownVarianceDataSet) = length(xdata(DS))
 
 
