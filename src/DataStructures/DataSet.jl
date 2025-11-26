@@ -116,7 +116,7 @@ dims(DS::DataSet) = DS.dims
 xdata(DS::DataSet) = DS.x
 ydata(DS::DataSet) = DS.y
 
-ysigma(DS::DataSet) = _ysigma_fromInvCov(DS, yInvCov(DS))
+ysigma(DS::DataSet; kwargs...) = _ysigma_fromInvCov(DS, yInvCov(DS))
 function _ysigma_fromInvCov(DS::AbstractDataSet, M::AbstractMatrix)
     try
         inv(M) |> _TryVectorize
@@ -127,10 +127,10 @@ end
 _TryVectorize(M::AbstractMatrix) = isdiag(M) ? sqrt.(Diagonal(M).diag) : M
 _TryVectorize(D::DiagonalType) = sqrt.(D.diag)
 
-xsigma(DS::DataSet) = Zeros(Npoints(DS)*xdim(DS))
-HasXerror(DS::DataSet) = false
+xsigma(DS::DataSet; kwargs...) = Zeros(Npoints(DS)*xdim(DS))
+HasXerror(DS::DataSet; kwargs...) = false
 
-yInvCov(DS::DataSet) = DS.InvCov
+yInvCov(DS::DataSet; kwargs...) = DS.InvCov
 
 
 WoundX(DS::DataSet) = _WoundX(DS, DS.WoundX)

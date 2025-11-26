@@ -112,8 +112,8 @@ end
 
 
 dims(DSE::DataSetExact) = DSE.dims
-yInvCov(DSE::DataSetExact) = DSE.InvCov
-xInvCov(DSE::DataSetExact) = InvCov(xdist(DSE))
+yInvCov(DSE::DataSetExact; kwargs...) = DSE.InvCov
+xInvCov(DSE::DataSetExact; kwargs...) = InvCov(xdist(DSE))
 
 WoundX(DS::DataSetExact) = _WoundX(DS, DS.WoundX)
 
@@ -133,10 +133,10 @@ Sigma(P::Product) = [(try P.v[i].σ^2 catch; cov(P.v[i]) end) for i in eachindex
 # Sigma(P::Distribution) = P.Σ
 Sigma(P::Distribution) = cov(P)
 # Sigma(P::Distribution) = try P.Σ catch; cov(P) end
-xsigma(DSE::DataSetExact) = Sigma(xdist(DSE)) |> _TryVectorize
-ysigma(DSE::DataSetExact) = Sigma(ydist(DSE)) |> _TryVectorize
+xsigma(DSE::DataSetExact; kwargs...) = Sigma(xdist(DSE)) |> _TryVectorize
+ysigma(DSE::DataSetExact; kwargs...) = Sigma(ydist(DSE)) |> _TryVectorize
 
-HasXerror(DSE::DataSetExact) = xdist(DSE) isa InformationGeometry.Dirac ? false : any(x->x>0.0, xsigma(DSE))
+HasXerror(DSE::DataSetExact; kwargs...) = xdist(DSE) isa InformationGeometry.Dirac ? false : any(x->x>0.0, xsigma(DSE; kwargs...))
 
 xnames(DSE::DataSetExact) = Xnames(DSE) .|> string
 ynames(DSE::DataSetExact) = Ynames(DSE) .|> string

@@ -158,22 +158,22 @@ BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 
 # Uncertainty must be constructed around prediction!
 function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    C = if length(c) != length(DS.testp) 
+    C = if length(c) != length(DS.testp)
         verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params!"
         (SplitErrorParams(DS)(c))[end]
     else
-        verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
+        verbose && c === DS.testp && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
     map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
 function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    C = if length(c) != length(DS.testp) 
+    C = if length(c) != length(DS.testp)
         verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
         (SplitErrorParams(DS)(c))[end]
     else
-        verbose && c === DS.testp && @warn "Cheating by not constructing uncertainty around given prediction."
+        verbose && c === DS.testp && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
     map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
@@ -216,8 +216,10 @@ function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFun
     end
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 
-    @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
-    F_m + F_e
+    # @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
+    @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
+    # F_m .+ F_e
+    F_m
 end
 
 # function _Score(DSE::DataSetExact, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)

@@ -155,9 +155,9 @@ ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
 # BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
 BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, [(x isa AbstractVector ? Diagonal(x.^2) : x) for x in X])
 
-ysigma(CDS::CompositeDataSet) = map(ysigma, Data(CDS)) |> BlockReduce |> _TryVectorize
-xsigma(CDS::CompositeDataSet) = map(xsigma, Data(CDS)) |> BlockReduce |> _TryVectorize
-yInvCov(CDS::CompositeDataSet) = mapreduce(yInvCov, BlockMatrix, Data(CDS))
+ysigma(CDS::CompositeDataSet; kwargs...) = map(x->ysigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize
+xsigma(CDS::CompositeDataSet; kwargs...) = map(x->xsigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize
+yInvCov(CDS::CompositeDataSet; kwargs...) = mapreduce(x->yInvCov(x; kwargs...), BlockMatrix, Data(CDS))
 
 Npoints(CDS::CompositeDataSet) = mapreduce(Npoints, +, Data(CDS))
 ydim(CDS::CompositeDataSet) = mapreduce(ydim, +, Data(CDS))

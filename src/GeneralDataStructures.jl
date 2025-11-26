@@ -60,7 +60,7 @@ DataspaceDim(DS::AbstractDataSet) = Npoints(DS) * ydim(DS)
 xdist(DS::AbstractDataSet) = xDataDist(DS)
 ydist(DS::AbstractDataSet) = yDataDist(DS)
 
-HasXerror(DS::AbstractDataSet) = any(x->x>0.0, xsigma(DS))
+HasXerror(DS::AbstractDataSet; verbose::Bool=false, kwargs...) = any(x->x>0.0, xsigma(DS; verbose, kwargs...))
 
 dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
 
@@ -307,7 +307,7 @@ end
 DataDist(Y::AbstractVector, Sig::AbstractVector, Dist=Normal) = product_distribution([Dist(Y[i],Sig[i]) for i in eachindex(Y)])
 DataDist(Y::AbstractVector, Sig::AbstractMatrix, Dist=MvNormal) = Dist(Y, HealthyCovariance(Sig))
 yDataDist(DS::AbstractDataSet) = DataDist(ydata(DS), ysigma(DS))
-xDataDist(DS::AbstractDataSet) = xsigma(DS) == zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), HealthyCovariance(xsigma(DS)))
+xDataDist(DS::AbstractDataSet) = xsigma(DS) == Zeros(Npoints(DS)*xdim(DS)) ? InformationGeometry.Dirac(xdata(DS)) : DataDist(xdata(DS), HealthyCovariance(xsigma(DS)))
 yDataDist(DM::AbstractDataModel) = yDataDist(Data(DM))
 xDataDist(DM::AbstractDataModel) = xDataDist(Data(DM))
 

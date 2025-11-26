@@ -94,18 +94,18 @@ isseparable(P::Distribution) = false
 isseparable(P::InformationGeometry.GeneralProduct) = length(P) == 2 ? true : false
 
 
-xInvCov(GDS::GeneralizedDataSet) = InvCov(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))]
-yInvCov(GDS::GeneralizedDataSet) = InvCov(dist(GDS))[(Npoints(GDS)*xdim(GDS) +1):end,(Npoints(GDS)*xdim(GDS) +1):end]
+xInvCov(GDS::GeneralizedDataSet; kwargs...) = InvCov(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))]
+yInvCov(GDS::GeneralizedDataSet; kwargs...) = InvCov(dist(GDS))[(Npoints(GDS)*xdim(GDS) +1):end,(Npoints(GDS)*xdim(GDS) +1):end]
 
 
-function xsigma(GDS::GeneralizedDataSet)
+function xsigma(GDS::GeneralizedDataSet; kwargs...)
     if isseparable(GDS)
         Sigma(dist(GDS).v[1]) |> _TryVectorize
     else
         Sigma(dist(GDS))[1:(Npoints(GDS)*xdim(GDS)),1:(Npoints(GDS)*xdim(GDS))] |> _TryVectorize
     end
 end
-function ysigma(GDS::GeneralizedDataSet)
+function ysigma(GDS::GeneralizedDataSet; kwargs...)
     if isseparable(GDS)
         Sigma(dist(GDS).v[2]) |> _TryVectorize
     else
