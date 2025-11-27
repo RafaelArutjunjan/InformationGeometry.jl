@@ -199,7 +199,7 @@ NumberOfErrorParameters(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector
 ## Currently not possible for CDS to have error parameters yet.
 # NumberOfErrorParameters(CDS::CompositeDataSet, mle::AbstractVector) = sum(sum(length, (SplitErrorParams(DS)(mle))[2:end]) for DS in Data(CDS))
 
-errormoddim(DS::AbstractFixedUncertaintyDataSet) = 0
+errormoddim(DS::AbstractFixedUncertaintyDataSet; kwargs...) = 0
 xpars(DS::AbstractDataSet) = 0
 
 # How many degrees of freedom does the model have?

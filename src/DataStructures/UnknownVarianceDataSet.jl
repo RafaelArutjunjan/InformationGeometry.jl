@@ -129,7 +129,17 @@ HasXerror(DS::UnknownVarianceDataSet; kwargs...) = true
 
 xerrormoddim(DS::UnknownVarianceDataSet) = length(DS.testpx)
 yerrormoddim(DS::UnknownVarianceDataSet) = length(DS.testpy)
-errormoddim(DS::UnknownVarianceDataSet) = xerrormoddim(DS) + yerrormoddim(DS)
+
+function errormoddim(DS::UnknownVarianceDataSet; max::Int=500)
+    try
+        # Allow overlapping parameters for error models
+        ((_,x,y) = SplitErrorParams(DS)(1:max);     length(x ∪ y))
+    catch E;
+        @warn "Got error $E, returning upper bound for errormoddim."
+        xerrormoddim(DS) + yerrormoddim(DS)
+    end
+end
+errormoddim(DM::AbstractDataModel; max::Int=pdim(DM)) = errormoddim(Data(DS); max)
 
 SplitErrorParams(DS::UnknownVarianceDataSet) = DS.errorparamsplitter
 

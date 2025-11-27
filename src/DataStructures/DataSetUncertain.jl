@@ -134,7 +134,7 @@ HasXerror(DS::DataSetUncertain) = false
 
 xerrormoddim(DS::DataSetUncertain) = 0
 yerrormoddim(DS::DataSetUncertain) = length(DS.testp)
-errormoddim(DS::DataSetUncertain) = length(DS.testp)
+errormoddim(DS::DataSetUncertain; kwargs...) = length(DS.testp)
 
 
 SplitErrorParams(DS::DataSetUncertain) = DS.errorparamsplitter
@@ -196,6 +196,9 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFu
     end;    _Eval(DS, woundYpred, woundInvσ, woundY)
 end
 
+# Requires _Score !!!
+
+# Build dedicated method for constructing full cholesky matrix from given error model and add to struct.
 
 # Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
