@@ -989,6 +989,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     PopulatedInds = IsPopulated(P) 
     layout --> sum(PopulatedInds)
     size --> PlotSizer(sum(PopulatedInds))
+    Interpolate = get(plotattributes, :Interpolate, false)
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
     maxy = median(vcat(0.0, [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && sum(GetConverged(T)) > 0 && maximum(view(T[2], GetConverged(T))) > tol]))
@@ -997,6 +998,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     @series begin
         ylims --> Ylims
         Trafo := Trafo
+        Interpolate := Interpolate
         P
     end
     j = 1
@@ -1029,6 +1031,9 @@ end
         idxs = length(MLE(P))≥3 ? (1,2,3) : (1,2)
     end
 
+
+    InterpolatePaths = get(plotattributes, :InterpolatePaths, false)
+    Interp = QuadraticSpline
     # Should do rescaling with diagonal sqrt inv Fisher instead of BiLog
     DoBiLog = get(plotattributes, :BiLog, true)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
@@ -1050,7 +1055,15 @@ end
                 if length(idxs) == 3
                     TrafoPath.(view(M,:,1)), TrafoPath.(view(M,:,2)), TrafoPath.(view(M,:,3))
                 else
-                    TrafoPath.(view(M,:,1)), TrafoPath.(view(M,:,2))
+                    if InterpolatePaths
+                        Conv = GetConverged(Profiles(P[i]))
+                        !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
+                        F = Interp(TrafoPath.(view(M,:,2)), TrafoPath.(view(M,:,1)))
+                        xran = range(F.t[1], F.t[end]; length=300)
+                        xran, map(F, xran)
+                    else
+                        TrafoPath.(view(M,:,1)), TrafoPath.(view(M,:,2))
+                    end
                 end
             end
         end
@@ -1071,11 +1084,13 @@ end
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)
     size --> PlotSizer(length(PVs))
+    Interpolate = get(plotattributes, :Interpolate, false)
     Trafo = get(plotattributes, :Trafo, identity)
     for i in eachindex(PVs)
         @series begin
             subplot := i
             Trafo := Trafo
+            Interpolate := Interpolate
             PVs[i], V
         end
     end
@@ -1091,19 +1106,39 @@ end
     xguide --> pnames(PV)[i]
     yguide --> ApplyTrafoNames(IsCost(PV) ? "Cost Function" : "Conf. level [σ]", Trafo)
 
+    Interpolate = get(plotattributes, :Interpolate, false)
+    Interp = QuadraticSpline
     @series begin
-        label --> ["Profile Likelihood" nothing]
         lw --> 1.5
-        Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[2], GetConverged(Profiles(PV))))
+        if Interpolate
+            label --> "Interpolated Profile"
+            Conv = GetConverged(Profiles(PV))
+            !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
+            F = Interp(Trafo.(Profiles(PV)[2]), Profiles(PV)[1])
+            xran = range(F.t[1], F.t[end]; length=300)
+            xran, map(F, xran)
+        else
+            label --> ["Profile Likelihood" nothing]
+            Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[2], GetConverged(Profiles(PV))))
+        end
     end
     # Draw prior contribution
     if HasPriors(Profiles(PV))
         @series begin
-            label --> ["Prior contribution" nothing]
             linealpha --> 0.75
             line --> :dash
             lw --> 1.5
-            Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[3], GetConverged(Profiles(PV))))
+            if Interpolate
+                label --> "Interpolated Profile"
+                Conv = GetConverged(Profiles(PV))
+                !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
+                F = Interp(Trafo.(Profiles(PV)[3]), Profiles(PV)[1])
+                xran = range(F.t[1], F.t[end]; length=300)
+                xran, map(F, xran)
+            else
+                label --> ["Prior contribution" nothing]
+                Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[3], GetConverged(Profiles(PV))))
+            end
         end
     end
     ## Mark MLE in profile
@@ -1137,17 +1172,21 @@ end
 
 @recipe function f(PV::ParameterProfilesView, WithTrajectories::Val{true})
     layout --> (2,1)
+    Interpolate = get(plotattributes, :Interpolate, false)
+    InterpolatePaths = get(plotattributes, :InterpolatePaths, Interpolate)
     Trafo = get(plotattributes, :Trafo, identity)
     DoBiLog = get(plotattributes, :BiLog, true)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
     @series begin
         subplot := 1
         Trafo := Trafo
+        Interpolate := Interpolate
         PV, Val(false)
     end
     @series begin
         subplot := 2
         TrafoPath := TrafoPath
+        InterpolatePaths := InterpolatePaths
         PV, Val(:PlotRelativeParamTrajectories)
     end
 end
@@ -1213,6 +1252,8 @@ end
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
     color_palette = get(plotattributes, :color_palette, :default)
+    InterpolatePaths = get(plotattributes, :InterpolatePaths, false)
+    Interp = QuadraticSpline
     # Colorize only parameters with 5 strongest changes
     for j in ToPlotInds
         @series begin
@@ -1224,7 +1265,15 @@ end
             else
                 U[j,j] .* (getindex.(Trajectories(PV), j) .- (OffsetResults ? mle[j] : 0))
             end
-            getindex.(Trajectories(PV), i), TrafoPath.(Change)
+            if InterpolatePaths
+                Conv = GetConverged(Profiles(PV))
+                !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
+                F = Interp(TrafoPath.(Change), getindex.(Trajectories(PV), i))
+                xran = range(F.t[1], F.t[end]; length=300)
+                xran, map(F, xran)
+            else
+                getindex.(Trajectories(PV), i), TrafoPath.(Change)
+            end
         end
     end
     # if !isnothing(ParameterFunctions)
