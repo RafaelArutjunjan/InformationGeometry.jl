@@ -17,7 +17,7 @@ struct GeneralizedDataSet{DistType<:Distribution} <: AbstractFixedUncertaintyDat
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
-    GeneralizedDataSet(DM::AbstractDataModel) = GeneralizedDataSet(Data(DM))
+    GeneralizedDataSet(DM::AbstractDataModel, args...; kwargs...) = GeneralizedDataSet(Data(DM), args...; kwargs...)
     function GeneralizedDataSet(DS::DataSetExact; kwargs...)
         xdist(DS) isa InformationGeometry.Dirac && @warn "xdist passed to GeneralizedDataSet is Dirac, continuing anyway."
         GeneralizedDataSet(GeneralProduct([xdist(DS),ydist(DS)]), dims(DS), WoundX(DS), Xnames(DS), Ynames(DS); kwargs...)

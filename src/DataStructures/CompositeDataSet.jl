@@ -101,6 +101,9 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
     WoundX::AbstractVector
     SharedYdim::Val
     name::Symbol
+    
+    CompositeDataSet(DM::AbstractDataModel, args...; kwargs...) = CompositeDataSet(Data(DM), args...; kwargs...)
+    CompositeDataSet(DS::AbstractDataSet, args...; kwargs...) = CompositeDataSet([DS], args...; name=name(DS), kwargs...)
     function CompositeDataSet(pDSs::AbstractVector{<:AbstractDataSet}; kwargs...)
         !all(DS->xdim(DS)==xdim(pDSs[1]), pDSs) && throw("Inconsistent dimensionality of x-data between data containers.")
         DSs = reduce(vcat, map(SplitDS, pDSs))
@@ -123,7 +126,6 @@ function (::Type{T})(DS::CompositeDataSet; kwargs...) where T<:Number
 end
 
 
-CompositeDataSet(DS::AbstractDataSet; kwargs...) = CompositeDataSet([DS]; kwargs...)
 function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, 
                             xnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, ynames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, kwargs...)
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs, stripedXs, stripedYs, xnames, ynames); kwargs...)

@@ -44,16 +44,14 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     ynames::AbstractVector{Symbol}
     name::Symbol
 
-    UnknownVarianceDataSet(DS::AbstractDataSet; kwargs...) = UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
+    UnknownVarianceDataSet(DM::AbstractDataModel, args...; kwargs...) = UnknownVarianceDataSet(Data(DM), args...; kwargs...)
+    UnknownVarianceDataSet(DS::AbstractDataSet, args...; kwargs...) = UnknownVarianceDataSet(WoundX(DS), WoundY(DS), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
     function UnknownVarianceDataSet(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); 
                         testpx::AbstractVector=Fill(0.1,xdim(dims)), testpy::AbstractVector=Fill(0.1,ydim(dims)), kwargs...)
         @info "Assuming error models σ(x,y,c) = exp10.(c)"
         xerrmod = xdim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
         yerrmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; kwargs...)
-    end
-    function UnknownVarianceDataSet(DS::AbstractDataSet, invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector=Fill(0.1,xdim(DS)), testpy::AbstractVector=Fill(0.1,ydim(DS)); kwargs...)
-        UnknownVarianceDataSet(xdata(DS), ydata(DS), invxerrormodel, invyerrormodel, testpx, testpy, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invxerrormodel::Function, invyerrormodel::Function,
         testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
@@ -280,3 +278,11 @@ end
 # function _Score(DSE::DataSetExact, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
 #     transpose(EmbeddingMatrix(DSE,dmodel,θ; kwargs...)) * gradlogpdf(ydist(DSE), EmbeddingMap(DSE,model,θ; kwargs...))
 # end
+
+
+function UnknownVarianceDataSet(DS::DataSetUncertain, invxerrormodel::Function=xdim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c)), testpx::AbstractVector=Fill(0.1,xdim(dims)); kwargs...)
+    UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS), invxerrormodel, yinverrormodelraw(DS), testpx, DS.testpy; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+end
+function DataSetUncertain(DS::UnknownVarianceDataSet; kwargs...)
+    DataSetUncertain(xdata(DS), ydata(DS), yinverrormodelraw(DS), DS.testpy, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+end

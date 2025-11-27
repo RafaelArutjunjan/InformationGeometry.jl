@@ -45,6 +45,8 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
+    DataSet(DM::AbstractDataModel, args...; kwargs...) = DataSet(Data(DM), args...; kwargs...)
+    DataSet(DS::AbstractDataSet, args...; kwargs...) = DataSet(WoundX(DS), WoundY(DS), inv(yInvCov(DS)), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
     DataSet(df::DataFrame; kwargs...) = DataSet(Matrix(df); xnames=[names(df)[1]], ynames=[names(df)[1]], kwargs...)
     DataSet(df::AbstractMatrix; kwargs...) = size(df, 2) ≤ 3 ? DataSet(ToCols(df)...; kwargs...) : throw("Unclear dimensions of input $df.")
     function DataSet(Xdf::DataFrame, Ydf::DataFrame, sigma::Union{Real,DataFrame}=1.0, args...; kwargs...)

@@ -48,57 +48,56 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
     inverrormodelraw::Function # 1/errormodel as Number, Vector or Matrix
     testout::Union{Number,<:AbstractVector,<:AbstractMatrix}
     inverrormodel::Function # 1./errormodel wrapped as AbstractMatrix, e.g. Diagonal
-    testp::AbstractVector{<:Number}
+    testpy::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
     keep::Union{Nothing, AbstractVector{<:Bool}}
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
 
-    DataSetUncertain(DS::AbstractDataSet; kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
+    DataSetUncertain(DM::AbstractDataModel, args...; kwargs...) = DataSetUncertain(Data(DM), args...; kwargs...)
+    DataSetUncertain(DS::AbstractDataSet, args...; kwargs...) = DataSetUncertain(WoundX(DS), WoundY(DS), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error model σ(x,y,c) = exp10.(c)"
         errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
         DataSetUncertain(Unwind(X), Unwind(Y), errmod, Fill(0.1,ydim(dims)), dims; verbose, kwargs...)
     end
-    function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testp::AbstractVector; kwargs...)
+    function DataSetUncertain(X::AbstractArray{<:Number}, Y::AbstractArray{<:Number}, inverrormodel::Function, testpy::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
-        DataSetUncertain(collect(eachrow(X)), collect(eachrow(Y)), inverrormodel, testp; kwargs...)
+        DataSetUncertain(collect(eachrow(X)), collect(eachrow(Y)), inverrormodel, testpy; kwargs...)
     end
-    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, inverrormodel::Function, testp::AbstractVector; kwargs...)
+    function DataSetUncertain(X::AbstractArray, Y::AbstractArray, inverrormodel::Function, testpy::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
-        DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testp, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
+        DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testpy, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
     end
-    DataSetUncertain(DS::AbstractDataSet, inverrormodel::Function, testp::AbstractVector=Fill(0.1,ydim(DS)); kwargs...) = DataSetUncertain(xdata(DS), ydata(DS), inverrormodel, testp, dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), kwargs...)
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int}; verbose::Bool=true, kwargs...)
-        verbose && @info "Assuming error parameters always given by last $(length(testp)) parameters."
-        DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testp)), testp, dims; verbose, kwargs...)
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, testpy::AbstractVector, dims::Tuple{Int,Int,Int}; verbose::Bool=true, kwargs...)
+        verbose && @info "Assuming error parameters always given by last $(length(testpy)) parameters."
+        DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testpy)), testpy, dims; verbose, kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testp::AbstractVector, dims::Tuple{Int,Int,Int};
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testpy::AbstractVector, dims::Tuple{Int,Int,Int};
             xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"),
             name::StringOrSymb=Symbol(), kwargs...)
-        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; kwargs...)
+        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testpy, xnames, ynames, name; kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testp::AbstractVector,
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testpy::AbstractVector,
             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); keep::Union{Nothing, AbstractVector{<:Bool}}=nothing, BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         @assert isnothing(keep) || length(keep) == length(y)
 
-        M = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testp)
+        M = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         Inverrormodelraw, Inverrormodel = ErrorModelTester(inverrormodelraw, M)
-
         # Check that inverrormodel either outputs Matrix for ydim > 1
         ydim(dims) == 1 && (@assert M isa Number && M > 0)
         ydim(dims) > 1 && @assert (M isa AbstractVector && length(M) == ydim(dims) && all(M .> 0)) || (M isa AbstractMatrix && size(M,1) == size(M,2) == ydim(dims) && det(M) > 0)
         
-        new{BesselCorrection}(x, y, dims, Inverrormodelraw, M, Inverrormodel, testp, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection}(x, y, dims, Inverrormodelraw, M, Inverrormodel, testpy, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
 function (::Type{T})(DS::DataSetUncertain{B}; kwargs...) where T<:Number where B
-	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodelraw(DS), SplitErrorParams(DS), T.(DS.testp), Xnames(DS), Ynames(DS), name(DS); keep=DS.keep, BesselCorrection=B, kwargs...)
+	DataSetUncertain(T.(xdata(DS)), T.(ydata(DS)), dims(DS), yinverrormodelraw(DS), SplitErrorParams(DS), T.(DS.testpy), Xnames(DS), Ynames(DS), name(DS); keep=DS.keep, BesselCorrection=B, kwargs...)
 end
 
 # For SciMLBase.remake
@@ -107,14 +106,14 @@ x::AbstractVector=[0.],
 y::AbstractVector=[0.],
 dims::Tuple{Int,Int,Int}=(1,1,1),
 inverrormodel::Function=identity,
-testp::AbstractVector{<:Number}=[0.],
+testpy::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
 xnames::AbstractVector{<:StringOrSymb}=[:x],
 ynames::AbstractVector{<:StringOrSymb}=[:y],
 BesselCorrection::Bool=false,
 verbose::Bool=true,
 keep::Union{Nothing, AbstractVector{<:Bool}}=nothing,
-name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testp, xnames, ynames, name; keep, BesselCorrection, verbose)
+name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testpy, xnames, ynames, name; keep, BesselCorrection, verbose)
 
 DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 
@@ -133,8 +132,8 @@ xsigma(DS::DataSetUncertain, mle::AbstractVector=Float64[]) = Zeros(length(xdata
 HasXerror(DS::DataSetUncertain) = false
 
 xerrormoddim(DS::DataSetUncertain) = 0
-yerrormoddim(DS::DataSetUncertain) = length(DS.testp)
-errormoddim(DS::DataSetUncertain; kwargs...) = length(DS.testp)
+yerrormoddim(DS::DataSetUncertain) = length(DS.testpy)
+errormoddim(DS::DataSetUncertain; kwargs...) = length(DS.testpy)
 
 
 SplitErrorParams(DS::DataSetUncertain) = DS.errorparamsplitter
@@ -157,23 +156,23 @@ BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 ## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov
 
 # Uncertainty must be constructed around prediction!
-function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    C = if length(c) != length(DS.testp)
-        verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params!"
+function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
+    C = if length(c) != length(DS.testpy)
+        verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params!"
         (SplitErrorParams(DS)(c))[end]
     else
-        verbose && c === DS.testp && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
+        verbose && c === DS.testpy && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
     map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testp; verbose::Bool=true)
-    C = if length(c) != length(DS.testp)
-        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testp)) got $(length(c)). Only pass error params."
+function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
+    C = if length(c) != length(DS.testpy)
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
         (SplitErrorParams(DS)(c))[end]
     else
-        verbose && c === DS.testp && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
+        verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
     map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce

@@ -36,8 +36,9 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
-    DataSetExact(DM::AbstractDataModel; kwargs...) = DataSetExact(Data(DM); kwargs...)
-    DataSetExact(DS::DataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+
+    DataSetExact(DM::AbstractDataModel, args...; kwargs...) = DataSetExact(Data(DM), args...; kwargs...)
+    DataSetExact(DS::AbstractDataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, Fill(allsigmas,length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, Fill(allxsigmas,length(x)*length(x[1])), args...; kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, Zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
