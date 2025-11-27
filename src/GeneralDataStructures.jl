@@ -112,13 +112,14 @@ xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 Returns vector of type `Measurements.Measurement` where the parameter uncertainties are approximated via the diagonal of the inverse Fisher metric.
 That is, the stated uncertainties are a linearized symmetric approximation of the true parameter uncertainties around the MLE.
 """
-function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); verbose::Bool=true)
+MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = mle .± MLEuncertStd(F; kwargs...)
+MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = MLEuncertStd(F; kwargs...)
+function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true)
     @assert size(F,1) == size(F,2)
-    # Use AutoMetric instead of FisherMetric since significantly more performant for large datasets due to reduced allocations
-    # Also, diagonal basically unaffected in terms of precision
+    # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision
     try
         # sqrt∘Diagonal Larger than Diagonal∘cholesky entries
-        mle .± sqrt.(Diagonal(inv(F)).diag)
+        sqrt.(Diagonal(inv(F)).diag)
     catch y;
         if y isa SingularException
             verbose && @warn "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
@@ -128,7 +129,8 @@ function MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::Abstra
             rethrow(y)
         end
         # Larger than Diagonal∘pinv
-        mle .± sqrt.(Diagonal(ConservativeInverse(F)).diag)
+        SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
+        SafeSqrt.(Diagonal(ConservativeInverse(F)).diag)
     end
 end
 
