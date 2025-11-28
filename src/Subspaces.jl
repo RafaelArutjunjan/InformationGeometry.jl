@@ -492,10 +492,10 @@ import Base.==
 ==(A::HyperCube, B::HyperCube) = A.L == B.L && A.U == B.U
 ==(A::Plane, B::Plane) = A.stütz == B.stütz && A.Vx == B.Vx && A.Vy == B.Vy
 
-PositiveDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(1e-16,n), Fill(maxval,n)))
-PositiveDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube([(indxs[i] ? 1e-16 : -maxval) for i in eachindex(indxs)], Fill(maxval,length(indxs))))
-NegativeDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,n), Fill(-1e-16,n)))
-NegativeDomain(indxs::BoolVector, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,length(indxs)), [(indxs[i] ? -1e-16 : maxval) for i in eachindex(indxs)]))
+PositiveDomain(n::Int, maxval::Real=1e5, minval::Real=1e-8) = (@assert 0 ≤ minval < maxval;     HyperCube(Fill(minval,n), Fill(maxval,n)))
+PositiveDomain(indxs::BoolVector, maxval::Real=1e5, minval::Real=1e-8) = (@assert 0 ≤ minval < maxval;     HyperCube([(indxs[i] ? minval : -maxval) for i in eachindex(indxs)], Fill(maxval,length(indxs))))
+NegativeDomain(n::Int, maxval::Real=1e5, minval::Real=1e-8) = (@assert 0 ≤ minval < maxval;     HyperCube(Fill(-maxval,n), Fill(-minval,n)))
+NegativeDomain(indxs::BoolVector, maxval::Real=1e5, minval::Real=1e-8) = (@assert 0 ≤ minval < maxval;     HyperCube(Fill(-maxval,length(indxs)), [(indxs[i] ? -minval : maxval) for i in eachindex(indxs)]))
 FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fill(-maxval,n), Fill(maxval,n)))
 
 

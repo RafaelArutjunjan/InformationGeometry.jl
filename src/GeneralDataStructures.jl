@@ -112,8 +112,8 @@ xpdim(DM::AbstractDataModel) = Npoints(DM) * xdim(DM) + pdim(DM)
 Returns vector of type `Measurements.Measurement` where the parameter uncertainties are approximated via the diagonal of the inverse Fisher metric.
 That is, the stated uncertainties are a linearized symmetric approximation of the true parameter uncertainties around the MLE.
 """
-MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = mle .± MLEuncertStd(F; kwargs...)
-MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = MLEuncertStd(F; kwargs...)
+MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; kwargs...) = mle .± MLEuncertStd(F; kwargs...)
+MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; kwargs...) = MLEuncertStd(F; kwargs...)
 function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true)
     @assert size(F,1) == size(F,2)
     # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision

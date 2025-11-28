@@ -869,7 +869,7 @@ IsCost(PV::ParameterProfilesView) = IsCost(PV.P)
 HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV)) && !all(x->all(isnan,x), Trajectories(PV))
 HasProfiles(PV::ParameterProfilesView) = !all(isnan, view(Profiles(PV), :, 1))
 IsPopulated(PV::ParameterProfilesView) = HasProfiles(PV)
-
+GetConverged(PV::ParameterProfilesView) = GetConverged(Profiles(PV))
 
 
 # AbstractMatrix to the outside
@@ -1114,9 +1114,9 @@ end
             label --> "Interpolated Profile"
             Conv = GetConverged(Profiles(PV))
             !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
-            F = Interp(Trafo.(Profiles(PV)[2]), Profiles(PV)[1])
+            F = InterpolatedProfiles(PV, Interp)
             xran = range(F.t[1], F.t[end]; length=300)
-            xran, map(F, xran)
+            xran, map(Trafo∘F, xran)
         else
             label --> ["Profile Likelihood" nothing]
             Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[2], GetConverged(Profiles(PV))))
@@ -1132,9 +1132,9 @@ end
                 label --> "Interpolated Profile"
                 Conv = GetConverged(Profiles(PV))
                 !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
-                F = Interp(Trafo.(Profiles(PV)[3]), Profiles(PV)[1])
+                F = Interp(Profiles(PV)[3], Profiles(PV)[1])
                 xran = range(F.t[1], F.t[end]; length=300)
-                xran, map(F, xran)
+                xran, map(Trafo∘F, xran)
             else
                 label --> ["Prior contribution" nothing]
                 Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[3], GetConverged(Profiles(PV))))
