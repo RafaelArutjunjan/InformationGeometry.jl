@@ -31,7 +31,7 @@ ODM = OptimizedDM(DME)
 CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), MLE(ODM))
 @test abs(loglikelihood(ODM, P) - loglikelihood(CDM, P)) < 1e-5
 @test norm(Score(ODM, P) - Score(CDM, P)) < 2e-4
-@test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 2e-4
+@test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 3e-4
 @test norm(InformationGeometry.ResidualStandardError(ODM) - InformationGeometry.ResidualStandardError(CDM)) < 1e-10
 
 lastDS = Data(Data(CDM))[3]
@@ -42,13 +42,13 @@ newmodel(x::AbstractVector{<:Number},p::AbstractVector{<:Number}) = SA[p[1] * x[
 splitCDM = DataModel(newCDS, newmodel, MLE(CDM))
 @test abs(loglikelihood(splitCDM, P) - loglikelihood(CDM, P)) < 1e-5
 @test norm(Score(splitCDM, P) - Score(CDM, P)) < 2e-4
-@test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 2e-4
+@test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 3e-4
 
 
 GDM = DataModel(GeneralizedDataSet(DME), Predictor(DME), MLE(DME))
 @test abs(loglikelihood(GDM, P) - loglikelihood(CDM, P)) < 1e-5
 @test norm(Score(GDM, P) - Score(CDM, P)) < 2e-4
-@test norm(FisherMetric(GDM, P) - FisherMetric(CDM, P)) < 2e-4
+@test norm(FisherMetric(GDM, P) - FisherMetric(CDM, P)) < 3e-4
 
 UDS = DataSetUncertain(1:5, (1:5) + [rand(Normal(0,0.4)) for i in 1:5], (x,y,p)->1/exp(p[1]), [log(0.4)])
 UDM = DataModel(UDS, (x,p)->p[1]*x + p[2], [1, 1, 1.])

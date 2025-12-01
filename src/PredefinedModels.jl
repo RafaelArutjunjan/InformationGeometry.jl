@@ -123,7 +123,7 @@ function TimeRetardation(t::Union{S, <:AbstractVector{S}}, T_shift::Number, r::N
     @. (log10(exp10(r*t/t_range) + exp10(r*T_shift/t_range)) - log10(one(S) + exp10(r*T_shift/t_range)))/r
 end
 
-TransientApproximation(; kwargs...) = (args...; Kwargs...) -> TransientApproximation(args...; kwargs..., Kwargs...)
+TransientApproximation(; kwargs...) = (t, θ::AbstractVector; Kwargs...) -> TransientApproximation(t, θ; kwargs..., Kwargs...)
 function TransientApproximation(t::Union{<:Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number}; t_range::Real=1)
     A_sus, A_trans, τ_1, τ_3, τ_2, T_shift, r, offset = θ
     sustained(t_ret) = @. A_sus * (one(eltype(t_ret)) - exp(-t_ret/τ_1))

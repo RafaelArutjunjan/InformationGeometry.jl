@@ -91,20 +91,20 @@ end
 
 
 
-function MonteCarloArea(Test::Function,Cube::HyperCube,N::Int=Int(1e7); WE::Bool=false)
+function MonteCarloArea(Test::Function,Cube::HyperCube,n::Int=Int(1e7); N::Int=n, WE::Bool=false)
     if WE
         return CubeVol(Cube) * MonteCarloRatioWE(Test,Cube,N)
     else
         return CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
     end
 end
-function MonteCarloRatio(Test::Function,Cube::HyperCube,N::Int=Int(1e7))
+function MonteCarloRatio(Test::Function,Cube::HyperCube,n::Int=Int(1e7); N::Int=n)
     (1/N)* @distributed (+) for i in 1:N
         Test(rand.(Uniform.(Cube.L,Cube.U)))
     end
 end
 
-function MonteCarloRatioWE(Test::Function,LU::HyperCube,N::Int=Int(1e7); chunksize::Int=Int(N/20))
+function MonteCarloRatioWE(Test::Function,LU::HyperCube,n::Int=Int(1e7); N::Int=n, chunksize::Int=Int(N/20))
     chunksize > N && error("chunksize > N")
     if N%chunksize != 0
         N += Int(N%chunksize + 1)

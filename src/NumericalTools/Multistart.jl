@@ -7,10 +7,10 @@ GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...;
 function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Distribution, n::Int=100; N::Int=n)
     @assert N ≥ 1
     i = 1;   y = SOBOL.next!(S);  M = Matrix{eltype(y)}(undef, length(y), N)
-    Pusher(x, i::Int) = (rand() ≤ pdf(P, x)  ? (M[:,i] .= x;  true) : false)
+    ConditionalPusher(x, i::Int) = (rand() ≤ pdf(P, x)  ? (M[:,i] .= x;  true) : false)
  
     while i ≤ N
-       Pusher(y, i) && (i += 1)
+       ConditionalPusher(y, i) && (i += 1)
        SOBOL.next!(S, y)
     end;  [view(M,:,i) for i in axes(M,2)]
 end
@@ -259,6 +259,8 @@ pnames(R::MultistartResults) = R.pnames .|> string
 Pnames(R::MultistartResults) = R.pnames
 Domain(R::MultistartResults) = R.MultistartDomain
 pdim(R::MultistartResults) = length(MLE(R))
+
+GetConverged(R::MultistartResults) = R.Converged
 
 
 SubsetMultistartResults(R::MultistartResults, LastInd::Int; idxs::AbstractVector{<:Int}=1:LastInd, kwargs...) = SubsetMultistartResults(R, idxs; kwargs...)

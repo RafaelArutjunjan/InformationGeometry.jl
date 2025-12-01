@@ -347,11 +347,11 @@ end
 
 
 """
-    ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-11)
+    ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-10)
 Computes inverse of symmetric matrix `F` based on Eigendecomposition by eliminating degenerate eigendirections with eigenvalue smaller than `threshold`.
 In order to retain conservative estimates on the diagonal of the resulting inverse, the value `Inf` is imputed for the diagonal entry corresponding to the degenerate direction.
 """
-function ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-11; Impute::Real=Inf)
+function ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-10; Impute::Real=Inf)
     @assert threshold > 0;    D, Vt = eigen(F);   i = findlast(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     R = Vt * Diagonal(vcat(Zeros(i), inv.(@view D[i+1:end]))) * Vt'
