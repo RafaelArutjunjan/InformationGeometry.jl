@@ -131,7 +131,7 @@ function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
         elseif y isa DomainError
             verbose && @warn "MLEuncert: inverse Fisher metric not positive-definite, trying to estimate conservative uncertainties for non-degenerate eigendirections."
         else
-            rethrow(y)
+            @warn "MLEuncert: Got error message $y. Trying to estimate conservative uncertainties for non-degenerate eigendirections."
         end
         # Larger than Diagonal∘pinv
         SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)

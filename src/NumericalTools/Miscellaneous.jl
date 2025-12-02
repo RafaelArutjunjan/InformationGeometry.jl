@@ -360,9 +360,13 @@ function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::R
     @assert threshold > 0;    D, Vt = eigen(F);   i = findlast(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     R = Vt * Diagonal(vcat(Zeros(i), inv.(@view D[i+1:end]))) * Vt'
+    AllAffected(v::AbstractVector) = IndVec(abs.(v) .> threshold)
+    MaxAffected(v::AbstractVector) = IndVec((f = findmax(abs, v)[1];   map(z->abs(z) == f, v)))
+    AffectedInds = Safe ? AllAffected : MaxAffected
+    Mutate!(R::AbstractMatrix, inds::AbstractVector{<:Int}) = for k in inds     R[k,k] = Impute     end
     for j in 1:i
         # Which diagonal entry of inverse corresponds most strongly to degenerate eigendirection?
-        v = view(Vt, :, j);    ind = Safe ? (abs.(v) .> 0) : findmax(v .* v)[2];    R[ind,ind] .= Impute
+        v = view(Vt, :, j);     Mutate!(R, AffectedInds(v))
     end;    R
 end
 
