@@ -74,7 +74,7 @@ function _FindFloatBoundary(Test::Function, Interval::Tuple{<:Real,<:Real}, mle:
 end
 
 function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=DOF(DM), Comp::Int=1, factor::Real=10.0)
-    b = sqrt(quantile(Chisq(dof),CF) / FisherMetric(DM,MLE(DM))[Comp,Comp])
+    b = sqrt(InvChisqCDF(dof, CF) / FisherMetric(DM,MLE(DM))[Comp,Comp])
     (b/factor, factor*b)
 end
 
@@ -314,15 +314,15 @@ end
     ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Number,Number}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
-function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), dof::Int=DOF(DM), kwargs...)
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
     A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
     Func(p::Number) = loglikelihood(DM, muladd(p, BasisVector(1,pdim(DM)), MLE(DM))) - A
     B = try
-        AltLineSearch(Func, sqrt(quantile(Chisq(pdim(DM)), ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol, kwargs...)
+        AltLineSearch(Func, sqrt(InvChisqCDF(dof, ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol, kwargs...)
     catch;
-        LineSearch(Func, sqrt(quantile(Chisq(pdim(DM)), ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol)
+        LineSearch(Func, sqrt(InvChisqCDF(dof, ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol)
     end
     A = try
         AltLineSearch(Func, -B; tol, kwargs...)
@@ -745,7 +745,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), kwargs...)
-    VariancePropagation(DM, mle, quantile(Chisq(dof), ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); Confnum, dof, kwargs...)
+    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); Confnum, dof, kwargs...)
 end
 
 

@@ -22,9 +22,9 @@ function Integrate1D(F::Function, Interval::Tuple{<:Number,<:Number}; tol::Real=
         meth = isnothing(meth) ? Tsit5() : meth
     end
     if FullSol
-        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol, kwargs...)
+        solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol, kwargs...)
     else
-        return solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true, kwargs...).u[end]
+        solve(ODEProblem(f,u0,Interval),meth; reltol=tol,abstol=tol,save_everystep=false,save_start=false,save_end=true, kwargs...).u[end]
     end
 end
 Integrate1D(I::DataInterpolations.AbstractInterpolation, dom::Tuple{<:Number,<:Number}=extrema(I.t); kwargs...) = Integrate1D(x->I(x), dom; kwargs...)
@@ -41,9 +41,9 @@ function IntegrateND(F::Function, Cube::HyperCube; tol::Real=1e-12, WE::Bool=fal
         val, uncert = hcubature(F, Cube.L, Cube.U; rtol=tol, atol=tol, kwargs...)
     end
     if length(val) == 1
-        return WE ? measurement(val[1],uncert[1]) : val[1]
+        WE ? measurement(val[1],uncert[1]) : val[1]
     else
-        return WE ? measurement.(val,uncert) : val
+        WE ? measurement.(val,uncert) : val
     end
 end
 IntegrateND(F::Function, L::AbstractVector{<:Number}, U::AbstractVector{<:Number}; tol::Real=1e-12, WE::Bool=false, kwargs...) = IntegrateND(F,HyperCube(L,U); tol=tol, WE=WE, kwargs...)
@@ -93,9 +93,9 @@ end
 
 function MonteCarloArea(Test::Function,Cube::HyperCube,n::Int=Int(1e7); N::Int=n, WE::Bool=false)
     if WE
-        return CubeVol(Cube) * MonteCarloRatioWE(Test,Cube,N)
+        CubeVol(Cube) * MonteCarloRatioWE(Test,Cube,N)
     else
-        return CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
+        CubeVol(Cube) * MonteCarloRatio(Test,Cube,N)
     end
 end
 function MonteCarloRatio(Test::Function,Cube::HyperCube,n::Int=Int(1e7); N::Int=n)

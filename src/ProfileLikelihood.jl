@@ -157,7 +157,7 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
 function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
-    @assert DM isa DataModel
+    @assert DM isa DataModel # Not implemented for ConditionGrids yet
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
@@ -181,12 +181,11 @@ end
 
 
 """
-    FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, kwargs...)
+    FixNonIdentifiable(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); verbose::Bool=true, kwargs...)
 Fixes all structuraly non-identified parameters to their current values.
 """
-function FixNonIdentifiable(DM::AbstractDataModel; verbose::Bool=true, SkipOptim::Bool=true, kwargs...)
-    mle = MLEuncert(DM)
-    Fix = .!isfinite.(Measurements.uncertainty.(mle)) |> IndVec
+function FixNonIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:AbstractFloat}=MLE(DM), args...; verbose::Bool=true, SkipOptim::Bool=true, kwargs...)
+    Fix = .!isfinite.(Measurements.uncertainty.(MLEuncertStd(DM, mle, args...))) |> IndVec
     verbose && println("Fixing structurally non-idenfied parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
     FixParameters(DM, Fix; SkipOptim, kwargs...)
 end

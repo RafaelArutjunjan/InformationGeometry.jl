@@ -70,7 +70,7 @@ function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf:
         start *= one(BigFloat)
         @warn "GeodesicCrossing: Conf value not programmed for BigFloat yet."
     end
-    A = loglikelihood(DM,sol(0.)[1:2]) - (1/2)*quantile(Chisq(Int(length(sol(0.))/2)),Conf)
+    A = loglikelihood(DM,sol(0.)[1:2]) - (1/2)*InvChisqCDF(Int(length(sol(0.))/2),Conf)
     f(t) = A - loglikelihood(DM,sol(t)[1:2])
     find_zero(f, start, Order1B(); xatol=tol, kwargs...)
 end
@@ -131,7 +131,7 @@ end
 
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
                                     Confnum::Real=1, Endtime::Real=500.0; dof::Int=DOF(DM), kwargs...)
-    WilksCond = (1/2)*quantile(Chisq(dof), ConfVol(Confnum))
+    WilksCond = (1/2)*InvChisqCDF(dof, ConfVol(Confnum))
     BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > WilksCond
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end

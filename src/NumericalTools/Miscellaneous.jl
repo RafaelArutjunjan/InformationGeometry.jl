@@ -347,17 +347,22 @@ end
 
 
 """
-    ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-10)
+    ConservativeInverse(F::AbstractMatrix; threshold::Real=1e-10, Safe::Bool=false)
 Computes inverse of symmetric matrix `F` based on Eigendecomposition by eliminating degenerate eigendirections with eigenvalue smaller than `threshold`.
 In order to retain conservative estimates on the diagonal of the resulting inverse, the value `Inf` is imputed for the diagonal entry corresponding to the degenerate direction.
+
+If `Safe=false`, infinite values are only imputed for parameters which are structurally non-identifiable themselves, i.e. about which no information contained in the data.
+However, as a secondary effect, many more parameters than these can also exhibit flat profile likelihoods, if their effects are related to (and can be compensated for by) the degenerate parameters.
+Nevertheless, upon fixing or removing the purely degenerate parameters, the additional parameters whose profiles were only flat as a secondary effect become structurally identifiable.
+For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
-function ConservativeInverse(F::AbstractMatrix, threshold::Real=1e-10; Impute::Real=Inf)
+function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
     @assert threshold > 0;    D, Vt = eigen(F);   i = findlast(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     R = Vt * Diagonal(vcat(Zeros(i), inv.(@view D[i+1:end]))) * Vt'
     for j in 1:i
         # Which diagonal entry of inverse corresponds most strongly to degenerate eigendirection?
-        v = view(Vt, :, j);    ind = findmax(v .* v)[2];    R[ind,ind] = Impute
+        v = view(Vt, :, j);    ind = Safe ? (abs.(v) .> 0) : findmax(v .* v)[2];    R[ind,ind] .= Impute
     end;    R
 end
 
