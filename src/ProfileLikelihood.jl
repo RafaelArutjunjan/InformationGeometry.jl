@@ -185,7 +185,7 @@ end
 Fixes all structuraly non-identified parameters to their current values.
 """
 function FixNonIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:AbstractFloat}=MLE(DM), args...; verbose::Bool=true, SkipOptim::Bool=true, kwargs...)
-    Fix = .!isfinite.(Measurements.uncertainty.(MLEuncertStd(DM, mle, args...))) |> IndVec
+    Fix = .!isfinite.(MLEuncertStd(DM, mle, args...)) |> IndVec
     verbose && println("Fixing structurally non-idenfied parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
     FixParameters(DM, Fix; SkipOptim, kwargs...)
 end
@@ -235,8 +235,9 @@ function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1),
     sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
 end
 
-function GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; dof::Int=DOF(DM), kwargs...)
-    Cube = GetProfileDomainCube(FisherMetric(DM, MLE(DM)), MLE(DM), Confnum; dof=dof, kwargs...)
+GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; MLE::AbstractVector=MLE(DM), kwargs...) = GetProfileDomainCube(DM, MLE, Confnum; kwargs...)
+function GetProfileDomainCube(DM::AbstractDataModel, mle::AbstractVector{<:Number}, Confnum::Real; Fisher::AbstractMatrix=FisherMetric(DM, mle), dof::Int=DOF(DM), kwargs...)
+    Cube = GetProfileDomainCube(Fisher, mle, Confnum; dof=dof, kwargs...)
     Predictor(DM) isa ModelMap ? (Cube ∩ Predictor(DM).Domain) : Cube
 end
 """
@@ -566,8 +567,9 @@ function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{
 end
 
 
-function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); ForcePositive::Bool=false, Fisher=FisherMetric(DM, MLE(DM)), kwargs...)
-    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE(DM), Confnum; ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
+                            MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), kwargs...)
+    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, dof, kwargs...)
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
