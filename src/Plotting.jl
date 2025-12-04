@@ -878,8 +878,8 @@ function ConfidenceBands(DM::AbstractDataModel, Planes::AbstractVector{<:Plane},
 end
 
 # For 1D parameter spaces, drop samples kwarg
-function ConfidenceBands(DM::AbstractDataModel, ConfInterval::Tuple{<:Number,<:Number}, woundX::AbstractVector{<:Number}; samples::Int=200, kwargs...)
-    ConfidenceBands(DM, [[ConfInterval[1]], [ConfInterval[2]]], woundX; samples, kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, ConfInterval::Tuple{<:Number,<:Number}, woundX::AbstractVector{<:Number}; kwargs...)
+    ConfidenceBands(DM, [[ConfInterval[1]], [ConfInterval[2]]], woundX; kwargs...)
 end
 
 # Devise version with woundX::AbstractVector{<:AbstractVector{<:Number}} for xdim > 1

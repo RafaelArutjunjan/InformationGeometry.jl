@@ -180,6 +180,8 @@ loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
 Score(DM::DataModel) = DM.ScoreFn
 FisherMetric(DM::DataModel) = DM.FisherInfoFn
 
+HasPrior(DM::DataModel) = !isnothing(LogPrior(DM))
+
 """
     MLE(DM::DataModel) -> Vector
 Returns the parameter configuration ``\\theta_\\text{MLE} \\in \\mathcal{M}`` which is estimated to have the highest likelihood of producing the observed data (under the assumption that the specified model captures the true relationship present in the data).

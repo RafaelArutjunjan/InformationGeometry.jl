@@ -26,7 +26,7 @@ for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end
 # Only single arg
-for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
+for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :HasPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
         :Data, :Conditions, :Trafos, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,

@@ -126,6 +126,9 @@ LogPrior(CG::ConditionGrid) = CG.LogPriorFn
 Domain(CG::ConditionGrid) = CG.Domain
 InDomain(CG::ConditionGrid) = nothing
 
+HasPrior(CG::ConditionGrid) = !isnothing(LogPrior(CG))
+
+
 loglikelihood(CG::ConditionGrid) = CG.LogLikelihoodFn
 loglikelihood(CG::ConditionGrid, θ::AbstractVector{<:Number}) = loglikelihood(CG)(θ)
 
