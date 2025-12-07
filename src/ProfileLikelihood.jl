@@ -524,24 +524,21 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     if IsCost
         if OffsetResults
             @. Res = 2*(Logmax - Res)
-            if SavePriors
-                @. priors = 2*(Priormax - priors)
-            end
+            SavePriors && (@. priors = 2*(Priormax - priors))
         else
             Res .*= -2
-            if SavePriors
-                priors .*= -2
-            end
+            SavePriors && (priors .*= -2)
         end
     else
+        @assert OffsetResults
         @inbounds for i in eachindex(Res)
             Res[i] = Res[i] ≤ Logmax ? InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i]))) : NaN
         end
         if SavePriors
-            throw("Not programmed for this case yet, please use kwarg IsCost=true with SavePriors=true.")
-            # @inbounds for i in eachindex(priors)
-            #     priors[i] = InvConfVol(ChisqCDF(dof, 2(Logmax - priors[i])))
-            # end
+            verbose && @info "Got IsCost=true with SavePriors=true. Converting prior to confidence scale independently from data contribution. Strictly speaking, the isolated prior contributions are not meaningfully comparable to full profile on this scale!"
+            @inbounds for i in eachindex(priors)
+                priors[i] = priors[i] ≤ Logmax ? InvConfVol(ChisqCDF(dof, 2(Priormax - priors[i]))) : NaN
+            end
         end
     end
 
