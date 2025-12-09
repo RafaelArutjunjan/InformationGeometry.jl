@@ -592,15 +592,23 @@ EmbeddedODESolution(PL::Union{Plane, AbstractVector{<:Plane}}, sol::Union{Abstra
 EmbeddedODESolution(Embedding::Function, sol::AbstractODESolution) = EmbeddedODESolution(sol, Embedding)
 
 # ODESolution plotting broken?
-RecipesBase.@recipe function f(esol::EmbeddedODESolution; N=300)
+RecipesBase.@recipe function f(esol::EmbeddedODESolution; idxs=(length(esol.u[1]) == 3 ? (1,2,3) : (1,2)), N=300)
+    @assert idxs isa Tuple
+    @assert 2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(x->x≥0, idxs)
     draw --> :line
-    label --> ""
-    U = map(esol, range(esol.t[1], esol.t[end]; length=N))
-    if length(esol.u[1]) == 2
-        getindex.(U,1), getindex.(U,2)
-    elseif length(esol.u[1]) == 3
-        getindex.(U,1), getindex.(U,2), getindex.(U,3)
+    tran = range(esol.t[1], esol.t[end]; length=N);    U = map(esol, tran)
+    GetInd(ind::Int) = ind == 0 ? tran : getindex.(U, ind)
+    GetIndName(ind::Int) = ind == 0 ? "t" : "u[$ind]"
+
+    if length(idxs) == 2
+        xlabel --> GetIndName(idxs[1])
+        idxs[1] == 0 ? (label --> GetIndName(idxs[2])) : (ylabel --> GetIndName(idxs[2]);   label --> "")
+        GetInd(idxs[1]), GetInd(idxs[2])
     else
-        throw("Do not know how to plot EmbeddedODESolution with dim=$(length(esol.u[1]))")
+        label --> ""
+        xlabel --> GetIndName(idxs[1])
+        ylabel --> GetIndName(idxs[2])
+        zlabel --> GetIndName(idxs[3])
+        GetInd(idxs[1]), GetInd(idxs[2]), GetInd(idxs[3])
     end
 end
