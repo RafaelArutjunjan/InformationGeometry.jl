@@ -360,7 +360,7 @@ ComponentwiseModelTransform(model::Function, idxs::BoolVector, Transform::Functi
 # Aim for user convenience and generality rather than performance
 function ComponentwiseModelTransform(M::ModelMap, idxs::BoolVector, Transform::Function, InverseTransform::Function=x->invert(Transform,x); 
                         InverseTransformName::AbstractString=GetTrafoName(InverseTransform),
-                        pnames::AbstractVector{<:StringOrSymb}=_Apply(pnames(M), (p->"$InverseTransformName("*p*")"), idxs))
+                        pnames::AbstractVector{<:StringOrSymb}=_Apply(pnames(M), (p->"$InverseTransformName("*p*")"), idxs), kwargs...)
     @assert !isinplacemodel(M)
     TransformedDomain = InDomain(M) isa Function ? (θ::AbstractVector{<:Number} -> InDomain(M)(_Apply(θ, Transform, idxs))) : nothing
     mono = Monotonicity(Transform, (1e-12,50.))
@@ -374,7 +374,7 @@ function ComponentwiseModelTransform(M::ModelMap, idxs::BoolVector, Transform::F
         FullDomain(length(idxs), Inf)
     end
     ModelMap(_Transform(M.Map, idxs, Transform, InverseTransform), TransformedDomain, NewCube,
-                        M.xyp, pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
+                        M.xyp, pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta; kwargs...)
 end
 # function ComponentwiseModelTransform(M::ModelMap, Transform::Function, InverseTransform::Function=x->invert(Transform,x))
 #     ComponentwiseModelTransform(M, trues(M.xyp[3]), Transform, InverseTransform)
@@ -399,10 +399,10 @@ For vector-valued transformations, see [`ModelEmbedding`](@ref).
 function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
     ComponentwiseModelTransform(DM, F, x->invert(F,x), idxs; kwargs...)
 end
-function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); kwargs...)
+function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
     @assert length(idxs) == pdim(DM) || Data(DM) isa AbstractUnknownUncertaintyDataSet # Error parameters not forwarded to model map
     sum(idxs) == 0 && return DM
-    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); SkipOptim=true, SkipTests=true, kwargs...)
+    DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); SkipOptim, SkipTests, kwargs...)
 end
 
 for (Name, F, Finv, TrafoName) in [(:LogTransform, :log, :exp, :log),
@@ -441,17 +441,17 @@ function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVe
     @assert size(A,1) == size(A,2) == length(v)
     TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, muladd(A,θ,v); Kwargs...)
 end
-function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=Domain(M))
+function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=Domain(M), kwargs...)
     @assert isnothing(Domain) || (length(Domain) == size(A,1) == size(A,2) == length(v))
     Ainv = pinv(A)
     NewDomain = isnothing(Domain) ? HyperCube(Ainv*(Domain.L-v), Ainv*(Domain.U-v)) : nothing
     ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘(θ->muladd(A,θ,v))) : nothing), NewDomain,
-                    M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta)
+                    M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta; kwargs...)
 end
-function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; kwargs...)
+function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain=Domain(DM), SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
     Ainv = pinv(A)
-    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; kwargs...), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)))
+    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; Domain), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)); SkipOptim, SkipTests, kwargs...)
 end
 
 _GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle)) = (_GetDecorrelationTransform(F), mle)
@@ -498,7 +498,8 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
         mul!(y, Ycache, Jac(θ))
     end
 end
-function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, name::StringOrSymb=name(dM), Meta=dM.Meta, kwargs...)
+function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
+                name::StringOrSymb=name(dM), Meta=dM.Meta, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
     ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
