@@ -454,14 +454,14 @@ function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::
     DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; kwargs...), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)))
 end
 
-_GetDecorrelationTransform(DM::AbstractDataModel) = (_GetDecorrelationTransform(FisherMetric(DM, MLE(DM))), MLE(DM))
+_GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle)) = (_GetDecorrelationTransform(F), mle)
 _GetDecorrelationTransform(M::AbstractMatrix) = cholesky(Symmetric(inv(M))).L
-LinearDecorrelation(DM::AbstractDataModel; kwargs...) = ((M,X) =_GetDecorrelationTransform(DM); AffineTransform(DM, M, X; kwargs...))
+LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, mle; kwargs...))
 
-function DecorrelationTransforms(DM::AbstractDataModel)
-    M, X = _GetDecorrelationTransform(DM);      iM = inv(M)
-    ForwardTransform(x::AbstractVector) = M * x + X
-    InvTransform(x::AbstractVector) = iM * (x - X)
+function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle))
+    M = _GetDecorrelationTransform(F);      iM = inv(M)
+    ForwardTransform(x::AbstractVector) = muladd(M, x, mle)
+    InvTransform(x::AbstractVector) = iM * (x - mle)
     ForwardTransform, InvTransform
 end
 

@@ -533,6 +533,7 @@ Base.getindex(C::HyperCube, ::Colon) = [C[i] for i in eachindex(C)]
 
 
 SubHyperCube(C::HyperCube, inds::AbstractVector{<:Union{<:Int,<:Bool}}) = @views HyperCube(C.L[inds], C.U[inds])
+SubHyperCube(N::Nothing, inds::AbstractVector{<:Union{<:Int,<:Bool}}) = N
 Base.Tuple(C::HyperCube) = [(C.L[i], C.U[i]) for i in eachindex(C)]
 
 isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)

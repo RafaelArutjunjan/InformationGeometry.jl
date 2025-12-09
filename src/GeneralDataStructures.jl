@@ -474,6 +474,9 @@ Performs multistart optimization with `MultistartFit` or `InformationGeometry.mi
 function Minimize(DM, startp::AbstractVector=(DM isa AbstractDataModel ? MLE(DM) : Float64[]), args...; Full::Bool=false, Multistart::Int=0, kwargs...)
     (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(DM; N=Multistart, kwargs...) : InformationGeometry.minimize(DM, startp; kwargs...))
 end
+function Minimize(args...; Full::Bool=false, Multistart::Int=0, kwargs...)
+    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(args...; N=Multistart, kwargs...) : InformationGeometry.minimize(args...; kwargs...))
+end
 
 """
     Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); Multistart::Int=0, kwargs...)
