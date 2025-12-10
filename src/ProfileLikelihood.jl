@@ -67,7 +67,7 @@ function ValInserterTransform(Inds, Vals, mle::AbstractVector)
     ReductionTransform(x::Number) = x # Pass through if the function that is wrapped is scalar, like cost function itself
     ReductionTransform(x::AbstractVector) = view(x, KeepInds)
     ReductionTransform(x::AbstractMatrix) = view(x, KeepInds, KeepInds)
-    function WrapFunctionWithInversion(F::Function, TestOut=F(mle))
+    function WrapFunctionWithInversion(F::Function, TestOut=try F(mle) catch; (S = similar(mle);    F(S,mle);   S) end)
         NewJ = TestOut isa Number ? nothing : similar(TestOut)
         WrappedFunction(x; kwargs...) = ReductionTransform(F(Ins(x); kwargs...))
         WrappedFunction(J, x, args...; kwargs...) = (F(NewJ, Ins(x), args...; kwargs...);    copyto!(J, ReductionTransform(NewJ)); J)
@@ -290,10 +290,10 @@ GetIterations(R::AbstractMultistartResults) = R.Iterations[1]
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
-function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=31, kwargs...)
-    @assert dom[1] < dom[2] && (1 ≤ Comp ≤ pdim(DM))
-    ps = DomainSamples(dom; N=N)
-    GetProfile(DM, Comp, ps; adaptive, N, kwargs...)
+function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=31, MLE::AbstractVector=MLE(DM), kwargs...)
+    @assert dom[1] < dom[2] && (1 ≤ Comp ≤ length(MLE))
+    ps = range(dom...; length=N)
+    GetProfile(DM, Comp, ps; adaptive, N, MLE, kwargs...)
 end
 
 
@@ -302,7 +302,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true,
                         CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
-                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), mle::AbstractVector{<:Number}=MLE(DM), logLikeMLE::Real=LogLikeMLE(DM),
+                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::AbstractVector{<:Number}=MLE, logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, mle) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-9,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
@@ -566,15 +566,17 @@ end
 
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
                             MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), kwargs...)
-    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), inds; Confnum=Confnum, Fisher, dof, kwargs...)
+    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), inds; Confnum, MLE, Fisher, dof, kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
+function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
+                        MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     # idxs for plotting only
-    @assert 1 ≤ length(inds) ≤ pdim(DM) && allunique(inds) && all(1 .≤ inds .≤ pdim(DM))
+    @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE))
+    @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
 
     Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
-    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, Multistart, kwargs...), inds; progress=Prog)
+    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
@@ -756,15 +758,15 @@ mutable struct ParameterProfiles <: AbstractProfiles
     IsCost::Bool
     Meta::Symbol
     # Allow for different inds and fill rest with nothing or NaN
-    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfiles, kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector=MLE(DM), kwargs...)
         inds = sort(Inds)
-        FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories=SaveTrajectories, IsCost=IsCost, kwargs...)
+        FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories, IsCost, MLE, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
         Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
-        if !(inds == 1:pdim(DM))
+        if !(inds == 1:length(MLE))
             EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
-            EmptyTraj = [Fill(NaN, pdim(DM))]
-            for i in 1:pdim(DM) # Profs and Trajs already sorted by sorting inds
+            EmptyTraj = [Fill(NaN, length(MLE))]
+            for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
                 if i ∉ inds
                     insert!(Profs, i, EmptyProf)
                     SaveTrajectories ? insert!(Trajs, i, EmptyTraj) : insert!(Trajs, i, nothing)
@@ -772,12 +774,12 @@ mutable struct ParameterProfiles <: AbstractProfiles
             end
         end
         # Add check if new MLE was found
-        P = ParameterProfiles(DM, Profs, Trajs; IsCost, dof, Meta)
+        P = ParameterProfiles(DM, Profs, Trajs, pnames; IsCost, dof, Meta, MLE)
         plot && display(RecipesBase.plot(P, false))
         P
     end
-    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=Fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), kwargs...)
-        ParameterProfiles(Profiles, Trajectories, Names, MLE(DM), dof, IsCost; kwargs...)
+    function ParameterProfiles(DM::AbstractDataModel, Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=Fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=pnames(DM); IsCost::Bool=true, dof::Int=DOF(DM), MLE::AbstractVector=MLE(DM), kwargs...)
+        ParameterProfiles(Profiles, Trajectories, Names, MLE, dof, IsCost; kwargs...)
     end
     function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector=Fill(nothing,length(Profiles)), Names::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(Profiles),"θ"); IsCost::Bool=true, dof::Int=length(Names), kwargs...)
         ParameterProfiles(Profiles, Trajectories, Names, Fill(NaN, length(Names)), dof, IsCost; kwargs...)

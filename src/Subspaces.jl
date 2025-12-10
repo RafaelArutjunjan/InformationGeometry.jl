@@ -409,7 +409,7 @@ DomainSamples(Domain::Union{Tuple{Real,Real}, HyperCube}; N::Int=501) = DomainSa
 DomainSamples(Cube::HyperCube, N::Int) = length(Cube) == 1 ? DomainSamples((Cube.L[1],Cube.U[1]), N) : throw("Domain not suitable.")
 function DomainSamples(Domain::Tuple{Real,Real}, N::Int)
     @assert N > 2 && Domain[1] ≤ Domain[2]
-    range(Domain[1], Domain[2]; length=N) |> collect
+    range(Domain[1], Domain[2]; length=N)
 end
 
 function Base.range(C::HyperCube; length::Int=101, kwargs...)

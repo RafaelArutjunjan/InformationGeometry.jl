@@ -26,7 +26,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         Data(DM), xpositions
     end
     markeralpha :=      0.
-    X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=500) : xdata(DM)
+    X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=401) : xdata(DM)
     Y = predictedY(DM, mle, X)
     color_palette = get(plotattributes, :color_palette, :default)
     @series begin
