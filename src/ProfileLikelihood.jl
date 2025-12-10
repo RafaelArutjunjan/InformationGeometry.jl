@@ -1219,7 +1219,7 @@ end
     @assert RelChange isa Bool
     @assert all(1 .≤ idxs .≤ pdim(P)) && allunique(idxs)
 
-    ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && !isnothing(Trajectories(P)[i])]
+    ToPlotInds = [i for i in eachindex(MLE(P)) if i ∈ idxs && IsPopulated(P[i]) && !isnothing(Trajectories(P)[i])]
 
     layout --> length(ToPlotInds)
     size --> PlotSizer(length(ToPlotInds))
