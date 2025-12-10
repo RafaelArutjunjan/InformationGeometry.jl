@@ -346,6 +346,17 @@ FullLiftedNegLogLikelihood(args...; kwargs...) = Negate(FullLiftedLogLikelihood(
 
 
 """
+    FullFisherMetric(DM::AbstractDataModel, XP::AbstractVector; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+Computes Fisher metric, taking into account x-uncertainties.
+!!! note
+    Ignores error parameters and does not take into account priors.
+"""
+function FullFisherMetric(DM::AbstractDataModel, XP::AbstractVector; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
+    J = GetJac(ADmode, LiftedEmbedding(DM))(XP);      transpose(J) * InvCov(dist(DM)) * J
+end
+
+
+"""
     GeneralizedDOF(DM::AbstractDataModel)
 Computes the generalized degrees of freedom for a given `DataModel` which can take non-integer values and is defined in:
 https://doi.org/10.1093/biomet/asv019

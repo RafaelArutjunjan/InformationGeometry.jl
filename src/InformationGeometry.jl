@@ -248,7 +248,7 @@ include("ProfileLikelihood.jl")
 # export ProfileLikelihood
 export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
 export ValInserter, InsertIntoFirst, InsertIntoLast, FixParameters, FixNonIdentifiable, LinkParameters
-export ParameterProfiles
+export ParameterProfiles, FullParameterProfiles
 export PlotProfilePaths, PlotProfilePathDiffs, PlotProfilePathNormDiffs
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
 
