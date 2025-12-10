@@ -250,8 +250,7 @@ function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::R
     @assert all(x->x>0, widths)
     L = mle - widths;   U = mle + widths
     if ForcePositive
-        L = clamp.(L, 1e-10, 1e12)
-        U = clamp.(U, 1e-10, 1e12)
+        L = clamp.(L, 1e-10, 1e12);     U = clamp.(U, 1e-10, 1e12)
     end
     HyperCube(L,U)
 end
@@ -662,13 +661,13 @@ end
     ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.) -> HyperCube
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-function ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:AbstractInterpolation}, Confnum::Real=1.; kwargs...)
-    ProfileBox(Fs, MLE(DM), Confnum; dof=DOF(DM), kwargs...)
-end
-function ProfileBox(Fs::AbstractVector{<:AbstractInterpolation}, mle::AbstractVector, Confnum::Real=1.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
+ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:Union{<:AbstractInterpolation,<:Nothing}}, Confnum::Real=1.; MLE::AbstractVector{<:Number}=MLE(DM), dof::Int=DOF(DM), kwargs...) = ProfileBox(Fs, MLE, Confnum; dof, kwargs...)
+
+function ProfileBox(Fs::AbstractVector{<:Union{<:AbstractInterpolation,<:Nothing}}, mle::AbstractVector, Confnum::Real=1.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
     @assert length(Fs) == length(mle)
     reduce(vcat, (parallel ? pmap : map)(i->_ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
 end
+
 
 
 FindSingleZeroWrapper(args...; kwargs...) = try Roots.find_zero(args...; kwargs...) catch;  NaN end
@@ -680,6 +679,8 @@ FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, ::Nothing; m
 FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb, mleval), meth; kwargs...), FindSingleZeroWrapper(F, (mleval, ub), meth; kwargs...)]
 FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractNonBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb+mleval)/2, meth; kwargs...), FindSingleZeroWrapper(F, (mleval+ub)/2, meth; kwargs...)]
 
+
+_ProfileBox(F::Nothing, Confnum::Real=1.0; kwargs...) = HyperCube([-Inf], [Inf])
 
 function _ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, mleval::Real=F.t[findmin(F.u)[2]], 
                             CostThreshold::Union{<:Real, Nothing}=nothing, maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
@@ -793,8 +794,8 @@ mutable struct ParameterProfiles <: AbstractProfiles
 end
 (P::ParameterProfiles)(t::Real, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)(t)
 (P::ParameterProfiles)(i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(P, i, Interp; kwargs...)
-InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = GetInterpolator(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1), Interp; kwargs...)
-InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = [GetInterpolator(view(Prof,:,2), view(Prof,:,1), Interp; kwargs...) for Prof in Profiles(P)]
+InterpolatedProfiles(P::ParameterProfiles, i::Int, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = IsPopulated(P[i]) ? GetInterpolator(view(Profiles(P)[i],:,2), view(Profiles(P)[i],:,1), Interp; kwargs...) : nothing
+InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = [InterpolatedProfiles(P, i, Interp; kwargs...) for i in eachindex(P)]
 
 # For SciMLBase.remake
 ParameterProfiles(;
@@ -889,6 +890,19 @@ Constructs `HyperCube` which bounds the confidence region associated with the co
 ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
+
+
+"""
+    FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=LiftedLogLikelihood(DM)∘LiftedEmbedding(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
+Compute parameter profiles while accounting for the uncertainties in the independent variables.
+"""
+function FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); ADmode=Val(:ForwardDiff), pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), 
+                    LogLikelihoodFn::Function=(@assert !HasPrior(DM);   LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)), CostFunction::Function=Negate(LogLikelihoodFn), CostGradient=GetGrad!(ADmode, CostFunction),
+                    MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
+    # Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM)
+    @assert HasXerror(DM)
+    ParameterProfiles(DM, Confnum, Inds; ADmode, pnames, LogLikelihoodFn, CostFunction, CostGradient, MLE, logLikeMLE, Fisher, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, kwargs...)
+end
 
 
 function PlotProfileTrajectories(DM::AbstractDataModel, P::ParameterProfiles; kwargs...)

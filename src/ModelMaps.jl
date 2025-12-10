@@ -243,6 +243,7 @@ GetParameterNames(p::ComponentVector) = GetNamesRecursive(p)
 GetParameterNames(p::AbstractVector) = CreateSymbolNames(length(p), "θ")
 
 
+# Includes names of estimated x-parameters
 function _FullNames(DM::AbstractDataModel)
     if xdim(DM) == 1
         [CreateSymbolNames(Npoints(DM), "x"); pnames(DM)]
@@ -448,7 +449,7 @@ function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVe
     ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘(θ->muladd(A,θ,v))) : nothing), NewDomain,
                     M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta; kwargs...)
 end
-function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain=Domain(DM), SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
+function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=GetDomain(DM), SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
     Ainv = pinv(A)
     DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; Domain), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)); SkipOptim, SkipTests, kwargs...)
