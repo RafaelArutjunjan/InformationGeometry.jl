@@ -156,12 +156,12 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     FixParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
+function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
     @assert DM isa DataModel # Not implemented for ConditionGrids yet
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
-    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE(DM), Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
 end
 function FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
     @assert length(Components) == pdim(DM)
@@ -801,7 +801,7 @@ ParameterProfiles(;
     Profiles::AbstractVector{<:AbstractMatrix}=[Zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
     Names::AbstractVector{<:StringOrSymb}=Symbol[],
-    mle::AbstractVector{<:Number}=Float64[],
+    MLE::AbstractVector{<:Number}=Float64[],
     dof::Int=0,
     IsCost::Bool=false,
     Meta::Symbol=:remake,) = ParameterProfiles(Profiles, Trajectories, Names, mle, dof, IsCost; Meta)
@@ -1422,16 +1422,17 @@ end
 
 
 # Generate validation profile centered on prediction at a single independent variable t
-function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, mle::AbstractVector{<:Number}=MLE(DM), ypred::Real=Predictor(DM)(t,mle)[yComp], yoffset::Real=ypred, 
-                                dof::Int=DOF(DM), LinPredictionUncert::Real=(C=VariancePropagation(DM, mle; Confnum, dof)(t);   ydim(DM)>1 ? C[yComp, yComp] : C), DivideBy::Real=5, 
-                                σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM),
+                                MLE::AbstractVector{<:Number}=MLE(DM), ypred::Real=Predictor(DM)(t,MLE)[yComp], yoffset::Real=ypred, 
+                                dof::Int=DOF(DM), LinPredictionUncert::Real=(C=VariancePropagation(DM, MLE; Confnum, dof)(t);   ydim(DM)>1 ? C[yComp, yComp] : C),
+                                DivideBy::Real=5, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0
-    ℓ = loglikelihood(DM);    M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
+    M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - M(t, θ)[yComp] + yoffset))
-    VPL(θnew::AbstractVector) = ℓ(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
-    mleNew = [mle; (ypred-yoffset)];    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
+    VPL(θnew::AbstractVector) = LogLikelihoodFn(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
+    mleNew = [MLE; (ypred-yoffset)];    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
-    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, mle=mleNew, logLikeMLE=VPL(mleNew), Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
+    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
 # Generate multiple validation profiles and add back offset to prediction scale
@@ -1441,9 +1442,9 @@ Computes a set of validation profiles for the component `yComp` of the predictio
 The uncertainty of the ficticious validation data point can be optionally chosen via the keyword argument `σv`.
 Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
 """
-function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), mle::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
-    ypreds = [Predictor(DM)(t,mle)[yComp] for t in Ts]      # Always compute with offset to zero internally
-    Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, mle, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
+function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
+    ypreds = [Predictor(DM)(t,MLE)[yComp] for t in Ts]      # Always compute with offset to zero internally
+    Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, MLE, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
     for i in eachindex(Ts)
         zProf = map(TrajPoint->Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp], Trajs[i])
