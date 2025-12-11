@@ -1175,7 +1175,7 @@ end
                 @series begin
                     st := :hline
                     line --> :dash
-                    lw --> 1.5
+                    lw := 1.5
                     linecolor := palette(:viridis, length(Confnum); rev=true)[j]
                     label --> "$(j)σ level, dof=$dof"
                     [Trafo.(Thresh)]

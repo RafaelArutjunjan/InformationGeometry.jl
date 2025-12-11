@@ -254,15 +254,20 @@ end
 
 
 
-function ConditionSpecificProfiles(CG::AbstractConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, kwargs...)
-    Plt = RecipesBase.plot(P; lw=2);    PopulatedInds = IsPopulated(P);   k = 0
+function ConditionSpecificProfiles(CG::AbstractConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, Interpolate::Bool=false, Interp=QuadraticInterpolation, kwargs...)
+    Plt = RecipesBase.plot(P; lw=2, label="", Interpolate);    PopulatedInds = IsPopulated(P);   k = 0
     for i in idxs
         if PopulatedInds[i]
             k += 1
             for j in eachindex(Conditions(CG))
-                L = map(Negloglikelihood(Conditions(CG)[j])∘Trafos(CG)[j], Trajectories(P)[i])
+                L = map(Trafo∘Negloglikelihood(Conditions(CG)[j])∘Trafos(CG)[j], Trajectories(P)[i])
                 OffsetResults && (isnothing(OffsetResultsBy) ? (L .-= minimum(L)) : (L .-= OffsetResultsBy))
-                RecipesBase.plot!(Plt, getindex.(Trajectories(P)[i], i), Trafo.(L); color=j+2, label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, legend=true, subplot=k, kwargs...)
+                X, Y = if Interpolate
+                    F = Interp(L, getindex.(Trajectories(P)[i], i));   xran = range(F.t[1], F.t[end]; length=300);   (xran, F.(xran))
+                else
+                    getindex.(Trajectories(P)[i], i), L
+                end
+                RecipesBase.plot!(Plt, X, Y; color=j+2, label=ApplyTrafoNames("Contribution "*string(name(Conditions(CG)[j])), Trafo), lw=1.5, legend=true, subplot=k, kwargs...)
             end
         end
     end;  Plt
