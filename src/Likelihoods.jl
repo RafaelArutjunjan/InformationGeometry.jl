@@ -139,6 +139,7 @@ function GetInplaceLikelihood(DS::AbstractFixedUncertaintyDataSet, model::ModelO
         Y = UnrollCache(Ycache, θ, woundX)
         fill!(Y, zero(eltype(Y)))
         EmbeddingMap!(Y, DS, model, θ, woundX; kwargs...)
+        ## Fuse with LogPrior execution here for priors which re-use Ypred?
         Y .-= ydat
         _Like!(Y, invCov, NormalizationConst)
     end
@@ -368,10 +369,21 @@ function GeneralizedDOF(DM::AbstractDataModel; meth=Newton(;linesearch=LineSearc
     NewData(DS::Union{DataSet,DataSetUncertain}, y_data) = remake(DS; y=y_data)
     # NewData(DS::DataSetExact, y_data) = remake(DS; ydist=typeof(ydist(DS))(y_data, ))
     NewData(DS::AbstractDataSet, y_data) = throw("GDF not programmed for $(typeof(DS)) yet.")
-    ChangeData(DM::AbstractDataModel, y_data; kwargs...) = remake(DM; Data=NewData(Data(DM), y_data), SkipTests=true, SkipOptim=true, kwargs...)
+    ChangeData(DM::AbstractDataModel, y_data; kwargs...) = (DS=NewData(Data(DM), y_data);   remake(DM; Data=DS, LogLikelihoodFn=GetLogLikelihoodFn(DS,Predictor(DM),LogPrior(DM)), SkipTests=true, SkipOptim=true, kwargs...))
     MLEgivenData(y_data) = InformationGeometry.minimize(Negloglikelihood(ChangeData(DM, y_data; MLE=MLE)), MLE, meth; kwargs...)
     MLEjac = GetJac(ADmode, MLEgivenData, length(ydata(DM)))
     LinearAlgebra.tr(EmbeddingMatrix(DM, MLE) * MLEjac(ydata(DM)))
 end
 
 
+function GeneralizedDOF(DM::AbstractConditionGrid; meth=Newton(;linesearch=LineSearches.BackTracking()), ADmode::Union{Symbol,Val}=Val(:FiniteDifferences), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
+    Inds = IndsVecFromLengths(length.(ydata.(Conditions(DM))));    mles = Trafos(DM)(MLE);    ydatas = ydata.(Conditions(DM))
+    NewData(DS::Union{DataSet,DataSetUncertain}, y_data) = remake(DS; y=y_data)
+    NewData(DS::AbstractDataSet, y_data) = throw("GDF not programmed for $(typeof(DS)) yet.")
+    ChangeData(DM::AbstractDataModel, y_data; kwargs...) = (DS=NewData(Data(DM), y_data);   remake(DM; Data=DS, LogLikelihoodFn=GetLogLikelihoodFn(DS,Predictor(DM),LogPrior(DM)), SkipTests=true, SkipOptim=true, kwargs...))
+    function MLEgivenDataCG(y_data)
+        C = Negloglikelihood(ConditionGrid([ChangeData(dm, y_data[Inds[i]]; MLE=collect(mles[i])) for (i,dm) in enumerate(Conditions(DM))], Trafos(DM), LogPrior(DM), MLE; SkipTests=true, SkipOptim=true, verbose=false))
+        InformationGeometry.minimize(C, MLE, meth; kwargs...)
+    end
+    LinearAlgebra.tr(EmbeddingMatrix(DM, MLE) * (GetJac(ADmode, MLEgivenDataCG, sum(Inds))(reduce(vcat,ydatas))))
+end
