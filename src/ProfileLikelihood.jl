@@ -893,15 +893,16 @@ PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(vie
 
 
 """
-    FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=LiftedLogLikelihood(DM)∘LiftedEmbedding(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
+    FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=LiftedLogLikelihood(DM)∘LiftedEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
 Compute parameter profiles while accounting for the uncertainties in the independent variables.
 """
 function FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); ADmode=Val(:ForwardDiff), pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), 
                     LogLikelihoodFn::Function=(@assert !HasPrior(DM);   LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)), CostFunction::Function=Negate(LogLikelihoodFn), CostGradient=GetGrad!(ADmode, CostFunction),
-                    MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
-    # Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM)
+                    MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM,MLE), pDomain::Union{Nothing,HyperCube}=GetDomain(DM), 
+                    xDomain::Union{Nothing,HyperCube}=(isnothing(pDomain) ? nothing : HyperCube(Fill(-Inf,length(xdata(DM))),Fill(Inf,length(xdata(DM))))), Domain::Union{Nothing,HyperCube}=(!isnothing(xDomain) && !isnothing(pDomain)) ? vcat(xDomain, pDomain) : nothing, 
+                    ProfileDomain::Union{Nothing,HyperCube}=Domain, InDomain::Union{Nothing,Function}=isnothing(GetInDomain(DM)) ? nothing : GetInDomain(DM)∘(pd=pdim(DM);  x->(@view x[end-pd+1:end])), kwargs...)
     @assert HasXerror(DM)
-    ParameterProfiles(DM, Confnum, Inds; ADmode, pnames, LogLikelihoodFn, CostFunction, CostGradient, MLE, logLikeMLE, Fisher, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, kwargs...)
+    ParameterProfiles(DM, Confnum, Inds; ADmode, pnames, LogLikelihoodFn, CostFunction, CostGradient, MLE, logLikeMLE, Fisher, Domain, InDomain, ProfileDomain, kwargs...)
 end
 
 
@@ -944,7 +945,7 @@ PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(250,250)) = (s=Int(ceil(sqrt(n)));  
 @recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfiles && length(Trajectories(P)[1]) < 5) = P, Val(PlotTrajectories)
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfiles && length(Trajectories(P)[1][1]) ≤ 3) = P, Val(PlotTrajectories)
 
 # DoBiLog for paths, i.e. TrafoPath
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
@@ -1094,7 +1095,7 @@ end
 end
 
 # Try to plot Trajectories if available
-@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.P.Meta === :ParameterProfiles) = PV, Val(PlotTrajectories)
+@recipe f(PV::ParameterProfilesView, PlotTrajectories::Bool=HasTrajectories(PV) && PV.P.Meta === :ParameterProfiles && length(Trajectories(PV)[1]) ≤ 3) = PV, Val(PlotTrajectories)
 
 @recipe function f(PVs::AbstractVector{<:ParameterProfilesView}, V::Val=Val(false))
     layout --> length(PVs)

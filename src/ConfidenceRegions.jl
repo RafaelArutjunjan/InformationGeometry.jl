@@ -697,9 +697,7 @@ Computes the forward propagation of the parameter covariance to the residuals. T
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
-    det(C) == 0 && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
-
     ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
     normalparams, yerrorparams = SkipXs(DM)((SplitErrorParams(DM)(mle))[1]), (SplitErrorParams(DM)(mle))[end]
     # As function of independent variable x
@@ -745,8 +743,9 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparams, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
     xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
 end
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), kwargs...)
-    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(FisherMetric(DM, mle))); Confnum, dof, kwargs...)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), F::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
+    verbose && !(det(F) > 0) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
+    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(F)); Confnum, dof, kwargs...)
 end
 
 

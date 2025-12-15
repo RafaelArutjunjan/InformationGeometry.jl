@@ -28,6 +28,7 @@ for F in [:length, :size, :firstindex, :lastindex, :getindex, :keys, :values]
 end
 
 Base.ComposedFunction(P::ParamTrafo, inner::Function) = ParamTrafo(map(x->x∘inner, P.Trafos), P.ConditionNames)
+Base.ComposedFunction(outer::Function, P::ParamTrafo) = ParamTrafo(map(x->outer∘x, P.Trafos), P.ConditionNames)
 
 ConditionNames(P::ParamTrafo) = P.ConditionNames
 
