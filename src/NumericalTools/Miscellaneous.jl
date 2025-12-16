@@ -357,16 +357,18 @@ Nevertheless, upon fixing or removing the purely degenerate parameters, the addi
 For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
 function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
-    @assert threshold > 0;    D, Vt = eigen(F);   i = findlast(x-> threshold>x, D);    isnothing(i) && return inv(F)
+    @assert threshold > 0;    D, Vt = eigen(F; sortby=-);   i = findfirst(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
-    R = Vt * Diagonal(vcat(Zeros(i), inv.(@view D[i+1:end]))) * Vt'
+    D[i:end] .= 0.0;    for j in 1:i-1    D[j] = inv(D[j])    end
+    # Compute inverse
+    R = Vt * Diagonal(D) * Vt'
     AllAffected(v::AbstractVector) = IndVec(abs.(v) .> threshold)
     MaxAffected(v::AbstractVector) = IndVec((f = findmax(abs, v)[1];   map(z->abs(z) == f, v)))
     AffectedInds = Safe ? AllAffected : MaxAffected
-    Mutate!(R::AbstractMatrix, inds::AbstractVector{<:Int}) = for k in inds     R[k,k] = Impute     end
-    for j in 1:i
+    MutateDiagonal!(R::AbstractMatrix, inds::AbstractVector{<:Int}) = for k in inds     R[k,k] = Impute     end
+    for j in i:length(D)
         # Which diagonal entry of inverse corresponds most strongly to degenerate eigendirection?
-        v = view(Vt, :, j);     Mutate!(R, AffectedInds(v))
+        MutateDiagonal!(R, AffectedInds(view(Vt, :, j)))
     end;    R
 end
 

@@ -125,8 +125,7 @@ function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     verbose && !(det(F) > 0) && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
     
     # Larger than Diagonal∘pinv
-    SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
-    SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
+    sqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
 end
 
 xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
