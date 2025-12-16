@@ -555,10 +555,10 @@ end
 
 
 
-function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM))
+function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM); verbose::Bool=true)
     F = FisherMetric(DM, p)
     F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
-    det(F) == 0 && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
+    verbose && !(det(F) > 0) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
     dir = pinv(F)[:, Comp];    dir ./= dir[Comp]
     dir
 end

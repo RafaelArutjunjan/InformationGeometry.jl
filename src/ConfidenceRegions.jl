@@ -582,7 +582,7 @@ Keyword arguments:
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false, verbose::Bool=true,
                         tol::Real=1e-9, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
-    det(FisherMetric(DM,MLE(DM))) < 1e-14 && throw("It appears as though the given model is not structurally identifiable.")
+    verbose && !(det(FisherMetric(DM,MLE(DM))) > 0) && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     if pdim(DM) == 1
         return (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof), Range)
@@ -759,12 +759,13 @@ ValidationPropagation(DM::AbstractDataModel, args...; Validation::Bool=true, kwa
 
 
 
+SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
 """
     GeometricDensity(DM::AbstractDataModel, θ::AbstractVector) -> Real
 Computes the square root of the determinant of the Fisher metric ``\\sqrt{\\mathrm{det}\\big(g(\\theta)\\big)}`` at the point ``\\theta``.
 """
-GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM, θ; kwargs...) |> det |> sqrt
-GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = sqrt(det(Metric(θ; kwargs...)))
+GeometricDensity(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM, θ; kwargs...) |> det |> SafeSqrt
+GeometricDensity(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = SafeSqrt(det(Metric(θ; kwargs...)))
 GeometricDensity(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> GeometricDensity(DM, θ; kwargs...)
 
 """

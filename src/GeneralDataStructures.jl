@@ -122,7 +122,7 @@ MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatr
 function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     @assert size(F,1) == size(F,2)
     # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision
-    verbose && det(F) == 0 && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
+    verbose && !(det(F) > 0) && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
     
     # Larger than Diagonal∘pinv
     SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
