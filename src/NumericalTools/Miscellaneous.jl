@@ -357,6 +357,29 @@ Nevertheless, upon fixing or removing the purely degenerate parameters, the addi
 For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
 function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
+    @assert threshold > 0
+    ## Compute only partial eigen decomposition for spectrum between (-Inf,1e-10]
+    D, Vt = eigen(Symmetric(F), -Inf, threshold)
+    length(D) == 0 && return inv(F)
+    # For Safe == true consider all component coupled to degenerate direction affected and impute Inf
+    # For Safe == false only consider most strongly coupled component per degenerate eigenvalue as affected
+    AllAffected(v::AbstractVector) = abs.(v) .> threshold
+    MaxAffected(v::AbstractVector) = (f = findmax(abs, v)[1];   map(z->abs(z) == f, v))
+    AffectedInds = Safe ? AllAffected : MaxAffected
+    IndAffected = AffectedInds(view(Vt,:,1))
+    for j in 2:length(D)
+        IndAffected += AffectedInds(view(Vt,:,j))
+    end
+    R = zeros(size(F))
+    # Compute inverse of positive definite submatrix
+    R[.!IndAffected,.!IndAffected] = inv(@view F[.!IndAffected, .!IndAffected])
+    # Impute Infs into result
+    for k in IndVec(IndAffected)    R[k,k] = Impute    end;    R
+end
+
+# Values on diagonal not equivalent to values of inverted submatrix
+# Cannot reuse Eigendecomposition of original F to help compute inverted submatrix since masking eigenvectors destroys their orthogonality
+function ConservativeInverseOld(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
     @assert threshold > 0;    D, Vt = eigen(F; sortby=-);   i = findfirst(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     D[i:end] .= 0.0;    for j in 1:i-1    D[j] = inv(D[j])    end
