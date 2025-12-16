@@ -45,3 +45,15 @@ using FiniteDifferences
 
 @test Score(DS, NoADmodel, DetermineDmodel(DS, NoADmodel; ADmode=Val(:Zygote)), [1,2.], nothing; ADmode=Val(:Zygote)) isa AbstractVector
 @test Score(DS, NoADmodel, DetermineDmodel(DS, NoADmodel; ADmode=Val(:Zygote)), [1,2.], nothing; ADmode=Val(false)) isa AbstractVector
+
+
+## Test conservative parameter uncertainties in MLEuncert
+DM = DataModel(DataSet(1:4, [4.0, 5.0, 6.5, 9.0], [0.5, 0.45, 0.6, 1.0]), (x,p)->p[1].*x .+ p[2] .+ p[3], [1,3,2.])
+@test sum(isfinite, InformationGeometry.MLEuncertStd(DM)) == 2
+@test sum(isfinite, InformationGeometry.MLEuncertStd(DM; Safe=true)) == 1
+dm = FixNonIdentifiable(DM)
+
+keep = map(isfinite, InformationGeometry.MLEuncertStd(DM))
+F = FisherMetric(DM, MLE(DM))
+@test InformationGeometry.ConservativeInverse(F)[keep,keep] ≈ inv(F[keep,keep])
+
