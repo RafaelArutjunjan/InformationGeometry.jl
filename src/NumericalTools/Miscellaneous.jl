@@ -364,11 +364,11 @@ function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::R
     # For Safe == true consider all component coupled to degenerate direction affected and impute Inf
     # For Safe == false only consider most strongly coupled component per degenerate eigenvalue as affected
     AllAffected(v::AbstractVector) = abs.(v) .> threshold
-    MaxAffected(v::AbstractVector) = (f = findmax(abs, v)[1];   map(z->abs(z) == f, v))
+    MaxAffected(v::AbstractVector) = (f = findmax(abs, v)[1];   map(isequal(f)∘abs, v))
     AffectedInds = Safe ? AllAffected : MaxAffected
     IndAffected = AffectedInds(view(Vt,:,1))
     for j in 2:length(D)
-        IndAffected += AffectedInds(view(Vt,:,j))
+        IndAffected .= IndAffected .|| AffectedInds(view(Vt,:,j))
     end
     R = zeros(size(F))
     # Compute inverse of positive definite submatrix
