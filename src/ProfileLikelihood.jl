@@ -819,7 +819,9 @@ IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
 IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
 
-HyperCube(P::ParameterProfiles) = [IsPopulated(P[i]) ? collect(extrema(@view Profiles(P[i])[:,1])) : [-Inf,Inf] for i in eachindex(P)] |> HyperCube
+ProfileDomain(P::ParameterProfiles) = [IsPopulated(P[i]) ? collect(extrema(@view Profiles(P[i])[:,1])) : [-Inf,Inf] for i in eachindex(P)] |> HyperCube
+HyperCube(P::ParameterProfiles) = ProfileDomain(P)
+@deprecate Domain(P::ParameterProfiles) ProfileDomain(P)
 
 Base.length(P::ParameterProfiles) = Profiles(P) |> length
 Base.firstindex(P::ParameterProfiles) = Profiles(P) |> firstindex

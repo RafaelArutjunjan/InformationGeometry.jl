@@ -122,21 +122,11 @@ MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatr
 function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     @assert size(F,1) == size(F,2)
     # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision
-    try
-        # sqrt∘Diagonal Larger than Diagonal∘cholesky entries
-        sqrt.(Diagonal(inv(F)).diag)
-    catch y;
-        if y isa SingularException
-            verbose && @warn "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
-        elseif y isa DomainError
-            verbose && @warn "MLEuncert: inverse Fisher metric not positive-definite, trying to estimate conservative uncertainties for non-degenerate eigendirections."
-        else
-            @warn "MLEuncert: Got error message $y. Trying to estimate conservative uncertainties for non-degenerate eigendirections."
-        end
-        # Larger than Diagonal∘pinv
-        SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
-        SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
-    end
+    verbose && det(F) == 0 && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
+    
+    # Larger than Diagonal∘pinv
+    SafeSqrt(x::Real) = x < 0 ? Inf : sqrt(x)
+    SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
 end
 
 xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
