@@ -186,7 +186,7 @@ Fixes all structuraly non-identified parameters to their current values.
 """
 function FixNonIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:AbstractFloat}=MLE(DM), args...; verbose::Bool=true, SkipOptim::Bool=true, kwargs...)
     Fix = .!isfinite.(MLEuncertStd(DM, mle, args...)) |> IndVec
-    verbose && println("Fixing structurally non-idenfied parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
+    verbose && println("Fixing structurally non-identified parameter indices $Fix, i.e.: $(pnames(DM)[Fix])")
     FixParameters(DM, Fix; SkipOptim, kwargs...)
 end
 

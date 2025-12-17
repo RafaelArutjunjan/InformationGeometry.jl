@@ -356,10 +356,14 @@ However, as a secondary effect, many more parameters than these can also exhibit
 Nevertheless, upon fixing or removing the purely degenerate parameters, the additional parameters whose profiles were only flat as a secondary effect become structurally identifiable.
 For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
-function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
+function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; threshold::Real=Threshold, PreserveSubmatrix::Bool=true, kwargs...)
+    (PreserveSubmatrix ? ConservativeInversePreserving : ConservativeInverseNonPreserving)(F; threshold, kwargs...)
+end
+
+function ConservativeInversePreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), Inv::Function=(M; kwargs...)->inv(M))
     @assert threshold > 0
     ## Compute only partial eigen decomposition for spectrum between (-Inf,1e-10]
-    D, Vt = eigen(Symmetric(F), -Inf, threshold)
+    D, Vt = eigen(F, -Inf, threshold)
     length(D) == 0 && return inv(F)
     # For Safe == true consider all component coupled to degenerate direction affected and impute Inf
     # For Safe == false only consider most strongly coupled component per degenerate eigenvalue as affected
@@ -370,23 +374,24 @@ function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; Impute::R
     for j in 2:length(D)
         IndAffected .= IndAffected .|| AffectedInds(view(Vt,:,j))
     end
+    all(IndAffected) && return Diagonal(Fill(Inf, size(F,1)))
     R = zeros(size(F))
     # Compute inverse of positive definite submatrix
-    R[.!IndAffected,.!IndAffected] = inv(@view F[.!IndAffected, .!IndAffected])
+    R[.!IndAffected,.!IndAffected] = Inv(Symmetric(@view F[.!IndAffected, .!IndAffected]); Impute, threshold, Safe, Inv)
     # Impute Infs into result
     for k in IndVec(IndAffected)    R[k,k] = Impute    end;    R
 end
 
-# Values on diagonal not equivalent to values of inverted submatrix
+# Values on diagonal not equivalent to values of inverted submatrix but more stable
 # Cannot reuse Eigendecomposition of original F to help compute inverted submatrix since masking eigenvectors destroys their orthogonality
-function ConservativeInverseOld(F::AbstractMatrix, Threshold::Real=1e-10; Impute::Real=Inf, threshold::Real=Threshold, Safe::Bool=false)
+function ConservativeInverseNonPreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), kwargs...)
     @assert threshold > 0;    D, Vt = eigen(F; sortby=-);   i = findfirst(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     D[i:end] .= 0.0;    for j in 1:i-1    D[j] = inv(D[j])    end
     # Compute inverse
     R = Vt * Diagonal(D) * Vt'
     AllAffected(v::AbstractVector) = IndVec(abs.(v) .> threshold)
-    MaxAffected(v::AbstractVector) = IndVec((f = findmax(abs, v)[1];   map(z->abs(z) == f, v)))
+    MaxAffected(v::AbstractVector) = IndVec((f = findmax(abs, v)[1];   map(isequal(f)∘abs, v)))
     AffectedInds = Safe ? AllAffected : MaxAffected
     MutateDiagonal!(R::AbstractMatrix, inds::AbstractVector{<:Int}) = for k in inds     R[k,k] = Impute     end
     for j in i:length(D)

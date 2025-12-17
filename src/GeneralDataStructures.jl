@@ -124,8 +124,9 @@ function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision
     verbose && !(det(F) > 0) && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
     
-    # Larger than Diagonal∘pinv
-    sqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
+    # Conservative inverse larger than Diagonal∘pinv
+    # SafeSqrt since submatrix preserving inversion not necessarily stable if pdim > DataspaceDim
+    SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
 end
 
 xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
