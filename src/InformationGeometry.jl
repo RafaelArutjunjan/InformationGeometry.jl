@@ -193,7 +193,7 @@ export UnknownVarianceDataSet
 
 
 include("DataStructures/DataModel.jl")
-export DataModel, AddLogPrior
+export DataModel, AddLogPrior, InformDataSetErrors
 
 
 include("DataStructures/ConditionGrid.jl")

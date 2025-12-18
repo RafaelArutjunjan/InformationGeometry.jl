@@ -117,13 +117,12 @@ However, as a secondary effect, many more parameters than these can also exhibit
 Nevertheless, upon fixing or removing the purely degenerate parameters, the additional parameters whose profiles were only flat as a secondary effect become structurally identifiable.
 For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
-MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; kwargs...) = mle .± MLEuncertStd(F; kwargs...)
+MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; scale::Real=1, kwargs...) = mle .± scale .* MLEuncertStd(F; kwargs...)
 MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; kwargs...) = MLEuncertStd(F; kwargs...)
+
 function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
-    @assert size(F,1) == size(F,2)
     # AutoMetric since significantly more performant than FisherMetric for large datasets due to reduced allocations, diagonal basically unaffected in terms of precision
     verbose && !(det(F) > 0) && "MLEuncert: FisherMetric singular, trying to estimate conservative uncertainties for non-degenerate eigendirections."
-    
     # Conservative inverse larger than Diagonal∘pinv
     # SafeSqrt since submatrix preserving inversion not necessarily stable if pdim > DataspaceDim
     SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)

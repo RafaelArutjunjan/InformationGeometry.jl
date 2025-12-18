@@ -242,3 +242,14 @@ end
 function _AddLogPrior(LogPriorFn::Union{Function,Nothing}, NewLogPrior::Union{Function,Nothing})
     CombinedLogPrior(θ::AbstractVector{<:Number}) = EvalLogPrior(LogPriorFn,θ) + EvalLogPrior(NewLogPrior,θ)
 end
+
+"""
+    InformDataSetErrors(DM::DataModel, MLE::AbstractVector=MLE(DM); kwargs...)
+Overwrites the initial guesses for error parameters in dataset object `Data(DM)` contained in given `DM`.
+"""
+function InformDataSetErrors(DM::DataModel, MLE::AbstractVector=MLE(DM); kwargs...)
+    @assert Data(DM) isa AbstractUnknownUncertaintyDataSet
+    InformData(DS::DataSetUncertain) = remake(DS; testpy=yerrorparams(DS,MLE))
+    InformData(DS::UnknownVarianceDataSet) = remake(DS; testpx=xerrorparams(DS,MLE), testpy=yerrorparams(DS,MLE))
+    remake(DM; Data=InformData(Data(DM)), kwargs...)
+end
