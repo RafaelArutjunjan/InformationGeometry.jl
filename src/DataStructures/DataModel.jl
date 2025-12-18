@@ -249,7 +249,7 @@ Overwrites the initial guesses for error parameters in dataset object `Data(DM)`
 """
 function InformDataSetErrors(DM::DataModel, MLE::AbstractVector=MLE(DM); kwargs...)
     @assert Data(DM) isa AbstractUnknownUncertaintyDataSet
-    InformData(DS::DataSetUncertain) = remake(DS; testpy=yerrorparams(DS,MLE))
-    InformData(DS::UnknownVarianceDataSet) = remake(DS; testpx=xerrorparams(DS,MLE), testpy=yerrorparams(DS,MLE))
+    InformData(DS::DataSetUncertain) = remake(DS; testpy=yerrorparams(DS,MLE), BesselCorrection=HasBessel(DS))
+    InformData(DS::UnknownVarianceDataSet) = remake(DS; testpx=xerrorparams(DS,MLE), testpy=yerrorparams(DS,MLE), BesselCorrection=HasBessel(DS))
     remake(DM; Data=InformData(Data(DM)), kwargs...)
 end

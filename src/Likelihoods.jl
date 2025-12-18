@@ -366,7 +366,8 @@ Its definition is based on the fact that the expected prediction error (EPE) is 
 It can be computed as ``\\sum_{i=1}^{n} \\partial \\hat{y}_i / \\partial {y_\\text{data}}_i``.
 """
 function GeneralizedDOF(DM::AbstractDataModel; meth=Newton(;linesearch=LineSearches.BackTracking()), ADmode::Union{Symbol,Val}=Val(:FiniteDifferences), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
-    NewData(DS::Union{DataSet,DataSetUncertain}, y_data) = remake(DS; y=y_data)
+    NewData(DS::DataSet, y_data) = remake(DS; y=y_data)
+    NewData(DS::DataSetUncertain{B}, y_data) where B = remake(DS; y=y_data, BesselCorrection=B)
     # NewData(DS::DataSetExact, y_data) = remake(DS; ydist=typeof(ydist(DS))(y_data, ))
     NewData(DS::AbstractDataSet, y_data) = throw("GDF not programmed for $(typeof(DS)) yet.")
     ChangeData(DM::AbstractDataModel, y_data; kwargs...) = (DS=NewData(Data(DM), y_data);   remake(DM; Data=DS, LogLikelihoodFn=GetLogLikelihoodFn(DS,Predictor(DM),LogPrior(DM)), SkipTests=true, SkipOptim=true, kwargs...))
@@ -378,7 +379,8 @@ end
 
 function GeneralizedDOF(DM::AbstractConditionGrid; meth=Newton(;linesearch=LineSearches.BackTracking()), ADmode::Union{Symbol,Val}=Val(:FiniteDifferences), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     Inds = IndsVecFromLengths(length.(ydata.(Conditions(DM))));    mles = Trafos(DM)(MLE);    ydatas = ydata.(Conditions(DM))
-    NewData(DS::Union{DataSet,DataSetUncertain}, y_data) = remake(DS; y=y_data)
+    NewData(DS::DataSet, y_data) = remake(DS; y=y_data)
+    NewData(DS::DataSetUncertain{B}, y_data) where B = remake(DS; y=y_data, BesselCorrection=B)
     NewData(DS::AbstractDataSet, y_data) = throw("GDF not programmed for $(typeof(DS)) yet.")
     ChangeData(DM::AbstractDataModel, y_data; kwargs...) = (DS=NewData(Data(DM), y_data);   remake(DM; Data=DS, LogLikelihoodFn=GetLogLikelihoodFn(DS,Predictor(DM),LogPrior(DM)), SkipTests=true, SkipOptim=true, kwargs...))
     function MLEgivenDataCG(y_data)
