@@ -84,7 +84,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         testout = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         Inverrormodelraw, Inverrormodel = ErrorModelTester(inverrormodelraw, testout)
         
-        DataSetUncertain(x, y, dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name); kwargs...)
+        DataSetUncertain(x, y, dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, keep, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, testpy::AbstractVector, errorparamsplitter::Function, 
             keep::Union{Nothing, AbstractVector{<:Bool}}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
