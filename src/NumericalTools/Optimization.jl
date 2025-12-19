@@ -218,7 +218,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
         end
     end
     if !Optim.converged(Res) 
-        verbose && @warn "minimize(): Optimization appears to not have converged."
+        verbose && @warn "minimize(): Optimization appears to not have converged according to the optimizer's internal criterion."
         if retry
             Res = InformationGeometry.minimize(Fs, Optim.minimizer(Res), retrymeth; Domain, Fthresh, tol, Full=true, verbose, maxtime, time_limit,
                 cons, lcons, ucons, lb, ub, g_tol, x_tol, f_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, maxiters, iterations, callback, f_calls_limit, allow_f_increases, 

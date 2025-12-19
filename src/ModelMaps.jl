@@ -84,8 +84,7 @@ struct ModelMap{Inplace, Custom}
     end
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}, Domain::Union{Cuboid,Nothing}, xyp::Tuple{Int,Int,Int}; name::StringOrSymb=Symbol(), Meta=nothing, 
                             startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(xyp[3]) : ElaborateGetStartP(Domain, InDomain), pnames::AbstractVector{<:StringOrSymb}=GetParameterNames(startp),
-                            inplace::Bool=isinplacemodel(model), IsCustom::Bool=CheckIfIsCustom(model, startp, xyp, inplace), TrySymbolic::Bool=true, kwargs...)
-        SymbolicCache = TrySymbolic ? ToExpr(model, xyp) : nothing
+                            inplace::Bool=isinplacemodel(model), IsCustom::Bool=CheckIfIsCustom(model, startp, xyp, inplace), TrySymbolic::Bool=true, SymbolicCache=(TrySymbolic ? ToExpr(model, xyp) : nothing), kwargs...)
         ModelMap(model, InDomain, Domain, xyp, pnames, Val(inplace), Val(IsCustom), name, Meta, SymbolicCache; kwargs...)
     end
     "Construct new ModelMap from function `F` with data from `M`."
@@ -476,15 +475,15 @@ A `Domain` for the new model can optionally be specified for `ModelMap`s.
 EmbedModelVia(model::Function, F::Function; Kwargs...) = EmbeddedModel(x, θ; kwargs...) = model(x, F(θ); kwargs...)
 EmbedModelVia_inplace(model!::Function, F::Function; Kwargs...) = EmbeddedModel!(y, x, θ; kwargs...) = model!(y, x, F(θ); kwargs...)
 
-function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube}=nothing, pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, name::StringOrSymb=name(M), Meta=M.Meta, kwargs...)
+function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube}=nothing, pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing,
+                name::StringOrSymb=name(M), Meta=M.Meta, inplace::Bool=ValToBool(M.inplace), IsCustom::Bool=ValToBool(M.CustomEmbedding), TrySymbolic::Bool=false, kwargs...)
     if isnothing(Domain)
         Domain = FullDomain(GetArgLength(F), Inf)
         @warn "Cannot infer new Domain HyperCube for general embeddings, using $Domain."
     end
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
-    ModelMap((isinplacemodel(M) ? EmbedModelVia_inplace : EmbedModelVia)(M.Map, F; kwargs...), (InDomain(M) isa Function ? (InDomain(M)∘F) : nothing),
-            Domain, (M.xyp[1], M.xyp[2], length(Domain)), Symbol.(PNames),
-            M.inplace, M.CustomEmbedding, Symbol(name), Meta)
+    ModelMap((isinplacemodel(M) ? EmbedModelVia_inplace : EmbedModelVia)(M.Map, F), (InDomain(M) isa Function ? (InDomain(M)∘F) : nothing),
+            Domain, (M.xyp[1], M.xyp[2], length(Domain)); pnames=Symbol.(PNames), name=Symbol(name), inplace, IsCustom, Meta, TrySymbolic, kwargs...)
 end
 
 function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple=Tuple([]); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
@@ -499,13 +498,12 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
         mul!(y, Ycache, Jac(θ))
     end
 end
-function EmbedDModelVia(dM::ModelMap, F::Function; Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
-                name::StringOrSymb=name(dM), Meta=dM.Meta, kwargs...)
+function EmbedDModelVia(dM::ModelMap, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
+                name::StringOrSymb=name(dM), Meta=dM.Meta, inplace::Bool=ValToBool(dM.inplace), IsCustom::Bool=ValToBool(dM.CustomEmbedding), TrySymbolic::Bool=false, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
-    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; kwargs...), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
-            Domain, (dM.xyp[1], dM.xyp[2], length(Domain)), PNames,
-            dM.inplace, dM.CustomEmbedding, name, Meta)
+    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; ADmode), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
+            Domain, (dM.xyp[1], dM.xyp[2], length(Domain)); pnames=Symbol.(PNames), name=Symbol(name), inplace, IsCustom, Meta, TrySymbolic, kwargs...)
 end
 
 """

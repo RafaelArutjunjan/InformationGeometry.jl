@@ -105,6 +105,12 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
                 Res = insert(Res, components[i], values[i])
             end;    Res
         end
+        function ValInsertionEmbedding(P::AbstractVector{<:Num})
+            Res = insert(P, components[1], values[1])
+            for i in 2:length(components)
+                Res = insert(Res, components[i], values[i])
+            end;    Res
+        end
     end
 end
 function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number}, X::T=Float64[]) where T <: AbstractVector{<:Number}
@@ -158,27 +164,35 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     FixParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat=MLE(DM)[Component])
     FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Int}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
     FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, Values::AbstractVector{<:AbstractFloat}=MLE(DM)[Components])
-    FixParameters(DM::AbstractDataModel, ParamDict::Dict{String, Number})
+    FixParameters(DM::AbstractDataModel, ParamDict::Dict{Union{String,Symbol}, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
+function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=true, TrySymbolic::Bool=true, kwargs...)
     @assert DM isa DataModel # Not implemented for ConditionGrids yet
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
-    Pnames = [pnames(DM)[i] for i in eachindex(pnames(DM)) if i ∉ Components]
-    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; pnames=Pnames), ProfileDPredictor(DM, Components, Values; pnames=Pnames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
+    PNames = [Pnames(DM)[i] for i in eachindex(Pnames(DM)) if i ∉ Components]
+    ## Add SymbolicCache kwarg
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; TrySymbolic, pnames=PNames), ProfileDPredictor(DM, Components, Values; pnames=PNames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
+end
+function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; MLE::AbstractVector{<:Number}=MLE(CG), kwargs...)
+    @assert length(Components) == length(Values) && length(Components) < pdim(CG)
+    length(Components) == 0 && (@warn "Got no parameters to pin.";  return CG)
+    Emb = ValInserter(Components, Values);      PNames = [Pnames(CG)[i] for i in eachindex(Pnames(CG)) if i ∉ Components]
+    remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, ValInserter(Components, Values)), MLE=Drop(MLE, Components), pnames=PNames, Domain=Drop(Domain(CG), Components), kwargs...)
 end
 function FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
     @assert length(Components) == pdim(DM)
     FixParameters(DM, IndVec(Components), args...; kwargs...)
 end
 
-function FixParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,T}; kwargs...) where T<:Number
-    Comps = Int[];  Vals = T[]
+FixParameters(DM::AbstractDataModel, ParamDict::Dict{<:AbstractString,<:Number}; kwargs...) = FixParameters(DM, Dict(Symbol.(keys(ParamDict)) .=> values(ParamDict)); kwargs...)
+function FixParameters(DM::AbstractDataModel, ParamDict::Dict{Symbol,T}; kwargs...) where T<:Number
+    Comps = Int[];  Vals = T[];    Keys = keys(ParamDict)
     for i in 1:pdim(DM)
-        pnames(DM)[i] ∈ keys(ParamDict) && (push!(Comps, i);  push!(Vals, ParamDict[pnames(DM)[i]]))
+        Pnames(DM)[i] ∈ Keys && (push!(Comps, i);  push!(Vals, ParamDict[Pnames(DM)[i]]))
     end
-    @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(pnames(DM)), keys=$(keys(ParamDict))."
+    @assert length(Comps) > 0 "No overlap between parameters and given parameter dictionary: pnames=$(Pnames(DM)), keys=$(keys(ParamDict))."
     FixParameters(DM, Comps, float.(Vals); kwargs...)
 end
 

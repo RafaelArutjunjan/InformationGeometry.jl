@@ -79,8 +79,6 @@ struct ConditionGrid <: AbstractConditionGrid
         @assert allunique(InformationGeometry.name.(DMs))
         !isnothing(Domain) && @assert length(Domain) == length(mle)
 
-        verbose && @warn "The ConditionGrid functionality is still experimental, use with caution!"
-
         Mle = if SkipOptim
             verbose && @warn "ConditionGrid: Not performing optimization out of the box!"
             mle
