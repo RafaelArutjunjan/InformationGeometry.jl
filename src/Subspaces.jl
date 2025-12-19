@@ -283,17 +283,21 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
     function HyperCube(lowers::AbstractVector{<:Number}, uppers::AbstractVector{<:Number}; Padding::Number=0.0, MakeStatic::Bool=true)
         @assert length(lowers) == length(uppers)
         if Padding != 0.
-            diff = (0.5*Padding) * (uppers - lowers)
-            lowers -= diff;     uppers += diff
+            diff = (0.5.*Padding) .* (uppers .- lowers)
+            lowers .-= diff;     uppers .+= diff
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be smaller than second.")
-        if MakeStatic && length(lowers) < 20
-            A, B = SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers))
-            return new{typeof(A)}(A, B)
-        else
-            A, B = floatify(lowers), floatify(uppers)
-            return new{typeof(A)}(A, B)
+        # Circumvent StaticArray promotion for lazy FillArrays
+        TypePromoter(lowers::FillArrays.AbstractFillVector, uppers::FillArrays.AbstractFillVector) = floatify(lowers), floatify(uppers)
+        function TypePromoter(lowers::AbstractVector{<:Number}, uppers::AbstractVector{<:Number})
+            if MakeStatic && length(lowers) < 20
+                SVector{length(lowers)}(floatify(lowers)), SVector{length(uppers)}(floatify(uppers))
+            else
+                floatify(lowers), floatify(uppers)
+            end
         end
+        A, B = TypePromoter(lowers, uppers)
+        new{typeof(A)}(A, B)
     end
     function HyperCube(H::AbstractVector{<:AbstractVector{<:Number}}; kwargs...)
         len = length(H[1]);        !all(x->(length(x) == len),H) && throw("Inconsistent lengths.")
@@ -371,7 +375,7 @@ Center(Cube::HyperCube) = 0.5 .* (Cube.L .+ Cube.U)
     TranslateCube(Cube::HyperCube,x::AbstractVector{<:Number}) -> HyperCube
 Returns a `HyperCube` object which has been translated by `x`.
 """
-TranslateCube(Cube::HyperCube, x::AbstractVector{<:Number}) = HyperCube(Cube.L + x, Cube.U + x)
+TranslateCube(Cube::HyperCube, x::AbstractVector{<:Number}) = HyperCube(Cube.L .+ x, Cube.U .+ x)
 
 """
     ResizeCube(Cube::HyperCube, factor::Real=1.) -> HyperCube
@@ -379,11 +383,11 @@ Resizes given `Cube` evenly in all directions but keeps center of mass fixed.
 """
 function ResizeCube(Cube::HyperCube, factor::Real=1.)
     @assert factor > 0.
-    center = Center(Cube);      halfwidths = (0.5*factor) * CubeWidths(Cube)
-    HyperCube(center-halfwidths, center+halfwidths)
+    center = Center(Cube);      halfwidths = (0.5*factor) .* CubeWidths(Cube)
+    HyperCube(center .- halfwidths, center .+ halfwidths)
 end
 
-Base.:*(a::Number, C::HyperCube) = HyperCube(a*C.L, a*C.U)
+Base.:*(a::Number, C::HyperCube) = HyperCube(a .* C.L, a .* C.U)
 Base.:*(C::HyperCube, a::Number) = Base.:*(a, C)
 Base.:*(Mat::AbstractMatrix, C::HyperCube) = HyperCube(Mat*C.L, Mat*C.U)
 

@@ -2,12 +2,13 @@
 
 # Returns a copy of type `Vector`, i.e. is not typesafe!
 SafeCopy(X::AbstractVector) = copy(X)
+SafeCopy(X::FillArrays.AbstractFillVector) = collect(X)
+SafeCopy(X::ComponentVector) = convert(Vector,X)
 SafeCopy(X::AbstractVector{<:Num}) = X
 SafeCopy(X::AbstractRange) = collect(X)
 SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
 Drop(X::AbstractVector, i::Int) = (Z=SafeCopy(X);   splice!(Z,i);   Z)
-Drop(X::ComponentVector, i::Int) = Drop(convert(Vector,X), i)
 Drop(N::Nothing, i::Int) = nothing
 Drop(C::HyperCube, i::Int) = (inds = 1:length(C) .!= i; HyperCube(view(C.L, inds), view(C.U, inds)))
 
@@ -47,6 +48,9 @@ function ValInserter(Component::Int, Value::AbstractFloat, Z::T) where T <: Comp
     # ValInsertionComponentVector(X::AbstractVector{<:Number}) = convert(T, Inserter(convert(Vector,X)))
     (x::Vector->convert(T,x))∘ValInserter(Component, Value, eltype(Z)[])∘(z::AbstractVector->convert(Vector,z))
 end
+
+## Allow for use of `insert` method for non-static array types
+StaticArrays.insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]), V, (@view X[I:end]))
 
 """
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
