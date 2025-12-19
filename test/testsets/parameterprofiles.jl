@@ -60,9 +60,15 @@ BU2 = ProfileBox(PU2, 2)
 CG = ConditionGrid([DM, DMp])
 PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)
 PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10, plot=false, verbose=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(PCG1)))
+@test all(isfinite∘sum, Tuple(ProfileBox(PCG2)))
+
+using FiniteDifferences
+@test abs(pdim(DM) - GeneralizedDOF(DM)) < 1e-5
+@test pdim(CG) > GeneralizedDOF(ConditionGrid([DM, DMp], [ViewElements([1,2]), ViewElements([1,3])], rand(3)))
 
 
 using ComponentArrays, InformationGeometry
 X = ComponentVector(A=5.0, B=3.0)
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), Model, X)))))
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), Model, X); plot=false))))
