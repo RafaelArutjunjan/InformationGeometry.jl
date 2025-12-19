@@ -432,12 +432,12 @@ end
 
 
 """
-    LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000) -> Number
+    LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, promote::Bool=(tol < 1e-15), maxiter::Int=10000) -> Number
 Finds real number `x` where the boolean-valued `Test(x::Number)` goes from `true` to `false`.
 """
-function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000, verbose::Bool=true)
-    if ((suff(start) != BigFloat) && tol < 1e-15)
-        verbose && @info "LineSearch: start not BigFloat but tol=$tol. Promoting and continuing."
+function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000, promote::Bool=(tol < 1e-15), verbose::Bool=true)
+    if promote
+        verbose && (suff(start) != BigFloat) && @info "LineSearch: start not BigFloat but tol=$tol. Promoting and continuing."
         start = BigFloat(start)
     end
     if !Test(start)
