@@ -175,11 +175,12 @@ function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     ## Add SymbolicCache kwarg
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values; TrySymbolic, pnames=PNames), ProfileDPredictor(DM, Components, Values; pnames=PNames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
 end
-function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; MLE::AbstractVector{<:Number}=MLE(CG), kwargs...)
+function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
     @assert length(Components) == length(Values) && length(Components) < pdim(CG)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return CG)
     Emb = ValInserter(Components, Values);      PNames = [Pnames(CG)[i] for i in eachindex(Pnames(CG)) if i ∉ Components]
-    remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, ValInserter(Components, Values)), MLE=Drop(MLE, Components), pnames=PNames, Domain=Drop(Domain(CG), Components), kwargs...)
+    # remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, Emb), MLE=Drop(MLE, Components), pnames=PNames, Domain=Drop(Domain(CG), Components), SkipOptim, SkipTests, kwargs...) ## Does not rewrite likelihood and score
+    ConditionGrid(Conditions(CG), Trafos(CG)∘Emb, EmbedLogPrior(CG, Emb), Drop(MLE, Components); pnames=PNames, Domain=Drop(Domain(CG), Components), SkipOptim, SkipTests, kwargs...)
 end
 function FixParameters(DM::AbstractDataModel, Components::AbstractVector{<:Bool}, args...; kwargs...)
     @assert length(Components) == pdim(DM)
@@ -221,15 +222,24 @@ end
 Embeds the model such that all components `i` for which `Linked[i] == true` are linked to the parameter corresponding to component `MainIndBefore`.
 `Linked` can also be a `String`: this creates a `BitVector` whose components are `true` whenever the corresponding parameter name contains `Linked`.
 """
-function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
-    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; kwargs...), Drop(MLE(DM), _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore)); SkipOptim, SkipTests)
+function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; kwargs...), Drop(MLE, _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore)); SkipOptim, SkipTests)
+end
+function LinkParameters(CG::AbstractConditionGrid, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+    Emb = GetLinkEmbedding(Linked, MainIndBefore);    WoFirst = _WithoutInd(Linked, MainIndBefore);    PNames = _GetLinkedPnames(pnames(CG), Linked, MainIndBefore; WoFirst)
+    # remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, Emb), MLE=Drop(MLE, WoFirst), pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...) ## Does not rewrite likelihood and score
+    ConditionGrid(Conditions(CG), Trafos(CG)∘Emb, EmbedLogPrior(CG, Emb), Drop(MLE, WoFirst); pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...)
+end
+
+function _GetLinkedPnames(pnames::AbstractVector{<:StringOrSymb}, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); WoFirst::AbstractVector{<:Bool}=_WithoutInd(Linked, MainIndBefore))
+    @assert length(pnames) == length(Linked) == length(WoFirst)
+    PNames = string.(copy(pnames))
+    PNames[MainIndBefore] *= " =: " * join(string.(pnames[WoFirst]), " ≡ ")
+    Symbol.(PNames[.!WoFirst])
 end
 function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
-    @assert length(Linked) == pdim(M)
     WoFirst = _WithoutInd(Linked, MainIndBefore)
-    PNames = copy(pnames(M))
-    PNames[MainIndBefore] *= " =: " * join(pnames(M)[WoFirst], " ≡ ")
-    PNames = PNames[.!WoFirst]
+    PNames = _GetLinkedPnames(pnames(M), Linked, MainIndBefore; WoFirst)
     EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore); Domain=DropCubeDims(Domain(M), WoFirst), pnames=PNames, kwargs...)
 end
 function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)

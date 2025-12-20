@@ -11,6 +11,8 @@ struct ParameterTransformations{F<:Function} <: AbstractParameterTransformations
     end
 end
 const ParamTrafo = ParameterTransformations
+# No nesting
+ParameterTransformations(Trafos::ParameterTransformations, ConditionNames::AbstractVector{<:Symbol}) = ParameterTransformations(Trafos.Trafos, ConditionNames)
 
 (P::ParamTrafo)(θ::AbstractVector{<:Number}; Cond::Union{Nothing,Symbol}=nothing) = _ExecuteParamTrafo(P, θ, Cond)
 (P::ParamTrafo)(θ::AbstractVector{<:Number}, i::Int; kwargs...) = P.Trafos[i](θ)
