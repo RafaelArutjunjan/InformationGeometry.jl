@@ -13,7 +13,7 @@ PiDM3 = DataModel(Data(PiDM), LogTransform(Predictor(PiDM),trues(1)))
 @test !IsInDomain(Predictor(PiDM3), exp.([1])-[0.1]) && IsInDomain(Predictor(PiDM3), exp.([1])+[0.1])
 
 DS = DataSet([0.1,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
-DM = DataModel(DS, LinearModel)
+DM = DataModel(DS, LinearModel; name=:DM)
 @test FisherMetric(LinearDecorrelation(DM), zeros(2)) ≈ [1 0; 0 1]
 
 ## Input-Output Transforms
@@ -32,9 +32,16 @@ DME = DataModel(DataSetExact(DS, 0.3ones(length(xdata(DS)))), LinearModel)
 @test FixParameters(DataModel(DS, Predictor(DM), dPredictor(DM), MLE(DM), θ->-norm(θ)), 2, 0.5) == DataModel(DS, (x,p)->p[1]*x + 0.5, (x,p)->SMatrix{1,1}([x]), [1.5], x->-norm(SA[x,0.5]))
 
 DS2 = DataSet([-1, 0, 1], [-1 1; 0 0; 1.1 -1.1], transpose(hcat(0.75ones(2), 0.5ones(2), 0.85ones(2))))
-DM2 = DataModel(DS2, ModelMap((x,p)->[p[1]*x + p[2]-1, p[3]*x + p[4]-1]; pnames=["a", "b", "c", "d"]))
+DM2 = DataModel(DS2, ModelMap((x,p)->[p[1]*x + p[2]-1, p[3]*x + p[4]-1]; pnames=["a", "b", "c", "d"]); name=:DM2)
 
 @test LinkParameters(DM2, [2,4]) == DataModel(DS2, (x,p)->[p[1]*x + p[2]-1, p[3]*x + p[2]-1], MLE(DM2)[1:end-1])
+
+
+CG = ConditionGrid([DM, DM2], [ViewElements(1:2), ViewElements(3:6)], [MLE(DM);MLE(DM2)])
+@test LinkParameters(CG, [1,3]) == ConditionGrid([DM, DM2], [ViewElements(1:2), ViewElements([1; 3:5])], [MLE(DM);MLE(DM2)][[1:2; 4:6]])
+@test FixParameters(CG, [1,3]) == ConditionGrid([FixParameters(DM,1), FixParameters(DM2,1)], [ViewElements(1:1), ViewElements(2:4)], [MLE(DM);MLE(DM2)][[2:2; 4:6]])
+
+
 
 # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))
 # TranstrumDM = DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]), TranstrumModel)
