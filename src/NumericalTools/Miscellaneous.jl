@@ -360,14 +360,15 @@ function ConservativeInverse(F::AbstractMatrix, Threshold::Real=1e-10; threshold
     (PreserveSubmatrix ? ConservativeInversePreserving : ConservativeInverseNonPreserving)(F; threshold, kwargs...)
 end
 
-function ConservativeInversePreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), Inv::Function=(M; kwargs...)->inv(M))
-    @assert threshold > 0
+function ConservativeInversePreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, AffectedThreshold::Real=threshold, 
+                        Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), Inv::Function=(M; kwargs...)->inv(M))
+    @assert threshold > 0 && AffectedThreshold > 0
     ## Compute only partial eigen decomposition for spectrum between (-Inf,1e-10]
     D, Vt = eigen(F, -Inf, threshold)
     length(D) == 0 && return inv(F)
     # For Safe == true consider all component coupled to degenerate direction affected and impute Inf
     # For Safe == false only consider most strongly coupled component per degenerate eigenvalue as affected
-    AllAffected(v::AbstractVector) = abs.(v) .> threshold
+    AllAffected(v::AbstractVector) = abs.(v) .> AffectedThreshold
     MaxAffected(v::AbstractVector) = (f = findmax(abs, v)[1];   map(isequal(f)∘abs, v))
     AffectedInds = Safe ? AllAffected : MaxAffected
     IndAffected = AffectedInds(view(Vt,:,1))
@@ -384,13 +385,14 @@ end
 
 # Values on diagonal not equivalent to values of inverted submatrix but more stable
 # Cannot reuse Eigendecomposition of original F to help compute inverted submatrix since masking eigenvectors destroys their orthogonality
-function ConservativeInverseNonPreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), kwargs...)
-    @assert threshold > 0;    D, Vt = eigen(F; sortby=-);   i = findfirst(x-> threshold>x, D);    isnothing(i) && return inv(F)
+function ConservativeInverseNonPreserving(Fraw::AbstractMatrix; Impute::Real=Inf, threshold::Real=1e-10, AffectedThreshold::Real=threshold, 
+                        Safe::Bool=false, F::AbstractMatrix=Symmetric(Fraw), kwargs...)
+    @assert threshold > 0 && AffectedThreshold > 0;    D, Vt = eigen(F; sortby=-);   i = findfirst(x-> threshold>x, D);    isnothing(i) && return inv(F)
     # Throw away degenerate eigendirections in inverse
     D[i:end] .= 0.0;    for j in 1:i-1    D[j] = inv(D[j])    end
     # Compute inverse
     R = Vt * Diagonal(D) * Vt'
-    AllAffected(v::AbstractVector) = IndVec(abs.(v) .> threshold)
+    AllAffected(v::AbstractVector) = IndVec(abs.(v) .> AffectedThreshold)
     MaxAffected(v::AbstractVector) = IndVec((f = findmax(abs, v)[1];   map(isequal(f)∘abs, v)))
     AffectedInds = Safe ? AllAffected : MaxAffected
     MutateDiagonal!(R::AbstractMatrix, inds::AbstractVector{<:Int}) = for k in inds     R[k,k] = Impute     end
