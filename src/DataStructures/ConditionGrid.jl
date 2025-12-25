@@ -205,12 +205,12 @@ function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::Ab
 end
 
 ## Create Master Methods which simply concatenate?
-function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, kwargs...)
+function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, kwargs...)
     verbose && @warn "EmbeddingMap: Simply concatenating all predictions for all conditions."
     reduce(vcat, [EmbeddingMap(CG, θ, S; kwargs...) for S in ConditionNames(CG)])
 end
 
-function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=true, ADmode::Val=Val(:ForwardDiff), kwargs...)
+function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     verbose && @warn "EmbeddingMatrix: Simply concatenating all Jacobians for all conditions."
     reduce(vcat, [EmbeddingMatrix(CG, θ, S; kwargs...) * GetJac(ADmode, Trafos(CG)[i])(θ) for (i,S) in enumerate(ConditionNames(CG))])
 end

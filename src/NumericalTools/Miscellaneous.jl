@@ -112,7 +112,7 @@ DataSetType(DS::GeneralizedDataSet) = GeneralizedDataSet
 
 
 ## Originally used det(F) > 0 but det numerically less accurate and gives false positives
-NotPosDef(F::AbstractMatrix) = !isposdef(F)
+NotPosDef(F::AbstractMatrix) = !isposdef(F) || !(det(F) > 0)
 ## > 10x slower but more accurate and can choose flexible threshold:
 # NotPosDef(F::AbstractMatrix; threshold::Real=1e-10) = length(eigen(Symmetric(F), -Inf, threshold).values) > 0
 
