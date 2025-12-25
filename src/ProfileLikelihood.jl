@@ -58,7 +58,8 @@ StaticArrays.insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]
 Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
 In effect, this allows one to pin an input component at a specific value.
 """
-function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]) where T <: AbstractVector{<:Number}
+function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]; nonmutating::Bool=false) where T <: AbstractVector{<:Number}
+    nonmutating && return NonMutValInsertionEmbedding(P::AbstractVector) = insert(P, Component, Value)
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
     ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
     ValInsertionEmbedding(P::AbstractVector{<:Num}) = @views [P[1:Component-1]; Value; P[Component:end]]
@@ -85,59 +86,36 @@ end
 Returns an embedding function which inserts `Values` in the specified `Components`.
 In effect, this allows one to pin multiple input components at a specific values.
 """
-function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]) where T <: AbstractVector{<:Number}
+function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]; nonmutating::Bool=false) where T <: AbstractVector{<:Number}
     @assert length(Components) == length(Values)
-    length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
-    if length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
-        ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
-    else
-        # Sort components to avoid shifts in indices through repeated insertion.
-        components, values = _SortTogether(Components, Values)
-        function ValInsertionEmbedding(P::AbstractVector)
-            Res = SafeCopy(P)
-            for i in eachindex(components)
-                insert!(Res, components[i], values[i])
-            end;    Res
-        end
-        function ValInsertionEmbedding(P::Union{SVector,MVector})
-            Res = insert(P, components[1], values[1])
-            for i in 2:length(components)
-                Res = insert(Res, components[i], values[i])
-            end;    Res
-        end
-        function ValInsertionEmbedding(P::AbstractVector{<:Num})
-            Res = insert(P, components[1], values[1])
-            for i in 2:length(components)
-                Res = insert(Res, components[i], values[i])
-            end;    Res
-        end
+    if length(Components) == 0
+        return Identity(X::AbstractVector{<:Number}) = X
+    elseif !nonmutating && length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
+        return ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
     end
-end
-function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number}, X::T=Float64[]) where T <: AbstractVector{<:Number}
-    @assert length(Components) == length(Values)
-    ValInserter((1:length(Components))[Components], Values[Components])
-end
-function ValInserter(Components::AbstractVector{<:Int}, Value::Number, Z::T=Float64[]) where T <: AbstractVector{<:Number}
-    length(Components) == 0 && return Identity(X::AbstractVector{<:Number}) = X
-    components = sort(Components)
+
+    components, values = _SortTogether(Components, Values)
+    function NonMutValInsertionEmbedding(P::AbstractVector{<:Number})
+        Res = insert(P, components[1], values[1])
+        for i in 2:length(components)
+            Res = insert(Res, components[i], values[i])
+        end;    Res
+    end
+    nonmutating && return NonMutValInsertionEmbedding
     function ValInsertionEmbedding(P::AbstractVector)
         Res = SafeCopy(P)
         for i in eachindex(components)
-            insert!(Res, components[i], Value)
+            insert!(Res, components[i], values[i])
         end;    Res
     end
-    function ValInsertionEmbedding(P::Union{SVector,MVector})
-        Res = insert(P, components[1], Value)
-        for i in 2:length(components)
-            Res = insert(Res, components[i], Value)
-        end;    Res
-    end
-    function ValInsertionEmbedding(P::AbstractVector{<:Num})
-        Res = [P[1:components[1]-1]; Value]
-        for i in 2:length(components)
-            Res = @views [Res; P[components[i-1]:components[i]-1]; Value]
-        end;    [Res; @view P[components[end]:end]]
-    end
+    ValInsertionEmbedding(P::Union{AbstractVector{<:Num},SVector,MVector}) = NonMutValInsertionEmbedding(P)
+end
+function ValInserter(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number}, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    @assert length(Components) == length(Values)
+    ValInserter(IndVec(Components), (@view Values[Components]), Z; kwargs...)
+end
+function ValInserter(Components::AbstractVector{<:Int}, Value::Number, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    ValInserter(Components, Fill(Value, length(Components)), Z; kwargs...)
 end
 
 InsertIntoFirst(X::AbstractVector{<:Number}) = PassingIntoLast(θ::AbstractVector{<:Number}) = [X;θ]
