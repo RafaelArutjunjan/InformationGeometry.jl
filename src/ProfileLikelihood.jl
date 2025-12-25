@@ -565,7 +565,7 @@ end
 function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM); verbose::Bool=true)
     F = FisherMetric(DM, p)
     F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
-    verbose && !(det(F) > 0) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
+    verbose && NotPosDef(F) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
     dir = pinv(F)[:, Comp];    dir ./= dir[Comp]
     dir
 end
@@ -825,6 +825,8 @@ DOF(P::ParameterProfiles) = P.dof
 IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
 IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
+AllConverged(P::ParameterProfiles) = [AllConverged(P[i]) for i in eachindex(P)]
+
 
 ProfileDomain(P::ParameterProfiles) = [IsPopulated(P[i]) ? collect(extrema(@view Profiles(P[i])[:,1])) : [-Inf,Inf] for i in eachindex(P)] |> HyperCube
 HyperCube(P::ParameterProfiles) = ProfileDomain(P)
@@ -881,6 +883,8 @@ HasTrajectories(PV::ParameterProfilesView) = !isnothing(Trajectories(PV)) && !al
 HasProfiles(PV::ParameterProfilesView) = !all(isnan, view(Profiles(PV), :, 1))
 IsPopulated(PV::ParameterProfilesView) = HasProfiles(PV)
 GetConverged(PV::ParameterProfilesView) = GetConverged(Profiles(PV))
+AllConverged(PV::ParameterProfilesView) = all(GetConverged(PV))
+
 
 
 # AbstractMatrix to the outside

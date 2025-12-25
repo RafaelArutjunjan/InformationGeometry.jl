@@ -59,7 +59,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     if any(Confnum .> 0)
         F = FisherMetric(DM, mle)
         # Use PlotVariance kwarg to force VariancePlot
-        if PlotVariance || det(F) > 0
+        if PlotVariance || !NotPosDef(F)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
                 if ydim(DM) == 1
                     SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
@@ -200,7 +200,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     end
     if any(Confnum .> 0)
         F = FisherMetric(DM, mle)
-        if PlotVariance || det(F) > 0
+        if PlotVariance || !NotPosDef(F)
             color_palette = get(plotattributes, :color_palette, :default)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
                 SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag

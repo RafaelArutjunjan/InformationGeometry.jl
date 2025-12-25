@@ -582,7 +582,7 @@ Keyword arguments:
 function ConfidenceRegions(DM::AbstractDataModel, Confnums::AbstractVector{<:Real}=1:1; IsConfVol::Bool=false, verbose::Bool=true,
                         tol::Real=1e-9, meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff),
                         Boundaries::Union{Function,Nothing}=nothing, tests::Bool=!(Predictor(DM) isa ModelMap), parallel::Bool=false, dof::Int=DOF(DM), kwargs...)
-    verbose && !(det(FisherMetric(DM,MLE(DM))) > 0) && throw("It appears as though the given model is not structurally identifiable.")
+    verbose && NotPosDef(FisherMetric(DM,MLE(DM))) && throw("It appears as though the given model is not structurally identifiable.")
     Range = IsConfVol ? InvConfVol.(Confnums) : Confnums
     if pdim(DM) == 1
         return (parallel ? pmap : map)(x->ConfidenceRegion(DM, x; tol=tol, dof=dof), Range)
@@ -744,7 +744,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), F::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
-    verbose && !(det(F) > 0) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
+    verbose && NotPosDef(F) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(F)); Confnum, dof, kwargs...)
 end
 
