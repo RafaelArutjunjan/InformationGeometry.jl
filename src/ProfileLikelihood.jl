@@ -993,8 +993,9 @@ end
     P.Meta !== :ParameterProfiles && (plot_title --> string(P.Meta))
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
-    maxy = median(vcat(0.0, [maximum(view(T, GetConverged(T), 2)) for T in Profiles(P) if !all(isnan, view(T, :, 1)) && sum(GetConverged(T)) > 0 && maximum(view(T, GetConverged(T), 2)) > tol]))
-    maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
+    M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
+    maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
+    maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     j = 1
     for i in eachindex(Profiles(P))
@@ -1021,8 +1022,9 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     Interpolate = get(plotattributes, :Interpolate, false)
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
-    maxy = median(vcat(0.0, [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && sum(GetConverged(T)) > 0 && maximum(view(T[2], GetConverged(T))) > tol]))
-    maxy = maxy < tol ? (maxy < 1e-12 ? tol : Inf) : maxy
+    M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
+    maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
+    maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     @series begin
         ylims --> Ylims
