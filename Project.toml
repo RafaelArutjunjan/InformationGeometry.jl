@@ -63,7 +63,7 @@ InformationGeometryBoundaryValueDiffEqExt = ["BoundaryValueDiffEqShooting"]
 InformationGeometryDelayDiffEqExt = ["DelayDiffEq"]
 InformationGeometryLibGEOSExt = ["LibGEOS"]
 InformationGeometryLuxExt = ["Lux"]
-InformationGeometryModelingToolkitExt = ["ModelingToolkitBase"]
+InformationGeometryModelingToolkitBaseExt = ["ModelingToolkitBase"]
 InformationGeometryPEtabExt = ["PEtab", "ModelingToolkitBase"]
 InformationGeometryStochasticDiffEqExt = ["StochasticDiffEq", "SciMLSensitivity"]
 
