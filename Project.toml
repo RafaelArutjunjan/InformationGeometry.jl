@@ -116,7 +116,7 @@ Suppressor = "0.1, 0.2"
 Symbolics = "1 - 6, 7"
 SymbolicUtils = "1, 2, 3, 4"
 Tullio = "0.3"
-julia = "1"
+julia = "1.9"
 
 [extras]
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"
