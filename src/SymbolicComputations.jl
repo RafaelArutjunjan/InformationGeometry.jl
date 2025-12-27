@@ -48,10 +48,10 @@ MakeMTKVariables(S::Symbol; base::AbstractString="@variables") = eval(Meta.parse
 MakeMTKVariables(S::AbstractArray{<:Symbol}; kwargs...) = [MakeMTKVariables(s; kwargs...) for s in S]
 
 MakeMTKParameters(S; base="@parameters", kwargs...) = MakeMTKVariables(S; base, kwargs...)
-MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # updated by ModelingToolkit extension to eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
 
-MakeSymbolicParsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
-MakeSymbolicVarsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(ModelingToolkit._parse_vars(:variables, Real, X, ModelingToolkit.toparam))
+MakeSymbolicParsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
+MakeSymbolicVarsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:variables, Real, X, ModelingToolkitBase.toparam))
 
 
 # Apply String to make LaTeXStrings into strings as well

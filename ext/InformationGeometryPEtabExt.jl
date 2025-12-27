@@ -1,13 +1,13 @@
 module InformationGeometryPEtabExt
 
 
-using InformationGeometry, PEtab, DataFrames, SciMLBase, ModelingToolkit, ForwardDiff, RecipesBase
+using InformationGeometry, PEtab, DataFrames, SciMLBase, ModelingToolkitBase, ForwardDiff, RecipesBase
 
 InformationGeometry.MLE(P::PEtabODEProblem) = PEtab.get_x(P)
 InformationGeometry.HyperCube(P::PEtabODEProblem) = HyperCube(P.lower_bounds, P.upper_bounds)
 InformationGeometry.MLE(R::PEtabOptimisationResult) = R.xmin
 
-InformationGeometry.pdim(M::PEtabModel) = length(ModelingToolkit.parameters(M.sys_mutated))
+InformationGeometry.pdim(M::PEtabModel) = length(ModelingToolkitBase.parameters(M.sys_mutated))
 InformationGeometry.pdim(P::PEtabODEProblem) = InformationGeometry.pdim(P.model_info.model)
 
 

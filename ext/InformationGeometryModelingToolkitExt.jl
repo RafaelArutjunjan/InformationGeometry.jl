@@ -1,11 +1,11 @@
 module InformationGeometryModelingToolkitExt
 
 
-using InformationGeometry, ModelingToolkit, Optim, LineSearches
+using InformationGeometry, ModelingToolkitBase, Optim, LineSearches, Symbolics
 
 
 # ODESystem deprecated in version ≥ 10. Change ODESystem -> System for v11
-import ModelingToolkit: AbstractSystem
+import ModelingToolkitBase: AbstractSystem
 
 import InformationGeometry: StringOrSymb, BoolArray, isloaded
 import InformationGeometry: xnames, ynames, xdim, ydim, Xnames, Ynames, CreateSymbolNames, MaxArgLen
@@ -17,8 +17,8 @@ import InformationGeometry: InformNames, GetModel, DataModel
 Copy the state names saved in `ODESystem` to `DS`.
 """
 function InformNames(DS::AbstractDataSet, sys::AbstractSystem, observables::Union{Int,AbstractVector{<:Int},BoolArray})
-    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkit.get_iv(sys))] : Xnames(DS)
-    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkit.get_unknowns(sys) catch; ModelingToolkit.get_states(sys) end)[observables]) : Ynames(DS)
+    newxnames = xnames(DS) == CreateSymbolNames(xdim(DS),"x") ? [string(ModelingToolkitBase.get_iv(sys))] : Xnames(DS)
+    newynames = ynames(DS) == CreateSymbolNames(ydim(DS),"y") ? string.((try ModelingToolkitBase.get_unknowns(sys) catch; ModelingToolkitBase.get_states(sys) end)[observables]) : Ynames(DS)
     InformNames(DS, newxnames, newynames)
 end
 
@@ -36,15 +36,15 @@ import InformationGeometry: pnames, Domain, MaximalNumberOfArguments, GetArgLeng
 # Extend this for other System types, i.e. SDE, PDE etc.
 # Add sparse=isloaded(:Sparspak)
 function _PerformGetModel(sys::ODESystem; jac=true, inplace::Bool=true, sparse=isloaded(:Sparspak), kwargs...)
-    ODEFunction{inplace}((ModelingToolkit.iscomplete(sys) ? sys : ModelingToolkit.complete(sys)); jac, sparse, kwargs...)
+    ODEFunction{inplace}((ModelingToolkitBase.iscomplete(sys) ? sys : ModelingToolkitBase.complete(sys)); jac, sparse, kwargs...)
 end
 # Fallback
 function _PerformGetModel(sys; kwargs...)
-    throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkit.ODESystem first.")
+    throw("Not programmed for $(typeof(sys)) yet, please convert to a ModelingToolkitBase.ODESystem first.")
 end
 
 function GetModel(sys::AbstractSystem, u0::Union{Number,AbstractArray{<:Number},Function}, observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0); startp::Union{Nothing,AbstractVector} = nothing,
-                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, jac=true, sparse=isloaded(:Sparspak), pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkit.parameters(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkit.getname(sys), kwargs...)
+                Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, jac=true, sparse=isloaded(:Sparspak), pnames::AbstractVector{<:StringOrSymb}=string.(ModelingToolkitBase.parameters(sys)), InDomain::Union{Function,Nothing}=nothing, name::StringOrSymb=ModelingToolkitBase.getname(sys), kwargs...)
     # Is there some optimization that can be applied here? Modellingtoolkitize(sys) or something?
     # sys = Sys isa Catalyst.ReactionSystem ? convert(ODESystem, Sys) : Sys
     
@@ -93,21 +93,21 @@ GetModelRobust(func::ODESystem, A, B; kwargs...) = GetModelRobust(ODEFunction(fu
 import InformationGeometry: ExpTransform, LogTransform, Exp10Transform, Log10Transform
 
 # Parameter transforms
-ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
-LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
-Exp10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
-Log10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))); kwargs...) = SystemTransform(Sys, log10, idxs; kwargs...)
+ExpTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkitBase.parameters(Sys))); kwargs...) = SystemTransform(Sys, exp, idxs; kwargs...)
+LogTransform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkitBase.parameters(Sys))); kwargs...) = SystemTransform(Sys, log, idxs; kwargs...)
+Exp10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkitBase.parameters(Sys))); kwargs...) = SystemTransform(Sys, exp10, idxs; kwargs...)
+Log10Transform(Sys::ODESystem, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkitBase.parameters(Sys))); kwargs...) = SystemTransform(Sys, log10, idxs; kwargs...)
 
 import InformationGeometry: SystemTransform
 """
     SystemTransform(Sys::ODESystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(parameters(Sys)))) -> ODESystem
 Transforms the parameters of an `ODESystem` according to a component-wise function `F`.
 """
-function SystemTransform(Sys::AbstractSystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkit.parameters(Sys))))
+function SystemTransform(Sys::AbstractSystem, F::Function, idxs::AbstractVector{<:Bool}=trues(length(ModelingToolkitBase.parameters(Sys))))
     SubstDict = Dict(parameters(Sys) .=> [(idxs[i] ? F(x) : x) for (i,x) in enumerate(parameters(Sys))])
     NewEqs = [(equations(Sys)[i].lhs ~ substitute(equations(Sys)[i].rhs, SubstDict)) for i in eachindex(equations(Sys))]
-    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
-    ODESystem(NewEqs, independent_variables(Sys)[1], try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, ModelingToolkit.parameters(Sys); name=nameof(Sys))
+    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkitBase.jl/pull/2432
+    ODESystem(NewEqs, independent_variables(Sys)[1], ModelingToolkitBase.unknowns(Sys), ModelingToolkitBase.parameters(Sys); name=nameof(Sys))
 end
 export SystemTransform
 
@@ -124,19 +124,19 @@ function InformationGeometry.ODESystemTimeRetardation(Sys::AbstractSystem)
     @parameters T_shift r_coupling
     RetFactor = exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
     NewEqs = [(equations(Sys)[i].lhs ~ equations(Sys)[i].rhs * RetFactor) for i in eachindex(equations(Sys))]
-    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkit.jl/pull/2432
-    ODESystem(NewEqs, t, try ModelingToolkit.unknowns(Sys) catch; ModelingToolkit.states(Sys) end, [ModelingToolkit.parameters(Sys); [T_shift, r_coupling]]; name=Symbol("Time-Retarded " * string(nameof(Sys))))
+    # renamed "states" to "unknowns": https://github.com/SciML/ModelingToolkitBase.jl/pull/2432
+    ODESystem(NewEqs, t, ModelingToolkitBase.unknowns(Sys), [ModelingToolkitBase.parameters(Sys); [T_shift, r_coupling]]; name=Symbol("Time-Retarded " * string(nameof(Sys))))
 end
 
 import InformationGeometry: MakeSymbolicPars, MakeSymbolicParsOld, MakeSymbolicVarsOld
 # MakeMTKParameters(S::Symbol) = eval(Meta.parse("@parameters "*string(S)))[1];      MakeMTKParameters(S::AbstractArray{<:Symbol}) = [MakeMTKParameters(s) for s in S]
 # Updates actually used definition
-MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
+MakeSymbolicPars(X::AbstractVector{<:Symbol}) = eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
 MakeSymbolicPars(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicPars
 
 
-MakeSymbolicParsOld(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:parameters, Real, X, ModelingToolkit.toparam))
-MakeSymbolicVarsOld(X::AbstractVector{<:Symbol}) = eval(ModelingToolkit._parse_vars(:variables, Real, X, ModelingToolkit.toparam))
+MakeSymbolicParsOld(X::AbstractVector{<:Union{Symbol,Expr}}) = eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
+MakeSymbolicVarsOld(X::AbstractVector{<:Union{Symbol,Expr}}) = eval(Symbolics._parse_vars(:variables, Real, X, ModelingToolkitBase.toparam))
 
 MakeSymbolicParsOld(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicParsOld
 MakeSymbolicVarsOld(X::AbstractVector{<:AbstractString}) = X .|> Symbol |> MakeSymbolicVarsOld

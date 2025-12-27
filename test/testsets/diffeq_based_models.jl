@@ -1,4 +1,4 @@
-using InformationGeometry, Test, OrdinaryDiffEq, ModelingToolkit, LinearAlgebra
+using InformationGeometry, Test, OrdinaryDiffEq, ModelingToolkit, Symbolics, LinearAlgebra
 
 function SIR!(du,u,p,t)
     S, I, R = u
@@ -22,9 +22,14 @@ SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.6,0.0023,0.46]; tol=1e-
 @test EmbeddingMatrix(SIRDM, MLE(SIRDM)) isa AbstractMatrix
 
 
-# Use this to avoid the macros @parameters and @variables inside @safetestset
-eval(ModelingToolkit._parse_vars(:parameters, Real, (:t, :k), ModelingToolkit.toparam))
-eval(ModelingToolkit._parse_vars(:variables, Real, (:(A(t)),)))
+
+## Using MakeSymbolicParsOld method does to not put the individual variable names into global scope
+# InformationGeometry.MakeSymbolicParsOld([:t, :k])
+# InformationGeometry.MakeSymbolicVarsOld([:(A(t))])
+# using ModelingToolkitBase
+eval(Symbolics._parse_vars(:parameters, Real, (:t, :k), ModelingToolkitBase.toparam))
+eval(Symbolics._parse_vars(:variables, Real, (:(A(t)),)))
+
 sys = ODESystem([Differential(t)(A) ~ -k*A], t, [A], [k]; name=Symbol("Decay System"))
 Split(θ) = (θ[1:1], θ[2:2])
 Observe(u) = 2u[1]
