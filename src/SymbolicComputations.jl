@@ -155,7 +155,8 @@ function _OptimizeModel(model::ModelOrFunction, xyp::Tuple{Int,Int,Int}; inplace
     X, Y, θ = SymbolicArguments(xyp)
     # Need to make sure that modelexpr is of type Vector{Num}, not just Num
     !(modelexpr isa AbstractVector{<:Num}) && (modelexpr = [modelexpr])
-    derivative = Symbolics.jacobian(modelexpr, θ; simplify=true)
+    # Exclude custom array types like StaticArray in Symbolics
+    derivative = Symbolics.jacobian(convert(Array,modelexpr), θ; simplify=true)
 
     inplace && (xyp[2] == 1) && @warn "Although given inplace=true, will nevertheless create out-of-place version for model because ydim=1. Model jacobian will be in-place."
 
