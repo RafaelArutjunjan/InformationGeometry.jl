@@ -1,7 +1,7 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
 authors = ["Rafael Arutjunjan"]
-version = "1.23.0"
+version = "1.25.0"
 
 [deps]
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -99,7 +99,7 @@ OrdinaryDiffEqTsit5 = "1"
 OrdinaryDiffEqVerner = "1"
 PEtab = "3"
 PlotUtils = "1.1, 1.2"
-PreallocationTools = "0.4"
+PreallocationTools = "0.4, 1"
 PrettyTables = "3"
 ProgressMeter = "1.5, 1.6, 1.7"
 RecipesBase = "1"
