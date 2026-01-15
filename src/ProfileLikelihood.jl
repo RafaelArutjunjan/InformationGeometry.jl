@@ -727,7 +727,7 @@ ProfileBox(DM::AbstractDataModel, Confnum::Real; Padding::Real=0., add::Real=0.5
     PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=3; plot::Bool=isloaded(:Plots), IsCost::Bool=false, kwargs...) -> Real
 Determines the maximum confidence level (in units of standard deviations σ) at which the given `DataModel` is still practically identifiable.
 """
-PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=3; plot::Bool=isloaded(:Plots), N::Int=100, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot=plot, N=N, IsCost=IsCost, kwargs...))
+PracticallyIdentifiable(DM::AbstractDataModel, Confnum::Real=3; plot::Bool=false, N::Int=51, IsCost::Bool=false, kwargs...) = PracticallyIdentifiable(ParameterProfiles(DM, Confnum; plot, N, IsCost, kwargs...))
 
 function PracticallyIdentifiable(Mats::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}})
     function Minimax(M::Union{<:AbstractMatrix,<:VectorOfArray})
@@ -1442,6 +1442,11 @@ PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs.
 end
 
 PlotProfilePathNormDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathNormDiffs); kwargs...)
+
+for F in [:PlotProfilePaths, :PlotProfileTrajectories, :PlotProfilePathDiffs, :PlotProfilePathNormDiffs]
+    @eval InformationGeometry.$F(DM::AbstractDataModel, args...; plot::Bool=false, kwargs...) = InformationGeometry.$F(ParameterProfiles(DM, args...; plot); kwargs...)
+end
+
 
 
 # Bad style but works for now for plotting profiles from different models in one:

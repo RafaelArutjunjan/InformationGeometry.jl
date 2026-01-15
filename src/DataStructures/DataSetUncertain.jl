@@ -185,14 +185,14 @@ function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; ve
 end
 
 
-function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
+function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams; kwargs...), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundY = WoundY(DS);    woundX = WoundX(DS)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
     function _Eval(DS, woundYpred, woundInvσ, woundY)
-        Res::T = -DataspaceDim(DS)*log(2π)
+        Res::T = -DataspaceDim(DS)*log(2T(π))
         @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
