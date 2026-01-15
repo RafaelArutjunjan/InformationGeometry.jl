@@ -28,8 +28,8 @@ loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:
 
 
 # Specialize this for different DataSet types
-function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
-    (DataspaceDim(DS)*log(2π) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...))) / (-2)
+function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number
+    (DataspaceDim(DS)*log(2T(π)) - logdetInvCov(DS) + InnerProduct(yInvCov(DS, θ), ydata(DS).-EmbeddingMap(DS, model, θ; kwargs...))) / T(-2)
 end
 
 # function _loglikelihood(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...)
@@ -63,14 +63,18 @@ function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPrio
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         No prior was given for the parameters.
         """
-        LogLikelihoodWithoutPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; Kwargs..., kwargs...)
+        function LogLikelihoodWithoutPrior(θ::AbstractVector{T}; kwargs...)::T where T<:Number
+            BareLikelihood(θ; Kwargs..., kwargs...)
+        end
     else
         """
             LogLikelihoodWithPrior(θ::AbstractVector; kwargs...) -> Real
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         The given prior information is already incorporated.
         """
-        LogLikelihoodWithPrior(θ::AbstractVector{<:Number}; kwargs...) = BareLikelihood(θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
+        function LogLikelihoodWithPrior(θ::AbstractVector{T}; kwargs...)::T where T<:Number
+            BareLikelihood(θ; Kwargs..., kwargs...) + EvalLogPrior(LogPriorFn, θ)
+        end
     end
 end
 GetNeglogLikelihoodFn(args...; kwargs...) = Negate(GetLogLikelihoodFn(args...; kwargs...))

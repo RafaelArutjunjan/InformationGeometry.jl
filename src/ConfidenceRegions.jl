@@ -535,21 +535,21 @@ function StructurallyIdentifiableAlong(DM::AbstractDataModel, sols::AbstractVect
 end
 
 """
-    StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, thresh::Real=1e-12, N::Int=3)
+    StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, threshold::Real=1e-10, N::Int=3)
 Checks if jacobian of model wrt parameters has singular values below threshold and provides associated singular directions.
 """
-function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, thresh::Real=1e-12, N::Int=3)
+function StructurallyIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); showall::Bool=false, noise::Real=1e-5, threshold::Real=1e-10, N::Int=3)
     J = reduce(vcat, [EmbeddingMatrix(DM, mle .+ noise .* (rand(length(mle)) .- 0.5)) for i in 1:N])
     _, S, Vt = svd(J)
-    nonids = count(x->x<thresh, S)
+    nonids = count(x->x<threshold, S)
     if nonids == 0
-        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) is locally structurally identifiable at MLE!\nSmallest singular value $(round(S[end]; sigdigits=5)) > $thresh.")
+        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) is locally structurally identifiable at MLE!\nSmallest singular value $(round(S[end]; sigdigits=5)) > $threshold.")
     else
-        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) NOT locally structurally identifiable at MLE!\n$nonids singular values < $thresh.")
+        println("$(name(DM) === Symbol() ? "DataModel" : string(name(DM))) NOT locally structurally identifiable at MLE!\n$nonids singular values < $threshold.")
     end
     if showall
         for ind in length(S):-1:1
-            if S[ind] < thresh
+            if S[ind] < threshold
                 println("Singular direction associated with value $(round(S[ind]; sigdigits=6)):")
                 println(DataFrame([[x] for x in Vt[:, ind]], string.(pnames(DM))))
             end

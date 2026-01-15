@@ -214,7 +214,7 @@ SkipXs(DS::UnknownVarianceDataSet) = DS.SkipXs
 xpars(DS::UnknownVarianceDataSet) = length(xdata(DS))
 
 
-function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...) where T<:Number where BesselCorrection
+function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    xinverrmod = xinverrormodel(DS);    yinverrmod = yinverrormodel(DS)
     normalparams, xerrorparams, yerrorparams = Splitter(θ)  # normalparams also contains estimated x-values
     LiftedEmb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS))) # Picks out last length(normalparams)-length(xdata(DS)) as model parameters
@@ -226,14 +226,10 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
     woundX = WoundX(DS);    woundY = WoundY(DS)
     function _Eval(DS, woundYpred, woundInvYσ, woundY, woundXpred, woundInvXσ, woundX)
-        Res::T = -(length(ydata(DS)) + length(xdata(DS)))*log(2π)
+        Res::T = -(length(ydata(DS)) + length(xdata(DS)))*log(2T(π))
         @inbounds for i in eachindex(woundY)
-            Res += 2logdet(woundInvYσ[i])
-            Res -= sum(abs2, woundInvYσ[i] * (woundY[i] - woundYpred[i]))
-        end
-        @inbounds for j in eachindex(woundX)
-            Res += 2logdet(woundInvXσ[j])
-            Res -= sum(abs2, woundInvXσ[j] * (woundX[j] - woundXpred[j]))
+            Res += 2logdet(woundInvXσ[i]) + 2logdet(woundInvYσ[i])
+            Res -= sum(abs2, woundInvYσ[i] * (woundY[i] - woundYpred[i])) + sum(abs2, woundInvXσ[i] * (woundX[i] - woundXpred[i]))
         end
         Res *= 0.5;    Res
     end;    _Eval(DS, woundYpred, woundInvYσ, woundY, woundXpred, woundInvXσ, woundX)
