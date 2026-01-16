@@ -304,11 +304,12 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=HasPrior(DM), ApproximatePaths::Bool=false, 
+                        AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true,
                         CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
-                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
+                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), 
+                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
@@ -524,6 +525,20 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
+    ProfileDataPostProcessing!!(Res, priors; AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE)
+    perm = sortperm(visitedps)
+    # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
+    # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
+    ResMat = SavePriors ? VectorOfArray([visitedps[perm], Res[perm], priors[perm], Converged[perm]]) : VectorOfArray([visitedps[perm], Res[perm], Converged[perm]])
+    SaveTrajectories ? (ResMat, path[perm]) : ResMat
+end
+
+function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false, kwargs...)
+    GetProfile(DM, Comp, (C=GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); (C.L[Comp], C.U[Comp])); Confnum=Confnum, kwargs...)
+end
+
+
+function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Union{Nothing,AbstractVector}; AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf)
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
     Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger (i.e. better) than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
@@ -548,18 +563,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         end
     end
-
-    perm = sortperm(visitedps)
-    # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
-    # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
-    ResMat = SavePriors ? VectorOfArray([visitedps[perm], Res[perm], priors[perm], Converged[perm]]) : VectorOfArray([visitedps[perm], Res[perm], Converged[perm]])
-    SaveTrajectories ? (ResMat, path[perm]) : ResMat
 end
-
-function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositive::Bool=false, kwargs...)
-    GetProfile(DM, Comp, (C=GetProfileDomainCube(DM, Confnum; ForcePositive=ForcePositive); (C.L[Comp], C.U[Comp])); Confnum=Confnum, kwargs...)
-end
-
 
 
 function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM); verbose::Bool=true)
@@ -590,8 +594,8 @@ function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::Abstr
 end
 
 # x and y labels must be passed as kwargs
-PlotSingleProfile(DM::AbstractDataModel, Prof::Tuple{<:AbstractMatrix, <:Any}, i::Int; kwargs...) = PlotSingleProfile(DM, Prof[1], i; kwargs...)
-function PlotSingleProfile(DM::AbstractDataModel, Prof::AbstractMatrix, i::Int; kwargs...)
+PlotSingleProfile(DM::AbstractDataModel, Prof::Tuple{<:Union{VectorOfArray,AbstractMatrix}, <:Any}, i::Int; kwargs...) = PlotSingleProfile(DM, Prof[1], i; kwargs...)
+function PlotSingleProfile(DM::AbstractDataModel, Prof::Union{VectorOfArray,AbstractMatrix}, i::Int; kwargs...)
     P = RecipesBase.plot(view(Prof, :,1), Convergify(view(Prof, :,2), GetConverged(Prof)); leg=false, label=["Profile" nothing], kwargs...)
     HasPriors(Prof) && RecipesBase.plot!(P, view(Prof, :,1), Convergify(view(Prof, :,3), GetConverged(Prof)); label=["Prior" nothing], color=[:red :brown], line=:dash)
     P
@@ -615,8 +619,8 @@ function ShrinkTruesByOne(X::BoolVector)
 end
 
 # What if trajectories NaN?
-HasTrajectories(M::Tuple{AbstractMatrix, Nothing}) = false
-HasTrajectories(M::Tuple{AbstractMatrix, AbstractVector}) = !all(x->all(isnan,x), M[2])
+HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, Nothing}) = false
+HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, AbstractVector}) = !all(x->all(isnan,x), M[2])
 HasTrajectories(M::AbstractVector{<:Tuple}) = any(HasTrajectories, M)
 HasTrajectories(M::AbstractMatrix) = false
 HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = false
