@@ -194,3 +194,118 @@ end
 Calculates the Ricci scalar by finite differencing of the `Metric`. `BigCalc=true` increases accuracy through `BigFloat` calculation.
 """
 RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = tr(transpose(Ricci(Metric, θ; kwargs...)) * inv(Metric(θ)))
+
+
+
+## For computing extrinsic curvature
+"""
+    _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix)
+Computes the second fundamental form where J is the Jacobian and H the Hessian of the embedding map (h : M -> D).
+P_N is the projection onto the direction normal to the model manifold in the "tangent space of the data space".
+"""
+function _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix) where T<:Number
+    N, k = size(J)
+    @assert N == size(H,1) == size(P_N,1) == size(P_N,2)
+    @assert k == size(H,2) == size(H,3)
+    
+    II = Array{Vector{T}}(undef, k, k)
+    for i in 1:k, j in 1:k
+        II[i,j] = P_N * view(H, :, i, j)
+    end;    II
+end
+"""
+    SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), g::AbstractMatrix=FisherMetric(DM, mle))
+Computes the second fundamental form at the given parameters under the assumption of constant known data variance.
+Measures how strongly tangent vectors to the embedded model manifold fail to stay tangent under parallel transport with respect to the ambient connection, i.e. extrinsic curvature.
+Normal vector valued (0,2) tensor.
+"""
+function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), 
+                        g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=inv(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
+    @boundscheck @assert length(mle) == size(g,1) == size(g,2) == size(g⁻¹,1) == size(g⁻¹,2)
+    μ = p -> EmbeddingMap(DM,p);    J = GetJac(ADmode, μ)(mle);    H = GetDoubleJac(ADmode, μ)(mle)
+    P_N = Eye(size(J,1)) - J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
+    _SecondFundamentalForm(J, H, P_N)
+end
+
+for F in [:EfronScalarCurvature, :EfronMeanCurvature,
+    :EfronRicciCurvature, :EfronRicciCurvature2,
+    :EfronRiemannCurvature, :EfronRiemannCurvature2,
+    :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
+    :EfronShapeOperator, :EfronCurvatureIsotropy]
+    @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=true, verbose::Bool=true,
+            g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
+            Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
+        $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
+    end
+end
+## Gives proportionality to 2nd order MLE risk
+function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    @tullio γ² = 0.5 * g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+end
+## Gives direction of mean curvature, i.e. externally induced acceleration H = tr_g(II), no 1/k in definition!
+function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}=Eye(1)) where T<:Number
+    # 1/size(g⁻¹,1) .* sum(g⁻¹[i,j]*II[i,j] for i in axes(g⁻¹,1), j in axes(g⁻¹,2))
+    Res = zeros(T,length(II[1]))
+    for i in axes(g⁻¹,1), j in axes(g⁻¹,2)
+        Res .+= g⁻¹[i,j] .* II[i,j]
+    end;    Res
+end
+## Sectional curvature with respect to coordinate basis
+function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}) where T<:Number
+    K = fill(T(NaN), size(II,1), size(II,1))
+    for a in axes(II,1), b in a+1:size(II,1)
+        num = dot(II[a,a], Σ⁻¹, II[b,b]) - dot(II[a,b], Σ⁻¹, II[a,b])
+        denom = g[a,a] * g[b,b] - g[a,b]^2
+        K[a,b] = K[b,a] = num / denom
+    end;    K
+end
+## Sectional curvature with respect to arbitrary given intrinsic tangent vectors
+function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}) where T<:Number
+    ## Precompute Q
+    k = size(II,1);    Q = zeros(T, k, k, k, k)
+    for i in 1:k, j in i:k, a in 1:k, b in a:k
+        val = dot(II[i,j], Σ⁻¹, II[a,b])
+        Q[i,j,a,b] = Q[j,i,a,b] = Q[i,j,b,a] = Q[j,i,b,a] = Q[a,b,i,j] = Q[b,a,i,j] = Q[a,b,j,i] = Q[b,a,j,i] = val
+    end
+    function ExtrinsicSectionalCurvatureTensor(u::AbstractVector{S}, v::AbstractVector{S}) where S<:Number
+        @boundscheck @assert length(u) == length(v) == k
+        num1 = zero(S);    num2 = zero(S)
+        @inbounds for i in 1:k, j in 1:k, a in 1:k, b in 1:k
+            num1 += u[i]*u[j]*v[a]*v[b] * Q[i,j,a,b]
+            num2 += u[i]*v[j]*u[a]*v[b] * Q[i,j,a,b]
+        end
+        uu = dot(u, g, u);    vv = dot(v, g, v);    uv = dot(u, g, v)
+        (num1 - num2) / (uu*vv - uv^2)
+    end
+end
+
+function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    @tullio Ric[i,j] := g⁻¹[a,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+end
+function EfronRiemannCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    @tullio Riem[i,j,k,l] := dot(II[i,k], Σ⁻¹, II[j,l]) - dot(II[i,l], Σ⁻¹, II[j,k])
+end
+## Pre-whitening of II, more performant for large Σ⁻¹ with non-zero off-diagonal
+function EfronRicciCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    L = cholesky(Σ⁻¹).L;    IIw = [L * II[i,j] for i in axes(II,1), j in axes(II,2)]
+    @tullio Ric[i,j] := g⁻¹[a,b] * dot(IIw[i,a], IIw[j,b])
+end
+## Pre-whitening of II, more performant for large Σ⁻¹ with non-zero off-diagonal
+function EfronRiemannCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    L = cholesky(Σ⁻¹).L;    IIw = [L * II[i,j] for i in axes(II,1), j in axes(II,2)]
+    @tullio Riem[i,j,k,l] := dot(IIw[i,k], IIw[j,l]) - dot(IIw[i,l], IIw[j,k])
+end
+
+# Returns shape operator matrix (S_n)^i_j for a given normal vector n
+function EfronShapeOperator(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    k = size(II,1)
+    function ShapeOperator(n::AbstractVector{T}) where T<:Number
+        @boundscheck @assert length(n) == length(II[1])
+        S = zeros(T, k, k)
+        @inbounds for i in 1:k, j in 1:k
+            for a in 1:k
+                S[i,j] += g⁻¹[i,a] * dot(II[a,j], Σ⁻¹, n)
+            end
+        end;    S
+    end
+end
