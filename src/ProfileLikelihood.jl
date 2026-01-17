@@ -308,7 +308,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true,
                         CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
-                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), 
+                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
                         MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
@@ -525,7 +525,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    ProfileDataPostProcessing!!(Res, priors; AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE)
+    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling)
     perm = sortperm(visitedps)
     # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
     # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
@@ -538,7 +538,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, Confnum::Real; ForcePositi
 end
 
 
-function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Union{Nothing,AbstractVector}; AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf)
+function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Union{Nothing,AbstractVector}, Converged::AbstractVector{<:Bool}; MLE::AbstractVector=Float64[], dof::Real=length(MLE), LogPriorFn::Union{Function,Nothing}=nothing, 
+                        AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf, Ndata::Int=-5000, UseFscaling::Bool=false)
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
     Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger (i.e. better) than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
@@ -553,13 +554,16 @@ function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Unio
         end
     else
         @assert OffsetResults
+        Chi²ₖConfMapping(l::Real, lmle::Real) = l ≤ lmle ? InvConfVol(ChisqCDF(dof, 2(lmle - l))) : NaN
+        Fₖ_ₙ₋ₖ_ConfMapping(l::Real, lmle::Real) = l ≤ lmle ? InvConfVol(FDistCDF(2(lmle - l)/dof, dof, Ndata-dof)) : NaN
+        ConfMapping = UseFscaling ? Fₖ_ₙ₋ₖ_ConfMapping : Chi²ₖConfMapping
         @inbounds for i in eachindex(Res)
-            Res[i] = Res[i] ≤ Logmax ? InvConfVol(ChisqCDF(dof, 2(Logmax - Res[i]))) : NaN
+            Res[i] = ConfMapping(Res[i], Logmax)
         end
         if SavePriors
             verbose && @info "Got IsCost=true with SavePriors=true. Converting prior to confidence scale independently from data contribution. Strictly speaking, the isolated prior contributions are not meaningfully comparable to full profile on this scale!"
             @inbounds for i in eachindex(priors)
-                priors[i] = priors[i] ≤ Logmax ? InvConfVol(ChisqCDF(dof, 2(Priormax - priors[i]))) : NaN
+                priors[i] = ConfMapping(priors[i], Priormax)
             end
         end
     end
@@ -766,7 +770,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
     Names::AbstractVector{Symbol}
-    mle::AbstractVector{<:Number}
+    MLE::AbstractVector{<:Number}
     dof::Int
     IsCost::Bool
     Meta::Symbol
@@ -810,27 +814,27 @@ InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}
 
 # For SciMLBase.remake
 ParameterProfiles(;
-    Profiles::AbstractVector{<:AbstractMatrix}=[Zeros(1,3)],
+    Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}=[Zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
     Names::AbstractVector{<:StringOrSymb}=Symbol[],
     MLE::AbstractVector{<:Number}=Float64[],
     dof::Int=0,
     IsCost::Bool=false,
-    Meta::Symbol=:remake,) = ParameterProfiles(Profiles, Trajectories, Names, mle, dof, IsCost; Meta)
+    Meta::Symbol=:remake) = ParameterProfiles(Profiles, Trajectories, Names, MLE, dof, IsCost; Meta)
 
 
 Profiles(P::ParameterProfiles) = P.Profiles
 Trajectories(P::ParameterProfiles) = P.Trajectories
 pnames(P::ParameterProfiles) = P.Names .|> string
 Pnames(P::ParameterProfiles) = P.Names
-MLE(P::ParameterProfiles) = P.mle
+MLE(P::ParameterProfiles) = P.MLE
 pdim(P::ParameterProfiles) = length(MLE(P))
 DOF(P::ParameterProfiles) = P.dof
 IsCost(P::ParameterProfiles) = P.IsCost
 HasTrajectories(P::ParameterProfiles) = any(i->HasTrajectories(P[i]), 1:length(P))
 IsPopulated(P::ParameterProfiles) = Bool[HasProfiles(P[i]) for i in eachindex(P)]
 AllConverged(P::ParameterProfiles) = [AllConverged(P[i]) for i in eachindex(P)]
-
+HasPriors(P::ParameterProfiles) = any(HasPriors, Profiles(P))
 
 ProfileDomain(P::ParameterProfiles) = [IsPopulated(P[i]) ? collect(extrema(@view Profiles(P[i])[:,1])) : [-Inf,Inf] for i in eachindex(P)] |> HyperCube
 HyperCube(P::ParameterProfiles) = ProfileDomain(P)
@@ -888,7 +892,7 @@ HasProfiles(PV::ParameterProfilesView) = !all(isnan, view(Profiles(PV), :, 1))
 IsPopulated(PV::ParameterProfilesView) = HasProfiles(PV)
 GetConverged(PV::ParameterProfilesView) = GetConverged(Profiles(PV))
 AllConverged(PV::ParameterProfilesView) = all(GetConverged(PV))
-
+HasPriors(P::ParameterProfilesView) = HasPriors(Profiles(P))
 
 
 # AbstractMatrix to the outside
@@ -962,7 +966,7 @@ PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(250,250)) = (s=Int(ceil(sqrt(n)));  
 @recipe f(P::Union{ParameterProfiles, ParameterProfilesView}, S::Symbol, args...) = P, Val(S), args...
 
 # Plot trajectories by default
-@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=HasTrajectories(P) && P.Meta === :ParameterProfiles && length(Trajectories(P)[1][1]) ≤ 3) = P, Val(PlotTrajectories)
+@recipe f(P::ParameterProfiles, PlotTrajectories::Bool=false) = P, Val(PlotTrajectories)
 
 # DoBiLog for paths, i.e. TrafoPath
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{true})
@@ -1158,7 +1162,7 @@ end
         end
     end
     # Draw prior contribution
-    if HasPriors(Profiles(PV))
+    if HasPriors(PV)
         @series begin
             linealpha --> 0.75
             line --> :dash
@@ -1502,7 +1506,7 @@ ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = Va
 Converts a `ParameterProfile` object encoding a validation profile into a prediction profile by subtracting off the effect introduced by the ficticious validation data point.
 """
 function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
-    @assert HasPriors(Profiles(VP)) && IsCost(VP)
+    @assert HasPriors(VP) && IsCost(VP)
     @assert VP.Meta === :ValidationProfiles
     @assert all(size.(Profiles(VP),2) .> 4) # Make sure z-values saved in the Profile matrix, as well as priors
     # Use fourth column with z-values instead of original v-parameters from validation profile

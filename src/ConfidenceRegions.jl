@@ -122,7 +122,8 @@ Finds parameter configuration for which the threshold of the F-test associated w
 FindFBoundary(args...; kwargs...) = FindConfBoundary(args...; Ftest=true, kwargs...)
 
 
-FDistCDF(x, d1, d2) = beta_inc(d1/2., d2/2., d1*x/(d1*x + d2)) #, 1 .-d1*BigFloat(x)/(d1*BigFloat(x) + d2))[1]
+# Careful, often needs an additional factor of d1 (i.e. dof) multiplied additionally for comparability against chi^2
+FDistCDF(x::T, d1::Number, d2::Number) where T<:Number = beta_inc(T(d1)/2.0, T(d2)/2.0, d1*x/(d1*x + d2))[1]
 
 
 
