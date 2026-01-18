@@ -136,7 +136,7 @@ function GetInplaceLikelihood(DS::AbstractFixedUncertaintyDataSet, model::ModelO
     ydat = ydata(DS);    invCov = yInvCov(DS);      woundX = WoundX(DS)
     Ycache = DiffCache(similar(ydat); levels)
     NormalizationConst = DataspaceDim(DS)*log(2π) - logdetInvCov(DS)
-    function _Like!(Z::Union{AbstractVector,DiffCache{<:AbstractVector}}, invCov::AbstractMatrix, NormalizationConst::Number)    
+    function _Like!(Z::Union{AbstractVector,DiffCache{<:AbstractVector}}, invCov::AbstractMatrix, NormalizationConst::Number)
         -0.5.*(NormalizationConst .+ InnerProduct(invCov, Z))
     end
     function InplaceLikelihood(θ::AbstractVector{<:Number}; kwargs...)

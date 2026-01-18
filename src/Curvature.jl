@@ -205,11 +205,11 @@ P_N is the projection onto the direction normal to the model manifold in the "ta
 """
 function _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix) where T<:Number
     N, k = size(J)
-    @assert N == size(H,1) == size(P_N,1) == size(P_N,2)
-    @assert k == size(H,2) == size(H,3)
+    @boundscheck @assert N == size(H,1) == size(P_N,1) == size(P_N,2)
+    @boundscheck @assert k == size(H,2) == size(H,3)
     
     II = Array{Vector{T}}(undef, k, k)
-    for i in 1:k, j in 1:k
+    @inbounds for i in 1:k, j in 1:k
         II[i,j] = P_N * view(H, :, i, j)
     end;    II
 end
@@ -219,12 +219,12 @@ Computes the second fundamental form at the given parameters under the assumptio
 Measures how strongly tangent vectors to the embedded model manifold fail to stay tangent under parallel transport with respect to the ambient connection, i.e. extrinsic curvature.
 Normal vector valued (0,2) tensor.
 """
-function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), 
+function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p),
                         g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=inv(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
     @boundscheck @assert length(mle) == size(g,1) == size(g,2) == size(g⁻¹,1) == size(g⁻¹,2)
-    μ = p -> EmbeddingMap(DM,p);    J = GetJac(ADmode, μ)(mle);    H = GetDoubleJac(ADmode, μ)(mle)
-    P_N = Eye(size(J,1)) - J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
-    _SecondFundamentalForm(J, H, P_N)
+    J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
+    P_N = Eye(size(J,1)) .- J * g⁻¹ * (J' * Σ⁻¹) # Normal projector of model manifold tangent space in ambient space
+    @inbounds _SecondFundamentalForm(J, H, P_N)
 end
 
 for F in [:EfronScalarCurvature, :EfronMeanCurvature,
@@ -237,10 +237,12 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
     end
+    @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
 end
 ## Gives proportionality to 2nd order MLE risk
 function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
-    @tullio γ² = 0.5 * g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+    @tullio IInorm = g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+    γ² = IInorm / 2
 end
 ## Gives direction of mean curvature, i.e. externally induced acceleration H = tr_g(II), no 1/k in definition!
 function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}=Eye(1)) where T<:Number

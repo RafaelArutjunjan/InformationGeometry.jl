@@ -22,7 +22,7 @@ y(x,θ) = exp(θ_{n+1} + x_1 * θ_1 + x_2 * θ_2 + ... + x_n * θ_n)
 """
 const ExponentialModel = exp∘LinearModel
 """
-    SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number})    
+    SumExponentialsModel(x::Union{Number,AbstractVector{<:Number}}, θ::AbstractVector{<:Number})
 ```math
 y(x,θ) = θ_{n+1} + exp(x_1 * θ_1) + exp(x_2 * θ_2) + ... + exp(x_n * θ_n)
 ```

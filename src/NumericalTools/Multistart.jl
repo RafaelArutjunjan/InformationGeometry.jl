@@ -752,7 +752,7 @@ for F in [:plot, :plot!]
 end
 @recipe function StochasticProfileLikelihoodPlot(Points::AbstractVector{<:AbstractVector}, Likelihoods::AbstractVector{<:Number}, V::StochasticProfileVal)
                                 # Nbins::Int=clamp(Int(ceil(sqrt(length(Likelihoods)))),3,100), BiLog::Bool=true, Trafo::Function=(BiLog ? InformationGeometry.BiLog : identity))
-    factor = get(plotattributes, :factor, 1)                            
+    factor = get(plotattributes, :factor, 1)
     Nbins = get(plotattributes, :Nbins, Int(ceil(clamp(factor*(length(Likelihoods)^(1/length(Points[1]))),3,100))))
     Extremizer = get(plotattributes, :Extremizer, findmax)
     DoBiLog = get(plotattributes, :BiLog, true)
