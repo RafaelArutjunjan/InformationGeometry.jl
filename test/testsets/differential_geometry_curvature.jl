@@ -37,3 +37,19 @@ Metric3SA(x) = SA[sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*
 @test -45 > ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelSymbol(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
 @test -20 > ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - ChristoffelPartials(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
 @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
+
+
+a = 1+rand();   b = 2+rand()
+DM = DataModel(DataSet(0:0, rand(2), Diagonal([inv(a), inv(b)]), (1,1,2)), (x,p)->[p[1], p[1]^2])
+θ = MLE(DM)[1]
+@test yInvCov(DM) ≈ Diagonal([a,b])
+@test FisherMetric(DM, MLE(DM))[1] ≈ a + 4b*θ^2
+@test SecondFundamentalForm(DM, MLE(DM))[1] ≈ 2/(a + 4b*θ^2) .* [-2b*θ, a]
+@test EfronMeanCurvature(DM, MLE(DM)) ≈ 2/(a + 4b*θ^2)^2 .* [-2b*θ, a]
+@test EfronScalarCurvature(DM, MLE(DM)) ≈ 2a*b/(a + 4b*θ^2)^3
+
+DM2 = DataModel(DataSet(0:0, rand(3), Diagonal([inv(a), inv(a), inv(b)]), (1,1,3)), (x,p)->[p[1], p[2], p[1]^2 + p[2]^2])
+@test yInvCov(DM2) ≈ Diagonal([a,a,b])
+@test FisherMetric(DM2, [0,0.]) ≈ Diagonal([a,a])
+@test SecondFundamentalForm(DM2, [0,0.])[1] ≈ [0,0,2.]
+@test EfronScalarCurvature(DM2, [0,0.]) ≈ 4b/a^2

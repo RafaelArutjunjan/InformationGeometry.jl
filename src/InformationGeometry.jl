@@ -272,7 +272,8 @@ export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, 
 
 include("Curvature.jl")
 export ChristoffelSymbol, Riemann, Ricci, RicciScalar
-# Also add Kretschmann, Schouten, Weyl?
+export SecondFundamentalForm, EfronScalarCurvature, EfronMeanCurvature, EfronRicciCurvature, EfronRiemannCurvature, EfronCurvatureIsotropy
+## Also add Kretschmann, Schouten, Weyl?
 
 
 include("DiffEqModels.jl")

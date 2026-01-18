@@ -994,7 +994,7 @@ end
 
 
 @recipe function f(P::ParameterProfiles, HasTrajectories::Val{false})
-    PopulatedInds = IsPopulated(P) 
+    PopulatedInds = IsPopulated(P)
     layout --> sum(PopulatedInds)
     size --> PlotSizer(sum(PopulatedInds))
 
