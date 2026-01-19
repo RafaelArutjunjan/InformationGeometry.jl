@@ -503,7 +503,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             priors = SavePriors ? [(@view reverse!(priors2)[1:end-3]); priors] : nothing
             Converged = [(@view reverse!(Converged2)[1:end-3]); Converged]
         else
-            startind = (mlecomp = MLE[Comp];    findfirst(x->x>mlecomp, ps)-1)
+            startind = (mlecomp = MLE[Comp];    try findfirst(x->x>mlecomp, ps)-1 catch; 1 end)
             if resort && startind > 1
                 for p in sort((@view ps[startind:end]))
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
@@ -580,18 +580,19 @@ end
 
 
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
-                            MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), kwargs...)
-    ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), inds; Confnum, MLE, Fisher, dof, kwargs...)
+                            MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), 
+                            ProfileDomain::HyperCube=GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), kwargs...)
+    ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, Domain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
+function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
                         MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE))
     @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
 
     Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
-    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (Domain.L[i], Domain.U[i]); verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
+    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (ProfileDomain.L[i], ProfileDomain.U[i]); verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
@@ -934,6 +935,28 @@ end
 
 function ExtendProfiles(P::ParameterProfiles)
     throw("Not programmed yet.")
+end
+
+
+"""
+    ProfileTransform(P::ParameterProfiles, F::Function; kwargs...)
+Given a function `F(W::Vector)` or `F(p::Vector,W::Vector)`, the saved values of the likelihood ratio test statistic `w = 2(ℓ_mle - ℓ_profile(p))` are transformed.
+"""
+function ProfileTransform(P::ParameterProfiles, F::Function; Meta::Symbol=Symbol("Trafo: "*string(F)), kwargs...)
+    @assert IsCost(P);    HasPriors(P) && @warn "Saved priors of given profile are not transformed!"
+    WrappedTrafo = MaximalNumberOfArguments(F) > 1 ? F : (x,y)->F(y)
+    ObjectTrafo(Prof::VectorOfArray) = (S=copy(Prof);  S[2]=WrappedTrafo(S[1], S[2]);  S)
+    NewProfs = [ObjectTrafo(Prof) for Prof in Profiles(P)]
+    remake(P; Profiles=NewProfs, IsCost=false, Meta, kwargs...)
+end
+
+"""
+    PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
+Plot a scalar function `F` along the parameter trajectories of the profiles in `P`.
+"""
+function PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
+    PopulatedInds = IsPopulated(P)
+    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
 end
 
 
