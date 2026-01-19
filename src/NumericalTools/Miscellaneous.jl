@@ -179,14 +179,29 @@ ConfVol(n::Int; kwargs...) = ConfVol(float(n); kwargs...)
 InvConfVol(q::Number; kwargs...) = sqrt(2) * erfinv(q)
 InvConfVol(x::BigFloat; tol::Real=GetH(x)) = invert(ConfVol, x; tol=tol)
 
-ChisqCDF(k::Int, x::Int) = ChisqCDF(k, float(x))
-ChisqCDF(k::Int, x::T) where T<:Number = gamma_inc(T(k)/2, x/2, 0)[1]
+ChisqCDF(k::Number, x::Int) = ChisqCDF(k, float(x))
+ChisqCDF(k::Number, x::T) where T<:Number = gamma_inc(T(k)/2, x/2, 0)[1]
 # ChisqCDF(k::Int, x::Real) = cdf(Chisq(k), x)
 # ChisqCDF(k::Int, x::BigFloat) = gamma_inc(BigFloat(k)/2., x/2., 0)[1]
 
-InvChisqCDF(k::Int, p::Int; kwargs...) = InvChisqCDF(k, floatify(p))
-InvChisqCDF(k::Int, p::T; kwargs...) where T<:Number = 2gamma_inc_inv(T(k)/2, p, 1-p)
-InvChisqCDF(k::Int, p::T; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), maxval*one(T)), kwargs...) where T<:BigFloat = invert(x->ChisqCDF(k, x), p, Domain; kwargs...)
+InvChisqCDF(k::Number, p::Int; kwargs...) = InvChisqCDF(k, floatify(p))
+InvChisqCDF(k::Number, p::T; kwargs...) where T<:Number = 2gamma_inc_inv(T(k)/2, p, 1-p)
+InvChisqCDF(k::Number, p::T; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), maxval*one(T)), kwargs...) where T<:BigFloat = invert(x->ChisqCDF(k, x), p, Domain; kwargs...)
+
+
+
+FDistCDF(x::Int, d1::Number, d2::Number) = FDistCDF(floatify(x), d1, d2)
+# Careful, often needs an additional factor of d1 (i.e. dof) multiplied additionally for comparability against chi^2
+FDistCDF(x::T, d1::Number, d2::Number) where T<:Number = beta_inc(T(d1)/2, T(d2)/2, d1*x/(d1*x + d2))[1]
+
+InvFDistCDF(x::Int, d1::Number, d2::Number; kwargs...) = InvFDistCDF(floatify(x), d1, d2; kwargs...)
+function InvFDistCDF(x::T, d1::Number, d2::Number; kwargs...) where T<:Number
+    y = beta_inc_inv(T(d1)/2, T(d2)/2, x)[1]
+    (T(d2) / T(d1)) * y / (one(T) - y)
+end
+InvFDistCDF(x::T, d1::Number, d2::Number; maxval::Real=1e4, Domain::Tuple{Real,Real}=(zero(T), maxval*one(T)), kwargs...) where T<:BigFloat = invert(w->FDistCDF(w, d1, d2), x, Domain; kwargs...)
+
+
 
 
 for F in [:Sgn, :BiLog, :BiExp,  :BiLog10, :BiExp10,

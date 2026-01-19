@@ -306,14 +306,14 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
-                        UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true,
+                        UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
                         CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
                         MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
-                        IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e12)), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
+                        IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
     @assert Confnum > 0
@@ -324,9 +324,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # curvaturesensitivity: step length dependence on current profile curvature
     # gradientsensitivity: step length dependence on profile slope
     # flatstepconst: mainly controls step size when profile exactly flat
-    @assert stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0
+    @assert !adaptive || (stepfactor > 0 && flatstepconst > 0 && 0 ≤ stepmemory < 1 && terminatefactor > 0 && curvaturesensitivity ≥ 0 && gradientsensitivity ≥ 0)
     @assert IC > 0 && MinSafetyFactor > 1 && MaxSafetyFactor > MinSafetyFactor
     OnlyBreakOnBounds && adaptive && @warn "OnlyBreakOnBounds does not currently work with adaptive=true!"
+
+    # Use the given SavedPs as initial starts for the individual optimizations, e.g. from an earlier profile computation or approximation
+    isnothing(SavedPs) || (@assert !adaptive && length(SavedPs) == length(ps) && length(SavedPs[1]) == length(MLE))
+    UseStashOrSaved = isnothing(SavedPs) ? (Stash,i)->Stash : (Stash,i)->Drop(SavedPs[i],Comp)
     
     # Point IS OUTSIDE confidence interval if: loglike < logLikeMLE - 0.5InformationGeometry.InvChisqCDF(dof, ConfVol(Confnum))
     # Until final rescaling after profile computation Res is likelihood without offset (larger is better) ⟹ CostThresh and MaxThreshold < 0 with offset already included
@@ -383,8 +387,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             # Perform steps based on profile direction at MLE
             dir = GetLocalProfileDir(DM, Comp, MLE)
             pmle = MLE[Comp]
-            @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p)
-                θ = muladd(p-pmle, dir, MLE)
+            @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
+                θ = @. (p-pmle) * dir + MLE
 
                 push!(Res, LogLikelihoodFn(θ))
                 # Ignore MLEstash
@@ -395,15 +399,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             end
         elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
             # Build objective function based on Neglikelihood only without touching internals
-            @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p)
+            @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 Ins = ValInserter(Comp, p, MLE)
                 L = CostFunction∘Ins
                 F = isnothing(CostGradient) ? L : (Transform=ValInserterTransform(Comp, p, MLE);   isnothing(CostHessian) ? (L, Transform(CostGradient)) : (L, Transform(CostGradient), Transform(CostHessian)))
-                R = FitFunc(F, MLEstash; kwargs...)
+                R = FitFunc(F, UseStashOrSaved(MLEstash,i); kwargs...)
                 
                 push!(Res, -GetMinimum(R,L))
+                FullP = Ins(GetMinimizer(R))
                 copyto!(MLEstash, GetMinimizer(R))
-                FullP = Ins(copy(MLEstash))
                 push!(Converged, HasConverged(R) && InBounds(FullP))
                 push!(visitedps, p)
                 ConditionalPush!(path, FullP)
@@ -412,15 +416,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         else
             # Build objective function manually by embedding model and LogPrior separately
             # Does not work combined with variance estimation, i.e. error models
-            @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, path, priors, p)
+            @inline function PerformStepManual!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 NewModel = ProfilePredictor(DM, Comp, p, MLE)
                 Ins = ValInserter(Comp, p, MLE)
                 DroppedLogPrior = EmbedLogPrior(DM, Ins)
-                R = FitFunc(Data(DM), NewModel, MLEstash, DroppedLogPrior; kwargs...)
+                R = FitFunc(Data(DM), NewModel, UseStashOrSaved(MLEstash,i), DroppedLogPrior; kwargs...)
 
                 push!(Res, -GetMinimum(R,x->-loglikelihood(Data(DM), NewModel, x, DroppedLogPrior)))
+                FullP = Ins(GetMinimizer(R))
                 copyto!(MLEstash, GetMinimizer(R))
-                FullP = Ins(copy(MLEstash))
                 push!(Converged, HasConverged(R) && InBounds(FullP))
                 push!(visitedps, p)
                 ConditionalPush!(path, FullP)
@@ -504,7 +508,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             Converged = [(@view reverse!(Converged2)[1:end-3]); Converged]
         else
             startind = (mlecomp = MLE[Comp];    try findfirst(x->x>mlecomp, ps)-1 catch; 1 end)
-            if resort && startind > 1
+            if resort && isnothing(SavedPs) && startind > 1
                 for p in sort((@view ps[startind:end]))
                     PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, clamp(p, ParamBounds...))
                     p ≥ ParamBounds[2] && break
@@ -518,8 +522,8 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                     !OnlyBreakOnBounds && ((length(visitedps) - len > min_steps && Res[end] < CostThreshold) || (Res[end] < MaxThreshold)) && break
                 end
             else # No early break, no clamping, just evaluate on given ps
-                for p in ps
-                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
+                for (i,p) in enumerate(ps)
+                    PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p, i)
                 end
             end
         end
@@ -588,7 +592,7 @@ end
 function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
                         MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     # idxs for plotting only
-    @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE))
+    @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
     @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
 
     Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
@@ -639,7 +643,7 @@ HasPriors(M::Union{<:AbstractMatrix, <:VectorOfArray}) = size(M,2) > 3
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     PNames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert length(Profiles) == length(PNames)
-    Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "Cost Function"
+    Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "W = 2[ℓₘₗₑ - ℓ(θ)]"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=PNames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
     length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
     RecipesBase.plot(PlotObjects...; layout=length(PlotObjects), size=PlotSizer(length(PlotObjects)))
@@ -859,7 +863,7 @@ ProfileBox(P::ParameterProfiles, Confnum::Real=1; IsCost::Bool=IsCost(P), dof::I
 """
     PracticallyIdentifiable(P::ParameterProfiles) -> Real
 Determines the maximum level at which ALL the given profiles in `ParameterProfiles` are still practically identifiable.
-If `IsCost=true` was chosen for the profiles, the output is the maximal deviation in cost function value `2(L_MLE - PL_i(θ))`.
+If `IsCost=true` was chosen for the profiles, the output is the maximal deviation in cost function value `W = 2(L_MLE - PL_i(θ))`.
 If instead `IsCost=false` was chosen, so that cost function deviations have already been rescaled to confidence levels, the output of `PracticallyIdentifiable` is the maximal confidence level in units of standard deviations σ where the model is still practically identifiability.
 """
 PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles(P))
@@ -1074,7 +1078,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
                 label --> "True value"
                 ylims --> Ylims
                 xlabel --> pnames(P)[i]
-                ylabel --> ApplyTrafoNames(IsCost(P) ? "Cost Function" : "Conf. level [σ]", Trafo)
+                ylabel --> ApplyTrafoNames(IsCost(P) ? "W = 2[ℓₘₗₑ - ℓ(θ)]" : "Conf. level [σ]", Trafo)
                 @view trueparams[i:i]
             end
             j += 1
@@ -1166,7 +1170,7 @@ end
     Trafo = get(plotattributes, :Trafo, identity)
     legend --> nothing
     xguide --> pnames(PV)[i]
-    yguide --> ApplyTrafoNames(IsCost(PV) ? "Cost Function" : "Conf. level [σ]", Trafo)
+    yguide --> ApplyTrafoNames(IsCost(PV) ? "W = 2[ℓₘₗₑ - ℓ(θ)]" : "Conf. level [σ]", Trafo)
 
     Interpolate = get(plotattributes, :Interpolate, false)
     Interp = QuadraticSpline
