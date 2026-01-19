@@ -79,6 +79,7 @@ Distributions.invcov(d::InformationGeometry.Dirac) = Diagonal(eltype(d.μ)[Inf f
 Distributions.pdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = x == mean(d) ? 1.0 : 0.0
 Distributions.logpdf(d::InformationGeometry.Dirac, x::AbstractVector{<:Number}) = log(pdf(d, x))
 Distributions.params(d::InformationGeometry.Dirac) = (d.μ,)
+Distributions.rand(d::InformationGeometry.Dirac) = d.μ
 
 
 # Fix gradlogpdf for Cauchy distribution and product distributions in general

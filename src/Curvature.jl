@@ -232,7 +232,7 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
     :EfronRiemannCurvature, :EfronRiemannCurvature2,
     :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
     :EfronShapeOperator, :EfronCurvatureIsotropy]
-    @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=true, verbose::Bool=true,
+    @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
             g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
@@ -310,4 +310,13 @@ function EfronShapeOperator(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::A
             end
         end;    S
     end
+end
+
+## norm(H)^2 / norm(II)^2
+## If -> 1, then curvature mostly mean, if -> 0 then curvature anisotropic, i.e. due to few distinct parameter directions. 
+function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+    H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
+    Hnorm² = InnerProduct(Σ⁻¹, H)
+    IInorm² = 2*EfronScalarCurvature(II, g, g⁻¹, Σ⁻¹)
+    Hnorm² / IInorm²
 end
