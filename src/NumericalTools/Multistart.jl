@@ -15,23 +15,23 @@ function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Dist
     end;  [view(M,:,i) for i in axes(M,2)]
 end
 
-function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1e5; verbose::Bool=true)
+function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1e3; verbose::Bool=true)
     verbose && @info "No MultistartDomain given, choosing default cube with maxval=$maxval"
     FullDomain(Pdim, maxval)
 end
-function MakeMultistartDomain(Pdim::Int, ProspectiveDom::HyperCube, maxval::Real=1e5; verbose::Bool=true)
+function MakeMultistartDomain(Pdim::Int, ProspectiveDom::HyperCube, maxval::Real=1e3; verbose::Bool=true)
     # clamp ProspectiveDom to finite size
     intersect(ProspectiveDom, FullDomain(length(ProspectiveDom), maxval))
 end
 
 MultistartFit(DM::AbstractDataModel; kwargs...) = MultistartFit(DM, Predictor(DM); kwargs...)
 MultistartFit(DM::AbstractDataModel, M::ModelMap; MultistartDomain::HyperCube=Domain(M), kwargs...) = MultistartFit(DM, MultistartDomain; MultistartDomain, kwargs...)
-function MultistartFit(DM::AbstractDataModel, M::ModelOrFunction; maxval::Real=1e5, MultistartDomain::Union{Nothing,HyperCube}=nothing, verbose::Bool=true, kwargs...)
+function MultistartFit(DM::AbstractDataModel, M::ModelOrFunction; maxval::Real=1e3, MultistartDomain::Union{Nothing,HyperCube}=nothing, verbose::Bool=true, kwargs...)
     Dom = MakeMultistartDomain(pdim(DM), MultistartDomain, maxval; verbose)
     MultistartFit(DM, Dom; MultistartDomain=Dom, maxval, verbose, kwargs...)
 end
 # Create PointGenerator and drop model again
-function MultistartFit(DM::AbstractDataModel, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(0:Int(1e7)), resampling::Bool=true, maxval::Real=1e5, kwargs...)
+function MultistartFit(DM::AbstractDataModel, MultistartDom::HyperCube; MultistartDomain::HyperCube=MultistartDom, N::Int=100, seed::Int=rand(0:Int(1e7)), resampling::Bool=true, maxval::Real=1e3, kwargs...)
     MultistartFit(DM, (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(MultistartDomain, maxval; N, seed); MultistartDomain, N, seed, resampling, kwargs...)
 end
 
@@ -45,7 +45,7 @@ function MultistartFit(DS::AbstractDataSet, model::ModelOrFunction, startp::Abst
     MultistartFit(CostFunction, startp; LogPriorFn, MultistartDomain, kwargs...)
 end
 # This is where PerformStepGeneral! from ProfileLikelihood lands
-function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number}, MDom::Union{HyperCube,Nothing}=nothing; MultistartDomain::Union{HyperCube,Nothing}=MDom, maxval::Real=1e5, N::Int=100, 
+function MultistartFit(CostFunction::Function, startp::AbstractVector{<:Number}, MDom::Union{HyperCube,Nothing}=nothing; MultistartDomain::Union{HyperCube,Nothing}=MDom, maxval::Real=1e3, N::Int=100, 
                             seed::Int=rand(1000:15000), resampling::Bool=true, verbose::Bool=true, kwargs...)
     Dom = MakeMultistartDomain(length(startp), MultistartDomain, maxval; verbose)
     InitialPointGen = (resampling ? SOBOL.SobolSeq : GenerateSobolPoints)(Dom, maxval; N, seed)
@@ -62,7 +62,7 @@ end
 
 
 """
-    MultistartFit(DM::AbstractDataModel; maxval::Real=1e5, MultistartDomain::HyperCube=FullDomain(pdim(DM), maxval), kwargs...)
+    MultistartFit(DM::AbstractDataModel; maxval::Real=1e3, MultistartDomain::HyperCube=FullDomain(pdim(DM), maxval), kwargs...)
 Performs Multistart optimization with `N` starts and timeout of fits after `timeout` seconds.
 If `resampling=true`, if likelihood non-finite new initial starts are redrawn until `N` suitable initials are found. 
 If `Robust=true`, performs optimization wrt. p-norm according to given kwarg `p`.
@@ -76,7 +76,7 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
-function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e5, plot::Bool=false, 
+function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e3, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
