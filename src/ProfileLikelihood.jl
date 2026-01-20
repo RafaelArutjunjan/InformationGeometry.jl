@@ -963,6 +963,45 @@ function PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
     RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
 end
 
+"""
+    PlotAlongProfilePaths(P::ParameterProfiles, Fs::AbstractVector{<:Function}; kwargs...)
+Plot i-th scalar function `F` in `Fs` along the parameter trajectories of the profiles in `P`.
+"""
+function PlotAlongProfilePaths(P::ParameterProfiles, Fs::AbstractVector{<:Function}; kwargs...)
+    PopulatedInds = IsPopulated(P)
+    @assert length(Fs) == pdim(P)
+    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(Fs[i], Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
+end
+
+
+"""
+    ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), verbose::Bool=true, kwargs...)
+Takes given profile `P` and reoptimizes each point in the trajectories.
+"""
+function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
+                        verbose::Bool=true, SaveTrajectories::Bool=true, MLE::AbstractVector=MLE(P), dof::Int=DOF(P), IsCost::Bool=IsCost(P), Meta::Symbol=:ParameterProfiles, kwargs...)
+    @assert HasTrajectories(P);     @assert Multistart == 0
+    @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
+    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
+    FullProfs = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, getindex.(Trajectories(P)[i],i); adaptive=false, SavedPs=Trajectories(P)[i], verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
+
+    Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
+    Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
+    if !(inds == 1:length(MLE))
+        EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
+        EmptyTraj = [Fill(NaN, length(MLE))]
+        for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
+            if i ∉ inds
+                insert!(Profs, i, EmptyProf)
+                SaveTrajectories ? insert!(Trajs, i, EmptyTraj) : insert!(Trajs, i, nothing)
+            end
+        end
+    end
+    P2 = ParameterProfiles(DM, Profs, Trajs, pnames; IsCost, dof, Meta, MLE)
+    plot && display(RecipesBase.plot(P2, false))
+    P2
+end
+
 
 # Empty trafo name for identity
 _GetTrafoName(F::typeof(identity), GenericName::Bool=false) = ""

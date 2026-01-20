@@ -249,7 +249,7 @@ include("ProfileLikelihood.jl")
 export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIdentifiable
 export ValInserter, InsertIntoFirst, InsertIntoLast, FixParameters, FixNonIdentifiable, LinkParameters
 export ParameterProfiles, FullParameterProfiles
-export ProfileTransform, PlotAlongProfilePaths
+export ProfileTransform, PlotAlongProfilePaths, ReoptimizeProfile
 export PlotProfilePaths, PlotProfilePathDiffs, PlotProfilePathNormDiffs
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
 
@@ -274,6 +274,7 @@ export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, 
 include("Curvature.jl")
 export ChristoffelSymbol, Riemann, Ricci, RicciScalar
 export SecondFundamentalForm, EfronScalarCurvature, EfronMeanCurvature, EfronRicciCurvature, EfronRiemannCurvature, EfronCurvatureIsotropy
+# EfronSectionalCurvature, EfronSectionalCurvatureMap, EfronShapeOperator, 
 ## Also add Kretschmann, Schouten, Weyl?
 
 
