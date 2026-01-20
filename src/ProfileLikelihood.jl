@@ -529,7 +529,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling)
+    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, verbose)
     perm = sortperm(visitedps)
     # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
     # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
@@ -543,7 +543,7 @@ end
 
 
 function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Union{Nothing,AbstractVector}, Converged::AbstractVector{<:Bool}; MLE::AbstractVector=Float64[], dof::Real=length(MLE), LogPriorFn::Union{Function,Nothing}=nothing, 
-                        AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf, Ndata::Int=-5000, UseFscaling::Bool=false)
+                        AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf, Ndata::Int=-5000, UseFscaling::Bool=false, verbose::Bool=true)
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
     Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger (i.e. better) than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
@@ -946,13 +946,32 @@ end
     ProfileTransform(P::ParameterProfiles, F::Function; kwargs...)
 Given a function `F(W::Vector)` or `F(p::Vector,W::Vector)`, the saved values of the likelihood ratio test statistic `w = 2(ℓ_mle - ℓ_profile(p))` are transformed.
 """
-function ProfileTransform(P::ParameterProfiles, F::Function; Meta::Symbol=Symbol("Trafo: "*string(F)), kwargs...)
-    @assert IsCost(P);    HasPriors(P) && @warn "Saved priors of given profile are not transformed!"
+function ProfileTransform(P::ParameterProfiles, F::Function; Meta::Symbol=Symbol("Trafo: "*string(F)), TransformPriors::Bool=false, kwargs...)
+    @assert IsCost(P);    HasPriors(P) && !TransformPriors && @warn "Saved priors of given profile are not transformed!"
     WrappedTrafo = MaximalNumberOfArguments(F) > 1 ? F : (x,y)->F(y)
-    ObjectTrafo(Prof::VectorOfArray) = (S=copy(Prof);  S[2]=WrappedTrafo(S[1], S[2]);  S)
+    ObjectTrafo(Prof::VectorOfArray) = (S=copy(Prof);  S[2]=WrappedTrafo(S[1], S[2]);  TransformPriors && (S[3]=WrappedTrafo(S[1], S[3]));     S)
     NewProfs = [ObjectTrafo(Prof) for Prof in Profiles(P)]
     remake(P; Profiles=NewProfs, IsCost=false, Meta, kwargs...)
 end
+
+
+"""
+    ProfileConfidenceTransform(DM::AbstractDataModel, P::ParameterProfiles, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), kwargs...)
+Applies confidence scaling based on `Trafo=:Chi` or `Trafo=:F` to given profiles `P`.
+"""
+function ProfileConfidenceTransform(DM::AbstractDataModel, P::ParameterProfiles, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), kwargs...)
+        _ProfileConfidenceTransform(P, Trafo, dof, Ndata; kwargs...)
+end
+function _ProfileConfidenceTransform(P::ParameterProfiles, Trafo::Symbol, dof::Real, Ndata::Int; TransformPriors::Bool=HasPriors(P), kwargs...)
+    @assert Trafo === :Chi || Trafo === :F
+    # Already transformed as 2(lmle-l)
+    Chi²ₖConfMappingInd(w::Real) = w ≥ 0 ? InvConfVol(ChisqCDF(dof, w)) : NaN
+    Chi²ₖConfMapping(Ps::AbstractVector, Ws::AbstractVector) = map(Chi²ₖConfMappingInd, Ws)
+    Fₖ_ₙ₋ₖ_ConfMappingInd(w::Real) = w ≥ 0 ? InvConfVol(FDistCDF(w/dof, dof, Ndata-dof)) : NaN
+    Fₖ_ₙ₋ₖ_ConfMapping(Ps::AbstractVector, Ws::AbstractVector) = map(Fₖ_ₙ₋ₖ_ConfMappingInd, Ws)
+    ProfileTransform(P, Trafo === :Chi ? Chi²ₖConfMapping : Fₖ_ₙ₋ₖ_ConfMapping; TransformPriors, kwargs...)
+end
+
 
 """
     PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
