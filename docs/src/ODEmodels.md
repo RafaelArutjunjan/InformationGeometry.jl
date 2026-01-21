@@ -8,18 +8,21 @@ As a toy example, we will consider the well-known "SIR model" in the following, 
 While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) ecosystem offers many different ways of specifying such systems, we will use the syntax introduced by [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) since it is particularly convenient in this case.
 ```@example ODE
 using InformationGeometry, ModelingToolkit, Plots
-@parameters t β γ
+using ModelingToolkit: t_nounits as t, D_nounits as D
+@parameters β γ
 @variables S(t) I(t) R(t)
-Dt = Differential(t)
 
-SIReqs = [ Dt(S) ~ -β * I * S,
-        Dt(I) ~ +β * I * S - γ * I,
-        Dt(R) ~ +γ * I]
+SIReqs = [ D(S) ~ -β * I * S,
+        D(I) ~ +β * I * S - γ * I,
+        D(R) ~ +γ * I]
 
 SIRstates = [S, I, R];    SIRparams = [β, γ]
-@named SIRsys = ODESystem(SIReqs, t, SIRstates, SIRparams)
+@named SIRsys = System(SIReqs, t, SIRstates, SIRparams)
 ```
 Here, the parameter `β` denotes the transmission rate of the disease and `γ` is the recovery rate. Note that in the symbolic scheme of [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl), the equal sign is represented via `~`.
+
+!!! warn
+    Using the `@mtkcompile` macro in the `System` construction typically causes the states and equations to be reordered in the final model! If you want to ensure that the original order is retained, use `@named` or supply the `ODEFunction` directly instead of a `ModelingToolkit.System`.
 
 An infection dataset which is well-known in the literature is taken from an influenza outbreak at a English boarding school in 1978. Its numerical values can be found e.g. in [table 1 of this paper](https://www.researchgate.net/publication/336701551_On_parameter_estimation_approaches_for_predicting_disease_transmission_through_optimization_deep_learning_and_statistical_inference_methods). As no uncertainties associated with the number of infections is given, we will assume the ``1\sigma`` uncertainties to be ``\pm 15`` as a reasonable value. Further, it is known that the total number of students at said boarding school was ``763`` and we will therefore assume the initial conditions to be
 ```@setup ODE

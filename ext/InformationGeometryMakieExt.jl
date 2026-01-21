@@ -43,22 +43,22 @@ module InformationGeometryMakieExt
             Interp = QuadraticSpline;   Conv = GetConverged(Profiles(PV))
             !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
             F = InterpolatedProfiles(PV, Interp); xran = range(F.t[1], F.t[end]; length=300)
-            lines!(ax, xran, map(Trafo∘F, xran); color=Makie.wong_colors()[1], linewidth=2, label="Interpolated Profile", kwargs...)
+            lines!(ax, xran, map(Trafo∘F, xran); color=Makie.wong_colors()[1], linewidth=2, label="Interpolated Profile", linecap=:round, joinstyle=:round, kwargs...)
         else
             Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV)[2], Conv)
-            lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); linewidth=2, color=Makie.wong_colors()[1], label="Profile Likelihood", kwargs...)
-            !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[2], linewidth=2, label=nothing, kwargs...)
+            lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); linewidth=2, color=Makie.wong_colors()[1], label="Profile Likelihood", linecap=:round, joinstyle=:round, kwargs...)
+            !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[2], linewidth=2, label=nothing, linecap=:round, joinstyle=:round, kwargs...)
         end
         if HasPriors(PV)
             if Interpolate
                 Interp = QuadraticSpline;   Conv = GetConverged(Profiles(PV))
                 !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
                 F = Interp(Profiles(PV)[3], Profiles(PV)[1]); xran = range(F.t[1], F.t[end]; length=300)
-                lines!(ax, xran, vec(map(Trafo∘F, xran)); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution")
+                lines!(ax, xran, vec(map(Trafo∘F, xran)); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             else
                 Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV)[3], Conv)
-                lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution")
-                !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[4], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution")
+                lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
+                !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[4], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             end
         end
         scatter!(ax, [MLE(PV)[i]], [Trafo(0.0)]; marker=:hexagon, markersize=12, color=:red, strokewidth=0, label=nothing)
@@ -66,7 +66,7 @@ module InformationGeometryMakieExt
             MaxLevel === nothing && (MaxLevel = maximum(view(Profiles(PV)[2], GetConverged(Profiles(PV))); init=-Inf))
             sorted_conf = sort(Confnum; rev=true)
             for (j, (Conf, Thresh)) in enumerate(zip(sorted_conf, convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sorted_conf)))))
-                Thresh < MaxLevel && hlines!(ax, [Trafo(Thresh)]; linewidth=1.5, linestyle=:dash, color=palette(:viridis, length(sorted_conf); rev=true)[j], label="$(j)σ level, dof=$dof")
+                Thresh < MaxLevel && hlines!(ax, [Trafo(Thresh)]; linewidth=1.5, linestyle=:dash, color=palette(:viridis, length(sorted_conf); rev=true)[j], linecap=:round, label="$(j)σ level, dof=$dof")
             end
         end
         ylims !== nothing && ylims!(ax, ylims)
