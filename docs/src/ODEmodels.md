@@ -1,9 +1,9 @@
 
 ### ODE-based models
 
-Often, an explicit analytical expression for a given mathematical model is not known. Instead, the model might be defined implicitly, e.g. as the solution to a system of ordinary differential equations. Especially in fields such as systems biology, modeling in terms of (various kinds of) differential equations appears to be the norm.
+Often, an explicit analytical expression for a given mathematical model is not known. Instead, the model might be defined implicitly, e.g. as the solution to a system of ordinary differential equations. Especially in fields such as systems biology, modeling in terms of (various kinds of) differential equations is standard practice.
 
-As a toy example, we will consider the well-known "SIR model" in the following, which groups a population into susceptible, infected and recovered subpopulations and assumes mass action kinetics with constant transmission and recovery rates to describe the growths and decays of the respective populations.
+As a toy example, we will consider the well-known "SIR model" in the following, which groups a population into susceptible, infected and recovered subpopulations and describes the growths and decays of the respective populations via simple rate laws.
 
 While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) ecosystem offers many different ways of specifying such systems, we will use the syntax introduced by [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) since it is particularly convenient in this case.
 ```@example ODE
