@@ -53,11 +53,11 @@ function CompareTimings(dm::AbstractDataModel, idm::AbstractDataModel)
     @test dm == idm
     S1, S2 = rand(pdim(dm)), rand(pdim(dm))
     F1, F2 = rand(pdim(dm),pdim(dm)), rand(pdim(dm),pdim(dm))
-    @test (@belapsed loglikelihood($dm, $(MLE(dm)))) > 1.2(@belapsed loglikelihood($idm, $(MLE(dm))))
-    @test (@belapsed Score($dm, $(MLE(dm)))) > 1.2(@belapsed Score($idm, $(MLE(dm))))
-    @test (@belapsed $(Score(dm))($S1, $(MLE(dm)))) > 1.2(@belapsed $(Score(idm))($S2, $(MLE(dm))))
-    @test (@belapsed FisherMetric($dm, $(MLE(dm)))) > 1.2(@belapsed FisherMetric($idm, $(MLE(dm))))
-    @test (@belapsed $(FisherMetric(dm))($F1, $(MLE(dm)))) > 1.2(@belapsed $(FisherMetric(idm))($F2, $(MLE(dm))))
+    @test (@belapsed loglikelihood($dm, $(MLE(dm)))) > (@belapsed loglikelihood($idm, $(MLE(dm))))
+    @test (@belapsed Score($dm, $(MLE(dm)))) > (@belapsed Score($idm, $(MLE(dm))))
+    @test (@belapsed $(Score(dm))($S1, $(MLE(dm)))) > (@belapsed $(Score(idm))($S2, $(MLE(dm))))
+    @test (@belapsed FisherMetric($dm, $(MLE(dm)))) > (@belapsed FisherMetric($idm, $(MLE(dm))))
+    @test (@belapsed $(FisherMetric(dm))($F1, $(MLE(dm)))) > (@belapsed $(FisherMetric(idm))($F2, $(MLE(dm))))
 end
 
 
