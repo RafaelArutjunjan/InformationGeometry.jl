@@ -321,6 +321,8 @@ function GetErrorParamInds end
 function GetNondynamicParamInds end
 function GetObservableParamInds end
 
+## MakieExt
+function adapted_aog_theme end
 
 ## LuxExt
 function NeuralNet end
