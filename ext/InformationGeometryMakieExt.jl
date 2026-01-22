@@ -6,6 +6,72 @@ module InformationGeometryMakieExt
     import InformationGeometry: ParameterProfilesView, IsPopulated, PlotSizer, GetConverged, Profiles, Trajectories, DOF, ApplyTrafoNames, pnames
     import InformationGeometry: IsCost, Convergify, HasPriors
 
+    ### Taken from AlgebraOfGraphics.jl
+    """
+        adapted_aog_theme(; fonts=[Makie.to_font("Fira Sans-Medium"), Makie.to_font("Fira Sans-Light")])
+    Use via `Makie.set_theme!(; InformationGeometry.adapted_aog_theme()...)`
+    """
+    function InformationGeometry.adapted_aog_theme(; fonts = [Makie.to_font("Fira Sans-Medium"), Makie.to_font("Fira Sans-Light")],
+                        mediumfont = first(fonts), lightfont = last(fonts))
+        marker = :circle
+
+        colormap = :batlow
+        linecolor = :gray25
+        markercolor = :gray25
+        patchcolor = :gray25
+
+        palette = (
+            color = Makie.wong_colors(),
+            patchcolor = Makie.wong_colors(),
+            marker = [:circle, :utriangle, :cross, :rect, :diamond, :dtriangle, :pentagon, :xcross],
+            linestyle = [:solid, :dash, :dot, :dashdot, :dashdotdot],
+            side = [:left, :right],
+        )
+        # setting marker here is a temporary hack
+        # it should either respect `marker = :circle` globally
+        # or `:circle` and `Circle` should have the same size
+        BoxPlot = (mediancolor = :white, marker = :circle)
+        Scatter = (marker = :circle,)
+        Violin = (mediancolor = :white,)
+
+        Axis = (
+            xgridvisible = false, ygridvisible = false,
+            # topspinevisible = true, rightspinevisible = true, 
+            topspinecolor = :darkgray,  rightspinecolor = :darkgray, bottomspinecolor = :darkgray, leftspinecolor = :darkgray, 
+            xtickcolor = :darkgray, ytickcolor = :darkgray, xminortickcolor = :darkgray, yminortickcolor = :darkgray,
+            xticklabelfont = lightfont, yticklabelfont = lightfont, xlabelfont = mediumfont, ylabelfont = mediumfont, titlefont = mediumfont,
+        )
+        Axis3 = (
+            protrusions = 55, # to include label on z axis, should be fixed in Makie
+            xgridvisible = false, ygridvisible = false, zgridvisible = false,
+            xspinecolor_1 = :darkgray, yspinecolor_1 = :darkgray, zspinecolor_1 = :darkgray, 
+            xspinecolor_2 = :transparent, yspinecolor_2 = :transparent, zspinecolor_2 = :transparent, 
+            xspinecolor_3 = :transparent, yspinecolor_3 = :transparent, zspinecolor_3 = :transparent,
+            xtickcolor = :darkgray, ytickcolor = :darkgray, ztickcolor = :darkgray,
+            xticklabelfont = lightfont, yticklabelfont = lightfont, zticklabelfont = lightfont, 
+            xlabelfont = mediumfont, ylabelfont = mediumfont, zlabelfont = mediumfont, titlefont = mediumfont,
+        )
+        Legend = (
+            framevisible = false,
+            gridshalign = :left,
+            padding = (0.0f0, 0.0f0, 0.0f0, 0.0f0),
+            labelfont = lightfont,
+            titlefont = mediumfont,
+        )
+        Colorbar = (
+            flip_vertical_label = true,
+            spinewidth = 0,
+            ticklabelfont = lightfont,
+            labelfont = mediumfont,
+        )
+        return (;
+            joinstyle=:round,
+            fonts = (; regular = lightfont, bold = mediumfont), 
+            marker, colormap, linecolor, markercolor, patchcolor, palette, BoxPlot, Scatter, Violin, Axis, Axis3, Legend, Colorbar,
+        )
+    end
+
+    
 
     ### ParameterProfiles
 
