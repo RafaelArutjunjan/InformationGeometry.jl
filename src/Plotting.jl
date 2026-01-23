@@ -630,11 +630,6 @@ PlotLogLikelihood(DM::AbstractDataModel, args...; kwargs...) = PlotScalar(loglik
 
 
 
-function ConstructBox(fit::LsqFit.LsqFitResult, Confnum::Real; AxisCS::Bool=true)
-    E = Confnum * stderror(fit)
-    HyperCube(fit.param - E, fit.param + E)
-end
-
 
 rectangle(ax,ay,bx,by) = [ax ay; bx ay; bx by; ax by; ax ay]
 function rectangle(LU::HyperCube)

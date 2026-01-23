@@ -11,7 +11,7 @@ using OrdinaryDiffEqCore, OrdinaryDiffEqVerner, OrdinaryDiffEqTsit5, OrdinaryDif
 using DiffEqCallbacks
 using Symbolics, DataInterpolations
 using DerivableFunctionsBase
-using LsqFit, Optim, LineSearches, ADTypes, OptimizationBase
+using Optim, LineSearches, ADTypes, OptimizationBase
 using BenchmarkTools, Measurements, HCubature
 using SpecialFunctions, Tullio, Roots, Combinatorics
 using ProgressMeter, Suppressor
@@ -211,7 +211,7 @@ export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
-export curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
+export Curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
 export ParameterSavingCallback, IncrementalTimeSeriesFit
 
 
@@ -304,6 +304,11 @@ export SaveAdaptive, SaveConfidence, SaveGeodesics, SaveDataSet
 
 include("CustomIO.jl")
 # export GeneratedFromAutoDiff, GeneratedFromSymbolic
+
+
+## LsqFitExt
+Curve_fit(args...; kwargs...) = throw("Need to load LsqFit.jl first.")
+@deprecate curve_fit Curve_fit
 
 
 # For debugging of PEtabExt

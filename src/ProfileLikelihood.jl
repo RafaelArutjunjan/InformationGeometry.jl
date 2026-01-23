@@ -264,10 +264,11 @@ end
 
 # USE NelderMead for ODEmodels!!!!!
 
-GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
-GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = GetMinimum(GetMinimizer(Res), L)
-HasConverged(Res::LsqFit.LsqFitResult; kwargs...) = Res.converged
-GetIterations(Res::LsqFit.LsqFitResult) = try Res.trace[end].iteration catch; -Inf end # needs kwarg store_trace=true to be available
+### In LsqFitExt now
+# GetMinimizer(Res::LsqFit.LsqFitResult) = Res.param
+# GetMinimum(Res::LsqFit.LsqFitResult, L::Function) = GetMinimum(GetMinimizer(Res), L)
+# HasConverged(Res::LsqFit.LsqFitResult; kwargs...) = Res.converged
+# GetIterations(Res::LsqFit.LsqFitResult) = try Res.trace[end].iteration catch; -Inf end # needs kwarg store_trace=true to be available
 
 GetMinimizer(Res::Optim.OptimizationResults) = Optim.minimizer(Res)
 GetMinimum(Res::Optim.OptimizationResults, L::Function) = Res.minimum
@@ -340,7 +341,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     OptimDomain = Drop(Domain, Comp)
 
     FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && Data(DM) isa AbstractFixedUncertaintyDataSet
-        ((args...; Kwargs...)->curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
+        ((args...; Kwargs...)->Curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"

@@ -278,7 +278,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVec
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
-        curve_fit(DS, model, start; tol=tol).param
+        Curve_fit(DS, model, start; tol=tol).param
     else
         if isnothing(meth)
             InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol, verbose, kwargs...)
@@ -296,7 +296,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFun
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
-        curve_fit(DS, model, dmodel, start; tol=tol).param
+        Curve_fit(DS, model, dmodel, start; tol=tol).param
     else
         if isnothing(meth)
             InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)

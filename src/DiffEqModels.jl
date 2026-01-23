@@ -101,9 +101,9 @@ GetModel(func::SciMLBase.AbstractDiffEqFunction{T}, Splitter::Function, Observat
 
 
 # Promote to Dual only if time is dual and second argument is not to avoid changing tag
-ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{Number,AbstractVector{<:Number}}) where T = convert.(type, var)
-ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{ForwardDiff.Dual{S},AbstractVector{<:ForwardDiff.Dual{S}}}) where {T,S} = convert.(type, var)
-ConditionalConvert(type::Type, var::Union{Number,AbstractVector{<:Number}}) = var
+ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{Number,AbstractArray{<:Number}}) where T = convert.(type, var)
+ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{ForwardDiff.Dual{S},AbstractArray{<:ForwardDiff.Dual{S}}}) where {T,S} = convert.(type, var)
+ConditionalConvert(type::Type, var::Union{Number,AbstractArray{<:Number}}) = var
 
 function GetModelFast(args...; Domain::Union{HyperCube,Nothing}=nothing, kwargs...)
     DEmodel, Meta = _GetModelFast(args...; Domain, kwargs...)

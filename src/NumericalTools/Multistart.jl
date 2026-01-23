@@ -185,7 +185,7 @@ struct MultistartResults <: AbstractMultistartResults
         )
         @assert length(FinalPoints) == length(InitialPoints) == length(FinalObjectives) == length(InitialObjectives) == length(Iterations)
         @assert ConsistentElDims(FinalPoints) == length(pnames)
-        OptimMeth = isnothing(meth) ? LsqFit.LevenbergMarquardt() : meth
+        OptimMeth = isnothing(meth) ? Symbol("LsqFit.LevenbergMarquardt") : meth
         
         if verbose
             # Convert possible NaNs in FinalObjectives to -Inf to avoid problems in sorting NaNs
