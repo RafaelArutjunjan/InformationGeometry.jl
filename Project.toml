@@ -1,6 +1,6 @@
 name = "InformationGeometry"
 uuid = "ee9d1287-bbdf-432c-9920-c447cf97a828"
-version = "1.27.0"
+version = "1.27.1"
 authors = ["Rafael Arutjunjan"]
 
 [deps]
