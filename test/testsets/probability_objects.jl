@@ -1,4 +1,4 @@
-using InformationGeometry, Test, LinearAlgebra, Distributions
+using InformationGeometry, Test, LinearAlgebra, Distributions, LsqFit
 
 DS = DataSet([0,0.5,1,1.5],[1.,3.,7.,8.1],[1.2,2.,0.6,1.])
 DM = DataModel(DS,LinearModel);    p = rand(2)

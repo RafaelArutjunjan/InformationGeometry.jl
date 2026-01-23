@@ -295,6 +295,13 @@ Computes differentiable approximation of 1-norm `sum∘abs` as `sqrt(sum(abs2,x)
 SoftNorm(x::AbstractArray{<:Number}; eps::Real=1e-100) = sqrt(sum(abs2, x) + eps)
 
 
+"""
+    muladd!(C, M, X, Y)
+C = M*X + Y
+"""
+muladd!(C, M, X, Y) = (mul!(C, M, X);   C .+= Y;    C)
+
+
 
 import Base.==
 ==(DS1::DataSet, DS2::DataSet) = xdata(DS1) ≈ xdata(DS2) && ydata(DS1) ≈ ydata(DS2) && yInvCov(DS1) ≈ yInvCov(DS2)

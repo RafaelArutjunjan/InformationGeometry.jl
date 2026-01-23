@@ -2,7 +2,7 @@
 
 
 ### for-loop typically slower than reduce(vcat, ...)
-### Apparently curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
+### Apparently LsqFit.curve_fit() throws an error in conjuction with ForwardDiff when reinterpret() is used
 # Reduction(X::AbstractVector{<:SVector{Len,T}}) where Len where T = reinterpret(T, X)
 Reduction(X::AbstractVector{<:AbstractVector}) = reduce(vcat, X)
 Reduction(X::AbstractVector{<:Number}) = X
