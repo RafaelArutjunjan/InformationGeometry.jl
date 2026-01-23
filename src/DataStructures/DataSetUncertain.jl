@@ -28,7 +28,7 @@ This parametrized error model is subsequently used to estimate the standard devi
 
 To construct a `DataSetUncertain`, one has to specify a vector of independent variables `x`, a vector of dependent variables `y`, a reciprocal error model `σ⁻¹(x, y_pred, c)` and an initial guess for the vector of error parameters `c`.
 Optionally, an explicit `errorparamsplitter` function of the form `θ -> (modelparams, errorparams)` may be specified, which splits the parameters into a tuple of model parameters, which are subsequently forwarded into the model, and error parameters `c`, which are only passed to the reciprocal error model `σ⁻¹`.
-!!! warn
+!!! warning
     The parameters which are visible to the outside are processed by `errorparamsplitter` FIRST, before forwarding into the model, where `modelparams` might be further modified by embedding transformations.
 
 # Examples:

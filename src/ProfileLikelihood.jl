@@ -1371,7 +1371,7 @@ end
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_MLE" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_MLE" : "") * "]" : "p_i" * (OffsetResults ? " - p_MLE" : ""))
+    ystring = DoRelChange ? "pᵢ" * (OffsetResults ? " / pₘₗₑ" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [pᵢ" * (OffsetResults ? " - pₘₗₑ" : "") * "]" : "pᵢ" * (OffsetResults ? " - pₘₗₑ" : ""))
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
