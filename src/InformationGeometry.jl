@@ -235,7 +235,7 @@ export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
 export Pullback, Pushforward
-export AIC, AICc, BIC, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
+export AIC, AICc, BIC, CAIC, CAICF, ModelComparison, IsLinearParameter, IsLinear, LeastInformativeDirection
 
 export FindConfBoundaryOnPlane, LinearCuboid, IntersectCube, IntersectRegion, MincedBoundaries, ConfidenceBoundary
 export ContourDiagram, ContourDiagramLowerTriangular
