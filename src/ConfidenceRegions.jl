@@ -907,25 +907,28 @@ Calculates the push-forward of a vector `X` from the parameter manifold to the d
 Pushforward(DM::AbstractDataModel, X::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = EmbeddingMatrix(DM, θ; kwargs...) * X
 
 
+
+## Could also use LogLikeMLE() of the datamodels?
 """
     AIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Akaike Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{AIC} = 2 \\, \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)``.
-Lower values for the AIC indicate that the associated model function is more likely to be correct. For linearly parametrized models and small sample sizes, it is advisable to instead use the AICc which is more accurate.
+Lower values for the AIC indicate that the associated model function is more likely to be correct. For **linearly parametrized** models and small sample sizes, the AICc should be used instead.
+The pure AIC tends to select overfitting models. An asymptotically consistent generalization is given by the CAIC and CAICF.
 """
-AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = 2length(θ) - 2loglikelihood(DM, θ; kwargs...)
+AIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=length(θ), Ndata::Int=DataspaceDim(DM), kwargs...) = 2k - 2loglikelihood(DM, θ; kwargs...)
 
 """
     AICc(DM::DataModel, θ::AbstractVector) -> Real
 Computes Akaike Information Criterion with an added correction term that prevents the AIC from selecting models with too many parameters (i.e. overfitting) in the case of small sample sizes.
 ``\\mathrm{AICc} = \\mathrm{AIC} + \\frac{2\\mathrm{length}(\\theta)^2 + 2 \\mathrm{length}(\\theta)}{N - \\mathrm{length}(\\theta) - 1}`` where ``N`` is the number of data points.
-Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. However, this particular correction term assumes that the model is **linearly parametrized**.
+Whereas AIC constitutes a first order estimate of the information loss, the AICc constitutes a second order estimate. This correction term is only exact for **linearly parametrized** models, and an approximation otherwise.
 """
-function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...)
-    if (DataspaceDim(DM) - length(θ) - 1) != 0
-        AIC(DM, θ; kwargs...) + (2length(θ)^2 + 2length(θ)) / (DataspaceDim(DM) - length(θ) - 1)
+function AICc(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=length(θ), Ndata::Int=DataspaceDim(DM), kwargs...)
+    if (Ndata - k - 1) > 0
+        AIC(DM, θ; k, Ndata, kwargs...) + (2k^2 + 2k) / (Ndata - k - 1)
     else
-        @warn "DataSet too small to apply AIC correction. Using AIC without correction instead."
-        AIC(DM, θ; kwargs...)
+        @warn "Dataset too small to apply AIC correction. Using AIC without correction instead."
+        AIC(DM, θ; k, Ndata, kwargs...)
     end
 end
 
@@ -933,7 +936,32 @@ end
     BIC(DM::DataModel, θ::AbstractVector) -> Real
 Calculates the Bayesian Information Criterion given a parameter configuration ``\\theta`` defined by ``\\mathrm{BIC} = \\mathrm{ln}(N) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta)`` where ``N`` is the number of data points.
 """
-BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = length(θ)*log(DataspaceDim(DM)) - 2loglikelihood(DM, θ; kwargs...)
+BIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=length(θ), Ndata::Int=DataspaceDim(DM), kwargs...) = k*log(Ndata) - 2loglikelihood(DM, θ; kwargs...)
+
+
+"""
+    CAIC(DM::DataModel, θ::AbstractVector) -> Real
+Calculates the consistent Akaike Information Criterion developed by Bozdogan in https://doi.org/10.1007/BF02294361
+Given a parameter configuration ``\\theta``, it is defined by ``\\mathrm{CAIC} = (1 + \\mathrm{ln}(N)) \\cdot \\mathrm{length}(\\theta) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta) = \\mathrm{BIC} + \\mathrm{length}(\\theta)`` where ``N`` is the number of data points.
+Therefore, it gives a slightly stronger penalization of the parameter degrees of freedom than BIC.
+While this approximates exactly the same quantity as the AIC, namely minus twice the expected entropy, it in contrast provides a more accurate and asymptotically consistent approximation.
+That is, in the limit of ``N \\longrightarrow \\infty``, the both the probabilities of under- and overfitting the true model dimensionality go to zero for the CAIC and CAICF.
+"""
+CAIC(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=length(θ), Ndata::Int=DataspaceDim(DM), kwargs...) = k*(1 + log(Ndata)) - 2loglikelihood(DM, θ; kwargs...)
+
+
+"""
+    CAICF(DM::DataModel, θ::AbstractVector) -> Real
+Calculates the consistent Akaike Information Criterion *with Fisher information* developed by Bozdogan in https://doi.org/10.1007/BF02294361
+Given a parameter configuration ``\\theta``, it is defined by ``\\mathrm{CAIC} = (2 + \\mathrm{ln}(N)) \\cdot \\mathrm{length}(\\theta) + 2\\mathrm{logdet}(F) -2 \\, \\ell(\\mathrm{data} \\, | \\, \\theta) = \\mathrm{BIC} + \\mathrm{length}(\\theta)`` where ``F`` is the Fisher information at ``\\theta`` and ``N`` is the number of data points.
+Therefore, ``\\mathrm{CAICF} = \\mathrm{AIC} + \\mathrm{length}(\\theta) \\cdot  \\mathrm{ln}(N) + \\mathrm{logdet}(F)``.
+While this approximates exactly the same quantity as the AIC, namely minus twice the expected entropy, it in contrast provides a more accurate and asymptotically consistent approximation.
+That is, in the limit of ``N \\longrightarrow \\infty``, the both the probabilities of under- and overfitting the true model dimensionality go to zero for the CAIC and CAICF.
+Intuitively, the idea is that a model with good fit but lower Fisher information generalizes better, since many parameter values fit the data well.
+"""
+CAICF(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=length(θ), Ndata::Int=DataspaceDim(DM), kwargs...) = logdet(FisherMetric(DM, θ)) + k*(2 + log(Ndata)) - 2loglikelihood(DM, θ; kwargs...)
+
+
 
 
 
