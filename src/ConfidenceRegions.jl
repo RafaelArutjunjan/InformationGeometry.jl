@@ -680,7 +680,7 @@ _FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFuncti
 # Does not work for CDS
 # Data covariance matrix for a single data point, computed from the mean
 function AverageSingleYsigmaMatrix(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
-    @assert Data(DM) isa AbstractFixedUncertaintyDataSet
+    @assert !HasEstimatedUncertainties(DM)
     Ysig = yInvCov(DM, mle) |> pinv
     mean([view(Ysig, inds, inds) for inds in Iterators.partition(1:size(Ysig,1), ydim(DM))])
 end
@@ -697,7 +697,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
     normalparams, yerrorparams = SkipXs(DM)((SplitErrorParams(DM)(mle))[1]), (SplitErrorParams(DM)(mle))[end]
     # As function of independent variable x
-    YsigmaGenerator = if Data(DM) isa AbstractFixedUncertaintyDataSet
+    YsigmaGenerator = if !HasEstimatedUncertainties(DM)
         # If Validation Band, add data uncertainty for single point to 
         Ysig = if Validation
             @assert !InterpolateDataUncertainty "InterpolateDataUncertainty not implemented yet!"
@@ -723,7 +723,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
-    SplitterJac = Data(DM) isa AbstractFixedUncertaintyDataSet ? (x->1.0) : GetJac(ADmode, x->SkipXs(DM)((SplitErrorParams(DM)(x))[1]))
+    SplitterJac = !HasEstimatedUncertainties(DM) ? (x->1.0) : GetJac(ADmode, x->SkipXs(DM)((SplitErrorParams(DM)(x))[1]))
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
     SplitterJ = SplitterJac(mle)
     embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJ
