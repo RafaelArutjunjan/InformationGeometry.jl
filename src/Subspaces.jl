@@ -284,7 +284,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
         @assert length(lowers) == length(uppers)
         if Padding != 0.
             diff = (0.5.*Padding) .* (uppers .- lowers)
-            lowers .-= diff;     uppers .+= diff
+            lowers = lowers .- diff;     uppers = uppers .+ diff
         end
         !all(lowers .≤ uppers) && throw("First argument of HyperCube must be smaller than second.")
         # Circumvent StaticArray promotion for lazy FillArrays
