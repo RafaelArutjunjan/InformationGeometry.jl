@@ -187,6 +187,12 @@ xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=
 yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = yInvCov(DS)
 
 
+HasEstimatedUncertainties(DM::AbstractDataModel) = HasEstimatedUncertainties(Data(DM))
+HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
+HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
+HasEstimatedUncertainties(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
+
+
 
 # How many error parameters do the containing datasets have?
 NumberOfErrorParameters(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = NumberOfErrorParameters(Data(DM), mle)

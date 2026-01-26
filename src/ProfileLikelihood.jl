@@ -313,7 +313,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
-                        meth=((isnothing(LogPriorFn) && !general && Data(DM) isa AbstractFixedUncertaintyDataSet) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
+                        meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
                         IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
@@ -340,7 +340,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     OptimDomain = Drop(Domain, Comp)
 
-    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && Data(DM) isa AbstractFixedUncertaintyDataSet
+    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && !HasEstimatedUncertainties(DM)
         ((args...; Kwargs...)->Curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
@@ -980,7 +980,7 @@ Plot a scalar function `F` along the parameter trajectories of the profiles in `
 """
 function PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
     PopulatedInds = IsPopulated(P)
-    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
+    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i], kwargs...) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)))
 end
 
 """

@@ -7,7 +7,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
     title -->               string(name(DM))
     @series begin
-        if Data(DM) isa AbstractUnknownUncertaintyDataSet
+        if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
                 keep = Data(DM).keep
                 ysig = if isnothing(keep)
@@ -162,7 +162,7 @@ RecipesBase.@recipe f(DM::AbstractDataModel, S::Symbol, mle=MLE(DM)) = DM, Val(S
 RecipesBase.@recipe f(DM::AbstractDataModel, mle::AbstractVector{<:Number}, S::Symbol) = DM, Val(S), mle
 RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false)
     @series begin
-        if Data(DM) isa AbstractUnknownUncertaintyDataSet
+        if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
                 keep = Data(DM).keep
                 ysig = if isnothing(keep)

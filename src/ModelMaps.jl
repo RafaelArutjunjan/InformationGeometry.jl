@@ -400,7 +400,7 @@ function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, idxs::B
     ComponentwiseModelTransform(DM, F, x->invert(F,x), idxs; kwargs...)
 end
 function ComponentwiseModelTransform(DM::AbstractDataModel, F::Function, inverseF::Function, idxs::BoolVector=trues(pdim(DM)); SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
-    @assert length(idxs) == pdim(DM) || Data(DM) isa AbstractUnknownUncertaintyDataSet # Error parameters not forwarded to model map
+    @assert length(idxs) == pdim(DM) || HasEstimatedUncertainties(DM) # Error parameters not forwarded to model map anyway
     sum(idxs) == 0 && return DM
     DataModel(Data(DM), ComponentwiseModelTransform(Predictor(DM), idxs, F, inverseF), _Apply(MLE(DM), inverseF, idxs), EmbedLogPrior(DM, θ->_Apply(θ, F, idxs)); SkipOptim, SkipTests, kwargs...)
 end
