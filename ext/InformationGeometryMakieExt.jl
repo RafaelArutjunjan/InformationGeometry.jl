@@ -103,7 +103,7 @@ module InformationGeometryMakieExt
     function Makie.plot!(ax::Axis, PV::ParameterProfilesView, V::Val=Val(false); Trafo::Function=identity, ylims::Union{Nothing,Tuple}=nothing, Interpolate::Bool=false, Confnum::AbstractVector{<:Integer}=1:5, dof::Integer=DOF(PV), MaxLevel::Union{Nothing,Real}=nothing, kwargs...)
         i = PV.i
         ax.xlabel = pnames(PV)[i]
-        ax.ylabel = ApplyTrafoNames(IsCost(PV) ? "W = 2[ℓₘₗₑ - ℓ(θ)]" : "Conf. level [σ]", Trafo)
+        ax.ylabel = ApplyTrafoNames(IsCost(PV) ? "W = 2[ℓ_mle - ℓ(θ)]" : "Conf. level [σ]", Trafo)
         
         if Interpolate
             Interp = QuadraticSpline;   Conv = GetConverged(Profiles(PV))

@@ -644,7 +644,7 @@ HasPriors(M::Union{<:AbstractMatrix, <:VectorOfArray}) = size(M,2) > 3
 function ProfilePlotter(DM::AbstractDataModel, Profiles::AbstractVector;
     PNames::AbstractVector{<:AbstractString}=(Predictor(DM) isa ModelMap ? pnames(Predictor(DM)) : CreateSymbolNames(pdim(DM), "θ")), idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), kwargs...)
     @assert length(Profiles) == length(PNames)
-    Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "W = 2[ℓₘₗₑ - ℓ(θ)]"
+    Ylab = length(PNames) == pdim(DM) ? "Conf. level [σ]" : "W = 2[ℓ_mle - ℓ(θ)]"
     PlotObjects = [PlotSingleProfile(DM, Profiles[i], i; xlabel=PNames[i], ylabel=Ylab, kwargs...) for i in eachindex(Profiles)]
     length(Profiles) ≤ 3 && HasTrajectories(Profiles) && push!(PlotObjects, PlotProfileTrajectories(DM, Profiles; idxs))
     RecipesBase.plot(PlotObjects...; layout=length(PlotObjects), size=PlotSizer(length(PlotObjects)))
@@ -1137,7 +1137,7 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
                 label --> "True value"
                 ylims --> Ylims
                 xlabel --> pnames(P)[i]
-                ylabel --> ApplyTrafoNames(IsCost(P) ? "W = 2[ℓₘₗₑ - ℓ(θ)]" : "Conf. level [σ]", Trafo)
+                ylabel --> ApplyTrafoNames(IsCost(P) ? "W = 2[ℓ_mle - ℓ(θ)]" : "Conf. level [σ]", Trafo)
                 @view trueparams[i:i]
             end
             j += 1
@@ -1229,7 +1229,7 @@ end
     Trafo = get(plotattributes, :Trafo, identity)
     legend --> nothing
     xguide --> pnames(PV)[i]
-    yguide --> ApplyTrafoNames(IsCost(PV) ? "W = 2[ℓₘₗₑ - ℓ(θ)]" : "Conf. level [σ]", Trafo)
+    yguide --> ApplyTrafoNames(IsCost(PV) ? "W = 2[ℓ_mle - ℓ(θ)]" : "Conf. level [σ]", Trafo)
 
     Interpolate = get(plotattributes, :Interpolate, false)
     Interp = QuadraticSpline
@@ -1372,7 +1372,7 @@ end
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    ystring = DoRelChange ? "pᵢ" * (OffsetResults ? " / pₘₗₑ" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [pᵢ" * (OffsetResults ? " - pₘₗₑ" : "") * "]" : "pᵢ" * (OffsetResults ? " - pₘₗₑ" : ""))
+    ystring = DoRelChange ? "pᵢ" * (OffsetResults ? " / p_mle" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [pᵢ" * (OffsetResults ? " - p_mle" : "") * "]" : "pᵢ" * (OffsetResults ? " - p_mle" : ""))
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]
