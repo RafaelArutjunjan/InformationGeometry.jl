@@ -131,14 +131,16 @@ fullsigma(GDS::GeneralizedDataSet) = Sigma(dist(GDS)) |> _TryVectorize
 LogLike(GDS::GeneralizedDataSet, x::AbstractVector{<:Number}, y::AbstractVector{<:Number}) = logpdf(dist(GDS), vcat(x,y))
 
 
-_loglikelihood(GDS::GeneralizedDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = LogLike(GDS, xdata(GDS), EmbeddingMap(GDS,model,θ; kwargs...))
+function _loglikelihood(GDS::GeneralizedDataSet, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number
+    LogLike(GDS, xdata(GDS), EmbeddingMap(GDS,model,θ; kwargs...))
+end
 
 function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
     _Score(GDS, model, dmodel, θ, WoundX(GDS), ADmode; kwargs...)
 end
 
 function _Score(GDS::GeneralizedDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, ADmode::Val{false}; kwargs...)
-    transpose(EmbeddingMatrix(GDS,dmodel,θ, woundX; kwargs...)) * gradlogpdf(dist(GDS), [woundX;EmbeddingMap(GDS,model,θ; kwargs...)])[xdim(GDS)*Npoints(GDS)+1:end]
+    transpose(EmbeddingMatrix(GDS,dmodel,θ, woundX; kwargs...)) * (@view gradlogpdf(dist(GDS), [woundX;EmbeddingMap(GDS,model,θ; kwargs...)])[xdim(GDS)*Npoints(GDS)+1:end])
 end
 
 
