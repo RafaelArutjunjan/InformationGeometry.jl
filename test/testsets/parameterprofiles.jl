@@ -57,6 +57,20 @@ BU2 = ProfileBox(PU2, 2)
 @test all(isfinite∘sum, Tuple(BU))
 @test all(isfinite∘sum, Tuple(BU2))
 
+
+### Test other ParameterProfile computation methods
+PbPU = PreburnedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
+IPU = IntegrationParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
+
+@test all(isfinite∘sum, Tuple(ProfileBox(PbPU, 2)))
+@test all(isfinite∘sum, Tuple(ProfileBox(IPU, 2)))
+
+
+APU = ParameterProfiles(DMU, 3; ApproximatePaths=true, N=31, plot=false, verbose=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(APU, 2)))
+
+
+
 CG = ConditionGrid([DM, DMp])
 PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)
 PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10, plot=false, verbose=false)
