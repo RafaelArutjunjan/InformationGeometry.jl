@@ -386,7 +386,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         
         PerformStep!!! = if ApproximatePaths
             # Perform steps based on profile direction at MLE
-            dir = GetLocalProfileDir(DM, Comp, MLE)
+            dir = GetLocalProfileDir(DM, Comp, MLE; verbose)
             pmle = MLE[Comp]
             @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 θ = @. (p-pmle) * dir + MLE
@@ -398,7 +398,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 ConditionalPush!(path, θ)
                 ConditionalPush!(priors, EvalLogPrior(LogPriorFn, θ))
             end
-        elseif general || Data(DM) isa AbstractUnknownUncertaintyDataSet
+        elseif general || HasEstimatedUncertainties(DM) # force also with CG?
             # Build objective function based on Neglikelihood only without touching internals
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 Ins = ValInserter(Comp, p, MLE)
@@ -1372,7 +1372,7 @@ end
     OffsetResults = get(plotattributes, :OffsetResults, true)
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
-    ystring = DoRelChange ? "pᵢ" * (OffsetResults ? " / p_mle" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [pᵢ" * (OffsetResults ? " - p_mle" : "") * "]" : "pᵢ" * (OffsetResults ? " - p_mle" : ""))
+    ystring = DoRelChange ? "p_i" * (OffsetResults ? " / p_mle" : "") :  (U != Diagonal(Ones(pdim(PV))) ? "F^(1/2) * [p_i" * (OffsetResults ? " - p_mle" : "") * "]" : "p_i" * (OffsetResults ? " - p_mle" : ""))
     yguide --> ApplyTrafoNames(ystring, TrafoPath)
     # Also filter out 
     ToPlotInds = idxs[idxs .!= i]

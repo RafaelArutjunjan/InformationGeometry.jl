@@ -221,13 +221,15 @@ Prior(Func::Nothing, args...; kwargs...) = nothing
 Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFunction(args...; ADmode, kwargs...)
 Prior(D::DFunction, args...; kwargs...) = D
 
-EvalLogPrior(P, θ::AbstractVector{<:Number}; kwargs...) = EvalF(P, θ; kwargs...)
-# EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; kwargs...) = EvaldF(P, θ; kwargs...)
-# EvalLogPriorHess(P, θ::AbstractVector{<:Number}; kwargs...) = EvalddF(P, θ; kwargs...)
 EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, P; kwargs...)(θ)
 EvalLogPriorHess(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, P; kwargs...)(θ)
+function EvalLogPrior(P, θ::AbstractVector{T}; kwargs...)::T where T<:Number
+    EvalF(P, θ; kwargs...)
+end
 
-EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = zero(T)
+function EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...)::T where T<:Number
+    zero(T)
+end
 EvalLogPriorGrad(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = Zeros(T, length(x))
 EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = Zeros(T, length(x), length(x))
 
