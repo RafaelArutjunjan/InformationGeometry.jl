@@ -63,7 +63,7 @@ function GetLogLikelihoodFn(DS::AbstractDataSet, model::ModelOrFunction, LogPrio
         Calculates the logarithm of the likelihood ``L``, i.e. ``\\ell(\\mathrm{data} \\, | \\, \\theta) \\coloneqq \\mathrm{ln} \\big( L(\\mathrm{data} \\, | \\, \\theta) \\big)`` given a `DataModel` and a parameter configuration ``\\theta``.
         No prior was given for the parameters.
         """
-        function LogLikelihoodWithoutPrior(θ::AbstractVector{T}; kwargs...)::T where T<:Number
+        function LogLikelihoodWithoutPrior(θ::AbstractVector; kwargs...)
             BareLikelihood(θ; Kwargs..., kwargs...)
         end
     else

@@ -59,15 +59,16 @@ BU2 = ProfileBox(PU2, 2)
 
 
 ### Test other ParameterProfile computation methods
-PbPU = PreburnedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
-IPU = IntegrationParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
-
-@test all(isfinite∘sum, Tuple(ProfileBox(PbPU, 2)))
-@test all(isfinite∘sum, Tuple(ProfileBox(IPU, 2)))
-
-
 APU = ParameterProfiles(DMU, 3; ApproximatePaths=true, N=31, plot=false, verbose=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(APU, 2)))
+
+PbPU = PreburnedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(PbPU, 1)))
+
+IPU = IntegrationParameterProfiles(DMU, 2.2; N=31, plot=false, verbose=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(IPU, 2)))
+IPU2 = IntegrationParameterProfiles(DMU, 2.2; N=31, γ=0.5, plot=false, verbose=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(IPU2, 2)))
 
 
 

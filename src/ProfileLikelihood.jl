@@ -618,6 +618,7 @@ Convergify(Values::AbstractVector{<:Number}, Converged::Union{BitVector,BoolVect
 
 # Grow Falses to their next neighbors to avoid holes in plot
 function ShrinkTruesByOne(X::BoolVector)
+    length(X) == 1 && return X
     Res = copy(X)
     X[1] && !X[2] && (Res[1] = false)
     X[end] && !X[end-1] && (Res[end] = false)
@@ -1032,11 +1033,11 @@ end
 
 
 """
-    IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol=5e-2, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), kwargs...)
+    IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol=1e-3, N::Union{Nothing,Int}=51, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), γ::Union{Nothing,Real}=nothing, kwargs...)
 Computes profile likelihood path via integrating ODE derived via Lagrange multiplier based contraint by Chen and Jennrich (https://doi.org/10.1198/106186002493).
-Unlike Chen and Jennrich's approach, no stabilization term with constant γ is used, since the need for stabilization term is essentially obviated by autodiff Hessians and γ > 0 adds bias to the computed trajectory.
+Unlike in Chen and Jennrich's approach, no stabilization term with constant `γ` is added by default, since the need for this stabilization is essentially obviated by the accuracy of autodiff Hessians and γ > 0 adds undesirable bias to the computed trajectory.
 """
-function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose,
+function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose,
             Confnum::Real=confnum, SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:IntegrationParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
     @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
@@ -1063,7 +1064,7 @@ function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2.0, 
 end
 
 
-function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=101, tol::Real=5e-2,
+function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=51, tol::Real=1e-3,
                 LogLikelihoodFn::Function=loglikelihood(DM), MLE::AbstractVector{<:Number}=MLE(DM), dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false,
                 IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
                 LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), verbose::Bool=true, 
@@ -1104,19 +1105,24 @@ end
 
 function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:Number}, Comp::Int; ADmode::Val=Val(:ForwardDiff), Left::Bool=false,
                 CostHessian::Function=GetHess!(ADmode, Negate(LogLikelihoodFn)),
+                γ::Union{Nothing,Real}=nothing, CostGradient::Union{Nothing,Function}=isnothing(γ) ? nothing : GetGrad!(ADmode, LogLikelihoodFn),
                 logLikeMLE::Real=LogLikelihoodFn(MLE), Confnum::Number=2, dof::Real=length(MLE), verbose::Bool=true, 
                 IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)), MinSafetyFactor::Real=1.05,
                 Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
                 Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
                 meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-3, reltol::Real=tol, abstol::Real=tol, kwargs...)
-            
+
+    @inline AddGradient!(Hλψ, γ::Nothing, CostGradient, G, θ, λ_indices) = nothing
+    @inline function AddGradient!(Hλψ::AbstractVector, γ::Number, CostGradient::Function, G::AbstractVector, θ::AbstractVector, λ_indices)
+        CostGradient(G, θ);     Hλψ .+= γ .* (@view G[λ_indices]);      nothing
+    end
     function ProfileODE!(dλ_dψ::AbstractVector{<:Number}, λ::AbstractVector{<:Number}, params, ψ::Number)
-        (; θ, H, Comp, λ_indices, CostHessian) = params
+        (; θ, H, G, Comp, λ_indices, CostHessian, CostGradient, γ) = params
         θ[Comp] = ψ;    θ[λ_indices] .= λ;     CostHessian(H, θ)
-        Hλλ = @view H[λ_indices, λ_indices]
-        Hλψ = @view H[λ_indices, Comp]
-        ## Original Chen Jennrich with γ:
+        Hλλ = (@view H[λ_indices, λ_indices]);     Hλψ = (@view H[λ_indices, Comp])
+        ## Original Chen Jennrich with γ:  (Should not use γ > 0 unless accuracy of Hessian low)
         ## dλ_dψ .= -(Hλλ \ (Hλψ .+ γ .* (@view (GetGrad(ADmode,LogLikelihoodFn)(θ))[λ_indices])))
+        AddGradient!(Hλψ, γ, CostGradient, G, θ, λ_indices)
         try
             dλ_dψ .= -(Hλλ \ Hλψ)
             # F = cholesky!(Symmetric(Hλλ); check=false)
@@ -1130,8 +1136,9 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:
     end
     n = length(MLE);    λ_indices = setdiff(1:n, Comp)
     LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
+    H = Matrix{eltype(MLE)}(undef, n, n);   G = isnothing(CostGradient) ? nothing : (@assert γ ≥ 0;   Vector{eltype(MLE)}(undef, n))
     
-    params = (θ=copy(MLE), H=Matrix{eltype(MLE)}(undef, n, n), Comp=Comp, λ_indices=λ_indices, CostHessian=CostHessian, LogLikelihoodFn=LogLikelihoodFn, LogLikeThreshold=LogLikeThreshold)
+    params = (θ=copy(MLE), H=H, G=G, Comp=Comp, λ_indices=λ_indices, CostHessian=CostHessian, CostGradient=CostGradient, γ=γ, LogLikelihoodFn=LogLikelihoodFn, LogLikeThreshold=LogLikeThreshold)
     prob = ODEProblem(ODEFunction(ProfileODE!), MLE[λ_indices], psi_span, params)
 
     function EarlyTermination(λ::AbstractVector{<:Number}, ψ::Number, int)
