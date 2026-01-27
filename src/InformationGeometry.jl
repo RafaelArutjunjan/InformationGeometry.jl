@@ -250,7 +250,7 @@ export PlotProfileTrajectories, InterpolatedProfiles, ProfileBox, PracticallyIde
 export ValInserter, InsertIntoFirst, InsertIntoLast, FixParameters, FixNonIdentifiable, LinkParameters
 export ParameterProfiles, FullParameterProfiles
 export ProfileTransform, PlotAlongProfilePaths, ReoptimizeProfile, ProfileConfidenceTransform
-export IntegrationParameterProfiles, PreburnedParameterProfiles
+export IntegrationParameterProfiles
 export PlotProfilePaths, PlotProfilePathDiffs, PlotProfilePathNormDiffs
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
 
