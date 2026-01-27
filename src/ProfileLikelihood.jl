@@ -310,7 +310,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
                         FisherMetricFn::Function=FisherMetric(DM), CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetricFn)),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
-                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
+                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
@@ -318,7 +318,6 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but model does not have prior."
     @assert Confnum > 0
-    @assert isnothing(mle) "mle kwarg deprecated, use capitalized kwarg MLE instead."
     # stepfactor: overall multiplicative factor for step length
     # stepmemory: linear interpolation of new with previous step size
     # terminatefactor: terminate profile if distance from original MLE too large
@@ -386,7 +385,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         
         PerformStep!!! = if ApproximatePaths
             # Perform steps based on profile direction at MLE
-            dir = GetLocalProfileDir!(isnothing(Fisher) ? FisherMetricFn(MLE) : copy(Fisher); verbose)
+            dir = GetLocalProfileDir!(isnothing(Fisher) ? FisherMetricFn(MLE) : copy(Fisher), Comp; verbose)
             pmle = MLE[Comp]
             @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 θ = @. (p-pmle) * dir + MLE
@@ -998,10 +997,10 @@ end
 Takes given profile `P` and reoptimizes each point in the trajectories.
 """
 function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
-                        verbose::Bool=true, SaveTrajectories::Bool=true, MLE::AbstractVector=MLE(P), dof::Int=DOF(P), IsCost::Bool=IsCost(P), Meta::Symbol=:ParameterProfiles, kwargs...)
+                        verbose::Bool=true, showprogress::Bool=verbose, SaveTrajectories::Bool=true, MLE::AbstractVector=MLE(P), dof::Int=DOF(P), IsCost::Bool=IsCost(P), Meta::Symbol=:ParameterProfiles, kwargs...)
     @assert HasTrajectories(P);     @assert Multistart == 0
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
-    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
+    Prog = Progress(length(inds); enabled=showprogress, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
     FullProfs = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, getindex.(Trajectories(P)[i],i); adaptive=false, SavedPs=Trajectories(P)[i], verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
 
     Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
@@ -1028,6 +1027,127 @@ function PreburnedParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,H
     P = ParameterProfiles(DM, Confnum, Inds; ApproximatePaths=true, SaveTrajectories=true, SavePriors=false, verbose=false, plot=false, kwargs...)
     ReoptimizeProfile(DM, P, Inds; SaveTrajectories, SavePriors, plot, kwargs...)
 end
+
+
+
+
+"""
+    IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol=5e-2, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), kwargs...)
+Computes profile likelihood path via integrating ODE derived via Lagrange multiplier based contraint by Chen and Jennrich (https://doi.org/10.1198/106186002493).
+Unlike Chen and Jennrich's approach, no stabilization term with constant γ is used, since the need for stabilization term is essentially obviated by autodiff Hessians and γ > 0 adds bias to the computed trajectory.
+"""
+function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose,
+            Confnum::Real=confnum, SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:IntegrationParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
+    @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
+    @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
+
+    Prog = Progress(length(inds); enabled=showprogress, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
+    FullProfs = (parallel ? progress_pmap : progress_map)(i->GetIntegrationProfile(DM, i, Float64[]; MLE, Confnum, IsCost, dof, verbose, kwargs...), inds; progress=Prog)
+
+    Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
+    Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
+    if !(inds == 1:length(MLE))
+        EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
+        EmptyTraj = [Fill(NaN, length(MLE))]
+        for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
+            if i ∉ inds
+                insert!(Profs, i, EmptyProf)
+                SaveTrajectories ? insert!(Trajs, i, EmptyTraj) : insert!(Trajs, i, nothing)
+            end
+        end
+    end
+    # Add check if new MLE was found
+    P = ParameterProfiles(DM, Profs, Trajs, pnames; IsCost, dof, Meta, MLE)
+    plot && display(RecipesBase.plot(P, false))
+    P
+end
+
+
+function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=101, tol::Real=5e-2,
+                LogLikelihoodFn::Function=loglikelihood(DM), MLE::AbstractVector{<:Number}=MLE(DM), dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false,
+                IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
+                LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), verbose::Bool=true, 
+                CostHessian::Function=GetHess!(ADmode, Negate(LogLikelihoodFn)),
+                ### Pure PostProcessing:
+                AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(LogPriorFn), OffsetResults::Bool=true, SaveTrajectories::Bool=true, # Catch last
+                kwargs...)
+    LeftSol = IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=true,  ADmode, CostHessian, logLikeMLE, Confnum, IC, Domain, tol, verbose, kwargs...)
+    RightSol= IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=false, ADmode, CostHessian, logLikeMLE, Confnum, IC, Domain, tol, verbose, kwargs...)
+
+    # Need to make sure all elements unique for interpolation
+    path = Vector{eltype(MLE)}[]
+    if isnothing(N)
+        sizehint!(path, length(LeftSol.t)+length(RightSol.t))
+        for i in 2:length(LeftSol.t)-1
+            push!(path, insert!(LeftSol.u[end+1-i], Comp, LeftSol.t[end+1-i]))
+        end
+        for i in 1:length(RightSol.t)-1
+            push!(path, insert!(RightSol.u[i], Comp, RightSol.t[i]))
+        end
+    else # Interpolate ODE solution to achieve fixed profile N
+        iseven(N) && (N += 1);    sizehint!(path, N)
+        for t in range(extrema(LeftSol.t)...; length=1+(N-1)÷2)
+            push!(path, insert!(LeftSol(t), Comp, t))
+        end
+        for t in range(extrema(RightSol.t)...; length=(N-1)÷2)[2:end]
+            push!(path, insert!(RightSol(t), Comp, t))
+        end
+    end
+    Res = map(LogLikelihoodFn, path)
+    priors = SavePriors ? map(LogPriorFn, path) : nothing
+    Converged = trues(length(Res))
+
+    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, verbose)
+    ResMat = SavePriors ? VectorOfArray([getindex.(path,Comp), Res, priors, Converged]) : VectorOfArray([getindex.(path,Comp), Res, Converged])
+    (ResMat, path)
+end
+
+function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:Number}, Comp::Int; ADmode::Val=Val(:ForwardDiff), Left::Bool=false,
+                CostHessian::Function=GetHess!(ADmode, Negate(LogLikelihoodFn)),
+                logLikeMLE::Real=LogLikelihoodFn(MLE), Confnum::Number=2, dof::Real=length(MLE), verbose::Bool=true, 
+                IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)), MinSafetyFactor::Real=1.05,
+                Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
+                Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
+                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-3, reltol::Real=tol, abstol::Real=tol, kwargs...)
+            
+    function ProfileODE!(dλ_dψ::AbstractVector{<:Number}, λ::AbstractVector{<:Number}, params, ψ::Number)
+        (; θ, H, Comp, λ_indices, CostHessian) = params
+        θ[Comp] = ψ;    θ[λ_indices] .= λ;     CostHessian(H, θ)
+        Hλλ = @view H[λ_indices, λ_indices]
+        Hλψ = @view H[λ_indices, Comp]
+        ## Original Chen Jennrich with γ:
+        ## dλ_dψ .= -(Hλλ \ (Hλψ .+ γ .* (@view (GetGrad(ADmode,LogLikelihoodFn)(θ))[λ_indices])))
+        try
+            dλ_dψ .= -(Hλλ \ Hλψ)
+            # F = cholesky!(Symmetric(Hλλ); check=false)
+            # ldiv!(dλ_dψ, F, Hλψ)
+            # dλ_dψ .*= -1
+        catch E;
+            verbose && println("Error happened in profile $Comp at p=$ψ: $E")
+            mul!(dλ_dψ, -pinv(Hλλ), Hλψ)
+        end
+        nothing
+    end
+    n = length(MLE);    λ_indices = setdiff(1:n, Comp)
+    LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
+    
+    params = (θ=copy(MLE), H=Matrix{eltype(MLE)}(undef, n, n), Comp=Comp, λ_indices=λ_indices, CostHessian=CostHessian, LogLikelihoodFn=LogLikelihoodFn, LogLikeThreshold=LogLikeThreshold)
+    prob = ODEProblem(ODEFunction(ProfileODE!), MLE[λ_indices], psi_span, params)
+
+    function EarlyTermination(λ::AbstractVector{<:Number}, ψ::Number, int)
+        (; LogLikelihoodFn, θ, Comp, λ_indices, LogLikeThreshold) = int.p
+        θ[Comp] = ψ;    θ[λ_indices] .= λ;        LogLikelihoodFn(θ) - LogLikeThreshold
+    end
+    DomainTermination = if !isnothing(ProfileDomain)
+        if Left
+            isfinite(ProfileDomain.L[Comp]) ? ContinuousCallback((λ,ψ,int)->(ψ-ProfileDomain.L[Comp]), terminate!) : nothing
+        else
+            isfinite(ProfileDomain.U[Comp]) ? ContinuousCallback((λ,ψ,int)->(ProfileDomain.U[Comp]-ψ), terminate!) : nothing
+        end
+    else nothing end
+    solve(prob, meth; callback=CallbackSet(ContinuousCallback(EarlyTermination, terminate!), DomainTermination), reltol, abstol, kwargs...)
+end
+
 
 
 
