@@ -359,3 +359,25 @@ function _CencovTensor(J::AbstractMatrix, H::AbstractArray{<:Number,3}, Σ⁻¹:
     # Symmetrisation
     @tullio C[i,j,k] := (T[i,j,k] + T[j,k,i] + T[k,i,j]) / 3
 end
+
+
+"""
+    EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
+Computes the (1,2) Christoffel symbol of the e-connection, i.e. the α-connection with α=-1.
+"""
+function EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), g⁻¹::AbstractMatrix{<:Number}=inv(g), kwargs...)
+    Γ = ChristoffelSymbol(DM, MLE; kwargs...)
+    C = CencovTensor(DM, MLE; kwargs...)
+    @tullio Γ[i,j,k] += -0.5 * g⁻¹[i,a] * C[a,j,k]
+    Γ
+end
+"""
+    MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
+Computes the (1,2) Christoffel symbol of the m-connection, i.e. the α-connection with α=+1.
+"""
+function MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), g⁻¹::AbstractMatrix{<:Number}=inv(g), kwargs...)
+    Γ = ChristoffelSymbol(DM, MLE; kwargs...)
+    C = CencovTensor(DM, MLE; kwargs...)
+    @tullio Γ[i,j,k] += +0.5 * g⁻¹[i,a] * C[a,j,k]
+    Γ
+end
