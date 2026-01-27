@@ -235,6 +235,7 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
     @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
             g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
+        @assert !HasEstimatedUncertainties(DM) "Not implemented for parameter-dependent data variance yet."
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
     end
     @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
@@ -319,4 +320,42 @@ function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, 
     Hnorm² = InnerProduct(Σ⁻¹, H)
     IInorm² = 2*EfronScalarCurvature(II, g, g⁻¹, Σ⁻¹)
     Hnorm² / IInorm²
+end
+
+
+
+CencovTensor(DM::AbstractDataModel; kwargs...) = X::AbstractVector -> CencovTensor(DM, X; kwargs...)
+"""
+    CencovTensor(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...)
+Computes the (0,3) Amari-Čencov tensor ``C_{ijk}(\\theta) = \\mathrm{E}(\\pdv{\\ell}{\\theta^i} \\pdv{\\ell}{\\theta^j} \\pdv{\\ell}{\\theta^k})`` for data with Gaussian noise of known or unknown variance.
+"""
+function CencovTensor(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), 
+                        ∂Σ⁻¹::Union{Nothing,AbstractArray{<:Number,3}}=HasEstimatedUncertainties(DM) ? GetMatrixJac(ADmode,p->yInvCov(DM,p))(mle) : nothing, kwargs...)
+    J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
+    _CencovTensor(J, H, Σ⁻¹, ∂Σ⁻¹)
+end
+# No prescaled Jacobian, apparently slightly slower
+function _CencovTensor2(J::AbstractMatrix, H::AbstractArray{<:Number,3}, Σ⁻¹::AbstractMatrix, N::Nothing=nothing)
+    @boundscheck @assert size(J,1) == size(H,1) == size(Σ⁻¹,1) == size(Σ⁻¹,2) && size(J,2) == size(H,2) == size(H,3)
+    # C = 1/3 * Symmetric permutation of H[a,i,j] * J̃[a, k]
+    @tullio C[i,j,k] := (H[a,i,j] * Σ⁻¹[a,b] * J[b,k] + H[a,i,k] * Σ⁻¹[a,b] * J[b,j] + H[a,j,k] * Σ⁻¹[a,b] * J[b,i]) / 3
+end
+function _CencovTensor(J::AbstractMatrix, H::AbstractArray{<:Number,3}, Σ⁻¹::AbstractMatrix, N::Nothing=nothing)
+    @boundscheck @assert size(J,1) == size(H,1) == size(Σ⁻¹,1) == size(Σ⁻¹,2) && size(J,2) == size(H,2) == size(H,3)
+    # Prescale Jacobian
+    J̃ = Σ⁻¹ * J
+    # C = 1/3 * Symmetric permutation of H[a,i,j] * J̃[a, k]
+    @tullio C[i,j,k] := (H[a,i,j] * J̃[a, k] + H[a,j,k] * J̃[a, i] + H[a,k,i] * J̃[a, j]) / 3
+end
+function _CencovTensor(J::AbstractMatrix, H::AbstractArray{<:Number,3}, Σ⁻¹::AbstractMatrix, ∂Σ⁻¹::AbstractArray{<:Number,3})
+    @boundscheck @assert size(J,1) == size(H,1) == size(Σ⁻¹,1) == size(Σ⁻¹,2) == size(∂Σ⁻¹,1) == size(∂Σ⁻¹,2)
+    @boundscheck @assert size(J,2) == size(H,2) == size(H,3) == size(∂Σ⁻¹,3)
+    # Parameter-dependent mean part
+    @tullio T[i,j,k] := H[a,i,j] * Σ⁻¹[a,b] * J[b,k]
+    # Mean-covariance interaction
+    @tullio T[i,j,k] += -0.5* J[a,k] * ∂Σ⁻¹[a,b,i] * J[b,j]
+    # Pure covariance contribution
+    @tullio T[i,j,k] += -0.25 * ∂Σ⁻¹[a,b,i] * ∂Σ⁻¹[b,c,j] * ∂Σ⁻¹[c,a,k]
+    # Symmetrisation
+    @tullio C[i,j,k] := (T[i,j,k] + T[j,k,i] + T[k,i,j]) / 3
 end
