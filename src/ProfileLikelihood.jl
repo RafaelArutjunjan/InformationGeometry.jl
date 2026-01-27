@@ -308,15 +308,15 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
                         UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
-                        CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetric(DM))),
+                        FisherMetricFn::Function=FisherMetric(DM), CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetricFn)),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
-                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM),
-                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetric(DM, MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
+                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), mle::Union{Nothing,AbstractVector}=nothing, logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
+                        Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
                         IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
-    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but $(name(DM) === Symbol() ? "model" : string(name(DM))) does not have prior."
+    SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but model does not have prior."
     @assert Confnum > 0
     @assert isnothing(mle) "mle kwarg deprecated, use capitalized kwarg MLE instead."
     # stepfactor: overall multiplicative factor for step length
@@ -340,7 +340,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
 
     OptimDomain = Drop(Domain, Comp)
 
-    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && !HasEstimatedUncertainties(DM)
+    FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && KnownVariance
         ((args...; Kwargs...)->Curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
         Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
@@ -374,7 +374,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     ParamBounds = isnothing(ProfileDomain) ? (-Inf, Inf) : ProfileDomain[Comp]
     OnlyBreakOnBounds && @assert all(isfinite, ParamBounds)
 
-    if pdim(DM) == 1    # Cannot drop dims if pdim already 1
+    if length(MLE) == 1    # Cannot drop dims if pdim already 1
         Xs = [[x] for x in ps]
         Res = map(LogLikelihoodFn, Xs)
         Converged = .!isnan.(Res) .&& .!isinf.(Res) .&& map(x->InBounds([x]), ps)
@@ -386,7 +386,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         
         PerformStep!!! = if ApproximatePaths
             # Perform steps based on profile direction at MLE
-            dir = GetLocalProfileDir(DM, Comp, MLE; verbose)
+            dir = GetLocalProfileDir!(isnothing(Fisher) ? FisherMetricFn(MLE) : copy(Fisher); verbose)
             pmle = MLE[Comp]
             @inline function PerformApproximateStep!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 θ = @. (p-pmle) * dir + MLE
@@ -398,7 +398,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                 ConditionalPush!(path, θ)
                 ConditionalPush!(priors, EvalLogPrior(LogPriorFn, θ))
             end
-        elseif general || HasEstimatedUncertainties(DM) # force also with CG?
+        elseif general || !KnownVariance # force also with CG?
             # Build objective function based on Neglikelihood only without touching internals
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 Ins = ValInserter(Comp, p, MLE)
@@ -437,7 +437,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath -2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
             
             maxstepnumber = N
-            Fi = isnothing(Fisher) ? FisherMetric(DM, MLE)[Comp,Comp] : Fisher[Comp,Comp]
+            Fi = isnothing(Fisher) ? FisherMetricFn(MLE)[Comp,Comp] : Fisher[Comp,Comp]
             # Calculate initial stepsize based on curvature from fisher information
             initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
@@ -575,14 +575,13 @@ function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Unio
 end
 
 
-function GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM); verbose::Bool=true)
-    F = FisherMetric(DM, p)
-    F[Comp, :] .= [(j == Comp) for j in eachindex(p)]
+GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}=MLE(DM); verbose::Bool=false) = GetLocalProfileDir!(FisherMetric(DM, p), Comp; verbose)
+function GetLocalProfileDir!(F::AbstractMatrix, Comp::Int; verbose::Bool=false)
+    # @boundscheck @assert size(F,1) == size(F,2) && 1 ≤ Comp ≤ size(F,1)
     verbose && NotPosDef(F) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
-    dir = pinv(F)[:, Comp];    dir ./= dir[Comp]
-    dir
+    F[Comp, :] .= [(j == Comp) for j in axes(F,1)]
+    dir = pinv(F)[:, Comp];    dir ./= dir[Comp];   dir
 end
-
 
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
                             MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), 
@@ -590,13 +589,13 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::Abstr
     ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, kwargs...)
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
+function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
                         MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
     @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
 
-    Prog = Progress(length(inds); enabled=verbose, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
+    Prog = Progress(length(inds); enabled=showprogress, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
     Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (ProfileDomain.L[i], ProfileDomain.U[i]); verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
@@ -1021,6 +1020,16 @@ function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::Ab
     plot && display(RecipesBase.plot(P2, false))
     P2
 end
+
+
+## Presumably more efficient for small coordinate distortions, less efficient for large coordinate distortions
+function PreburnedParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); 
+                SaveTrajectories::Bool=true, SavePriors::Bool=false, plot::Bool=isloaded(:Plots), kwargs...)
+    P = ParameterProfiles(DM, Confnum, Inds; ApproximatePaths=true, SaveTrajectories=true, SavePriors=false, verbose=false, plot=false, kwargs...)
+    ReoptimizeProfile(DM, P, Inds; SaveTrajectories, SavePriors, plot, kwargs...)
+end
+
+
 
 
 # Empty trafo name for identity
