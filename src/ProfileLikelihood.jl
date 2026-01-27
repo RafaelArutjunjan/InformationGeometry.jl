@@ -1023,7 +1023,7 @@ end
 
 
 ## Presumably more efficient for small coordinate distortions, less efficient for large coordinate distortions
-function PreburnedParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); 
+function PreapproximatedParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); 
                 SaveTrajectories::Bool=true, SavePriors::Bool=false, plot::Bool=isloaded(:Plots), kwargs...)
     P = ParameterProfiles(DM, Confnum, Inds; ApproximatePaths=true, SaveTrajectories=true, SavePriors=false, verbose=false, plot=false, kwargs...)
     ReoptimizeProfile(DM, P, Inds; SaveTrajectories, SavePriors, plot, kwargs...)

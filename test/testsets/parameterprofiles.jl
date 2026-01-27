@@ -62,7 +62,7 @@ BU2 = ProfileBox(PU2, 2)
 APU = ParameterProfiles(DMU, 3; ApproximatePaths=true, N=31, plot=false, verbose=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(APU, 2)))
 
-PbPU = PreburnedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
+PbPU = InformationGeometry.PreapproximatedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(PbPU, 1)))
 
 IPU = IntegrationParameterProfiles(DMU, 2.2; N=31, plot=false, verbose=false)
