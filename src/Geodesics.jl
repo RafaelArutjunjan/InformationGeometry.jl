@@ -17,17 +17,23 @@ function GetGeodesicODE(Metric::Function, InitialPos::AbstractVector{<:Number}, 
     end
 end
 
+### Generates ODE for e-geodesic, i.e. using α-Christoffel with α=-1
+function GetEGeodesicODE(DM::AbstractDataModel, InitialPos::AbstractVector{<:Number}=MLE(DM); kwargs...)
+    n = length(InitialPos)
+    function EGeodesicODE!(du,u,p,t)
+        du[1:n] .= @view u[(n+1):end]
+        ChristoffelTerm!((@view du[(n+1):end]), EChristoffelSymbol(DM, (@view u[1:n]); kwargs...), (@view du[1:n]))
+    end
+end
+
+
 # accuracy ≈ 6e-11
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, kwargs...)
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, 
+                        GeodesicODE=GetGeodesicODE(Metric, InitialPos, approx), kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
-    prob = ODEProblem(GetGeodesicODE(Metric, InitialPos, approx), u0, tspan)
-    if isnothing(Boundaries)
-        solve(prob, meth; reltol=tol, abstol=tol, kwargs...)
-    else
-        solve(prob, meth; reltol=tol, abstol=tol, callback=DiscreteCallback(Boundaries,terminate!), kwargs...)
-    end
+    solve(ODEProblem(GeodesicODE, u0, tspan), meth; reltol=tol, abstol=tol, (!isnothing(Boundaries) ? (;callback=DiscreteCallback(Boundaries,terminate!)) : (;))..., kwargs...)
 end
 
 """
@@ -55,7 +61,7 @@ function GeodesicLength(Metric::Function, sol::AbstractODESolution, Endrange::Nu
     n = length(sol.u[1])÷2
     function Integrand(t)
         FullGamma = sol(t)
-        InnerProduct(Metric(FullGamma[1:n]), FullGamma[(n+1):end]) |> sqrt
+        InnerProduct(Metric(@view FullGamma[1:n]), (@view FullGamma[(n+1):end])) |> sqrt
     end
     Integrate1D(Integrand, (sol.t[1],Endrange); FullSol=FullSol, tol=tol, kwargs...)
 end
@@ -64,15 +70,15 @@ end
     GeodesicCrossing(DM::DataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol=1e-15)
 Gives the parameter value of the geodesic `sol` at which the confidence level `Conf` is crossed.
 """
-function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, kwargs...)
-    start = sol.t[end]/2
+function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, dof::Real=DOF(DM), meth::Roots.AbstractNonBracketing=Roots.Order1B(), kwargs...)
     if (tol < 1e-15)
         start *= one(BigFloat)
         @warn "GeodesicCrossing: Conf value not programmed for BigFloat yet."
     end
-    A = loglikelihood(DM,sol(0.)[1:2]) - (1/2)*InvChisqCDF(Int(length(sol(0.))/2),Conf)
-    f(t) = A - loglikelihood(DM,sol(t)[1:2])
-    find_zero(f, start, Order1B(); xatol=tol, kwargs...)
+    n = length(sol.u[1])÷2
+    A = loglikelihood(DM, (@view sol(0.)[1:n])) - (1/2)*InvChisqCDF(dof, Conf)
+    f(t) = A - loglikelihood(DM, (@view sol(t)[1:n]))
+    Roots.find_zero(f, sol.t[end]/2, meth; xatol=tol, kwargs...)
 end
 
 
@@ -85,7 +91,7 @@ function DistanceAlongGeodesic(Metric::Function, sol::AbstractODESolution, L::Nu
     # Use interpolated Solution of integral for improved accuracy
     GeoLength = GeodesicLength(Metric,sol,sol.t[end], FullSol=true, tol=tol)
     Func(x) = L - GeoLength(x)
-    find_zero((Func,GetDeriv(ADmode, Func)), sol.t[end]/2*one(typeof(L)), Roots.Newton(), xatol=tol, kwargs...)
+    Roots.find_zero((Func,GetDeriv(ADmode, Func)), sol.t[end]/2*one(typeof(L)), Roots.Newton(), xatol=tol, kwargs...)
 end
 
 
@@ -104,10 +110,10 @@ end
 Evalues a family `geos` of geodesics on a set of parameters `Ts`. `geos[1]` is evaluated at `Ts[1]`, `geos[2]` is evaluated at `Ts[2]` and so on.
 The second half of the values respresenting the velocities is automatically truncated.
 """
-function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractVector{<:Number})
+function EvaluateEach(sols::AbstractVector{<:AbstractODESolution}, Ts::AbstractVector{T}) where T<:Number
     length(sols) != length(Ts) && throw(ArgumentError("Dimension Mismatch."))
     n = Int(length(sols[1].u[1])/2)
-    Res = Vector{Vector{Float64}}(undef,0)
+    Res = Vector{Vector{T}}(undef,0)
     for i in eachindex(Ts)
         F = sols[i]
         push!(Res, (@view F(Ts[i])[1:n]))
@@ -290,7 +296,7 @@ function MBAMBoundaries(DM::AbstractDataModel; componentlim::Real=1e4, singularl
         if !all(x->abs(x) < componentlim, u)
             @warn "Terminated because a position / velocity coordinate > $componentlim at: $u."
             return true
-        elseif svdvals(FisherMetric(DM, u[1:end÷2]))[end] < singularlim
+        elseif svdvals(FisherMetric(DM, (@view u[1:end÷2])))[end] < singularlim
             @warn "Terminated because Fisher metric became singular (i.e. < $singularlim) at: $u."
             return true
         else
