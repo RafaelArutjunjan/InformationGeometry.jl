@@ -755,6 +755,20 @@ end
 
 
 
+"""
+    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=true, dof::Int=DOF(DM), kwargs...)
+Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
+Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
+`Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
+Single profiles can be accessed via `P[i]`, given a profile object `P`.
+
+The kwarg `IsCost=true` can be used to skip the transformation from the likelihood values to the associated confidence level such that `2(LogLikeMLE(DM) - loglikelihood(DM, θ))` is returned in the second columns of the profiles.
+The trajectories followed during the reoptimization along the profile can be saved via `SaveTrajectories=true`.
+For `adaptive=false` the size of the domain is estimated from the inverse Fisher metric and the profile is evaluated on a fixed stepsize grid.
+Further `kwargs` can be passed to the optimization.
+
+For visualization of the results, multiple methods are available, see e.g. `PlotProfileTrajectories`, `PlotRelativeParameterTrajectories`.
+"""
 mutable struct ParameterProfiles <: AbstractProfiles
     Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}
@@ -763,7 +777,6 @@ mutable struct ParameterProfiles <: AbstractProfiles
     dof::Int
     IsCost::Bool
     Meta::Symbol
-    # Allow for different inds and fill rest with nothing or NaN
     function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector=MLE(DM), kwargs...)
         inds = sort(Inds)
         FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories, IsCost, MLE, kwargs...)
@@ -803,22 +816,6 @@ InterpolatedProfiles(P::ParameterProfiles, Interp::Type{<:AbstractInterpolation}
 
 # For SciMLBase.remake
 
-"""
-    ParameterProfiles(DM::AbstractDataModel, Confnum::Real=2, Inds::AbstractVector{<:Int}=1:pdim(DM); adaptive::Bool=true, N::Int=31, plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, parallel::Bool=true, dof::Int=DOF(DM), kwargs...)
-Computes the profile likelihood for components `Inds` of the parameters ``θ \\in \\mathcal{M}`` over the given `Domain`.
-Returns a vector of matrices where the first column of the n-th matrix specifies the value of the n-th component and the second column specifies the associated confidence level of the best fit configuration conditional to the n-th component being fixed at the associated value in the first column.
-`Confnum` specifies the confidence level to which the profile should be computed if possible with `Confnum=2` corresponding to 2σ, i.e. approximately 95.4%.
-Single profiles can be accessed via `P[i]`, given a profile object `P`.
-
-The kwarg `IsCost=true` can be used to skip the transformation from the likelihood values to the associated confidence level such that `2(LogLikeMLE(DM) - loglikelihood(DM, θ))` is returned in the second columns of the profiles.
-The trajectories followed during the reoptimization along the profile can be saved via `SaveTrajectories=true`.
-For `adaptive=false` the size of the domain is estimated from the inverse Fisher metric and the profile is evaluated on a fixed stepsize grid.
-Further `kwargs` can be passed to the optimization.
-
-# Extended help
-
-For visualization of the results, multiple methods are available, see e.g. [`PlotProfileTrajectories`](@ref), [`PlotRelativeParameterTrajectories`](@ref).
-"""
 ParameterProfiles(;
     Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}=[Zeros(1,3)],
     Trajectories::AbstractVector{<:Union{<:AbstractVector{<:AbstractVector{<:Number}}, <:Nothing}}=[nothing],
@@ -1726,7 +1723,7 @@ ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = Va
 # Add virtual point to validation profile again to obtain prediction profile
 """
     ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
-Converts a `ParameterProfile` object encoding a validation profile into a prediction profile by subtracting off the effect introduced by the ficticious validation data point.
+Converts a `ParameterProfiles` object encoding a validation profile into a prediction profile by subtracting off the effect introduced by the ficticious validation data point.
 """
 function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
     @assert HasPriors(VP) && IsCost(VP)
