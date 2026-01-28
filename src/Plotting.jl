@@ -689,29 +689,17 @@ function VisualizeSols(sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=
     end;    p
 end
 function VisualizeSols(sol::AbstractODESolution; idxs::Tuple=Tuple(1:length(sol.u[1])), leg::Bool=false, OverWrite::Bool=false,
-                                        ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
+                                        ModelMapMeta::Union{ModelMap,Nothing}=nothing, kwargs...)
     OverWrite && RecipesBase.plot()
-    if ModelMapMeta isa ModelMap
-        names = pnames(ModelMapMeta)
-        if length(idxs) == 2
-            return RecipesBase.plot!(sol; xlabel=names[idxs[1]], ylabel=names[idxs[2]], idxs=idxs, leg=leg, kwargs...)
-        elseif length(idxs) == 3
-            return RecipesBase.plot!(sol; xlabel=names[idxs[1]], ylabel=names[idxs[2]], zlabel=names[idxs[3]], idxs=idxs, leg=leg, kwargs...)
-        end
-        # What if idxs > 3? Does Plots.jl throw an error?
-    end
-    RecipesBase.plot!(sol; idxs=idxs, leg=leg, kwargs...)
+    names = !isnothing(ModelMapMeta) ? pnames(ModelMapMeta) : CreateSymbolNames(length(sol.u[1]))
+    RecipesBase.plot!(sol; xlabel=names[idxs[1]], ylabel=names[idxs[2]], (length(idxs) > 2 ? (;zlabel=names[idxs[3]]) : (;))..., idxs=idxs, leg=leg, kwargs...)
 end
 
 function VisualizeSols(PL::Plane, sol::AbstractODESolution; idxs::Tuple=Tuple(1:length(PL)), leg::Bool=false, N::Int=500,
-                            ModelMapMeta::Union{ModelMap,Bool}=false, kwargs...)
+                            ModelMapMeta::Union{ModelMap,Nothing}=nothing, kwargs...)
     H = Deplanarize(PL, sol; N=N)
-    if ModelMapMeta isa ModelMap
-        names = pnames(ModelMapMeta)
-        return RecipesBase.plot!(H[:,idxs[1]], H[:,idxs[2]], H[:,idxs[3]]; xlabel=names[idxs[1]], ylabel=names[idxs[2]], zlabel=names[idxs[3]], leg=leg, kwargs...)
-    else
-        return RecipesBase.plot!(H[:,idxs[1]], H[:,idxs[2]], H[:,idxs[3]]; leg=leg, kwargs...)
-    end
+    names = !isnothing(ModelMapMeta) ? pnames(ModelMapMeta) : CreateSymbolNames(length(PL))
+    RecipesBase.plot!((@view H[:,idxs[1]]), (@view H[:,idxs[2]]), (@view H[:,idxs[3]]); xlabel=names[idxs[1]], ylabel=names[idxs[2]], zlabel=names[idxs[3]], leg=leg, kwargs...)
 end
 function VisualizeSols(PL::Plane, sols::AbstractVector{<:AbstractODESolution}; idxs::Tuple=Tuple(1:length(PL)), N::Int=500, OverWrite::Bool=true, leg::Bool=false, kwargs...)
     p = [];     OverWrite && RecipesBase.plot()
@@ -732,11 +720,7 @@ end
 function VisualizeSols(DM::AbstractDataModel, args...; OverWrite::Bool=true, MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     (OverWrite ? RecipesBase.plot : RecipesBase.plot!)([MLE]; seriestype=:scatter, label="MLE")
     # Labels = round.([GetConfnum(DM, args...)]; sigdigits=2)
-    if Predictor(DM) isa ModelMap
-        VisualizeSols(args...; OverWrite=false, ModelMapMeta=Predictor(DM), kwargs...)
-    else
-        VisualizeSols(args...; OverWrite=false, kwargs...)
-    end
+    VisualizeSols(args...; OverWrite=false, ((!isa(DM, AbstractConditionGrid) && Predictor(DM) isa ModelMap) ? (;ModelMapMeta=Predictor(DM)) : (;))..., kwargs...)
 end
 
 

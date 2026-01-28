@@ -18,7 +18,7 @@ LogLikeMLE(::DataModel)
 
 Various geometric quantities which are intrinsic to the parameter manifold ``\mathcal{M}`` can be computed as a result of the Fisher metric ``g`` (and subsequent choice of the Levi-Civita connection) such as the Riemann and Ricci tensors and the Ricci scalar ``R``.
 ```@docs
-Score(::DataModel,::Vector{Float64})
+Score(::DataModel,::Vector{Float64},::Nothing)
 FisherMetric(::DataModel,::Vector{Float64})
 GeometricDensity(::DataModel,::Vector{Float64})
 ChristoffelSymbol(::Function,::Vector{Float64})

@@ -1,7 +1,7 @@
 
 ### ConditionGrids
 
-The `ConditionGrid` type offers a way to link a vector of `DataModel`s, which in turn each contain a dataset and corresponding model to describe said data.
+The `ConditionGrid` type offers a way to link a vector of `DataModel`s, which in turn each contain a different dataset and corresponding model to describe said data.
 Overall, the `ConditionGrid` takes a `Vector` of "outer parameters", i.e. a vector of parameters which are visible to the outside, and generates from these shared outer parameters new individual parameter vectors for each of the individual "conditions", i.e. `DataModel`s.
 This terminology is inspired by the [**dMod**](https://github.com/dkaschek/dMod) package for dynamic modelling and parameter estimation in R.
 

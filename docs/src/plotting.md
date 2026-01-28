@@ -26,10 +26,10 @@ plot(DM; Confnum=[1,2], Validation=true)
 ```
 In the literature, these are often instead referred to as "prediction bands" instead of validation bands. However, this terminology is somewhat prone to confusion in my humble opinion which is why I personally prefer to avoid it.
 
-The linearized confidence and validation bands are computed via the [`VariancePropagation`](@ref) and [`ValidationPropagation`](@ref) methods respectively.
+The linearized confidence and validation bands are computed via the `VariancePropagation` and `ValidationPropagation` methods respectively.
 
 !!! note
-    Validation Propagation experimental and not reliable, for more exact results, compute actual [`ValidationProfiles`](@ref).
+    Validation Propagation experimental and not reliable, for more exact results, compute actual `ValidationProfiles`.
 
 For `DataModel`s or simply datasets which have multiple different components (i.e. `ydim > 1`), the `Symbol` `:Individual` may be appended as the last argument to split the components into separate plots:
 ```@example Plotting
