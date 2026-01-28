@@ -41,7 +41,8 @@ plot(P3, false) #hide
 ```
 This means that arbitrarily small values of ``\theta_2`` are still compatible with the data up to a confidence of ``3\sigma \approx 99.73\%``.
 
-Once a profile `P3` has been computed, it can be plotted via `plot(P3)`. It is also possible to just plot any of the individual profiles via `plot(P3[i])` where the integer `i` denotes the profile of the ``i``-th parameter. 
+Once a profile `P3` has been computed, it can be plotted via `Plots.plot(P3)`. It is also possible to just plot any of the individual profiles via `Plots.plot(P3[i])` where the integer `i` denotes the profile of the ``i``-th parameter.
+Interpolation for smoother curves in plots can be activated via the `Interpolate` keyword as `Plots.plot(P3; Interpolate=true)`.
 
 ```@docs
 ParameterProfiles
@@ -115,6 +116,7 @@ PlotProfilePaths(P3; RelChange=false, TrafoPath=identity, idxs=1:length(P3))
 ```
 where the `RelChange` kwarg can be used to specify whether the relative change `p_i / p_mle` or the difference `p_i - p_mle` is plotted.
 Also, the `TrafoPath` allows for specifying a transformation which is broadcasted over the results to account for non-linear distortions on the parameter space, making relevant features more easily visible, for instance `TrafoPath=BiLog`.
+Interpolation can be turned in plots to smooth out sparsely sampled trajectories via the `InterpolatePaths` keyword as `PlotProfilePaths(P3; InterpolatePaths=true)`.
 
 In the above example, one can see from the trajectories of the profile for ``\theta_2`` that the first parameter ``\theta_1`` must decrease if the second parameter ``\theta_2`` increases in order to compensate, such that the model still describes the data as well as possible.
 

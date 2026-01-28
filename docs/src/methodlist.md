@@ -38,12 +38,3 @@ ConfidenceRegionVolume
 Pullback
 Pushforward
 ```
-
-In many applied settings, one often does not have a dataset of sufficient size for all parameters in the model to be "practically identifiable", which means that bounded confidence regions may only exist for very low confidence levels (e.g. up to ``0.1\sigma``). In such cases, it is still possible to compute radial geodesics emanating from the MLE to study the geometry of the parameter space.
-
-A slightly more robust alternative to using geodesics is given by the so-called profile likelihood method. Essentially, it consists of pinning one of the parameters at particular values on a grid, while optimizing the remaining parameters to maximize the likelihood function at every step. Ultimately, one ends up with one-dimensional slices of the parameter manifold along which the likelihood decays most slowly.
-
-```@docs
-ParameterProfiles
-ProfileBox
-```
