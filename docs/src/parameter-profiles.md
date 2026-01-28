@@ -49,18 +49,18 @@ ParameterProfiles
 
 Instead of computing the profile likelihood by explicitly reoptimizing the nuisance parameters at every step along the profile, it is possible to instead compute the path of the profile likelihood of a parameter via an ODE in the parameter space based on the Hessian of the log-likelihood. While the Hessian can be extremely expensive to compute for models with many parameters due to its quadratic size, the trade-off of not having to perform optimization at every step is often still worth it, particularly for small to moderately sized models.
 ```@example Profiles
-P4 = IntegrationParameterProfiles(DM2, 3; reltol=1e-3, N=101, γ=nothing, plot=true)
-plot(P4, false) #hide
+IP3 = IntegrationParameterProfiles(DM2, 3; reltol=1e-3, N=101, γ=nothing, IsCost=true, plot=true)
+plot(IP3, false) #hide
 ```
 
 !!! note
     For `IntegrationParameterProfiles`, the computational effort and accuracy of the result is almost purely controlled by the integration tolerances.
     The parameter `N` only specifies the number of points at which the parameter trajectory is subsequently interpolated to compute the log-likelihood, which is however much faster than the Hessian evaluations during the integration. `N=nothing` does not interpolate the trajectory and only evaluates the log-likelihood at the steps taken by the integrator.
 
-In the original derivation of the ODE for this profile parameter path by [Chen and Jennrich](https://doi.org/10.1198/106186002493), an extra stabilization term controlled by a factor ``\\gamma`` was added, to avoid the trajectory moving off the constraint submanifold satisfying nuisance parameter optimality when using inaccurate Hessian approximations.
-While non-zero values of ``\\gamma`` essentially correspond to adding a Newton-like contribution towards the constraint submanifold of nuisance parameter optimality to the direction of the trajectory at every step, this results in an asymptotically *biased* trajectory.
-In other words, the computed trajectory strictly speaking no longer tends towards the *true* trajectory for non-zero ``\\gamma``, even if the integration tolerances are chosen arbitrarily small.
-Therefore, whenever a model allows for computing the Hessian via automatic differentiation, meaning that the Hessian is essentially accurate to machine precision, the ``\\gamma`` stabilization term should not be used.
+In the original derivation of the ODE for this profile parameter path by [Chen and Jennrich](https://doi.org/10.1198/106186002493), an extra stabilization term controlled by a factor ``\gamma`` was added, to avoid the trajectory moving off the constraint submanifold satisfying nuisance parameter optimality when using inaccurate Hessian approximations.
+While non-zero values of ``\gamma`` essentially correspond to adding a Newton-like contribution towards the constraint submanifold of nuisance parameter optimality to the direction of the trajectory at every step, this results in an asymptotically *biased* trajectory.
+In other words, the computed trajectory strictly speaking no longer tends towards the *true* trajectory for non-zero ``\gamma``, even if the integration tolerances are chosen arbitrarily small.
+Therefore, whenever a model allows for computing the Hessian via automatic differentiation, meaning that the Hessian is essentially accurate to machine precision, the ``\gamma`` stabilization term should not be used.
 
 ```@docs
 IntegrationParameterProfiles
