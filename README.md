@@ -4,7 +4,7 @@
 
 | **Documentation** | **Build Status** | **DOI** |
 |:-----------------:|:----------------:|:----------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][appveyor-img]][appveyor-url] [![][codecov-img]][codecov-url] | [![][doi-img]][doi-url] |
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][CI-img]][CI-url] [![][codecov-img]][codecov-url] | [![][doi-img]][doi-url] |
 
 
 In essence, the functionality provided by **InformationGeometry.jl** revolves around analyzing the parameter space associated with mathematical models, given observed data.
@@ -34,7 +34,7 @@ Examples detailing how to use this package can be found in the [**documentation*
 
 
 ## Further reading
-A preprint discussing the mathematical ideas underlying the methods employed by **InformationGeometry.jl** can be found in [**2211.03421**](https://arxiv.org/abs/2211.03421).
+A preprint discussing some of the mathematical ideas underlying the methods employed by **InformationGeometry.jl** can be found in [**2211.03421**](https://arxiv.org/abs/2211.03421).
 
 If **InformationGeometry.jl** was helpful in your own work, please consider citing [https://doi.org/10.48550/arXiv.2211.03421](https://doi.org/10.48550/arXiv.2211.03421) and [https://doi.org/10.5281/zenodo.5530660](https://doi.org/10.5281/zenodo.5530660).
 
@@ -47,8 +47,8 @@ If **InformationGeometry.jl** was helpful in your own work, please consider citi
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev
 
-[appveyor-img]: https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true
-[appveyor-url]: https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl
+[CI-img]: https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml/badge.svg?branch=main
+[CI-url]: https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml
 
 [codecov-img]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl

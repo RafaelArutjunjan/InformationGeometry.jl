@@ -7,7 +7,7 @@ This is the documentation of [**InformationGeometry.jl**](https://github.com/Raf
 
 | **Build Status** |
 |:----------------:|
-| [![appveyor](https://ci.appveyor.com/api/projects/status/github/RafaelArutjunjan/InformationGeometry.jl?svg=true)](https://ci.appveyor.com/project/RafaelArutjunjan/InformationGeometry-jl) [![codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl) |
+| [![Build Status](https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml) [![codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl) |
 
 
 ## Main Uses
