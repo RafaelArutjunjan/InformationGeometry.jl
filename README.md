@@ -47,7 +47,7 @@ If **InformationGeometry.jl** was helpful in your own work, please consider citi
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://RafaelArutjunjan.github.io/InformationGeometry.jl/dev
 
-[CI-img]: https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml/badge.svg?branch=main
+[CI-img]: https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml/badge.svg?branch=master
 [CI-url]: https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml
 
 [codecov-img]: https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg
