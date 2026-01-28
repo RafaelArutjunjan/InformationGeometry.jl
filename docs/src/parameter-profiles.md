@@ -55,7 +55,7 @@ plot(IP3, false) #hide
 
 !!! note
     For `IntegrationParameterProfiles`, the computational effort and accuracy of the result is almost purely controlled by the integration tolerances.
-    The parameter `N` only specifies the number of points at which the parameter trajectory is subsequently interpolated to compute the log-likelihood, which is however much faster than the Hessian evaluations during the integration. `N=nothing` does not interpolate the trajectory and only evaluates the log-likelihood at the steps taken by the integrator.
+    The keyword `N` only specifies the number of points at which the parameter trajectory is subsequently interpolated to compute the log-likelihood, which is however much faster than the Hessian evaluations during the integration. `N=nothing` does not interpolate the trajectory and only evaluates the log-likelihood at the steps taken by the integrator.
 
 In the original derivation of the ODE for this profile parameter path by [Chen and Jennrich](https://doi.org/10.1198/106186002493), an extra stabilization term controlled by a factor ``\gamma`` was added, to avoid the trajectory moving off the constraint submanifold satisfying nuisance parameter optimality when using inaccurate Hessian approximations.
 While non-zero values of ``\gamma`` essentially correspond to adding a Newton-like contribution towards the constraint submanifold of nuisance parameter optimality to the direction of the trajectory at every step, this results in an asymptotically *biased* trajectory.

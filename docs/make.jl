@@ -23,7 +23,7 @@ makedocs(
                                         "Linking Multiple Models and Datasets" => "ConditionGrids.md"],
                 "Package Extensions" => ["PEtab.jl" => "PEtabExt.md"], #, "ProfileLikelihood.md"],
                 "List of useful methods" => "methodlist.md",
-                "Contributing" => "todo.md",
+                # "Contributing" => "todo.md",
             ],
     warnonly=true # Do not throw error for docstrings which are not included in the documentation
 )
