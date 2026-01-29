@@ -44,6 +44,16 @@ splitCDM = DataModel(newCDS, newmodel, MLE(CDM))
 @test norm(Score(splitCDM, P) - Score(CDM, P)) < 2e-4
 @test norm(FisherMetric(splitCDM, P) - FisherMetric(CDM, P)) < 3e-4
 
+using DataFrames
+df = DataFrame([1:5., [1,2,3,missing,5.], [2,missing,4,6,8.], 0.5ones(5), 0.3ones(5)], :auto)
+cds = CompositeDataSet(df; stripedYs=false)
+@test cds isa AbstractDataSet && InformationGeometry.Ynames(cds) == [:x2, :x3] && InformationGeometry.DataspaceDim(cds) == 8
+
+cdm = DataModel(cds, (x,p)->[p[1]*x, p[2]*x])
+CG = InformationGeometry.SplitObservablesIntoConditions(DataModel(cds, (x,p)->[p[1]*x, p[2]*x]))
+@test CG isa InformationGeometry.AbstractConditionGrid
+@test loglikelihood(CG, MLE(CG)) ≈ loglikelihood(cdm, MLE(cdm))
+
 
 GDM = DataModel(GeneralizedDataSet(DME), Predictor(DME), MLE(DME))
 @test abs(loglikelihood(GDM, P) - loglikelihood(CDM, P)) < 1e-5

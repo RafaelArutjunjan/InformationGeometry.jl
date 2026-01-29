@@ -50,7 +50,7 @@ end
 DitchMissingRows(B::AbstractArray, df::DataFrame) = DitchMissingRows(df, B)
 DitchMissingRows(df::DataFrame, B::AbstractMatrix) = DitchMissingRows(df, DataFrame(B, :auto))
 DitchMissingRows(df::DataFrame, B::AbstractVector) = DitchMissingRows(df, DataFrame(reshape(B, :, 1), :auto))
-DitchMissingRows(df1, df2) = hcat(df1, df2) |> DitchMissingRows
+DitchMissingRows(df1, df2) = hcat(df1, df2; makeunique=true) |> DitchMissingRows
 DitchMissingRows(df) = DitchMissingRows(DataFrame(df, :auto))
 DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})::BitVector = map(row->!any(ismissing, row), eachrow(df))
 

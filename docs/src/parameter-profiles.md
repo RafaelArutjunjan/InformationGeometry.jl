@@ -51,12 +51,12 @@ ParameterProfiles
 Instead of computing the profile likelihood by explicitly reoptimizing the nuisance parameters at every step along the profile, it is possible to instead compute the path of the profile likelihood of a parameter via an ODE in the parameter space based on the Hessian of the log-likelihood. While the Hessian can be extremely expensive to compute for models with many parameters due to its quadratic size, the trade-off of not having to perform optimization at every step is often still worth it, particularly for small to moderately sized models.
 ```@example Profiles
 IP3 = IntegrationParameterProfiles(DM2, 3; reltol=1e-3, N=201, IsCost=true, γ=nothing, plot=true)
-plot(IP3, false) #hide
+plot(IP3, false; Interpolate=true) #hide
 ```
 
 !!! note
     For `IntegrationParameterProfiles`, the computational effort and accuracy of the result is almost purely controlled by the integration tolerances.
-    The keyword `N` only specifies the number of points at which the parameter trajectory is subsequently interpolated to compute the log-likelihood, which is however much faster than the Hessian evaluations during the integration. `N=nothing` does not interpolate the trajectory and only evaluates the log-likelihood at the steps taken by the integrator.
+    The keyword `N` only specifies the number of points at which the parameter trajectory is subsequently interpolated to compute the log-likelihood, which is however much faster than the Hessian evaluations during the integration. `N=nothing` does not interpolate the trajectory and only evaluates the log-likelihood at the steps taken by the integrator. For reliable results, tolerances `< 1e-5` should be chosen.
 
 In the original derivation of the ODE for this profile parameter path by [Chen and Jennrich](https://doi.org/10.1198/106186002493), an extra stabilization term controlled by a factor ``\gamma`` was added, to avoid the trajectory moving off the constraint submanifold satisfying nuisance parameter optimality when using inaccurate Hessian approximations.
 While non-zero values of ``\gamma`` essentially correspond to adding a Newton-like contribution towards the constraint submanifold of nuisance parameter optimality to the direction of the trajectory at every step, this results in an asymptotically *biased* trajectory.
