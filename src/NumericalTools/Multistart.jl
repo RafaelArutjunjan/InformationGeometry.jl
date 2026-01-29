@@ -73,13 +73,13 @@ The keyword `TransformSample` can be used to specify a function which is applied
 """
 function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; 
                                         CostFunction::Function=Negloglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
-                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), kwargs...)
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), kwargs...)
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e3, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
-                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
+                                        meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     
@@ -261,8 +261,12 @@ pdim(R::MultistartResults) = length(MLE(R))
 
 GetConverged(R::MultistartResults) = R.Converged
 
-
-SubsetMultistartResults(R::MultistartResults, LastInd::Int; idxs::AbstractVector{<:Int}=1:LastInd, kwargs...) = SubsetMultistartResults(R, idxs; kwargs...)
+"""
+    SubsetMultistartResults(R::MultistartResults, LastInd::Int=FindLastIndSafe(R); idxs::AbstractVector{<:Int}=1:LastInd, kwargs...)
+    SubsetMultistartResults(R::MultistartResults, idxs::AbstractVector{<:Int}; kwargs...)
+Creates a new subset object of the given `MultistartResults` object `R` containing only the results indexed by `idxs`.
+"""
+SubsetMultistartResults(R::MultistartResults, LastInd::Int=FindLastIndSafe(R); idxs::AbstractVector{<:Int}=1:LastInd, kwargs...) = SubsetMultistartResults(R, idxs; kwargs...)
 function SubsetMultistartResults(R::MultistartResults, idxs::AbstractVector{<:Int}; kwargs...)
     @assert all(1 .≤ idxs .≤ length(R.FinalObjectives)) && allunique(idxs)
     remake(R; FinalPoints=(@view R.FinalPoints[idxs]), 

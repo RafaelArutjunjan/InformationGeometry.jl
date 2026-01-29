@@ -256,7 +256,7 @@ export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProf
 
 
 include("NumericalTools/Multistart.jl")
-export MultistartFit, LocalMultistartFit, MultistartResults, WaterfallPlot, ParameterPlot, GetStepParameters
+export MultistartFit, LocalMultistartFit, MultistartResults, SubsetMultistartResults, WaterfallPlot, ParameterPlot, GetStepParameters
 export DistanceMatrixWithinStep, DistanceMatrixBetweenSteps
 export StochasticProfileLikelihood, FindGoodStart
 

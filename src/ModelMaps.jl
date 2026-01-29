@@ -324,19 +324,22 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
     end
 end
 
-# Assumes xdim = 1
-function SubComponentModel(M::ModelOrFunction, idxs::Union{Int, AbstractVector{<:Int}}, ydim::Int)
+function SubComponentModel(M::ModelOrFunction, idxs::Union{Int, AbstractVector{<:Int}}, xdim::Int, ydim::Int)
     @assert all(1 .≤ idxs .≤ ydim) && allunique(idxs)
     V = ViewElements(idxs)
-    SubModel(x::Number, p::AbstractVector{<:Number}) = V(M(x,p))
     SubModel(x::AbstractVector, p::AbstractVector{<:Number}) = (keep=repeat([j ∈ idxs for j in 1:ydim], length(x));   view(EmbeddingMap(Val(true), M, p, x), keep))
     SubModel(y, x, p) = copyto!(y, SubModel(x,p))
+    SubModelOneDim(x::Number, p::AbstractVector{<:Number}) = V(M(x,p))
+    SubModelOneDim(x, p) = SubModel(x, p);      SubModelOneDim(y, x, p) = SubModel(y, x, p)
+    xdim == 1 ? SubModelOneDim : SubModel
 end
-function SubComponentDModel(dM::ModelOrFunction, idxs::Union{Int, AbstractVector{<:Int}}, ydim::Int)
+function SubComponentDModel(dM::ModelOrFunction, idxs::Union{Int, AbstractVector{<:Int}}, xdim::Int, ydim::Int)
     @assert all(1 .≤ idxs .≤ ydim) && allunique(idxs)
-    SubdModel(x::Number, p::AbstractVector{<:Number}) = view(dM(x,p), idxs, :)
     SubdModel(x::AbstractVector, p::AbstractVector{<:Number}) = (keep=repeat([j ∈ idxs for j in 1:ydim], length(x));   view(EmbeddingMatrix(Val(true), dM, p, x), keep, :))
     SubdModel(y, x, p) = copyto!(y, SubdModel(x,p))
+    SubdModelOneDim(x::Number, p::AbstractVector{<:Number}) = view(dM(x,p), idxs, :)
+    SubdModelOneDim(x, p) = SubdModel(x, p);      SubdModelOneDim(y, x, p) = SubdModel(y, x, p)
+    xdim == 1 ? SubdModelOneDim : SubdModel
 end
 
 _Apply(x::AbstractVector, ComponentwiseF::Function, idxs::BoolVector) = (@assert length(x) == length(idxs); [@inbounds (idxs[i] ? ComponentwiseF(x[i]) : x[i]) for i in eachindex(idxs)])

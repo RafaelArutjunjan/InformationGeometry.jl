@@ -9,8 +9,8 @@ In summary, a `ConditionGrid` requires at least the specification of a `Vector` 
 For instance, for two datasets with different offset, they can be described by a shared slope parameter via:
 ```@example Conditions
 using InformationGeometry
-DM1 = DataModel(DataSet(1:3,      [4,5,6.5], [0.5,0.45,0.6]), (x,p)->p[1].*x .+ p[2]; name="Condition 1")
-DM2 = DataModel(DataSet(1:3, 5 .+ [4,5,6.5], [0.5,0.45,0.6]), (x,p)->p[1].*x .+ p[2]; name="Condition 2")
+DM1 = DataModel(DataSet(1:4,      [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->p[1].*x .+ p[2]; name="Condition 1")
+DM2 = DataModel(DataSet(1:4, 5 .+ [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->p[1].*x .+ p[2]; name="Condition 2")
 ParameterTrafo = [ViewElements([1,2]), ViewElements([1,3])]
 CG = ConditionGrid([DM1, DM2], ParameterTrafo, rand(3); pnames=["Slope", "Offset_1", "Offset_2"])
 ```

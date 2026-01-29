@@ -59,3 +59,10 @@ InformationGeometry.PlotConfidenceBands(DM2, M; label=["$(round(InformationGeome
 ConfidenceRegions(::DataModel,::Vector{Float64})
 ConfidenceBands
 ```
+
+
+For high-dimensional models, the relationships between parameters can be investigated by visualizing the level sets of the log-likelihood in 2D slices of the parameter space.
+However, it should be noted that these slices do not constitute joint confidence regions for the respective pair of parameters but rather just slice the full joint confidence region of all the parameters in a single place.
+A proper pairwise confidence region for two parameters would instead be given by the projection of the full high-dimensional confidence region onto this subspace, which is however much more expensive to compute.
+Nevertheless, the 2D slices already give detailed insights into how different model parameters are correlated.
+These can be plotted either with `ContourDiagram` or `ContourDiagramLowerTriangular`.

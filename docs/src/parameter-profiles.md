@@ -50,7 +50,7 @@ ParameterProfiles
 
 Instead of computing the profile likelihood by explicitly reoptimizing the nuisance parameters at every step along the profile, it is possible to instead compute the path of the profile likelihood of a parameter via an ODE in the parameter space based on the Hessian of the log-likelihood. While the Hessian can be extremely expensive to compute for models with many parameters due to its quadratic size, the trade-off of not having to perform optimization at every step is often still worth it, particularly for small to moderately sized models.
 ```@example Profiles
-IP3 = IntegrationParameterProfiles(DM2, 3; reltol=1e-3, N=101, γ=nothing, IsCost=true, plot=true)
+IP3 = IntegrationParameterProfiles(DM2, 3; reltol=1e-3, N=201, IsCost=true, γ=nothing, plot=true)
 plot(IP3, false) #hide
 ```
 

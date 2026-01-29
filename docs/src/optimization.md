@@ -10,7 +10,7 @@ However, more control can be exerted over the optimization process by choosing a
 Most importantly, `InformationGeometry.minimize` is compatible with the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem of optimizer methods via the `meth` keyword. Best support is available for optimizers from the [**Optim.jl**](https://github.com/JuliaNLSolvers/Optim.jl) via a custom wrapper. Choosing `meth=nothing` also allows for using a Levenberg-Marquardt method from the [**LsqFit.jl**](https://github.com/JuliaNLSolvers/LsqFit.jl) optimizer, which is however only possible if data with fixed Gaussian uncertainties and no priors are used.
 
 ```@example Multistart
-DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; SkipOptim=true)
+DM = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; SkipOptim=true)
 plot(DM; Confnum=0)
 ```
 
