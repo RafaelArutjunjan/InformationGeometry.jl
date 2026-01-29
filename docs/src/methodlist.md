@@ -18,7 +18,6 @@ LogLikeMLE(::DataModel)
 
 Properties related to structural identifiability can be computed via:
 ```@docs
-IsStructurallyIdentifiable
 StructurallyIdentifiable
 PracticallyIdentifiable
 IsLinearParameter

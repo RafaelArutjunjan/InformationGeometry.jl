@@ -1031,9 +1031,12 @@ end
 
 
 """
-    IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol=1e-3, N::Union{Nothing,Int}=51, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), γ::Union{Nothing,Real}=nothing, kwargs...)
+    IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol::Real=1e-4, N::Union{Nothing,Int}=51, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), γ::Union{Nothing,Real}=nothing, kwargs...)
 Computes profile likelihood path via integrating ODE derived via Lagrange multiplier based contraint by Chen and Jennrich (https://doi.org/10.1198/106186002493).
 Unlike in Chen and Jennrich's approach, no stabilization term with constant `γ` is added by default, since the need for this stabilization is essentially obviated by the accuracy of autodiff Hessians and γ > 0 adds undesirable bias to the computed trajectory.
+
+While the default tolerance is `tol=1e-4` for more performant exploration during model development, tolerances `< 1e-5` should generally be chosen for reliable results.
+Further, it is possible to compute integration-based profiles at low tolerances and the re-optimize the obtained trajectories via `ReoptimizeProfile`, starting from the given approximate profiles.
 """
 function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose,
             Confnum::Real=confnum, SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:IntegrationParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
@@ -1062,7 +1065,7 @@ function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, in
 end
 
 
-function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=51, tol::Real=1e-3,
+function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=51, tol::Real=1e-4,
                 LogLikelihoodFn::Function=loglikelihood(DM), MLE::AbstractVector{<:Number}=MLE(DM), dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false,
                 IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
                 LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), verbose::Bool=true, 
@@ -1108,7 +1111,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:
                 IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)), MinSafetyFactor::Real=1.05,
                 Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
                 Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
-                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-3, reltol::Real=tol, abstol::Real=tol, kwargs...)
+                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, reltol::Real=tol, abstol::Real=tol, kwargs...)
 
     @inline AddGradient!(Hλψ, γ::Nothing, CostGradient, G, θ, λ_indices) = nothing
     @inline function AddGradient!(Hλψ::AbstractVector, γ::Number, CostGradient::Function, G::AbstractVector, θ::AbstractVector, λ_indices)
