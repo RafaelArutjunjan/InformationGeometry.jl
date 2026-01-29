@@ -290,29 +290,37 @@ InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P)
 
 function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false)
     @unpack model_info, probinfo = petab_prob
+    @unpack conditionids = petab_prob.model_info.simulation_info
+
+    ## conditionids[:experiment] always contains concatenation of pre_equilibration_id and simulation_id, unless pre_equilibration is :None
+    ## If no pre_equilibration, then experiment_id == simulation_id
+    ## conditionids[:Simulation]
+    
+    all_pre_equilibrations = conditionids[:pre_equilibration]
+    all_simulations = conditionids[:simulation]
 
     # Decide all observables which should be returned here and mind their order!
     ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
     # Make dict of unique obsids per condition and apply later to get local UniqueObsids
 
-    function GetPredictions(xs, θ::AbstractVector{T}; cid::Symbol=cond, Error::Bool=Error, pre_equilibration_id=nothing) where T<:Number
+    function GetPredictions(xs, θ::AbstractVector{T}; cid::Symbol=cond, Error::Bool=Error)::Vector{T} where T<:Number
         UniqueObsids = ObsidsInCondDict[cid]
         # odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
         # sol = odesols[cid]
         Res = Matrix{T}(undef, length(UniqueObsids), length(xs))
         Xnom = collect(petab_prob.xnominal)
 
-        sol = if isnothing(pre_equilibration_id)
+        ind = findfirst(isequal(cid), all_simulations)
+        sol = if all_pre_equilibrations[ind] === :None
             PEtab.get_odesol(collect(θ), petab_prob; condition = cid)
         else
-            PEtab.get_odesol(collect(θ), petab_prob; condition = pre_equilibration_id => cid)
+            PEtab.get_odesol(collect(θ), petab_prob; condition = all_pre_equilibrations[ind] => cid)
         end
 
         @unpack xobservable, xnondynamic, xnoise = probinfo.cache
         xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,
                                         :xnondynamic, probinfo.cache)
         for (i,obsid) in enumerate(UniqueObsids)
-            # idata = findall(cids .=== cid .&& obsids .=== obsid)
             if !Error
                 xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
                                                 :xobservable, probinfo.cache)
@@ -321,8 +329,6 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
                     Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
                             model_info.model, mapxobservables[1], Symbol(obsid), Xnom)
                 end
-                # Res[:,i] .= reduce(vcat,[PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
-                #             model_info.model, mapxobservables[1], Symbol(obsid), Xnom) for t in xs])
             else
                 xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
                                                 :xnoise, probinfo.cache)
@@ -331,8 +337,6 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
                     Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
                             model_info.model, mapxnoise[1], Symbol(obsid), Xnom)
                 end
-                # Res[:,i] .= reduce(vcat,[PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
-                #             model_info.model, mapxnoise[1], Symbol(obsid), Xnom) for t in xs])
             end
         end;    vec(Res)
     end

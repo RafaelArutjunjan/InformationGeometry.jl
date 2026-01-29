@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing)
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -33,7 +33,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         linewidth -->       2
         seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto))
         linestyle -->       :solid
-        RSEs = ResidualStandardError(DM, mle)
+        RSEs = ResidualStandardError(DM, mle; verbose)
         RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
         label -->  if ydim(DM) == 1
             # "Fit with RSE≈$(RSEs[1])"
@@ -160,7 +160,7 @@ end
 
 RecipesBase.@recipe f(DM::AbstractDataModel, S::Symbol, mle=MLE(DM)) = DM, Val(S), mle
 RecipesBase.@recipe f(DM::AbstractDataModel, mle::AbstractVector{<:Number}, S::Symbol) = DM, Val(S), mle
-RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false)
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
     @series begin
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
@@ -182,7 +182,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     end
     X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
     Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))
-    RSEs = ResidualStandardError(DM, mle)
+    RSEs = ResidualStandardError(DM, mle; verbose)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
     xguide --> xnames(DM)[1]
@@ -199,7 +199,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
         end
     end
     if any(Confnum .> 0)
-        F = FisherMetric(DM, mle)
+        F = isnothing(Fisher) ? FisherMetric(DM, mle) : Fisher
         if PlotVariance || !NotPosDef(F)
             color_palette = get(plotattributes, :color_palette, :default)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
@@ -343,7 +343,7 @@ end
 
 
 
-ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM)) = ResidualStandardError(Data(DM), Predictor(DM), mle)
+ResidualStandardError(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM); kwargs...) = ResidualStandardError(Data(DM), Predictor(DM), mle; kwargs...)
 function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; verbose::Bool=true)
     Npoints(DS) ≤ length(MLE) && ((verbose && @warn "Too few data points to compute RSE"); return nothing)
     ydiff = ydata(DS) - EmbeddingMap(DS, model, GetOnlyModelParams(DS)(MLE))
@@ -351,7 +351,7 @@ function ResidualStandardError(DS::AbstractDataSet, model::ModelOrFunction, MLE:
     ydim(DS) == 1 ? Res[1] : Res
 end
 
-TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}) = norm(ResidualStandardError(DS, model, MLE))
+TotalRSE(DS::AbstractDataSet, model::ModelOrFunction, MLE::AbstractVector{<:Number}; kwargs...) = norm(ResidualStandardError(DS, model, MLE; kwargs...))
 
 
 GetResidualDataSet(DS::AbstractDataSet, args...) = throw("Not programmed for $(typeof(DS)) yet.")

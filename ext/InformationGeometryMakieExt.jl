@@ -158,7 +158,7 @@ module InformationGeometryMakieExt
     if present), the model fit, and optional variance bands.
     """
     function Makie.plot(DM::AbstractDataModel, mle::AbstractVector{<:Number} = MLE(DM), xpositions::AbstractVector{<:Number} = xdata(DM); Confnum::Real = 1.0, PlotVariance::Bool = false, 
-                        dof::Real = DOF(DM), Validation::Bool = false, Padding::Real = 0.05, kwargs...)
+                        dof::Real = DOF(DM), Validation::Bool = false, Padding::Real = 0.05, Fisher=nothing, verbose::Bool=false, kwargs...)
 
         (xdim(DM) != 1 && Npoints(DM) > 1) && error("Not programmed for plotting xdim != 1 yet.")
 
@@ -178,7 +178,7 @@ module InformationGeometryMakieExt
         palette_colors = Makie.wong_colors()
 
         # Prepare line labels + colors
-        RSEs = ResidualStandardError(DM, mle)
+        RSEs = ResidualStandardError(DM, mle; verbose)
         RSEs = isnothing(RSEs) ? nothing : convert.(Float64, RSEs)
 
         # ------------------------------------------------------------------
@@ -211,7 +211,7 @@ module InformationGeometryMakieExt
         end
 
         if any(Confnum .> 0)
-            F = FisherMetric(DM, mle)
+            F = isnothing(Fisher) ? FisherMetric(DM, mle) : Fisher
             if PlotVariance || !NotPosDef(F)
                 for (j, Conf) in enumerate(Confnum[Confnum .> 0])
                     if ydim(DM) == 1

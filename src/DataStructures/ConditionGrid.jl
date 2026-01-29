@@ -181,39 +181,39 @@ end
 
 
 ## Prediction Functions
-function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
+function EmbeddingMap(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
     i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMap(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
-function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
+function EmbeddingMatrix(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
     i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMatrix(CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
     i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMap!(Y, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, S::Symbol; kwargs...)
     i = findfirst(x-> x === S, ConditionNames(CG));    EmbeddingMatrix!(J, CG, θ, WoundX(Conditions(CG)[i]), S, i; kwargs...)
 end
 
-function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+function EmbeddingMap(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
     EmbeddingMap(Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+function EmbeddingMatrix(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
     EmbeddingMatrix(Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+function EmbeddingMap!(Y::AbstractVector{<:Number}, CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
     EmbeddingMap!(Y, Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
-function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::ConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
+function EmbeddingMatrix!(J::AbstractMatrix{<:Number}, CG::AbstractConditionGrid, θ::AbstractVector{<:Number}, woundX::AbstractVector, S::Symbol, i::Int=findfirst(x-> x===S, ConditionNames(CG)); kwargs...)
     EmbeddingMatrix!(J, Conditions(CG)[i], Trafos(CG)[i](θ), woundX; kwargs...)
 end
 
 ## Create Master Methods which simply concatenate?
-function EmbeddingMap(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, kwargs...)
+function EmbeddingMap(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, kwargs...)
     verbose && @warn "EmbeddingMap: Simply concatenating all predictions for all conditions."
     reduce(vcat, [EmbeddingMap(CG, θ, S; kwargs...) for S in ConditionNames(CG)])
 end
 
-function EmbeddingMatrix(CG::ConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
+function EmbeddingMatrix(CG::AbstractConditionGrid, θ::AbstractVector{<:Number}; verbose::Bool=false, ADmode::Val=Val(:ForwardDiff), kwargs...)
     verbose && @warn "EmbeddingMatrix: Simply concatenating all Jacobians for all conditions."
     reduce(vcat, [EmbeddingMatrix(CG, θ, S; kwargs...) * GetJac(ADmode, Trafos(CG)[i])(θ) for (i,S) in enumerate(ConditionNames(CG))])
 end
