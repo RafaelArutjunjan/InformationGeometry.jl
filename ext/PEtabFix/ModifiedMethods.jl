@@ -326,10 +326,13 @@ function _get_nllh_not_solveode_adapted(probinfo::PEtabODEProblemInfo, model_inf
 end
 
 
+## Rewrite methods due to typos
+## Using T<:Union to be more specific than PEtab base function without direct overwriting.
+## Can be deleted when typos fixed
 function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
                             probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                             cfg::Union{ForwardDiff.JacobianConfig, Nothing};
-                            cids::Vector{Symbol} = [:all])::Nothing where {T <: AbstractFloat}
+                            cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
     @unpack cache, sensealg = probinfo
     @unpack xindices, simulation_info = model_info
     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
@@ -364,7 +367,7 @@ end
 function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_conditions!::Function,
                                   probinfo::PEtabODEProblemInfo,
                                   model_info::ModelInfo, cfg::ForwardDiff.JacobianConfig;
-                                  cids::Vector{Symbol} = [:all])::Nothing where {T <: AbstractFloat}
+                                  cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
     @unpack cache, sensealg, reuse_sensitivities = probinfo
     @unpack xindices, simulation_info = model_info
     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)

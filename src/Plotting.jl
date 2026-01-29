@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false)
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing)
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -57,7 +57,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     end
     # Plot symmetric 1σ variance propagation from pseudo-inverse of Fisher Metric
     if any(Confnum .> 0)
-        F = FisherMetric(DM, mle)
+        F = isnothing(Fisher) ? FisherMetric(DM, mle) : Fisher
         # Use PlotVariance kwarg to force VariancePlot
         if PlotVariance || !NotPosDef(F)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])

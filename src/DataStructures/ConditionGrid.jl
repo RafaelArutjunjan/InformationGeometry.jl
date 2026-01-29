@@ -33,7 +33,10 @@ Base.ComposedFunction(P::ParamTrafo, inner::Function) = ParamTrafo(map(x->x∘in
 Base.ComposedFunction(outer::Function, P::ParamTrafo) = ParamTrafo(map(x->outer∘x, P.Trafos), P.ConditionNames)
 
 ConditionNames(P::ParamTrafo) = P.ConditionNames
+Trafos(P::ParamTrafo) = P.Trafos
+Trafos(X::AbstractVector{<:Function}) = X
 
+IsIdentityTrafo(P::ParamTrafo) = all(isequal(identity), Trafos(P))
 
 # function TryToInferPnames()
 # end
@@ -240,15 +243,21 @@ end
 
 
 # Plotrecipe: plot all dms individually
-RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG))
+RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); ConditionNames=InformationGeometry.ConditionNames(CG), Confnum=1, Fisher=IsIdentityTrafo(Trafos(CG)) && any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing)
+    ConditionNames isa Symbol && (ConditionNames = [ConditionNames])
+    @assert ConditionNames isa AbstractVector{<:Symbol}
+    @assert all(∈(InformationGeometry.ConditionNames(CG)), ConditionNames) "Given condition names $ConditionNames not all in $(InformationGeometry.ConditionNames(CG))"
     plot_title --> string(name(CG))
-    layout --> length(Conditions(CG))
-    size --> PlotSizer(length(Conditions(CG)))
-    for i in eachindex(Conditions(CG))
+    layout --> length(ConditionNames)
+    size --> PlotSizer(length(ConditionNames))
+    for (i,Name) in enumerate(ConditionNames)
         @series begin
             subplot := i
             dof --> DOF(CG)
-            Conditions(CG)[i], Trafos(CG)[i](mle)
+            Confnum --> Confnum
+            !isnothing(Fisher) && (Fisher --> Fisher)
+            ind = findfirst(isequal(Name),ConditionNames)
+            Conditions(CG)[ind], Trafos(CG)[ind](mle)
         end
     end
 end

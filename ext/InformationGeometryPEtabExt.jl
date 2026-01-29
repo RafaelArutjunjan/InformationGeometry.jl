@@ -27,7 +27,7 @@ for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
 end
 # Only single arg
 for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :HasPrior, :Domain, :InDomain, :loglikelihood, :Score, :FisherMetric, 
-        :Data, :Conditions, :Trafos, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
+        :Data, :Conditions, :ConditionNames, :Trafos, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
         :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
@@ -52,6 +52,8 @@ for F in [:plot, :plot!]
     @eval RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; kwargs...) = RecipesBase.$F(CG.DM, mle, args...; kwargs...)
 end
 
+## Different order than GetUniqueConditions
+GetAllSimulationConditions(petab_prob::PEtabODEProblem) = petab_prob.model_info.simulation_info.conditionids[:simulation]
 
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
@@ -83,9 +85,6 @@ end
 import PEtab: PEtabODEProblemInfo, ModelInfo
 ## Change via Pull Request:
 # import PEtab: _get_nllh, _get_grad, _get_hess
-# GetNllh = _get_nllh
-# GetNllhGrads = _get_grad
-# GetNllhHesses = _get_hess
 # const GetNllh = PEtab._get_nllh
 # const GetNllhGrads = PEtab._get_grad
 # const GetNllhHesses = PEtab._get_hess
@@ -296,34 +295,46 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
     ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
     # Make dict of unique obsids per condition and apply later to get local UniqueObsids
 
-    function GetPredictions(xs, θ::AbstractVector; cid::Symbol=cond, Error::Bool=Error)
+    function GetPredictions(xs, θ::AbstractVector{T}; cid::Symbol=cond, Error::Bool=Error, pre_equilibration_id=nothing) where T<:Number
         UniqueObsids = ObsidsInCondDict[cid]
-        odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
-        
-        Res = Matrix{eltype(xs)}(undef, length(xs), length(UniqueObsids))
+        # odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
+        # sol = odesols[cid]
+        Res = Matrix{T}(undef, length(UniqueObsids), length(xs))
         Xnom = collect(petab_prob.xnominal)
-        sol = odesols[cid]
+
+        sol = if isnothing(pre_equilibration_id)
+            PEtab.get_odesol(collect(θ), petab_prob; condition = cid)
+        else
+            PEtab.get_odesol(collect(θ), petab_prob; condition = pre_equilibration_id => cid)
+        end
+
+        @unpack xobservable, xnondynamic, xnoise = probinfo.cache
+        xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,
+                                        :xnondynamic, probinfo.cache)
         for (i,obsid) in enumerate(UniqueObsids)
             # idata = findall(cids .=== cid .&& obsids .=== obsid)
-            @unpack xobservable, xnondynamic, xnoise = probinfo.cache
-            xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,
-                                            :xnondynamic, probinfo.cache)
             if !Error
                 xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
                                                 :xobservable, probinfo.cache)
-                mapxobservables = model_info.xindices.mapxobservable
-                Res[:,i] .= reduce(vcat,[PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
-                            model_info.model.h, mapxobservables[1], Symbol(obsid), Xnom) for t in xs])
+                mapxobservables = model_info.xindices.xobservable_maps
+                for (j,t) in enumerate(xs)
+                    Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
+                            model_info.model, mapxobservables[1], Symbol(obsid), Xnom)
+                end
+                # Res[:,i] .= reduce(vcat,[PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
+                #             model_info.model, mapxobservables[1], Symbol(obsid), Xnom) for t in xs])
             else
                 xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
                                                 :xnoise, probinfo.cache)
                 mapxnoise = model_info.xindices.mapxnoise
-                Res[:,i] .= reduce(vcat,[PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
-                            model_info.model.sd, mapxnoise[1], Symbol(obsid), Xnom) for t in xs])
+                for (j,t) in enumerate(xs)
+                    Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
+                            model_info.model, mapxnoise[1], Symbol(obsid), Xnom)
+                end
+                # Res[:,i] .= reduce(vcat,[PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
+                #             model_info.model, mapxnoise[1], Symbol(obsid), Xnom) for t in xs])
             end
-        end
-        # Slow!
-        reduce(vcat, [view(Res,i,:) for i in axes(Res,1)])
+        end;    vec(Res)
     end
 end
 
