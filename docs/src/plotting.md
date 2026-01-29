@@ -6,7 +6,7 @@ using InformationGeometry, Plots;    gr()
 ```
 Given a dataset type or `DataModel`, there are pre-defined recipes for the [**Plots.jl**](https://github.com/JuliaPlots/Plots.jl) package so that they can be visualized via:
 ```@example Plotting
-DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2])
+DM = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2])
 plot(DM, MLE(DM))
 ```
 where the best fit corresponding to the MLE parameters `MLE(DM)` is drawn in by default. Alternatively, other parameter values may optionally be specified in the second argument.

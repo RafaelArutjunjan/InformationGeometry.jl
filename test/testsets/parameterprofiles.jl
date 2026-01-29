@@ -1,7 +1,7 @@
 using InformationGeometry, Test, Distributions, LinearAlgebra, Optim
 
-DM = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DM)
-DMp = DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]); name=:DMp)
+DM = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DM)
+DMp = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]); name=:DMp)
 
 P1 = ParameterProfiles(DM, 2; IsCost=false, N=50, maxval=10, plot=false)
 B1 = ProfileBox(P1, 2)
@@ -86,4 +86,4 @@ using FiniteDifferences
 using ComponentArrays, InformationGeometry
 X = ComponentVector(A=5.0, B=3.0)
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:3, [4,5,6.5], [0.5,0.45,0.6]), Model, X); plot=false))))
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, X); plot=false))))

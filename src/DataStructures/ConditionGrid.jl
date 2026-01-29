@@ -293,6 +293,7 @@ Takes `DataModel` with ydim > 1 and artificially splits the different observed c
 function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::AbstractVector{<:AbstractVector{<:Int}}=[[i] for i in 1:ydim(DM)]; kwargs...)
     @assert length(Conditions(DM)) == 1 "Given DataModel already has multiple conditions! Split each condition separately."
     @assert ydim(DM) > 1 "Not enough observables for splitting, ydim=1!"
+    @assert xdim(DM) == 1
     @assert all(s->allunique(s) && all(1 .≤ s .≤ ydim(DM)), Structure)
     # No double counting of observables
     @assert all(isempty, [Si ∩ Sj for (i,Si) in enumerate(Structure), (j,Sj) in enumerate(Structure) if i > j])
@@ -300,8 +301,8 @@ function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::Abstra
     sort(reduce(union, Structure)) != 1:ydim(DM) && @warn "SplitObservablesIntoConditions: Missing components $(setdiff(1:ydim(DM), reduce(union, Structure))) in given Structure."
 
     DMs = [DataModel(SubDataSetComponent(Data(DM), Structure[i]), 
-        SubComponentModel(Predictor(DM), Structure[i], ydim(DM)),
-        SubComponentDModel(dPredictor(DM), Structure[i], ydim(DM)),
+        SubComponentModel(Predictor(DM), Structure[i], xdim(DM), ydim(DM)),
+        SubComponentDModel(dPredictor(DM), Structure[i], xdim(DM), ydim(DM)),
         MLE(DM), true; name=Symbol(Structure[i])) for i in eachindex(Structure)]
     ConditionGrid(DMs, InformationGeometry.ParamTrafo([identity for i in eachindex(Structure)], Symbol.(Structure)), LogPrior(DM), MLE(DM); name=name(DM), SkipOptim=true, SkipTests=true)
 end

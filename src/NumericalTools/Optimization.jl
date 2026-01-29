@@ -359,8 +359,8 @@ function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initi
     res = copy(initial)
     Results = typeof(initial)[]
     for chunk in vcat([1:i*(Npoints(DM)÷steps) for i in 1:steps-1], [1:Npoints(DM)])
-        FullRes = Method(SubDataModel(DM, chunk), res; kwargs...)
-        res = GetMinimizer(FullRes)
+        FullRes = Method(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
+        res .= GetMinimizer(FullRes)
         push!(Results, res)
     end;    res
 end

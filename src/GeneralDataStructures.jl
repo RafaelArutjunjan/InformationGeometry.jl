@@ -447,7 +447,9 @@ function SubDataSet(DS::AbstractDataSet, range::Union{AbstractVector{<:Int},Bool
     end
     DataSet(X,Y,Σ, (Int(length(X)/xdim(DS)),xdim(DS),ydim(DS)); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
 end
-SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}; kwargs...) = DataModel(SubDataSet(Data(DM), range; kwargs...), Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM))
+function SubDataModel(DM::AbstractDataModel, range::Union{AbstractVector{<:Int},BoolVector}; SkipOptim::Bool=false, SkipTests=false, verbose::Bool=true, kwargs...)
+    DataModel(SubDataSet(Data(DM), range; verbose, kwargs...), Predictor(DM), dPredictor(DM), MLE(DM), LogPrior(DM); verbose, SkipOptim, SkipTests)
+end
 
 Base.getindex(DS::AbstractDataSet, x) = SubDataSet(DS, x)
 Base.firstindex(DS::AbstractDataSet) = 1

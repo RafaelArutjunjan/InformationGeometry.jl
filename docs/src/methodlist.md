@@ -16,6 +16,15 @@ MLEuncert(::DataModel)
 LogLikeMLE(::DataModel)
 ```
 
+Properties related to structural identifiability can be computed via:
+```@docs
+IsStructurallyIdentifiable
+StructurallyIdentifiable
+PracticallyIdentifiable
+IsLinearParameter
+```
+
+
 Various geometric quantities which are intrinsic to the parameter manifold ``\mathcal{M}`` can be computed as a result of the Fisher metric ``g`` (and subsequent choice of the Levi-Civita connection) such as the Riemann and Ricci tensors and the Ricci scalar ``R``.
 ```@docs
 Score(::DataModel,::Vector{Float64},::Nothing)
@@ -25,16 +34,15 @@ ChristoffelSymbol(::Function,::Vector{Float64})
 Riemann(::Function,::Vector{Float64})
 Ricci(::Function,::Vector{Float64})
 RicciScalar(::Function,::Vector{Float64})
+GeodesicDistance(::DataModel,::Vector{Float64},::Vector{Float64})
 ```
 
-Further, studying the geodesics associated with a metric manifold can yield insights into its geometry.
+Different model comparison and model selection criteria are available via:
 ```@docs
-GeodesicDistance(::DataModel,::Vector{Float64},::Vector{Float64})
 AIC(::DataModel,::Vector{Float64})
 AICc(::DataModel,::Vector{Float64})
 BIC(::DataModel,::Vector{Float64})
-IsLinearParameter
-ConfidenceRegionVolume
-Pullback
-Pushforward
+CAIC(::DataModel,::Vector{Float64})
+CAICF(::DataModel,::Vector{Float64})
+ModelComparison
 ```
