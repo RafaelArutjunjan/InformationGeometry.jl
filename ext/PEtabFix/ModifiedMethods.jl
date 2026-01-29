@@ -30,10 +30,10 @@ function GetNllhGrads(method, probinfo::PEtabODEProblemInfo, model_info::ModelIn
     end
 
     _grad! = let _grad_nllh! = _grad_nllh!, grad_prior = grad_prior, Cids = cids
-        (g, x; prior = true, isremade = false, cids = Cids) -> begin
+        (g, x; prior = true, cids = Cids) -> begin
             _x = x |> collect
             _g = similar(_x)
-            _grad_nllh!(_g, _x; isremade = isremade)
+            _grad_nllh!(_g, _x)
             if prior
                 # nllh -> negative prior
                 _g .+= grad_prior(_x) .* -1
@@ -43,9 +43,9 @@ function GetNllhGrads(method, probinfo::PEtabODEProblemInfo, model_info::ModelIn
         end
     end
     _grad = let _grad! = _grad!, Cids = cids
-        (x; prior = true, isremade = false, cids = Cids) -> begin
+        (x; prior = true, cids = Cids) -> begin
             gradient = similar(x)
-            _grad!(gradient, x; prior = prior, isremade = isremade)
+            _grad!(gradient, x; prior = prior)
             return gradient
         end
     end
@@ -70,11 +70,11 @@ function GetNllhHesses(probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
     end
 
     _hess! = let _hess_nllh! = _hess_nllh!, hess_prior = hess_prior
-        (H, x; prior = true, isremade = false) -> begin
+        (H, x; prior = true) -> begin
             _x = x |> collect
             _H = H |> collect
             if hessian_method == :GaussNewton
-                _hess_nllh!(_H, _x; isremade = isremade)
+                _hess_nllh!(_H, _x)
             else
                 _hess_nllh!(_H, _x)
             end
@@ -118,9 +118,8 @@ function _get_grad_forward_AD_adapted(probinfo::PEtabODEProblemInfo,
         _grad! = let _nllh_not_solveode = _nllh_not_solveode,
             _nllh_solveode = _nllh_solveode, cfg = cfg, minfo = model_info, pinfo = probinfo
 
-            (grad, x; isremade = false) -> PEtab.grad_forward_AD!(grad, x, _nllh_not_solveode,
-                                                            _nllh_solveode, cfg, pinfo,
-                                                            minfo; isremade = isremade)
+            (grad, x) -> PEtab.grad_forward_AD!(grad, x, _nllh_not_solveode, _nllh_solveode, cfg,
+                                          pinfo, minfo)
         end
     end
 
@@ -131,8 +130,8 @@ function _get_grad_forward_AD_adapted(probinfo::PEtabODEProblemInfo,
         _grad! = let _nllh_not_solveode = _nllh_not_solveode,
             _nllh_solveode = _nllh_solveode, minfo = model_info, pinfo = probinfo
 
-            (g, x; isremade = false) -> PEtab.grad_forward_AD_split!(g, x, _nllh_not_solveode,
-                                                               _nllh_solveode, pinfo, minfo)
+            (g, x) -> PEtab.grad_forward_AD_split!(g, x, _nllh_not_solveode, _nllh_solveode,
+                                             pinfo, minfo)
         end
     end
     return _grad!
@@ -149,7 +148,7 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
 
     if sensealg == :ForwardDiff && split_over_conditions == false
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
-            (sols, x) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; sensitivites_AD = true)
+            (sols, x) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; sensitivities_AD = true)
         end
         cfg = ForwardDiff.JacobianConfig(_solve_conditions!, odesols, xdynamic,
                                          chunksize_use)
@@ -158,7 +157,7 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
     if sensealg == :ForwardDiff && split_over_conditions == true
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
             (sols, x, cid) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = cid,
-                                                sensitivites_AD = true)
+                                                sensitivities_AD = true)
         end
         cfg = ForwardDiff.JacobianConfig(_solve_conditions!, odesols, xdynamic,
                                          chunksize_use)
@@ -166,7 +165,7 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
 
     if sensealg != :ForwardDiff
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
-            (x, cid) -> PEtab.solve_conditions!(minfo, x, pinfo; cids = cid, sensitivites = true)
+            (x, cid) -> PEtab.solve_conditions!(minfo, x, pinfo; cids = cid, sensitivities = true)
         end
         cfg = nothing
     end
@@ -178,10 +177,8 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
         _solve_conditions! = _solve_conditions!, minfo = model_info, pinfo = probinfo,
         cfg = cfg, Cids = cids
 
-        (g, x; isremade = false, cids = Cids) -> PEtab.grad_forward_eqs!(g, x, _nllh_not_solveode,
-                                                      _solve_conditions!, pinfo, minfo,
-                                                      cfg; cids = cids,
-                                                      isremade = isremade)
+        (g, x; cids=Cids) -> PEtab.grad_forward_eqs!(g, x, _nllh_not_solveode, _solve_conditions!, pinfo,
+                                    minfo, cfg; cids = cids)
     end
     return _grad!
 end
@@ -271,13 +268,13 @@ function _get_hess_gaussnewton_adapted(probinfo::PEtabODEProblemInfo, model_info
     if split_over_conditions == false
         _solve_conditions! = let pinfo = probinfo, minfo = model_info, Cids = cids
             (sols, x) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = Cids,
-                                           sensitivites_AD = true)
+                                           sensitivities_AD = true)
         end
     end
     if split_over_conditions == true
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
             (sols, x, cid) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = cid,
-                                                sensitivites_AD = true)
+                                                sensitivities_AD = true)
         end
     end
     chunksize_use = PEtab._get_chunksize(chunksize, xdynamic)
@@ -303,11 +300,8 @@ function _get_hess_gaussnewton_adapted(probinfo::PEtabODEProblemInfo, model_info
         pinfo = probinfo, minfo = model_info, cfg = cfg, cfg_notsolve = cfg_notsolve,
         ret_jacobian = ret_jacobian, _solve_conditions! = _solve_conditions!, Cids = cids
 
-        (H, x; isremade = false) -> PEtab.hess_GN!(H, x, _residuals_not_solveode,
-                                             _solve_conditions!, pinfo, minfo, cfg,
-                                             cfg_notsolve; cids = Cids,
-                                             isremade = isremade,
-                                             ret_jacobian = ret_jacobian)
+        (H, x) -> PEtab.hess_GN!(H, x, _residuals_not_solveode, _solve_conditions!, pinfo, minfo,
+                           cfg, cfg_notsolve; cids = Cids, ret_jacobian = ret_jacobian)
     end
     return _hess_nllh!
 end
@@ -335,8 +329,7 @@ end
 function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
                             probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                             cfg::Union{ForwardDiff.JacobianConfig, Nothing};
-                            cids::Vector{Symbol} = [:all],
-                            isremade::Bool = false)::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+                            cids::Vector{Symbol} = [:all])::Nothing where {T <: AbstractFloat}
     @unpack cache, sensealg = probinfo
     @unpack xindices, simulation_info = model_info
     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
@@ -344,9 +337,9 @@ function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
     xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
     xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
 
-    # Solve the expanded ODE system for the sensitivites
-    success = PEtab.solve_sensitivites!(model_info, _solve_conditions!, xdynamic_ps, sensealg,
-                                  probinfo, cids, cfg, isremade)
+    # Solve the expanded ODE system for the sensitivities
+    success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps, sensealg,
+                                  probinfo, cids, cfg)
     if success != true
         @warn "Failed to solve sensitivity equations"
         fill!(grad, 0.0)
@@ -371,8 +364,7 @@ end
 function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_conditions!::Function,
                                   probinfo::PEtabODEProblemInfo,
                                   model_info::ModelInfo, cfg::ForwardDiff.JacobianConfig;
-                                  cids::Vector{Symbol} = [:all],
-                                  isremade::Bool = false)::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+                                  cids::Vector{Symbol} = [:all])::Nothing where {T <: AbstractFloat}
     @unpack cache, sensealg, reuse_sensitivities = probinfo
     @unpack xindices, simulation_info = model_info
     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
@@ -381,8 +373,8 @@ function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_condition
     xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
 
     if reuse_sensitivities == false
-        success = PEtab.solve_sensitivites!(model_info, _solve_conditions!, xdynamic_ps,
-                                      :ForwardDiff, probinfo, cids, cfg, isremade)
+        success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps,
+                                      :ForwardDiff, probinfo, cids, cfg)
         if success != true
             @warn "Failed to solve sensitivity equations"
             fill!(jac, 0.0)
