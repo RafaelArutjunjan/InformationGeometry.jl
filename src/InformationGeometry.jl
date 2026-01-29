@@ -104,7 +104,7 @@ export GetGrad!, GetHess!, GetJac!, GetMatrixJac!
 abstract type AbstractDataSet end
 abstract type AbstractDataModel end
 abstract type AbstractConditionGrid <: AbstractDataModel end
-abstract type AbstractPEtabBasedConditionGrid <: AbstractDataModel end
+abstract type AbstractPEtabBasedConditionGrid <: AbstractConditionGrid end
 abstract type Cuboid end
 abstract type AbstractProfiles end
 abstract type AbstractMultistartResults end
