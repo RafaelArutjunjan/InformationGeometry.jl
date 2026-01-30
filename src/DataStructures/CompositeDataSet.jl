@@ -194,6 +194,8 @@ function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVec
 end
 
 
+### Generalize to Val(:Masked) instead of CDS for reuse
+
 function _CustomOrNot(CDS::CompositeDataSet, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
@@ -250,6 +252,10 @@ _FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractVector{
         Res = vcat(Res, transpose(Mapped[findfirst(isequal(subXs[i]), X)][SetInd,:]))
     end;    Res
 end
+
+
+
+
 
 # Ignore xpositions
 RecipesBase.@recipe function f(CDS::CompositeDataSet, xpositions::AbstractVector{<:Number}=xdata(CDS))

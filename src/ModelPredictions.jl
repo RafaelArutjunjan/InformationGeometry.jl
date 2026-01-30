@@ -19,13 +19,13 @@ h(\\theta) \\coloneqq \\big(y_\\mathrm{model}(x_1;\\theta),...,y_\\mathrm{model}
 """
 EmbeddingMap(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMap(Data(DM), Predictor(DM), θ, woundX; kwargs...)
 EmbeddingMap(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
-EmbeddingMap(DS::Val, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
+EmbeddingMap(DS::Val{true}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX; kwargs...)
 
 
 #### Specialize this for different Dataset types
 # Shortcut without needing to create Vals
-_CustomOrNot(DS::Union{Val,AbstractDataSet}, model::Union{Function,ModelMap{false, false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
-_CustomOrNot(DS::Union{Val,AbstractDataSet}, model::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = model(woundX, θ; kwargs...)
+_CustomOrNot(DS::Union{Val{true},AbstractDataSet}, model::Union{Function,ModelMap{false, false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = Reduction(map(x->model(x,θ; kwargs...), woundX))
+_CustomOrNot(DS::Union{Val{true},AbstractDataSet}, model::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = model(woundX, θ; kwargs...)
 function _CustomOrNot(DS::AbstractDataSet, model!::ModelMap{true, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; Ycache=Vector{suff(θ)}(undef, length(woundX)*ydim(DS)), kwargs...)
     model!(Ycache, woundX, θ; kwargs...);    Ycache
 end
@@ -81,12 +81,12 @@ Returns the jacobian of the embedding map as evaluated at the parameter configur
 """
 EmbeddingMatrix(DM::AbstractDataModel, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DM); kwargs...) = EmbeddingMatrix(Data(DM), dPredictor(DM), θ, woundX; kwargs...)
 EmbeddingMatrix(DS::AbstractDataSet, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS); kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
-EmbeddingMatrix(DS::Val, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
+EmbeddingMatrix(DS::Val{true}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, θ, woundX; kwargs...)
 
 #### Specialize this for different Dataset types
 # Shortcut without needing to create Vals
-_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::Union{Function,ModelMap{false, false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
-_CustomOrNotdM(::Union{Val,AbstractDataSet}, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = dmodel(woundX, θ; kwargs...)
+_CustomOrNotdM(::Union{Val{true},AbstractDataSet}, dmodel::Union{Function,ModelMap{false, false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = reduce(vcat, map(x->dmodel(x,θ; kwargs...), woundX))
+_CustomOrNotdM(::Union{Val{true},AbstractDataSet}, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = dmodel(woundX, θ; kwargs...)
 function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelMap{true, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; Jcache=Matrix{suff(θ)}(undef, length(woundX)*ydim(DS), length(θ)), kwargs...)
     dmodel!(Jcache, woundX, θ; kwargs...);   Jcache
 end

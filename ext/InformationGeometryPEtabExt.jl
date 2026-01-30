@@ -144,6 +144,7 @@ end
 
 
 import InformationGeometry: DataModel, DataSet, CompositeDataSet, ModelMap, ConditionGrid, Negate, Negate!!, NegateBoth, ydim, MergeOneArgMethods
+import InformationGeometry: Identity2Splitter
 
 # Get fixed uncertainties based on error parameter values from P
 function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.petab_tables[:observables], ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
@@ -254,8 +255,8 @@ end
 InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:conditions][1,1]); ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true) = GetConditionData(M, CreateSymbolDF(M; ObsID, CondID), C; ObsID, CondID, FixedError)
 
 
-InformationGeometry.DataModel(P::PEtabModel; kwargs...) = InformationGeometry.DataModel(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, kwargs...)
+InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
+function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, kwargs...)
     UniqueConds = GetUniqueConditions(P; CondID)
     # @assert length(UniqueConds) == 1 || P.probinfo.gradient_method === :ForwardEquations "Only gradient_method = :ForwardEquations implemented for PEtab models with more than one condition! Got :$(P.probinfo.gradient_method) instead."
     DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle, verbose)
@@ -266,18 +267,17 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
     
     @assert Mle ∈ NewModel.Domain
 
-    LogLikelihoodFn = Negate(P.nllh) # Negate(GetNllh(P; cids=[:all]))
-    # Overload with in-place methods from PEtab.jl later!
+    LogLikelihoodFn = Negate(P.nllh)
     ScoreFn = MergeOneArgMethods(Negate(P.grad), Negate!!(P.grad!));    FisherInfoFn = MergeOneArgMethods(P.hess, P.hess!)
     # Check if there is a prior or nothing
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
         DataModel(DS, NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
-                ADmode, name=Symbol(P.model_info.model.name), SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
+                    ADmode, name=Symbol(P.model_info.model.name), SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     else
-        # NewModels = [remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
+        # NewModels = [remake(NewModel; Map=GetModelFunction(P; cid=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
         # Give Prior to ConditionGrid, not individual DMs
-        DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
+        DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cid=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
                             ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])),
                             ScoreFn=((Sc!,Sc)=GetNllhGrads(P; cids=[C]);  MergeOneArgMethods(Negate(Sc), Negate!!(Sc!))),
                             FisherInfoFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C]);   MergeOneArgMethods(Fi, Fi!)), # Set FIM = true later!
@@ -288,31 +288,76 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
 end
 
 # Currently overload with identical behaviour
-InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); kwargs...) = InformationGeometry.DataModel(P, Mle; kwargs...)
+InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); kwargs...) = InformationGeometry.ConditionGrid(P, Mle; kwargs...)
+
+"""
+    SameStructContents(A::T, B::T; verbose::Bool=false) where T
+Compare all fields of an arbitrary struct individually.
+"""
+function SameStructContents(A::T, B::T; verbose::Bool=false) where T
+    Names = fieldnames(T)
+    for Name in Names
+        if !isequal(getproperty(A, Name), getproperty(B,Name))
+            verbose && println("Test failed due to $Name: $(getproperty(A, Name)) != $(getproperty(B, Name))")
+            return false
+        end
+    end;    true
+end
+
+Base.isequal(A::PEtab.ObservableNoiseMap, B::PEtab.ObservableNoiseMap) = SameStructContents(A, B)
+import Base.==
+==(A::PEtab.ObservableNoiseMap, B::PEtab.ObservableNoiseMap) = SameStructContents(A, B)
+
+"""
+    uniqueindices(X::AbstractVector)
+Returns indices of unique elements of `X`, i.e. `X[uniqueindices(X)] == unique(X)`.
+"""
+uniqueindices(X::AbstractVector) = unique(i -> X[i], eachindex(X))
 
 
-function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false)
+function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false, verbose::Bool=true)
     @unpack model_info, probinfo = petab_prob
     @unpack conditionids = petab_prob.model_info.simulation_info
 
     ## conditionids[:experiment] always contains concatenation of pre_equilibration_id and simulation_id, unless pre_equilibration is :None
     ## If no pre_equilibration, then experiment_id == simulation_id
     ## conditionids[:Simulation]
-    
     all_pre_equilibrations = conditionids[:pre_equilibration]
     all_simulations = conditionids[:simulation]
 
-    # Decide all observables which should be returned here and mind their order!
-    ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
-    # Make dict of unique obsids per condition and apply later to get local UniqueObsids
 
-    function GetPredictions(xs, θ::AbstractVector{T}; cid::Symbol=cond, Error::Bool=Error)::Vector{T} where T<:Number
+    # Make dict of unique obsids per condition and apply later to get local UniqueObsids
+    ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
+
+    ####### Check if observable maps and noise maps consistent within condition, so that values can be interpolated between measurements
+    ## Dict for unique index of each measurement in given condition
+    imeasurementsCid = model_info.simulation_info.imeasurements[cid]
+    observable_idCid = model_info.petab_measurements.observable_id[imeasurementsCid]
+    UniqueObsInds = uniqueindices(observable_idCid)
+    ## Representative inds to take observable and noise maps from for interpolation, given obsid
+    ObsidToRepresentativeMeasurementIndDict = Dict(observable_idCid[UniqueObsInds] .=> UniqueObsInds)
+
+    ### Boolvectors of equal indices
+    ObservableInds = [map(isequal(Observable), observable_idCid) for Observable in observable_idCid[UniqueObsInds]]
+
+    ## Check that all observable maps are consistent per observable
+    CanInterpolateObservables = all(allequal(i->petab_prob.model_info.xindices.xobservable_maps[i], imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds))
+    # [map(i->petab_prob.model_info.xindices.xobservable_maps[i], @view imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds)]
+
+    ## Check that all noise maps are consistent per observable
+    CanInterpolateUncertainties = all(allequal(i->petab_prob.model_info.xindices.xnoise_maps[i], imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds))
+    # [map(i->petab_prob.model_info.xindices.xnoise_maps[i], @view imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds)]
+
+    GetPredictions(x::Number, θ::AbstractVector; kwargs...) = GetPredictions([x], θ; kwargs...)
+    GetPredictions(x::AbstractVector{<:Int}, θ::AbstractVector; kwargs...) = GetPredictions(float.(x), θ; kwargs...)
+    function GetPredictions(ts::AbstractVector{<:AbstractFloat}, θ::AbstractVector{T}; Error::Bool=Error)::Vector{T} where T<:Number
         UniqueObsids = ObsidsInCondDict[cid]
         # odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
         # sol = odesols[cid]
-        Res = Matrix{T}(undef, length(UniqueObsids), length(xs))
+        Res = Matrix{T}(undef, length(UniqueObsids), length(ts))
         Xnom = collect(petab_prob.xnominal)
 
+        # Has pre_equilibration or not
         ind = findfirst(isequal(cid), all_simulations)
         sol = if all_pre_equilibrations[ind] === :None
             PEtab.get_odesol(collect(θ), petab_prob; condition = cid)
@@ -325,20 +370,24 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cond::Symbol=Symbol(petab
                                         :xnondynamic, probinfo.cache)
         for (i,obsid) in enumerate(UniqueObsids)
             if !Error
+                verbose && !CanInterpolateObservables && @warn "Cannot interpolate observables!"
                 xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
                                                 :xobservable, probinfo.cache)
-                mapxobservables = model_info.xindices.xobservable_maps
-                for (j,t) in enumerate(xs)
+                imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
+                mapxobservables = model_info.xindices.xobservable_maps[imeasurement]
+                for (j,t) in enumerate(ts)
                     Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
-                            model_info.model, mapxobservables[1], Symbol(obsid), Xnom)
+                            model_info.model, mapxobservables, Symbol(obsid), Xnom)
                 end
             else
+                verbose && !CanInterpolateUncertainties && @warn "Cannot interpolate uncertainties!"
                 xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
                                                 :xnoise, probinfo.cache)
-                mapxnoise = model_info.xindices.mapxnoise
-                for (j,t) in enumerate(xs)
+                imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
+                mapxnoise = model_info.xindices.xnoise_maps[imeasurement]
+                for (j,t) in enumerate(ts)
                     Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
-                            model_info.model, mapxnoise[1], Symbol(obsid), Xnom)
+                            model_info.model, mapxnoise, Symbol(obsid), Xnom)
                 end
             end
         end;    vec(Res)
