@@ -121,6 +121,7 @@ verbose::Bool=true
 
 
 DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))
+Identity3Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ, θ))
 
 
 xdata(DS::UnknownVarianceDataSet) = DS.x

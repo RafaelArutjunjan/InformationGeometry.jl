@@ -11,6 +11,7 @@ function ErrorModelTester(inverrormodelraw::Function, testoutput)
     else
         throw("Not implemented for error model output $testoutput of type $(typeof(testoutput)) yet.")
     end
+    ## First output as vector, second as matrix
     Inverrormodelraw, Inverrormodel
 end
 
@@ -66,6 +67,9 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(collect(eachrow(X)), collect(eachrow(Y)), inverrormodel, testpy; kwargs...)
     end
+    function DataSetUncertain(X::AbstractDataFrame, Y::AbstractDataFrame, args...; xnames=names(X), ynames=names(Y), kwargs...)
+        DataSetUncertain(collect.(eachrow(X)), collect.(eachrow(Y)), args...; xnames, ynames, kwargs...)
+    end
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, inverrormodel::Function, testpy::AbstractVector; kwargs...)
         size(X,1) != size(Y,1) && throw("Inconsistent number of x-values and y-values given: $(size(X,1)) != $(size(Y,1)). Specify a tuple (Npoints, xdim, ydim) in the constructor.")
         DataSetUncertain(Unwind(X), Unwind(Y), inverrormodel, testpy, (size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); kwargs...)
@@ -74,10 +78,10 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         verbose && @info "Assuming error parameters always given by last $(length(testpy)) parameters."
         DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testpy)), testpy, dims; verbose, kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testpy::AbstractVector, dims::Tuple{Int,Int,Int};
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(x,1), ConsistentElDims(x), ConsistentElDims(y));
             xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"),
             name::StringOrSymb=Symbol(), kwargs...)
-        DataSetUncertain(x, y, dims, inverrormodel, errorparamsplitter, testpy, xnames, ynames, name; kwargs...)
+        DataSetUncertain(Unwind(x), Unwind(y), dims, inverrormodel, errorparamsplitter, testpy, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testpy::AbstractVector,
             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); keep::Union{Nothing, AbstractVector{<:Bool}}=nothing, kwargs...)
@@ -122,7 +126,7 @@ keep::Union{Nothing, AbstractVector{<:Bool}}=nothing,
 name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, keep, xnames, ynames, name; BesselCorrection, verbose)
 
 DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
-
+Identity2Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ))
 
 xdata(DS::DataSetUncertain) = DS.x
 ydata(DS::DataSetUncertain) = DS.y

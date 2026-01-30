@@ -198,6 +198,7 @@ export DataModel, AddLogPrior, InformDataSetErrors
 
 include("DataStructures/ConditionGrid.jl")
 export ConditionGrid, Conditions, ConditionSpecificProfiles, ConditionSpecificWaterFalls
+export SplitObservablesIntoConditions
 
 
 include("NumericalTools/Miscellaneous.jl")
