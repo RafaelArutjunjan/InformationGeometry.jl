@@ -22,7 +22,7 @@ struct PEtabConditionGrid <: AbstractPEtabBasedConditionGrid
 end
 const PEtabDataModel = PEtabConditionGrid
 
-for F in [:pdim, :DOF, :EmbeddingMap, :EmbeddingMatrix, :getindex]
+for F in [:pdim, :DOF, :getindex]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end
 # Only single arg
@@ -219,7 +219,11 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
                 throw("Do not know how to handle case $ConstError yet.")
             end
         else
-            throw("Not programmed for reading error models yet.")
+            # Reuse already constructed modelmap with kwarg Error=true to avoid double compilation?
+            σErrorModel = GetModelFunction(P; cid=CondName, Error=true)
+            # is σ^(-1)
+            yinverrormod(x::AbstractVector,y,p) = inv.(σErrorModel(x,p))
+            yinverrormod(x::Number,y,p) = yinverrormod([x], y, p)
         end
     else
         MissingToNan.(YdfE[!,map(startswith("sd_"), names(YdfE))])
@@ -227,7 +231,19 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
     if Sdf isa AbstractDataFrame
         (any(ismissing, eachrow(df)) ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
     else
-        throw("Not programmed for reading error models yet.")
+        if !any(ismissing, eachrow(df))
+            ## Need identity splitter
+            DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+        else
+            @warn "Throwing away any rows with missing or NaN currently"
+            keep = map(x->all(isfinite∘MissingToNan, x), eachrow(df))
+            bigkeep = reduce(vcat, [repeat(n, size(Ydf,2)) for n in keep])
+            ## Need to modify error model for missings...
+
+            throw("Not programmed for reading error models with missing values yet.")
+            DataSetUncertain(Xdf[keep], Ydf[keep,:], (x,y,p)->Sdf(x,y,p)[bigkeep], Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+            ### Try version with throwing away all rows containing any missing value
+        end
     end
 end
 
@@ -359,35 +375,38 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
 
         # Has pre_equilibration or not
         ind = findfirst(isequal(cid), all_simulations)
+        x = collect(θ)
         sol = if all_pre_equilibrations[ind] === :None
-            PEtab.get_odesol(collect(θ), petab_prob; condition = cid)
+            PEtab.get_odesol(x, petab_prob; condition = cid)
         else
-            PEtab.get_odesol(collect(θ), petab_prob; condition = all_pre_equilibrations[ind] => cid)
+            PEtab.get_odesol(x, petab_prob; condition = all_pre_equilibrations[ind] => cid)
         end
 
-        @unpack xobservable, xnondynamic, xnoise = probinfo.cache
+        xdynamic, xobservable, xnoise, xnondynamic = PEtab.split_x(x, model_info.xindices)
         xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,
                                         :xnondynamic, probinfo.cache)
-        for (i,obsid) in enumerate(UniqueObsids)
-            if !Error
-                verbose && !CanInterpolateObservables && @warn "Cannot interpolate observables!"
-                xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
-                                                :xobservable, probinfo.cache)
+        if !Error
+            verbose && !CanInterpolateObservables && @warn "Cannot interpolate observables!"
+            xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
+                                            :xobservable, probinfo.cache)
+            for (i,obsid) in enumerate(UniqueObsids)
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxobservables = model_info.xindices.xobservable_maps[imeasurement]
                 for (j,t) in enumerate(ts)
                     Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
-                            model_info.model, mapxobservables, Symbol(obsid), Xnom)
+                            model_info.model, mapxobservables, obsid, Xnom)
                 end
-            else
-                verbose && !CanInterpolateUncertainties && @warn "Cannot interpolate uncertainties!"
-                xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
-                                                :xnoise, probinfo.cache)
+            end
+        else
+            verbose && !CanInterpolateUncertainties && @warn "Cannot interpolate uncertainties!"
+            xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
+                                            :xnoise, probinfo.cache)
+            for (i,obsid) in enumerate(UniqueObsids)
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxnoise = model_info.xindices.xnoise_maps[imeasurement]
                 for (j,t) in enumerate(ts)
                     Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
-                            model_info.model, mapxnoise, Symbol(obsid), Xnom)
+                            model_info.model, mapxnoise, obsid, Xnom)
                 end
             end
         end;    vec(Res)
