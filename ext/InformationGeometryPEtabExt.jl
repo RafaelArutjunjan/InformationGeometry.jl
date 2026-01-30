@@ -17,7 +17,7 @@ struct PEtabConditionGrid <: AbstractPEtabBasedConditionGrid
     DM::AbstractDataModel
     P::PEtabODEProblem
     PEtabConditionGrid(P::PEtabModel; kwargs...) = PEtabConditionGrid(PEtabODEProblem(P); kwargs...) 
-    PEtabConditionGrid(P::PEtabODEProblem; kwargs...) = PEtabConditionGrid(DataModel(P; kwargs...), P)
+    PEtabConditionGrid(P::PEtabODEProblem; kwargs...) = PEtabConditionGrid(ConditionGrid(P; kwargs...), P)
     PEtabConditionGrid(DM::AbstractDataModel, P::PEtabODEProblem) = new(DM, P)
 end
 const PEtabDataModel = PEtabConditionGrid
@@ -127,7 +127,7 @@ GetObservableParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(ge
 
 HasErrorModel(P::PEtabODEProblem, args...; kwargs...) = HasErrorModel(P.model_info.model, args...; kwargs...)
 function HasErrorModel(P::PEtabModel, CondName::Symbol; CondID=:simulationConditionId, NoiseParam=:noiseParameters)
-    df = P.petab_tables[:measurements][Symbol.(P.petab_tables[:measurements][!,CondID]) .=== CondName, :]
+    df = @view P.petab_tables[:measurements][Symbol.(P.petab_tables[:measurements][!,CondID]) .=== CondName, :]
     @assert !isempty(df) "Condition Name wrong? Got $CondName."
     IsFloat(x::Number) = true;  IsFloat(x) = Meta.parse(x) isa Number
     !all(IsFloat, df[!, NoiseParam])
@@ -198,10 +198,12 @@ end
 
 
 function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDF(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
+                        ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID),
                         FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== CondName, :]
-    verbose && @info "Starting Condition $C."
-    df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
+    verbose && @info "Starting Condition $CondName."
+    # df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
+    df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=ObsidsInCondDict[CondName])
     Xdf = MissingToNan.(df[!,[Time]]);    YdfE = broadcast(x->ismissing(x) ? NaN : x, df[!,Not(Time)])
     Ydf = broadcast(x->ismissing(x) ? NaN : x, YdfE[!,map(!startswith("sd_"), names(YdfE))])
     Sdf = if HasErrorModel(M, CondName; CondID, NoiseParam)
@@ -249,9 +251,9 @@ end
 
 CreateSymbolDF(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = (sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID]);     sdf)
 # Get vector of all condition datasets
-function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, UniqueConds=GetUniqueConditions(M; CondID), FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false)
+function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), UniqueConds=collect(keys(ObsidsInCondDict)), FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false)
     sdf = CreateSymbolDF(M; ObsID, CondID)
-    [GetConditionData(P, M, sdf, C; ObsID, CondID, FixedError, Mle, verbose) for C in UniqueConds]
+    [GetConditionData(P, M, sdf, C; ObsID, CondID, ObsidsInCondDict, FixedError, Mle, verbose) for C in UniqueConds]
 end
 
 import InformationGeometry: StringOrSymb, NicifyPEtabNames
@@ -273,13 +275,14 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
 function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, kwargs...)
-    UniqueConds = GetUniqueConditions(P; CondID)
+
+    ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
+    UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     # @assert length(UniqueConds) == 1 || P.probinfo.gradient_method === :ForwardEquations "Only gradient_method = :ForwardEquations implemented for PEtab models with more than one condition! Got :$(P.probinfo.gradient_method) instead."
-    DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle, verbose)
-    DS = DSs[1]
+    DSs = GetDataSets(P; ObsID, CondID, ObsidsInCondDict, UniqueConds, FixedError, Mle, verbose)
 
     PNames = InformationGeometry.GetNamesSymb(Mle) # .|> string |> NicifyPEtabNames
-    NewModel = ModelMap(GetModelFunction(P), HyperCube(P), (1, ydim(DS), length(Mle)); startp=Mle, pnames=PNames, inplace=false, IsCustom=true)
+    NewModel = ModelMap(GetModelFunction(P; cid=UniqueConds[1], ObsidsInCondDict), HyperCube(P), (1, ydim(DSs[1]), length(Mle)); startp=Mle, pnames=PNames, inplace=false, IsCustom=true)
     
     @assert Mle ∈ NewModel.Domain
 
@@ -288,12 +291,12 @@ function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVect
     # Check if there is a prior or nothing
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
-        DataModel(DS, NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
+        DataModel(DSs[1], NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
                     ADmode, name=Symbol(P.model_info.model.name), SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     else
         # NewModels = [remake(NewModel; Map=GetModelFunction(P; cid=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
         # Give Prior to ConditionGrid, not individual DMs
-        DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cid=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
+        DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cid=C, ObsidsInCondDict), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
                             ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])),
                             ScoreFn=((Sc!,Sc)=GetNllhGrads(P; cids=[C]);  MergeOneArgMethods(Negate(Sc), Negate!!(Sc!))),
                             FisherInfoFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C]);   MergeOneArgMethods(Fi, Fi!)), # Set FIM = true later!
@@ -331,7 +334,8 @@ Returns indices of unique elements of `X`, i.e. `X[uniqueindices(X)] == unique(X
 uniqueindices(X::AbstractVector) = unique(i -> X[i], eachindex(X))
 
 
-function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false, verbose::Bool=true)
+function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, Error::Bool=false, verbose::Bool=true,
+                ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(petab_prob.model_info.model; ObsID, CondID))
     @unpack model_info, probinfo = petab_prob
     @unpack conditionids = petab_prob.model_info.simulation_info
 
@@ -340,10 +344,6 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
     ## conditionids[:Simulation]
     all_pre_equilibrations = conditionids[:pre_equilibration]
     all_simulations = conditionids[:simulation]
-
-
-    # Make dict of unique obsids per condition and apply later to get local UniqueObsids
-    ObsidsInCondDict = GetObservablesInConditionDict(model_info.model; ObsID, CondID)
 
     ####### Check if observable maps and noise maps consistent within condition, so that values can be interpolated between measurements
     ## Dict for unique index of each measurement in given condition
@@ -363,11 +363,12 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
     ## Check that all noise maps are consistent per observable
     CanInterpolateUncertainties = all(allequal(i->petab_prob.model_info.xindices.xnoise_maps[i], imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds))
     # [map(i->petab_prob.model_info.xindices.xnoise_maps[i], @view imeasurementsCid[ObservableInds[j]]) for j in eachindex(ObservableInds)]
+    
+    UniqueObsids = ObsidsInCondDict[cid]
 
     GetPredictions(x::Number, θ::AbstractVector; kwargs...) = GetPredictions([x], θ; kwargs...)
     GetPredictions(x::AbstractVector{<:Int}, θ::AbstractVector; kwargs...) = GetPredictions(float.(x), θ; kwargs...)
     function GetPredictions(ts::AbstractVector{<:AbstractFloat}, θ::AbstractVector{T}; Error::Bool=Error)::Vector{T} where T<:Number
-        UniqueObsids = ObsidsInCondDict[cid]
         # odesols = PEtab.solve_all_conditions(collect(θ), petab_prob, petab_prob.probinfo.solver.solver)
         # sol = odesols[cid]
         Res = Matrix{T}(undef, length(UniqueObsids), length(ts))
