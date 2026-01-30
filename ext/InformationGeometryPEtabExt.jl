@@ -232,9 +232,9 @@ end
 
 CreateSymbolDF(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = (sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID]);     sdf)
 # Get vector of all condition datasets
-function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, UniqueConds=GetUniqueConditions(M; CondID), FixedError::Bool=true, Mle=MLE(P))
+function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, UniqueConds=GetUniqueConditions(M; CondID), FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false)
     sdf = CreateSymbolDF(M; ObsID, CondID)
-    [GetConditionData(P, M, sdf, C; ObsID, CondID, FixedError, Mle) for C in UniqueConds]
+    [GetConditionData(P, M, sdf, C; ObsID, CondID, FixedError, Mle, verbose) for C in UniqueConds]
 end
 
 import InformationGeometry: StringOrSymb, NicifyPEtabNames
@@ -255,10 +255,10 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 
 InformationGeometry.DataModel(P::PEtabModel; kwargs...) = InformationGeometry.DataModel(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, kwargs...)
+function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, kwargs...)
     UniqueConds = GetUniqueConditions(P; CondID)
     # @assert length(UniqueConds) == 1 || P.probinfo.gradient_method === :ForwardEquations "Only gradient_method = :ForwardEquations implemented for PEtab models with more than one condition! Got :$(P.probinfo.gradient_method) instead."
-    DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle)
+    DSs = GetDataSets(P; ObsID, CondID, UniqueConds, FixedError, Mle, verbose)
     DS = DSs[1]
 
     PNames = InformationGeometry.GetNamesSymb(Mle) # .|> string |> NicifyPEtabNames
@@ -273,14 +273,17 @@ function InformationGeometry.DataModel(P::PEtabODEProblem, Mle::AbstractVector=M
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
         DataModel(DS, NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
-                ADmode, name=Symbol(P.model_info.model.name), SkipOptim, kwargs...) |> x->PEtabConditionGrid(x,P)
+                ADmode, name=Symbol(P.model_info.model.name), SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     else
         # NewModels = [remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
         # Give Prior to ConditionGrid, not individual DMs
         DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cond=C), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
-                            ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])), name=C, SkipTests=true, SkipOptim=true) for (i,C) in enumerate(UniqueConds)]
+                            ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])),
+                            ScoreFn=((Sc!,Sc)=GetNllhGrads(P; cids=[C]);  MergeOneArgMethods(Negate(Sc), Negate!!(Sc!))),
+                            FisherInfoFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C]);   MergeOneArgMethods(Fi, Fi!)), # Set FIM = true later!
+                            name=C, SkipTests=true, SkipOptim=true, verbose) for (i,C) in enumerate(UniqueConds)]
         InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); 
-                    ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, kwargs...) |> x->PEtabConditionGrid(x,P)
+                    ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     end
 end
 

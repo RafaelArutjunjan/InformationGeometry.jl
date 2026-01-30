@@ -85,7 +85,7 @@ struct ConditionGrid <: AbstractConditionGrid
         !isnothing(Domain) && @assert length(Domain) == length(mle)
 
         Mle = if SkipOptim
-            verbose && @warn "ConditionGrid: Not performing optimization out of the box!"
+            verbose && @info "ConditionGrid: Not performing optimization!"
             mle
         else
             InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
@@ -243,10 +243,11 @@ end
 
 
 # Plotrecipe: plot all dms individually
-RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); ConditionNames=InformationGeometry.ConditionNames(CG), Confnum=1, Fisher=IsIdentityTrafo(Trafos(CG)) && any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing)
+RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); ConditionNames=InformationGeometry.ConditionNames(CG), Confnum=1, Fisher=any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing, ADmode=Val(:ForwardDiff))
     ConditionNames isa Symbol && (ConditionNames = [ConditionNames])
     @assert ConditionNames isa AbstractVector{<:Symbol}
     @assert all(∈(InformationGeometry.ConditionNames(CG)), ConditionNames) "Given condition names $ConditionNames not all in $(InformationGeometry.ConditionNames(CG))"
+    @assert isnothing(Fisher) || (size(Fisher,1) == size(Fisher,2) == length(mle))
     plot_title --> string(name(CG))
     layout --> length(ConditionNames)
     size --> PlotSizer(length(ConditionNames))
@@ -255,8 +256,11 @@ RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:
             subplot := i
             dof --> DOF(CG)
             Confnum --> Confnum
-            !isnothing(Fisher) && (Fisher --> Fisher)
             ind = findfirst(isequal(Name),ConditionNames)
+            if !isnothing(Fisher)
+                J = Trafos(CG)[ind] == identity ? LinearAlgebra.I : DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
+                Fisher --> J * Fisher * transpose(J)
+            end
             Conditions(CG)[ind], Trafos(CG)[ind](mle)
         end
     end
