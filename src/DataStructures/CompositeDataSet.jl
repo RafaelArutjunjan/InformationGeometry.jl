@@ -94,7 +94,7 @@ The boolean-valued keywords `stripedXs` and `stripedYs` can be used to indicate 
 Also, `xerrs=true` can be used to indicate that the `x`-values also carry uncertainties.
 Basically all functions which can be called on other data containers such as `DataSet` have been specialized to also work with `CompositeDataSet`s.
 """
-struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
+struct CompositeDataSet{B,I} <: AbstractFixedUncertaintyDataSet
     DSs::AbstractVector{<:AbstractDataSet}
     InvCov::AbstractMatrix{<:Number}
     logdetInvCov::Real
@@ -114,8 +114,8 @@ struct CompositeDataSet <: AbstractFixedUncertaintyDataSet
         CompositeDataSet(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, name; kwargs...)
     end
     # What about CompositeDataSets with estimated errors in the future?
-    function CompositeDataSet(DSs::AbstractVector{<:AbstractFixedUncertaintyDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val, name::StringOrSymb)
-        new(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, Symbol(name))
+    function CompositeDataSet(DSs::AbstractVector{<:AbstractFixedUncertaintyDataSet}, InvCov::AbstractMatrix, logdetInvCov::Real, WoundX::AbstractVector, SharedYdim::Val{B}, name::StringOrSymb) where B
+        new{B,ydim(DSs[1])}(DSs, InvCov, logdetInvCov, WoundX, SharedYdim, Symbol(name))
     end
 end
 
@@ -182,10 +182,10 @@ name(CDS::CompositeDataSet) = CDS.name
 function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})
     CompositeDataSet(InformNames(Data(CDS), xnames, ynames))
 end
-function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})
+function InformNames(DSs::AbstractVector{T}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}) where T<:AbstractDataSet
     # Use InformNames for single DataSet recursively
     @assert length(ynames) == sum(ydim.(DSs)) && all(x->xdim(x)==length(xnames), DSs)
-    Res = Vector{AbstractDataSet}(undef, length(DSs))
+    Res = Vector{T}(undef, length(DSs))
     j = 1   # Use this to infer how many elements have been popped from ynames
     for i in eachindex(DSs)
         Res[i] = InformNames(DSs[i], xnames, ynames[j:j-1+ydim(DSs[i])])
@@ -194,18 +194,24 @@ function InformNames(DSs::AbstractVector{<:AbstractDataSet}, xnames::AbstractVec
 end
 
 
+function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    throw("Not programmed yet for CDS.SharedYdim == Val{false} yet.")
+end
+
 ### Generalize to Val(:Masked) instead of CDS for reuse
 
-function _CustomOrNot(CDS::CompositeDataSet, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+function _CustomOrNot(CDS::CompositeDataSet{true}, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    @assert ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
     _FillResVector(CDS, X, reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X)))
 end
 
 # Apparently reduce(vcat, map(z->transpose(G(z)), X))  just as fast as   transpose(reshape(reduce(vcat, map(z->transpose(G(z)), X)), ydim, :))
-function _CustomOrNot(CDS::CompositeDataSet, model::ModelMap{false,true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+function _CustomOrNot(CDS::CompositeDataSet{true}, model::ModelMap{false,true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    @assert ydim(Data(CDS)[1]) == 1
     # reduce(vcat, transpose) faster than Unpack?
     X = unique(woundX)
     _FillResVector(CDS, X, (ydim(CDS) == 1 ? reshape(model(X, θ; kwargs...), :, 1) : transpose(reshape(model(X, θ; kwargs...), ydim(CDS), :))))
@@ -219,9 +225,10 @@ end
 
 
 function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{T}) where T<:Number
-    Res = Vector{T}(undef, DataspaceDim(CDS));      i = 1
-    for SetInd in eachindex(Data(CDS))
-        for xval in WoundX(Data(CDS)[SetInd])
+    ## Could return view into Mapped instead of new Vector?
+    Res = Vector{T}(undef, DataspaceDim(CDS));      i = 1;      DSs = Data(CDS)
+    for SetInd in eachindex(DSs)
+        for xval in WoundX(DSs[SetInd])
             # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
             Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
             i += 1
@@ -230,14 +237,20 @@ function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::Abstra
 end
 
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+function _CustomOrNotdM(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    throw("Not programmed yet for CDS.SharedYdim == Val{false} yet.")
+end
+
+function _CustomOrNotdM(CDS::CompositeDataSet{true}, dmodel::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    @assert ydim(Data(CDS)[1]) == 1
     X = unique(woundX)
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 
-function _CustomOrNotdM(CDS::CompositeDataSet, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+function _CustomOrNotdM(CDS::CompositeDataSet{true}, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
+    @assert ydim(Data(CDS)[1]) == 1
     X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
     [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in eachindex(X)]
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
@@ -245,7 +258,7 @@ end
 
 _FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(vcat, map(i->_getViewDmod(CDS,i,X,Mapped), 1:length(Data(CDS))))
 
-@inline function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
+function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
     subXs = WoundX(Data(CDS)[SetInd])
     Res = Mapped[findfirst(isequal(subXs[1]), X)][SetInd,:] |> transpose
     for i in 2:length(subXs)
