@@ -9,13 +9,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     @series begin
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
-                keep = Data(DM).keep
-                ysig = if isnothing(keep)
-                    ysigma(DM, mle)
-                else
-                    view(ysigma(DM, mle), keep)
-                end
-                yerror := Unpack(Windup(ysig, ydim(DM)))
+                ysig = WoundYSigmaMasked(Data(DM), mle)
+                yerror := Unpack(ysig)
             elseif Data(DM) isa UnknownVarianceDataSet
                 xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
                 yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
@@ -90,7 +85,7 @@ predictedY(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), X::Abst
 
 function predictedY(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector{<:Number}, X::AbstractVector=xdata(DS))
     # Ignore structure of missing values for CompositeDataSet for dense prediction curve
-    Y = DS isa CompositeDataSet ? EmbeddingMap(Val(true), model, mle, X) : EmbeddingMap(DS, model, GetOnlyModelParams(DS)(mle), X)
+    Y = EmbeddingMap(Val(true), model, GetOnlyModelParams(DS)(mle), X)
     ydim(DS) == 1 ? Y : (ydim(DS) ≤ Npoints(DS) ? Unpack(Windup(Y, ydim(DS))) : transpose(Unpack(Windup(Y, ydim(DS)))))
 end
 
@@ -129,7 +124,9 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions
         yerror --> transpose(Unpack(Windup(Σ_y, ydim(DS))))
         # No way to incorporate errors in xpositions here....
     end
-    Y = if ydim(DS) == 1
+    Y = if DS isa DataSetUncertain
+        Unpack(WoundYmasked(DS))
+    elseif ydim(DS) == 1
         ydata(DS)
     elseif ydim(DS) ≤ Npoints(DS)
         Unpack(Windup(ydata(DS), ydim(DS)))
