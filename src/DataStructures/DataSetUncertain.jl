@@ -42,7 +42,7 @@ DS = DataSetUncertain([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/exp10(c[1]), [0.5])
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
     A Bessel correction `sqrt((length(ydata(DS))-length(params))/length(ydata(DS)))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
+struct DataSetUncertain{BesselCorrection, keep} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int} # Nxy
@@ -100,7 +100,7 @@ struct DataSetUncertain{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
         ydim(dims) == 1 && (@assert testout isa Number && testout > 0)
         ydim(dims) > 1 && @assert (testout isa AbstractVector && length(testout) == ydim(dims) && all(testout .> 0)) || (testout isa AbstractMatrix && size(testout,1) == size(testout,2) == ydim(dims) && det(testout) > 0)
         
-        new{BesselCorrection}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection, typeof(keep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
