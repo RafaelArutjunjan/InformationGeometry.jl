@@ -94,7 +94,7 @@ The boolean-valued keywords `stripedXs` and `stripedYs` can be used to indicate 
 Also, `xerrs=true` can be used to indicate that the `x`-values also carry uncertainties.
 Basically all functions which can be called on other data containers such as `DataSet` have been specialized to also work with `CompositeDataSet`s.
 """
-struct CompositeDataSet{B,I} <: AbstractFixedUncertaintyDataSet
+struct CompositeDataSet{SharedYdim,IndividualYdim} <: AbstractFixedUncertaintyDataSet
     DSs::AbstractVector{<:AbstractDataSet}
     InvCov::AbstractMatrix{<:Number}
     logdetInvCov::Real
@@ -188,81 +188,94 @@ function InformNames(DSs::AbstractVector{T}, xnames::AbstractVector{<:StringOrSy
     Res = Vector{T}(undef, length(DSs))
     j = 1   # Use this to infer how many elements have been popped from ynames
     for i in eachindex(DSs)
-        Res[i] = InformNames(DSs[i], xnames, ynames[j:j-1+ydim(DSs[i])])
+        Res[i] = InformNames(DSs[i], xnames, (@view ynames[j:j-1+ydim(DSs[i])]))
         j += ydim(DSs[i])
     end;    Res
 end
+
 
 
 function _CustomOrNot(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     throw("Not programmed yet for CDS.SharedYdim == Val{false} yet.")
 end
 
-### Generalize to Val(:Masked) instead of CDS for reuse
+## Use Val{true} EmbeddingMap version here and reshape
 
-function _CustomOrNot(CDS::CompositeDataSet{true}, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    @assert ydim(Data(CDS)[1]) == 1
-    # reduce(vcat, transpose) faster than Unpack?
-    X = unique(woundX)
-    _FillResVector(CDS, X, reduce(vcat, map(z->transpose(model(z, θ; kwargs...)), X)))
+function _CustomOrNot(CDS::CompositeDataSet{true,1}, model::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    _FillResVector(CDS, woundX, transpose(reduce(hcat, map(z->model(z, θ; kwargs...), woundX))))
 end
-
-# Apparently reduce(vcat, map(z->transpose(G(z)), X))  just as fast as   transpose(reshape(reduce(vcat, map(z->transpose(G(z)), X)), ydim, :))
-function _CustomOrNot(CDS::CompositeDataSet{true}, model::ModelMap{false,true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    @assert ydim(Data(CDS)[1]) == 1
-    # reduce(vcat, transpose) faster than Unpack?
-    X = unique(woundX)
-    _FillResVector(CDS, X, (ydim(CDS) == 1 ? reshape(model(X, θ; kwargs...), :, 1) : transpose(reshape(model(X, θ; kwargs...), ydim(CDS), :))))
+function _CustomOrNot(CDS::CompositeDataSet{true,1}, model::ModelMap{false,true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    _FillResVector(CDS, woundX, (ydim(CDS) == 1 ? reshape(model(woundX, θ; kwargs...), :, 1) : transpose(reshape(model(woundX, θ; kwargs...), ydim(CDS), :))))
 end
-
-# function _CustomOrNot(CDS::CompositeDataSet, model::ModelMap{true}, θ::AbstractVector{<:Number}, woundX::AbstractVector, custom::Val{true}, inplace::Val{false}; kwargs...)
-#     throw("Not programmed CompositeDataSet for in-place ModelMaps yet.")
-# end
 
 # Also add test for in-place CompositeDataSet with missing values
 
+function _CustomOrNot(CDS::CompositeDataSet, model::ModelMap{true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    throw("Not programmed CompositeDataSet for in-place ModelMaps yet.")
+end
+
+
 
 function _FillResVector(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{T}) where T<:Number
-    ## Could return view into Mapped instead of new Vector?
-    Res = Vector{T}(undef, DataspaceDim(CDS));      i = 1;      DSs = Data(CDS)
-    for SetInd in eachindex(DSs)
-        for xval in WoundX(DSs[SetInd])
-            # Res[i] = view(Mapped, findfirst(isequal(xval),X), SetInd]
-            Res[i] = Mapped[findfirst(isequal(xval),X), SetInd]
-            i += 1
-        end
-    end;    return Res
+    Res = Vector{T}(undef, DataspaceDim(CDS))
+    _FillResVector!(Res, CDS, X, Mapped)
+    Res
 end
+# Better to have specialized method taking only arrays
+function _FillResVector!(Res::AbstractVector{<:Number}, CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractMatrix{<:Number})
+    @boundscheck @assert length(Res) == DataspaceDim(CDS)
+    _FillResVector!(Res, [WoundX(DS) for DS in Data(CDS)], X, Mapped)
+end
+## ith column of Mapped corresponds to ith observable
+function _FillResVector!(Res::AbstractVector{T}, woundXs::AbstractVector{<:AbstractVector}, X::AbstractVector{<:Number}, Mapped::AbstractMatrix{T}) where T<:Number
+    i = 1
+    @inbounds for (SetInd,woundX) in enumerate(woundXs)
+        @inbounds for xval in woundX
+            Res[i] = Mapped[findfirst(isequal(xval), X), SetInd];    i += 1
+        end
+    end;    nothing
+end
+
+# ## ith column of Mapped corresponds to ith observable
+# function _FillResVector4!(Res::AbstractVector{T}, woundXs::AbstractVector{<:AbstractVector}, X::AbstractVector{S}, Mapped::AbstractMatrix{T}) where {T<:Number, S<:Number}
+#     ##### Finds last index in X for any given value.
+#     x_to_index = Dict{S, Int}(x => i for (i, x) in enumerate(X));    i = 1
+#     @inbounds for (SetInd,woundX) in enumerate(woundXs)
+#         @inbounds for xval in woundX
+#             Res[i] = Mapped[x_to_index[xval], SetInd];    i += 1
+#         end
+#     end;    nothing
+# end
+
+
+
+# ### Generalize to Val(:Masked) instead of CDS for reuse
+
 
 
 function _CustomOrNotdM(CDS::CompositeDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     throw("Not programmed yet for CDS.SharedYdim == Val{false} yet.")
 end
 
-function _CustomOrNotdM(CDS::CompositeDataSet{true}, dmodel::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    @assert ydim(Data(CDS)[1]) == 1
+
+function _CustomOrNotdM(CDS::CompositeDataSet{true, 1}, dmodel::Union{Function, ModelMap{false,false}}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
     X = unique(woundX)
     _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
 end
 
-function _CustomOrNotdM(CDS::CompositeDataSet{true}, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
-    # @assert CDS.SharedYdim isa Val{true} && ydim(Data(CDS)[1]) == 1
-    @assert ydim(Data(CDS)[1]) == 1
-    X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...)
-    [view(Mapped, (1 + (i-1)*ydim(CDS)):(i*ydim(CDS)) , :) for i in eachindex(X)]
-    _FillResMatrix(CDS, X, map(z->dmodel(z,θ; kwargs...), X))
+function _CustomOrNotdM(CDS::CompositeDataSet{true, 1}, dmodel::ModelMap{false, true}, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...)
+    X = unique(woundX);    Mapped = dmodel(X, θ; kwargs...);    Ydim = ydim(CDS)
+    MappedViews = [view(Mapped, (1 + (i-1)*Ydim):(i*Ydim) , :) for i in eachindex(X)]
+    _FillResMatrix(CDS, X, MappedViews)
 end
 
-_FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(vcat, map(i->_getViewDmod(CDS,i,X,Mapped), 1:length(Data(CDS))))
+_FillResMatrix(CDS::CompositeDataSet, X::AbstractVector, MappedViews::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(vcat, map(i->_getViewDmod(CDS,i,X,MappedViews), 1:length(Data(CDS))))
 
-function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector, Mapped::AbstractVector{<:AbstractMatrix{<:Number}})
+function _getViewDmod(CDS::CompositeDataSet, SetInd::Int, X::AbstractVector, MappedViews::AbstractVector{<:AbstractMatrix{<:Number}})
     subXs = WoundX(Data(CDS)[SetInd])
-    Res = Mapped[findfirst(isequal(subXs[1]), X)][SetInd,:] |> transpose
+    Res = (@view MappedViews[findfirst(isequal(subXs[1]), X)][SetInd,:]) |> transpose
     for i in 2:length(subXs)
-        Res = vcat(Res, transpose(Mapped[findfirst(isequal(subXs[i]), X)][SetInd,:]))
+        Res = vcat(Res, transpose(@view MappedViews[findfirst(isequal(subXs[i]), X)][SetInd,:]))
     end;    Res
 end
 

@@ -33,6 +33,11 @@ function _CustomOrNot(DS::AbstractDataSet, model!::ModelMap{true, false}, θ::Ab
     EmbeddingMap!(Ycache, DS, model!, θ, woundX; kwargs...);     Ycache
 end
 
+function _CustomOrNot(V::Val{:Masked}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, keep::AbstractVector{<:Bool}; kwargs...)
+    Y = _CustomOrNot(Val(true), model, θ, woundX; kwargs...)
+    view(Y, keep)
+end
+
 ## Backwards compatible manual indication of custom and inplace
 # _CustomOrNot(DS::Union{Val,AbstractDataSet}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, model, θ, woundX, Val(false), Val(false); kwargs...)
 # _CustomOrNot(DS::Union{Val,AbstractDataSet}, M::ModelMap, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNot(DS, M.Map, θ, woundX, M.CustomEmbedding, M.inplace; kwargs...)
@@ -94,6 +99,10 @@ function _CustomOrNotdM(DS::AbstractDataSet, dmodel!::ModelMap{true, false}, θ:
     EmbeddingMatrix!(Jcache, DS, dmodel!, θ, woundX; kwargs...);     Jcache
 end
 
+function _CustomOrNotdM(V::Val{:Masked}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, keep::AbstractVector{<:Bool}; kwargs...)
+    J = _CustomOrNotdM(Val(true), dmodel, θ, woundX; kwargs...)
+    view(J, keep, :)
+end
 
 ## Backwards compatible manual indication of custom and inplace
 # _CustomOrNotdM(DS::Union{Val,AbstractDataSet}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector; kwargs...) = _CustomOrNotdM(DS, dmodel, floatify(θ), woundX, Val(false), Val(false); kwargs...)
