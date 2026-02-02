@@ -47,6 +47,8 @@ Base.length(DS::AbstractDataSet) = Npoints(DS)
 WoundX(DS::AbstractDataSet) = Windup(xdata(DS),xdim(DS))
 WoundY(DS::AbstractDataSet) = Windup(ydata(DS),ydim(DS))
 
+WoundYmasked(DS::AbstractDataSet) = WoundY(DS)
+
 WoundInvCov(DS::AbstractDataSet) = _WoundMatrix(yInvCov(DS), ydim(DS))
 _WoundMatrix(D::DiagonalType, Yd::Int) = Windup(D.diag, Yd)
 _WoundMatrix(M::AbstractMatrix, Yd::Int) = throw("WoundInvCov can only be used with diagonal covariance matrices.")
@@ -64,7 +66,8 @@ HasXerror(DS::AbstractDataSet; verbose::Bool=false, kwargs...) = any(x->x>0.0, x
 
 dist(DS::AbstractDataSet) = GeneralProduct([xdist(DS), ydist(DS)])
 
-
+## Npoints is number of independent variables at which data was recorded overall
+## I.e. Npoints = length(xdata) / xdim
 Npoints(DS::AbstractDataSet) = Npoints(dims(DS))
 xdim(DS::AbstractDataSet) = xdim(dims(DS))
 ydim(DS::AbstractDataSet) = ydim(dims(DS))

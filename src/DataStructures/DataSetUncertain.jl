@@ -16,6 +16,23 @@ function ErrorModelTester(inverrormodelraw::Function, testoutput)
 end
 
 
+"""
+    GetPredKeep(T::AbstractVector{<:Number}, Ydata::AbstractMatrix{<:Number})
+Returns minimal `Tstar = sort!(unique(T))` for evaluating predictions on, as well as vector `predkeep` such that
+`Pred(Tstar)[predkeep] = Pred(T)`
+By further masking `predkeep` with `datakeep`, missing values can be accounted for.
+"""
+function GetPredKeep(T::AbstractVector, Ydata::AbstractMatrix)
+    @boundscheck @assert length(T) == size(Ydata,1)
+    @assert !any(z->!any(x->!ismissing(x) && isfinite(x),z), eachrow(Ydata)) "Whole rows in ydata matrix missing, remove empty rows and corresponding times first."
+    Ydim = size(Ydata,2)
+    RowIndices(row::Int) = (row-1)*Ydim+1:row*Ydim
+    
+    Tstar = sort!(unique(T))
+    predkeep = reduce(vcat, [RowIndices(row) for row in Int.(indexin(T, Tstar))])
+    Tstar, predkeep
+end
+
 # Use general bitvector mask to implement missing values
 
 """
@@ -42,7 +59,7 @@ DS = DataSetUncertain([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/exp10(c[1]), [0.5])
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
     A Bessel correction `sqrt((length(ydata(DS))-length(params))/length(ydata(DS)))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct DataSetUncertain{BesselCorrection, keep} <: AbstractUnknownUncertaintyDataSet
+struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDataSet
     x::AbstractVector{<:Number}
     y::AbstractVector{<:Number}
     dims::Tuple{Int,Int,Int} # Nxy
@@ -51,7 +68,9 @@ struct DataSetUncertain{BesselCorrection, keep} <: AbstractUnknownUncertaintyDat
     inverrormodel::Function # 1./errormodel wrapped as AbstractMatrix, e.g. Diagonal
     testpy::AbstractVector{<:Number}
     errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
-    keep::Union{Nothing, AbstractVector{<:Bool}}
+    datakeep::Union{Nothing, AbstractVector{<:Bool}} ## falses correspond to locations of missing values
+    predkeep::Union{Nothing, AbstractVector{<:Int}} ## Which ys to keep from EmbeddingMap evaluated at sparsified woundXpred to reconstruct ydata
+    woundXpred::Union{Nothing, AbstractVector} # sorted woundX with duplicates removed
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -79,33 +98,44 @@ struct DataSetUncertain{BesselCorrection, keep} <: AbstractUnknownUncertaintyDat
         DataSetUncertain(x, y, inverrormodel, DefaultErrorModelSplitter(length(testpy)), testpy, dims; verbose, kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, inverrormodel::Function, errorparamsplitter::Function, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(x,1), ConsistentElDims(x), ConsistentElDims(y));
-            xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"),
-            name::StringOrSymb=Symbol(), kwargs...)
+                xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"), name::StringOrSymb=Symbol(), kwargs...)
         DataSetUncertain(Unwind(x), Unwind(y), dims, inverrormodel, errorparamsplitter, testpy, xnames, ynames, name; kwargs...)
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testpy::AbstractVector,
-            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); keep::Union{Nothing, AbstractVector{<:Bool}}=nothing, kwargs...)
+                xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"), name::StringOrSymb=Symbol(); 
+                datakeep::Union{Nothing,AbstractVector{<:Bool}}=map(z->!ismissing(z) && isfinite(z), y), predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing, woundXpred::Union{Nothing,AbstractVector}=nothing, kwargs...)
         testout = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         Inverrormodelraw, Inverrormodel = ErrorModelTester(inverrormodelraw, testout)
-        
-        DataSetUncertain(x, y, dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, keep, xnames, ynames, name; kwargs...)
+
+        WoundXpred, Keep = if !all(datakeep)
+            if !isnothing(predkeep) && !isnothing(woundXpred)
+                woundXpred, predkeep
+            else
+                sparseX, predkeepraw = GetPredKeep(x, transpose(reshape(y, ydim(dims), :)))
+                sparseX, predkeepraw[datakeep]
+            end
+        else  woundXpred, predkeep  end
+        DataSetUncertain(x, (!all(datakeep) ? y[datakeep] : y), dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, (!all(datakeep) ? datakeep : nothing), Keep, WoundXpred, xnames, ynames, name; kwargs...)
     end
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, testpy::AbstractVector, errorparamsplitter::Function, 
-            keep::Union{Nothing, AbstractVector{<:Bool}}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
+    ## Assume missings already removed and accounted for in keep and WoundX
+    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, testpy::AbstractVector, 
+                errorparamsplitter::Function, datakeep::Union{Nothing,AbstractVector{<:Bool}}, predkeep::Union{Nothing,AbstractVector{<:Int}}, woundXpred::Union{Nothing,AbstractVector}, 
+                xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
-        @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
+        @assert Npoints(dims) == Int(length(x)/xdim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
-        @assert isnothing(keep) || length(keep) == length(y)
+        @assert !any(z->ismissing(z) || !isfinite(z), y)
+        @assert (isnothing(datakeep) && isnothing(predkeep) && Npoints(dims) == Int(length(y)/ydim(dims))) || (!isnothing(datakeep) && !isnothing(predkeep) && length(y) == length(predkeep) && length(predkeep) ≤ ydim(dims)*Npoints(dims))
         # Check that inverrormodel either outputs Matrix for ydim > 1
         ydim(dims) == 1 && (@assert testout isa Number && testout > 0)
         ydim(dims) > 1 && @assert (testout isa AbstractVector && length(testout) == ydim(dims) && all(testout .> 0)) || (testout isa AbstractMatrix && size(testout,1) == size(testout,2) == ydim(dims) && det(testout) > 0)
         
-        new{BesselCorrection, typeof(keep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, keep, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection, typeof(predkeep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
 function (::Type{T})(DS::DataSetUncertain{B}; kwargs...) where T<:Number where B
-    remake(DS; x=T.(xdata(DS)), y=T.(ydata(DS)), testpy=T.(DS.testpy), testout=T.(DS.testout), BesselCorrection=B, kwargs...)
+    remake(DS; x=T.(xdata(DS)), y=T.(ydata(DS)), testpy=T.(DS.testpy), testout=T.(DS.testout), BesselCorrection=B, (!isnothing(DS.woundXpred) ? (;woundXpred=map(T, DS.woundXpred)) : (;))...,kwargs...)
 end
 
 # For SciMLBase.remake
@@ -122,8 +152,10 @@ xnames::AbstractVector{<:StringOrSymb}=[:x],
 ynames::AbstractVector{<:StringOrSymb}=[:y],
 BesselCorrection::Bool=false,
 verbose::Bool=true,
-keep::Union{Nothing, AbstractVector{<:Bool}}=nothing,
-name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, keep, xnames, ynames, name; BesselCorrection, verbose)
+datakeep::Union{Nothing,AbstractVector{<:Bool}}=nothing, 
+predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing,
+woundXpred::Union{Nothing,AbstractVector}=nothing,
+name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, xnames, ynames, name; BesselCorrection, verbose)
 
 DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 Identity2Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ))
@@ -163,10 +195,36 @@ _TryVectorizeNoSqrt(D::DiagonalType) = D.diag
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 
+## Get submatrix specified via BitVector
+MaskedMatrix(M::AbstractMatrix, ::Nothing) = M
+MaskedMatrix(M::Diagonal, keep::AbstractVector{<:Bool}) = Diagonal(view(M.diag,keep))
+MaskedMatrix(M::AbstractMatrix, keep::AbstractVector{<:Bool}) = view(M.diag, keep, keep)
+
+function WoundYSigmaMasked(DS::DataSetUncertain, testpy::AbstractVector=DS.testpy)
+    isnothing(DS.datakeep) && return Windup(ysigma(DS, testpy), ydim(DS))
+    YsigmaNan = ReconstructYdataSigmaMatrix(DS, testpy);      [view(YsigmaNan, i, :) for i in axes(YsigmaNan,1)]
+end
+function WoundYmasked(DS::DataSetUncertain)
+    isnothing(DS.datakeep) && return WoundY(DS)
+    Ynan = ReconstructYdataMatrix(DS);      [view(Ynan, i, :) for i in axes(Ynan,1)]
+end
+
+function ReconstructYdataMatrix(Ydata::AbstractVector, datakeep::AbstractVector{<:Bool}, Ydim::Int)
+    @assert sum(datakeep) == length(Ydata)
+    Res = fill(NaN, length(datakeep));    k = 1
+    for i in eachindex(Res)
+        datakeep[i] && (Res[i] = Ydata[k];      k += 1)
+    end;    ReconstructYdataMatrix(Res, nothing, Ydim)
+end
+ReconstructYdataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(reshape(Ydata, Ydim, :))
+ReconstructYdataMatrix(DSU::DataSetUncertain) = ReconstructYdataMatrix(ydata(DSU), DSU.datakeep, ydim(DSU))
+ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy) = ReconstructYdataMatrix(ysigma(DSU, testpy), DSU.datakeep, ydim(DSU))
+
+
 ## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov
 
 # Uncertainty must be constructed around prediction!
-function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
+function ysigma(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where BesselCorrection
     C = if length(c) != length(DS.testpy)
         verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params!"
         (SplitErrorParams(DS)(c))[end]
@@ -177,7 +235,7 @@ function ysigma(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; ver
     map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
 end
 
-function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
+function yInvCov(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where BesselCorrection
     C = if length(c) != length(DS.testpy)
         verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
         (SplitErrorParams(DS)(c))[end]
@@ -189,20 +247,82 @@ function yInvCov(DS::DataSetUncertain, c::AbstractVector{<:Number}=DS.testpy; ve
 end
 
 
-function _loglikelihood(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
+## Masked versions for missing data
+function ysigma(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where {BesselCorrection,Keep}
+    C = if length(c) != length(DS.testpy)
+        verbose && @warn "ysigma: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params!"
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testpy && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
+        c
+    end;    errmod = yinverrormodel(DS)
+    try
+        map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundYmasked(DS)) |> _TryVectorizeNoSqrt |> x->view(x, DS.datakeep)
+    catch E;
+        println(E)
+        Fill(NaN, length(ydata(DS)))
+    end
+end
+
+function yInvCov(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where {BesselCorrection,Keep}
+    C = if length(c) != length(DS.testpy)
+        verbose && @warn "yInvCov: Given parameters not of expected length - expected $(length(DS.testpy)) got $(length(c)). Only pass error params."
+        (SplitErrorParams(DS)(c))[end]
+    else
+        verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
+        c
+    end;    errmod = yinverrormodel(DS)
+    try
+        MaskedMatrix(BlockReduce(map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundYmasked(DS))), DS.datakeep)
+    catch E;
+        println(E)
+        Diagonal(Fill(NaN, length(ydata(DS))))
+    end
+end
+
+
+function EmbeddingMap(DSU::DataSetUncertain{<:Any,<:AbstractVector}, model::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DSU); kwargs...)
+    EmbeddingMap(Val(:Masked), model, θ, woundX, DSU.datakeep; kwargs...)
+end
+function EmbeddingMatrix(DSU::DataSetUncertain{<:Any,<:AbstractVector}, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DSU); kwargs...)
+    EmbeddingMatrix(Val(:Masked), dmodel, θ, woundX, DSU.datakeep; kwargs...)
+end
+
+
+
+function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams; kwargs...), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundY = WoundY(DS);    woundX = WoundX(DS)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
-    function _Eval(DS, woundYpred, woundInvσ, woundY)
-        Res::T = -DataspaceDim(DS)*log(2T(π))
+    function _Eval(woundYpred, woundInvσ, woundY)
+        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
         @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
         end
         Res *= 0.5;    Res
-    end;    _Eval(DS, woundYpred, woundInvσ, woundY)
+    end;    _Eval(woundYpred, woundInvσ, woundY)
+end
+
+### Missing data
+function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where {BesselCorrection,Keep}
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodelraw(DS) ### raw here
+    yPredSparse = EmbeddingMap(Val(true), model, normalparams, DS.woundXpred; kwargs...)
+    woundYpredSparse = Windup(yPredSparse, ydim(DS))
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
+    ## Currently only works for diagonal error models
+    InvσSparse = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> Reduction
+    
+    function _Eval(Ypred, Invσ, Ydat)
+        @assert length(Ydat) == length(Ypred) == length(Invσ)
+        Res::T = -length(Ydat)*log(2T(π))
+        @inbounds for i in eachindex(Ydat)
+            Res += 2log(Invσ[i]) - sum(abs2, Invσ[i] * (Ydat[i] - Ypred[i]))
+        end
+        Res *= 0.5;    Res
+    end;    _Eval((@view yPredSparse[DS.predkeep]), (@view InvσSparse[DS.predkeep]), ydata(DS))
 end
 
 # Requires _Score !!!
@@ -211,7 +331,7 @@ end
 
 # Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
-function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
+function _FisherMetric(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
