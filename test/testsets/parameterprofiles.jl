@@ -39,7 +39,7 @@ B4p = ProfileBox(P4p, 2)
 @test all(isfinite, ProfileBox(P3[1],2)[1])
 
 
-DMU = DataModel(DataSetUncertain(1:3, [4,5,6.5]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
+DMU = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
 
 PU = ParameterProfiles(DMU, 2; N=30, plot=false, verbose=false)
 # Problem here: For some reason, this overflows if verbose = false is used but only with default NewtonTrustRegion or LBFGS!
@@ -70,6 +70,7 @@ IPU = IntegrationParameterProfiles(DMU, 2.2; N=31, plot=false, verbose=false)
 IPU2 = IntegrationParameterProfiles(DMU, 2.2; N=31, γ=0.5, plot=false, verbose=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(IPU2, 2)))
 
+@test StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false) isa InformationGeometry.MultistartResults
 
 
 CG = ConditionGrid([DM, DMp])
