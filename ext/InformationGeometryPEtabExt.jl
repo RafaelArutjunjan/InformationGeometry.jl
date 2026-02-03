@@ -30,8 +30,8 @@ for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :HasPrior, :Domain, 
         :Data, :Conditions, :ConditionNames, :Trafos, :DataspaceDim, :Predictor, :dPredictor, :pnames, :Pnames,
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundYmasked, :WoundInvCov, :HasEstimatedUncertainties,
-        :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
-        :xdataMat, :ydataMat, :SplitErrorParams, :SplitXs, :GetOnlyModelParams, :GetDomain, :GetInDomain,
+        :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror, :HasMissingValues,
+        :xdataMat, :ydataMat, :SplitErrorParams, :SkipXs, :GetOnlyModelParams, :GetDomain, :GetInDomain,
         :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end

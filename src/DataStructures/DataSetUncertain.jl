@@ -188,6 +188,9 @@ yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(
 
 HasBessel(DS::DataSetUncertain{T}) where T = T
 
+HasMissingValues(CDS::DataSetUncertain{<:Any, <:AbstractVector}) = true
+
+
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
 _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.BlockReduce(X) |> _TryVectorizeNoSqrt
 _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M

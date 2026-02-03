@@ -140,8 +140,8 @@ Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata,
             :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
-            :logdetInvCov, :WoundX, :WoundY, :WoundInvCov,
-            :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror,
+            :logdetInvCov, :WoundX, :WoundY, :WoundYmasked, :WoundInvCov, :HasEstimatedUncertainties,
+            :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror, :HasMissingValues,
             :xdataMat, :ydataMat,
             :SplitErrorParams]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
@@ -190,11 +190,13 @@ xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=
 yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = yInvCov(DS)
 
 
-HasEstimatedUncertainties(DM::AbstractDataModel) = HasEstimatedUncertainties(Data(DM))
 HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
 HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
 HasEstimatedUncertainties(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
 
+
+HasMissingValues(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
+HasMissingValues(DS::AbstractDataSet) = false
 
 
 # How many error parameters do the containing datasets have?
