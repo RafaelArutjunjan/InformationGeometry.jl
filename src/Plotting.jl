@@ -9,7 +9,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     @series begin
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
-                ysig = WoundYSigmaMasked(Data(DM), mle)
+                ysig = WoundYSigmaMasked(Data(DM), (SplitErrorParams(DM)(mle))[end])
                 yerror := Unpack(ysig)
             elseif Data(DM) isa UnknownVarianceDataSet
                 xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))

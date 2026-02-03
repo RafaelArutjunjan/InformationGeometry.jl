@@ -12,7 +12,7 @@ Mainly, these data types provide a trade-off in speed / simplicity versus flexib
 [`DataSetExact`](@ref)           |                 ✅                  |          ❌           |           ✅           |                ❌                |          ❌                       |          ❌                       |
 [`CompositeDataSet`](@ref)       |                 ✅                  |          ✅           |           ❌           |                ❌                |          ❌                       |          ❌                       |
 [`GeneralizedDataSet`](@ref)     |                 ✅                  |          ❌           |           ✅           |                ✅                |          ❌                       |          ❌                       |
-[`DataSetUncertain`](@ref)       |                 ❌                  |          ❌           |           ❌           |                ❌                |          ✅                       |          ❌                       |
+[`DataSetUncertain`](@ref)       |                 ❌                  |          ⚠️           |           ❌           |                ❌                |          ✅                       |          ❌                       |
 [`UnknownVarianceDataSet`](@ref) |                 ❌                  |          ❌           |           ❌           |                ❌                |          ✅                       |          ✅                       |
 
 
