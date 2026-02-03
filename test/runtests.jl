@@ -38,6 +38,10 @@ end
     include("testsets/priors.jl")
 end
 
+# @safetestset "PEtabExtension Tests" begin 
+#     include("testsets/petab_tests.jl")
+# end
+
 @safetestset "Kullback-Leibler Divergences" begin 
     include("testsets/kullback_leibler_divergences.jl")
 end
