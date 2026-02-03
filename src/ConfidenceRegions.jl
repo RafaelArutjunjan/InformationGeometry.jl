@@ -686,6 +686,11 @@ function AverageSingleYsigmaMatrix(DM::AbstractDataModel, mle::AbstractVector=ML
 end
 
 
+## Get Jacobian from full parameter vector to inner model parameters i.e. without xpars or errorpars
+SplitterJacNormalParams(DS::Union{AbstractDataModel,AbstractDataSet}; ADmode::Val=Val(:ForwardDiff)) = !HasEstimatedUncertainties(DS) ? (x->1.0) : GetJac(ADmode, x->SkipXs(DS)((SplitErrorParams(DS)(x))[1]))
+
+
+
 """
     VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, Confnum::Real; dof::Int=DOF(DM), kwargs...)
     VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix=quantile(Chisq(length(mle)), ConfVol(1)) * Symmetric(pinv(FisherMetric(DM, mle))); kwargs...)
@@ -723,9 +728,8 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
-    SplitterJac = !HasEstimatedUncertainties(DM) ? (x->1.0) : GetJac(ADmode, x->SkipXs(DM)((SplitErrorParams(DM)(x))[1]))
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
-    SplitterJ = SplitterJac(mle)
+    SplitterJ = SplitterJacNormalParams(DM)(mle)
     embeddingMatrix(DM::AbstractDataModel, normalparams::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparams, X) * SplitterJ
 
     VarCholesky1(x::Number) = (J = dPredictor(DM)(x, normalparams)*SplitterJ;   CholeskyU(J * C * transpose(J),x))

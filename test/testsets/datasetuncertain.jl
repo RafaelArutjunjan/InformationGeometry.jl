@@ -103,6 +103,33 @@ TestAgreement(SIRDM, 0.5)
 TestAgreement(SIRdmu, 0.5)
 
 
+
+##### Missing values in DataSetUncertain
+T = Float64[1,4,3,3,2,5]
+SingleModel(t,p) = p[1]*t + p[2]t^2 + p[3]
+CopiedModel(t,p) = [SingleModel(t,p); SingleModel(t,p)]
+ptrue = rand(3)
+Y = map(t->SingleModel(t,ptrue), T) .+ randn(length(T))
+Mask = trues(length(T));    Mask[[1,3,5]] .= false
+Yd = [[(i ∈ [1,3,5] ? NaN : y) for (i,y) in enumerate(Y)] [(i ∉ [1,3,5] ? NaN : y) for (i,y) in enumerate(Y)]]
+
+DSU = DataSetUncertain(T, Y)
+DMU = DataModel(DSU, SingleModel)
+
+DSUm = DataSetUncertain(T, Unwind(Yd), (6,1,2), (x,y,c)->[exp10(-c[1]), exp10(-c[1])], InformationGeometry.DefaultErrorModelSplitter(1), [0.1])
+DMUm = DataModel(DSUm, CopiedModel)
+
+
+@test loglikelihood(DMU, MLE(DMU)) ≈ loglikelihood(DMUm, MLE(DMU))
+@test Score(DMU, MLE(DMU)) ≈ Score(DMUm, MLE(DMU))
+# Currently using AutoMetric
+@test FisherMetric(DMU, MLE(DMU)) ≈ FisherMetric(DMUm, MLE(DMU))
+# @test InformationGeometry._FisherMetric(Data(DMU), Predictor(DMU), dPredictor(DMU), MLE(DMU)) ≈ InformationGeometry._FisherMetric(Data(DMUm), Predictor(DMUm), dPredictor(DMUm), MLE(DMU))
+
+@test ysigma(DMU, MLE(DMU)) ≈ ysigma(DMUm, MLE(DMU))
+@test yInvCov(DMU, MLE(DMU)) ≈ yInvCov(DMUm, MLE(DMU))
+
+
 # DMU = SIRDMU
 # DM = SIRDM
 

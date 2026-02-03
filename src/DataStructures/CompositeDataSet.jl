@@ -227,7 +227,7 @@ function _FillResVector!(Res::AbstractVector{<:Number}, CDS::CompositeDataSet, X
     _FillResVector!(Res, [WoundX(DS) for DS in Data(CDS)], X, Mapped)
 end
 ## ith column of Mapped corresponds to ith observable
-function _FillResVector!(Res::AbstractVector{T}, woundXs::AbstractVector{<:AbstractVector}, X::AbstractVector{<:Number}, Mapped::AbstractMatrix{T}) where T<:Number
+function _FillResVector!(Res::AbstractVector{T}, woundXs::AbstractVector{<:AbstractVector}, X::AbstractVector, Mapped::AbstractMatrix{T}) where T<:Number
     i = 1
     @inbounds for (SetInd,woundX) in enumerate(woundXs)
         @inbounds for xval in woundX

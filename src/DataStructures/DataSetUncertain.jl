@@ -333,18 +333,21 @@ end
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
 function _FisherMetric(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
-    woundYpred = Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundX = WoundX(DS)
+    woundYpred = Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))
+    Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
 
-    SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(DS, dmodel, θ) # Using θ for correct F size
+    NormalParamJac = SplitterJacNormalParams(DS)(θ)
+
+    SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(Val(true), dmodel, normalparams, woundX) * NormalParamJac
+    # SJv = isnothing(DS.datakeep) ? SJ : view(SJ, DS.datakeep, :)
     F_m = transpose(SJ) * SJ
 
     Σposhalf = BlockReduce(map(inv, woundInvσ))
     function InvSqrtCovFromFull(θ)
         normalparams, errorparams = Splitter(θ)
-        BlockReduce(map((x,y)->yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(DS, model, normalparams), ydim(DS))))
+        BlockReduce(map((x,y)->yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
     end
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 
