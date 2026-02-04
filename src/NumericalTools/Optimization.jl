@@ -343,7 +343,7 @@ end
 
 
 """
-    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
+    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
 Fits DataModel incrementally by splitting up the times series into chunks, e.g. fitting only the first quarter of data points, then half and so on.
 This can yield much better fitting results from random starting points, particularly for autocorrelated time series data.
 For example when the time series data oscillates in such a way that the optimization often gets stuck in a local optimum where the model fits a mostly straight line through the data, not correctly recognizing the oscillations.
@@ -351,14 +351,15 @@ For example when the time series data oscillates in such a way that the optimiza
 IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, kwargs...) = IncrementalTimeSeriesFit(Method, DM, initial; kwargs...)
 
 """
-    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, kwargs...) -> Vector
+    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, kwargs...) -> Vector
 Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`
 """
-function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=length(Data(DM))÷5, kwargs...)
+function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, kwargs...)
     @assert steps ≤ Npoints(DM)
     res = copy(initial)
     Results = typeof(initial)[]
-    for chunk in vcat([1:i*(Npoints(DM)÷steps) for i in 1:steps-1], [1:Npoints(DM)])
+    PerStep = Npoints(DM)÷steps
+    for chunk in vcat([1:i*(PerStep) for i in 1:steps-1], [1:Npoints(DM)])
         FullRes = Method(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
         res .= GetMinimizer(FullRes)
         push!(Results, res)

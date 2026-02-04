@@ -436,8 +436,8 @@ Returns matrix which contains `N` many blocks of the matrix `M` along its diagon
 """
 function BlockMatrix(M::AbstractMatrix, N::Int)
     Res = zeros(size(M,1)*N,size(M,2)*N)
-    for i in 1:N
-        Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] = M
+    @inbounds for i in 1:N
+        Res[((i-1)*size(M,1) + 1):(i*size(M,1)),((i-1)*size(M,1) + 1):(i*size(M,1))] .= M
     end;    Res
 end
 BlockMatrix(M::DiagonalType, N::Int) = Diagonal(repeat(M.diag, N))
@@ -455,8 +455,11 @@ function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Numbe
 end
 BlockMatrix(A::DiagonalType, B::DiagonalType) = Diagonal(vcat(A.diag, B.diag))
 
-BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
+BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
+
+BlockMatrix(X::AbstractVector{<:DiagonalType}) = Diagonal(mapreduce(x->x.diag, vcat, X))
+BlockMatrix(X::AbstractVector{<:Number}) = Diagonal(X)
 
 
 
