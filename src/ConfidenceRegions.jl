@@ -700,7 +700,8 @@ Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been prop
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
     ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
-    normalparams, yerrorparams = SkipXs(DM)((SplitErrorParams(DM)(mle))[1]), (SplitErrorParams(DM)(mle))[end]
+    SplitPars = SplitErrorParams(DM)(SkipXs(DM)(mle))
+    normalparams, yerrorparams = SplitPars[1], SplitPars[end]
     # As function of independent variable x
     YsigmaGenerator = if !HasEstimatedUncertainties(DM)
         # If Validation Band, add data uncertainty for single point to 
@@ -715,7 +716,11 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         ydim(DM) == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
-        !Validation ? (x -> 0.0) : (x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), yerrorparams));   ConfScaling * (S' * S)))
+        if Validation
+            x -> (S=inv(yinverrormodel(Data(DM))(x, Predictor(DM)(x,normalparams), yerrorparams));   ConfScaling * (S' * S))
+        else
+            x -> 0.0
+        end
     end
     
     # Add data uncertainty here if Validation

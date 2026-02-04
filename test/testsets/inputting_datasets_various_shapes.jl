@@ -34,6 +34,9 @@ CDM = DataModel(CompositeDataSet(Data(ODM)), Predictor(ODM), dPredictor(ODM), ML
 @test norm(FisherMetric(ODM, P) - FisherMetric(CDM, P)) < 3e-4
 @test norm(InformationGeometry.ResidualStandardError(ODM) - InformationGeometry.ResidualStandardError(CDM)) < 1e-10
 
+@test ysigma(CDM) == ysigma(ODM)
+@test yInvCov(CDM) == yInvCov(ODM)
+
 lastDS = Data(Data(CDM))[3]
 newCDS = vcat(Data(Data(CDM))[1:end-1], [SubDataSet(lastDS, 1:2:Npoints(lastDS))], [SubDataSet(lastDS, 2:2:Npoints(lastDS))]) |> CompositeDataSet
 # repeat last component

@@ -200,7 +200,7 @@ HasMissingValues(DS::AbstractDataSet) = false
 
 
 # How many error parameters do the containing datasets have?
-NumberOfErrorParameters(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = NumberOfErrorParameters(Data(DM), mle)
+NumberOfErrorParameters(DM::AbstractDataModel, mle::AbstractVector=SkipXs(DM)(MLE(DM))) = NumberOfErrorParameters(Data(DM), mle)
 NumberOfErrorParameters(DS::AbstractUnknownUncertaintyDataSet, mle::AbstractVector) = sum(length, (SplitErrorParams(DS)(mle))[2:end])
 NumberOfErrorParameters(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector) = 0
 ## Currently not possible for CDS to have error parameters yet.
@@ -216,7 +216,7 @@ xpars(DS::AbstractDataSet) = 0
 Parameter degrees of freedom of given model not counting error parameters.
 """
 DOF(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = DOF(Data(DM), mle)
-DOF(DS::AbstractDataSet, mle::AbstractVector) = length(mle) - NumberOfErrorParameters(DS, mle)
+DOF(DS::AbstractDataSet, Mle::AbstractVector) = (mle=SkipXs(DS)(Mle);   length(mle) - NumberOfErrorParameters(DS, mle))
 
 
 name(DS::Union{AbstractDataSet, AbstractVector{<:Union{<:AbstractDataSet,<:AbstractDataModel}}}) = ""
