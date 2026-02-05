@@ -243,9 +243,10 @@ end
 
 
 # Plotrecipe: plot all dms individually
-RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); ConditionNames=InformationGeometry.ConditionNames(CG), Confnum=1, Fisher=any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing, ADmode=Val(:ForwardDiff))
+RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); idxs=1:length(Conditions(CG)), ConditionNames=view(InformationGeometry.ConditionNames(CG), idxs), 
+                        Confnum=1, Fisher=any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing, ADmode=Val(:ForwardDiff))
     ConditionNames isa Symbol && (ConditionNames = [ConditionNames])
-    @assert ConditionNames isa AbstractVector{<:Symbol}
+    @assert ConditionNames isa AbstractVector{<:Symbol} && idxs isa Union{<:Int,AbstractArray{<:Int}}
     @assert all(∈(InformationGeometry.ConditionNames(CG)), ConditionNames) "Given condition names $ConditionNames not all in $(InformationGeometry.ConditionNames(CG))"
     @assert isnothing(Fisher) || (size(Fisher,1) == size(Fisher,2) == length(mle))
     plot_title --> string(name(CG))

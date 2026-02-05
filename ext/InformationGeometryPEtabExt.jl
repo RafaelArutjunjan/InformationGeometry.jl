@@ -57,7 +57,7 @@ GetAllSimulationConditions(petab_prob::PEtabODEProblem) = petab_prob.model_info.
 
 
 GetUniqueConditions(M::PEtabModel; CondID=:simulationConditionId) = Symbol.(M.petab_tables[:measurements][!, CondID]) |> unique
-GetAllUniqueObservables(M::PEtabModel; ObsID=:observableId) = Symbol.(M.petab_tables[:measurements][!, ObsID]) |> unique
+# GetAllUniqueObservables(M::PEtabModel; ObsID=:observableId) = Symbol.(M.petab_tables[:measurements][!, ObsID]) |> unique
 
 function GetObservablesInCondition(M::PEtabModel, C::Symbol; ObsID=:observableId, CondID=:simulationConditionId)
     sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID])
@@ -72,12 +72,27 @@ MissingToNan(x::Number) = x
 MissingToNan(x::Missing) = NaN
 
 
-function Long2WidePEtabMeasurements(measurements::AbstractDataFrame, ObsID=:observableId, Time=:time, Meas=:measurement; UniqueObsids::AbstractVector{<:Symbol}=unique(measurements[!, ObsID]))
+function Long2WidePEtabMeasurements(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), kwargs...)
+    sdf = CreateSymbolDF(M)
+    Dict([k => Long2WidePEtabMeasurements(sdf, k; UniqueObsids=ObsidsInCondDict[k], ObsID, CondID, kwargs...) for k in keys(ObsidsInCondDict)])
+end
+function Long2WidePEtabMeasurements(sdf::AbstractDataFrame, CondName::Symbol; ObsID=:observableId, Time=:time, Meas=:measurement, CondID=:simulationConditionId, 
+                        UniqueObsids::AbstractVector{<:Symbol}=Symbol[])
+    measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
+    @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
     gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas]) for ID in UniqueObsids]
     sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame(float.(Matrix(df)), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)]), Time)
 end
 
-function Long2WidePEtabMeasurementsWithErrors(measurements::AbstractDataFrame, ObsID=:observableId, Time=:time, Meas=:measurement, NoiseParam=:noiseParameters; UniqueObsids::AbstractVector{<:Symbol}=unique(measurements[!, ObsID]))
+
+function Long2WidePEtabMeasurementsWithErrors(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), kwargs...)
+    sdf = CreateSymbolDF(M)
+    Dict([k => Long2WidePEtabMeasurementsWithErrors(sdf, k; UniqueObsids=ObsidsInCondDict[k], ObsID, CondID, kwargs...) for k in keys(ObsidsInCondDict)])
+end
+function Long2WidePEtabMeasurementsWithErrors(sdf::AbstractDataFrame, CondName::Symbol; ObsID=:observableId, Time=:time, Meas=:measurement, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
+                        UniqueObsids::AbstractVector{<:Symbol}=Symbol[])
+    measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
+    @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
     gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas, NoiseParam]) for ID in UniqueObsids]
     sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame([vec(col) for col in eachcol(df)], [Time, UniqueObsids[i], Symbol("sd_"*string(UniqueObsids[i]))]) for (i,df) in enumerate(gdf)]), Time)
 end
@@ -94,7 +109,8 @@ import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetFixedDataUn
 import InformationGeometry: SplitParamsIntoCategories, DataSet
 
 # Pass model from PEtabODEProblem
-for F in [:GetUniqueConditions, :GetAllUniqueObservables, :GetObservablesInCondition, :GetObservablesInConditionDict, :GetDataSets, :CreateSymbolDF, :DataSet]
+for F in [:GetUniqueConditions, :GetAllUniqueObservables, :GetObservablesInCondition, :GetObservablesInConditionDict, :GetDataSets, :CreateSymbolDF, 
+            :Long2WidePEtabMeasurements, :Long2WidePEtabMeasurementsWithErrors]
     @eval $F(P::PEtabODEProblem, args...; kwargs...) = $F(P.model_info.model, args...; kwargs...)
 end
 
@@ -203,7 +219,7 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
     cdf = sdf[sdf[!, CondID] .=== CondName, :]
     verbose && @info "Starting Condition $CondName."
     # df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
-    df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=ObsidsInCondDict[CondName])
+    df = Long2WidePEtabMeasurementsWithErrors(sdf, CondName; UniqueObsids=ObsidsInCondDict[CondName], Time, CondID)
     Xdf = MissingToNan.(df[!,[Time]]);    YdfE = broadcast(x->ismissing(x) ? NaN : x, df[!,Not(Time)])
     Ydf = broadcast(x->ismissing(x) ? NaN : x, YdfE[!,map(!startswith("sd_"), names(YdfE))])
     Sdf = if HasErrorModel(M, CondName; CondID, NoiseParam)
@@ -274,11 +290,11 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, kwargs...)
+function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
 
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
-    # @assert length(UniqueConds) == 1 || P.probinfo.gradient_method === :ForwardEquations "Only gradient_method = :ForwardEquations implemented for PEtab models with more than one condition! Got :$(P.probinfo.gradient_method) instead."
+    SortConditions && sort!(UniqueConds)
     DSs = GetDataSets(P; ObsID, CondID, ObsidsInCondDict, UniqueConds, FixedError, Mle, verbose)
 
     PNames = InformationGeometry.GetNamesSymb(Mle) # .|> string |> NicifyPEtabNames

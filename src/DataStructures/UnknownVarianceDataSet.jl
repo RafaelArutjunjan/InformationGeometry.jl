@@ -183,7 +183,7 @@ function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
         verbose && c === DS.testpx && @warn "xInvCov: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = xinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
 end
 
 # Uncertainty must be constructed around prediction!
@@ -206,7 +206,7 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
 end
 
 
@@ -252,28 +252,28 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
     woundInvXσ = map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
 
-    J = BlockMatrix(BlockReduce(woundInvXσ), BlockReduce(woundInvYσ)) * GetJac(ADmode, LiftedEmb, length(θ))(θ)
+    J = BlockMatrix(BlockMatrix(woundInvXσ), BlockMatrix(woundInvYσ)) * GetJac(ADmode, LiftedEmb, length(θ))(θ)
     F_m = transpose(J) * J
 
-    yΣposhalf = map(inv, woundInvYσ) |> BlockReduce
+    yΣposhalf = map(inv, woundInvYσ) |> BlockMatrix
     function InvSqrtyCovFromFull(θ)
         normalparams, xerrorparams, yerrorparams = Splitter(θ)
         XY = LiftedEmb(normalparams)
         woundXpred = Windup(view(XY, Xinds), xdim(DS))
         woundYpred = Windup(view(XY, NonXinds), ydim(DS))
-        BlockReduce(map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred))
+        BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred))
     end
     yΣneghalfJac = GetMatrixJac(ADmode, InvSqrtyCovFromFull, length(θ), size(yΣposhalf))(θ)
     # @tullio F_ey[i,j] := 2 * yΣposhalf[a,b] * yΣneghalfJac[b,c,i] * yΣposhalf[c,d] * yΣneghalfJac[d,a,j]
     @tullio F_m[i,j] += 2 * yΣposhalf[a,b] * yΣneghalfJac[b,c,i] * yΣposhalf[c,d] * yΣneghalfJac[d,a,j]
     
-    xΣposhalf = map(inv, woundInvXσ) |> BlockReduce
+    xΣposhalf = map(inv, woundInvXσ) |> BlockMatrix
     function InvSqrtxCovFromFull(θ)
         normalparams, xerrorparams, yerrorparams = Splitter(θ)
         XY = LiftedEmb(normalparams)
         woundXpred = Windup(view(XY, Xinds), xdim(DS))
         woundYpred = Windup(view(XY, NonXinds), ydim(DS))
-        BlockReduce(map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred))
+        BlockMatrix(map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred))
     end
     xΣneghalfJac = GetMatrixJac(ADmode, InvSqrtxCovFromFull, length(θ), size(xΣposhalf))(θ)
     # @tullio F_ex[i,j] := 2 * xΣposhalf[a,b] * xΣneghalfJac[b,c,i] * xΣposhalf[c,d] * xΣneghalfJac[d,a,j]
