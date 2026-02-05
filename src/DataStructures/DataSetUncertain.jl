@@ -190,33 +190,38 @@ HasBessel(DS::DataSetUncertain{T}) where T = T
 
 HasMissingValues(CDS::DataSetUncertain{<:Any, <:AbstractVector}) = true
 
+## Map WoundY to WoundYmasked for DataSetUncertain, since the only reason to want to wind up is for predictions without missings
+WoundY(DS::DataSetUncertain) = WoundYmasked(DS)
+
+WoundYSigmaMasked(DS::DataSetUncertain{<:Any,<:Nothing}, testpy::AbstractVector=DS.testpy) = Windup(ysigma(DS, testpy), ydim(DS))
+WoundYSigmaMasked(DS::DataSetUncertain{<:Any,<:AbstractVector}, testpy::AbstractVector=DS.testpy) = (YsigmaNan = ReconstructYdataSigmaMatrix(DS, testpy);    [view(YsigmaNan, i, :) for i in axes(YsigmaNan,1)])
+
+WoundYmasked(DS::DataSetUncertain{<:Any,<:Nothing}) = Windup(ydata(DS), ydim(DS))
+WoundYmasked(DS::DataSetUncertain{<:Any,<:AbstractVector}) = (Ynan = ReconstructYdataMatrix(DS);    [view(Ynan, i, :) for i in axes(Ynan,1)])
+
 
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
-_TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = InformationGeometry.BlockReduce(X) |> _TryVectorizeNoSqrt
+_TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = BlockMatrix(X) |> _TryVectorizeNoSqrt
 _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M
 _TryVectorizeNoSqrt(D::DiagonalType) = D.diag
 
 BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
 
 ## Get submatrix specified via BitVector
-MaskedMatrix(M::AbstractMatrix, ::Nothing) = M
-MaskedMatrix(M::Diagonal, keep::AbstractVector{<:Bool}) = Diagonal(view(M.diag,keep))
-MaskedMatrix(M::AbstractMatrix, keep::AbstractVector{<:Bool}) = view(M.diag, keep, keep)
+MaskedSymmetricMatrix(M::AbstractMatrix, ::Nothing) = M
+MaskedSymmetricMatrix(M::Diagonal, keep::AbstractVector) = Diagonal(view(M.diag,keep))
+MaskedSymmetricMatrix(M::AbstractMatrix, keep::AbstractVector) = view(M, keep, keep)
 
-function WoundYSigmaMasked(DS::DataSetUncertain, testpy::AbstractVector=DS.testpy)
-    isnothing(DS.datakeep) && return Windup(ysigma(DS, testpy), ydim(DS))
-    YsigmaNan = ReconstructYdataSigmaMatrix(DS, testpy);      [view(YsigmaNan, i, :) for i in axes(YsigmaNan,1)]
-end
-function WoundYmasked(DS::DataSetUncertain)
-    isnothing(DS.datakeep) && return WoundY(DS)
-    Ynan = ReconstructYdataMatrix(DS);      [view(Ynan, i, :) for i in axes(Ynan,1)]
-end
+## Subset which rows are kept
+MaskedJacobian(J::AbstractMatrix, ::Nothing) = J
+MaskedJacobian(J::AbstractMatrix, keep::AbstractVector) = view(J, keep, :)
+
 
 function ReconstructYdataMatrix(Ydata::AbstractVector, datakeep::AbstractVector{<:Bool}, Ydim::Int)
     @assert sum(datakeep) == length(Ydata)
     Res = fill(NaN, length(datakeep));    k = 1
     for i in eachindex(Res)
-        datakeep[i] && (Res[i] = Ydata[k];      k += 1)
+        datakeep[i] && (Res[i] = Ydata[k];    k += 1)
     end;    ReconstructYdataMatrix(Res, nothing, Ydim)
 end
 ReconstructYdataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(reshape(Ydata, Ydim, :))
@@ -246,7 +251,7 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVect
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockReduce
+    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
 end
 
 
@@ -276,7 +281,7 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{
         c
     end;    errmod = yinverrormodel(DS)
     try
-        MaskedMatrix(BlockReduce(map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundYmasked(DS))), DS.datakeep)
+        MaskedSymmetricMatrix(BlockMatrix(map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundYmasked(DS))), DS.datakeep)
     catch E;
         println(E)
         Diagonal(Fill(NaN, length(ydata(DS))))
@@ -347,15 +352,20 @@ function _FisherMetric(DS::DataSetUncertain{BesselCorrection,Nothing}, model::Mo
     # SJv = isnothing(DS.datakeep) ? SJ : view(SJ, DS.datakeep, :)
     F_m = transpose(SJ) * SJ
 
-    Σposhalf = BlockReduce(map(inv, woundInvσ))
-    function InvSqrtCovFromFull(θ)
+    Σposhalf = BlockMatrix(map(inv, woundInvσ))
+    function InvSqrtCovFromFull(θ::AbstractVector)
         normalparams, errorparams = Splitter(θ)
-        BlockReduce(map((x,y)->yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
+        BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
     end
     ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
 
     # @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
-    @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
+    @inline AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::AbstractMatrix, ΣneghalfJac::AbstractArray{<:Number,3}) = @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
+    @inline function AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::Diagonal, ΣneghalfJac::AbstractMatrix) # (N × θ) in diagonal case
+        s = Σposhalf.diag;  @tullio F_m[i,j] += 2 * s[a]^2 * ΣneghalfJac[a,i] * ΣneghalfJac[a,j]    # F_m .+= 2 .* (ΣneghalfJac' * Diagonal(s.^2) * ΣneghalfJac)
+    end
+
+    AddCovarianceContribution!(F_m, Σposhalf, ΣneghalfJac)
     # F_m .+ F_e
     F_m
 end

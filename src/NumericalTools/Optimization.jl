@@ -343,7 +343,7 @@ end
 
 
 """
-    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
+    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
 Fits DataModel incrementally by splitting up the times series into chunks, e.g. fitting only the first quarter of data points, then half and so on.
 This can yield much better fitting results from random starting points, particularly for autocorrelated time series data.
 For example when the time series data oscillates in such a way that the optimization often gets stuck in a local optimum where the model fits a mostly straight line through the data, not correctly recognizing the oscillations.
@@ -351,10 +351,10 @@ For example when the time series data oscillates in such a way that the optimiza
 IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, kwargs...) = IncrementalTimeSeriesFit(Method, DM, initial; kwargs...)
 
 """
-    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, kwargs...) -> Vector
+    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...) -> Vector
 Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`
 """
-function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=5, kwargs...)
+function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...)
     @assert steps ≤ Npoints(DM)
     res = copy(initial)
     Results = typeof(initial)[]
