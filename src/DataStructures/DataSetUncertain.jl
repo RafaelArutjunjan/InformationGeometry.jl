@@ -77,6 +77,10 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
 
     DataSetUncertain(DM::AbstractDataModel, args...; kwargs...) = DataSetUncertain(Data(DM), args...; kwargs...)
     DataSetUncertain(DS::AbstractDataSet, args...; kwargs...) = DataSetUncertain(WoundX(DS), WoundY(DS), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+    function InformationGeometry.DataSetUncertain(DS::CompositeDataSet, args...; kwargs...)
+        X, Y = ReconstructDataMatrices(DS)
+        DataSetUncertain(X, Y, (size(Y,1), size(X,2), size(Y,2)), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
+    end
     function DataSetUncertain(X::AbstractArray, Y::AbstractArray, dims::Tuple{Int,Int,Int}=(size(X,1), ConsistentElDims(X), ConsistentElDims(Y)); verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error model σ(x,y,c) = exp10.(c)"
         errmod = ydim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c))
@@ -126,6 +130,7 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         @assert !any(z->ismissing(z) || !isfinite(z), y)
         @assert (isnothing(datakeep) && isnothing(predkeep) && Npoints(dims) == Int(length(y)/ydim(dims))) || (!isnothing(datakeep) && !isnothing(predkeep) && length(y) == length(predkeep) && length(predkeep) ≤ ydim(dims)*Npoints(dims))
+
         # Check that inverrormodel either outputs Matrix for ydim > 1
         ydim(dims) == 1 && (@assert testout isa Number && testout > 0)
         ydim(dims) > 1 && @assert (testout isa AbstractVector && length(testout) == ydim(dims) && all(testout .> 0)) || (testout isa AbstractMatrix && size(testout,1) == size(testout,2) == ydim(dims) && det(testout) > 0)
@@ -197,7 +202,7 @@ WoundYSigmaMasked(DS::DataSetUncertain{<:Any,<:Nothing}, testpy::AbstractVector=
 WoundYSigmaMasked(DS::DataSetUncertain{<:Any,<:AbstractVector}, testpy::AbstractVector=DS.testpy) = (YsigmaNan = ReconstructYdataSigmaMatrix(DS, testpy);    [view(YsigmaNan, i, :) for i in axes(YsigmaNan,1)])
 
 WoundYmasked(DS::DataSetUncertain{<:Any,<:Nothing}) = Windup(ydata(DS), ydim(DS))
-WoundYmasked(DS::DataSetUncertain{<:Any,<:AbstractVector}) = (Ynan = ReconstructYdataMatrix(DS);    [view(Ynan, i, :) for i in axes(Ynan,1)])
+WoundYmasked(DS::DataSetUncertain{<:Any,<:AbstractVector}) = (Ynan = ReconstructDataMatrices(DS)[2];    [view(Ynan, i, :) for i in axes(Ynan,1)])
 
 
 _TryVectorizeNoSqrt(X::AbstractVector{<:Number}) = X
@@ -217,16 +222,21 @@ MaskedJacobian(J::AbstractMatrix, ::Nothing) = J
 MaskedJacobian(J::AbstractMatrix, keep::AbstractVector) = view(J, keep, :)
 
 
-function ReconstructYdataMatrix(Ydata::AbstractVector, datakeep::AbstractVector{<:Bool}, Ydim::Int)
+function _ReconstructDataMatrix(Ydata::AbstractVector, datakeep::AbstractVector{<:Bool}, Ydim::Int)
     @assert sum(datakeep) == length(Ydata)
     Res = fill(NaN, length(datakeep));    k = 1
     for i in eachindex(Res)
         datakeep[i] && (Res[i] = Ydata[k];    k += 1)
-    end;    ReconstructYdataMatrix(Res, nothing, Ydim)
+    end;    _ReconstructDataMatrix(Res, nothing, Ydim)
 end
-ReconstructYdataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(reshape(Ydata, Ydim, :))
-ReconstructYdataMatrix(DSU::DataSetUncertain) = ReconstructYdataMatrix(ydata(DSU), DSU.datakeep, ydim(DSU))
-ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy) = ReconstructYdataMatrix(ysigma(DSU, testpy), DSU.datakeep, ydim(DSU))
+_ReconstructDataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(reshape(Ydata, Ydim, :))
+
+## Returns Xmatrix, Ymatrix
+ReconstructDataMatrices(DSU::DataSetUncertain) = _ReconstructDataMatrix(xdata(DSU), nothing, xdim(DSU)), _ReconstructDataMatrix(ydata(DSU), DSU.datakeep, ydim(DSU))
+ReconstructDataMatrices(DS::AbstractDataSet, args...) = (@assert !HasMissingValues(DS);    (_ReconstructDataMatrix(xdata(DS), nothing, xdim(DS)), _ReconstructDataMatrix(ydata(DS), nothing, ydim(DS))))
+
+
+ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy) = _ReconstructDataMatrix(ysigma(DSU, testpy), DSU.datakeep, ydim(DSU))
 
 
 ## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov
@@ -345,11 +355,10 @@ function _FisherMetric(DS::DataSetUncertain{BesselCorrection,Nothing}, model::Mo
     woundYpred = Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
+    Σneghalf = BlockMatrix(woundInvσ)
 
     NormalParamJac = SplitterJacNormalParams(DS)(θ)
-
-    SJ = BlockReduce(woundInvσ) * EmbeddingMatrix(Val(true), dmodel, normalparams, woundX) * NormalParamJac
-    # SJv = isnothing(DS.datakeep) ? SJ : view(SJ, DS.datakeep, :)
+    SJ = (MaskedSymmetricMatrix(Σneghalf, DS.datakeep) * MaskedJacobian(EmbeddingMatrix(Val(true), dmodel, normalparams, woundX), DS.datakeep)) * NormalParamJac
     F_m = transpose(SJ) * SJ
 
     Σposhalf = BlockMatrix(map(inv, woundInvσ))

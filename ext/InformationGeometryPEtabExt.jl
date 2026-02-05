@@ -68,9 +68,8 @@ GetObservablesInConditionDict(M::PEtabModel; ObsID=:observableId, CondID=:simula
 
 tryfloat(x::Number) = float(x)
 tryfloat(x) = x
-MissingToNan(x::Number) = x
-MissingToNan(x::Missing) = NaN
 
+using InformationGeometry: MissingToNan
 
 function Long2WidePEtabMeasurements(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), kwargs...)
     sdf = CreateSymbolDF(M)
