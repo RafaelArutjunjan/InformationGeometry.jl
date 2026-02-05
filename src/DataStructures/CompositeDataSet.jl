@@ -7,11 +7,13 @@ ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
 ToArray(df::AbstractVector{<:Real}) = df |> floatify
 ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
 ToArray(df::DataFrame) = size(df,2) == 1 ? Vector(floatify(df[:,1])) : Matrix(floatify(df))
+
+MissingToNan(x::Number) = x
+MissingToNan(x::Missing) = NaN
+
 function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
     any(ismissing, df) && throw("Input contains missing values.")
     # Ensure Type is not union with Missing anymore
-    MissingToNan(x::Number) = x
-    MissingToNan(x::Missing) = NaN
     MissingToNan.(floatify(df))
 end
 
@@ -156,6 +158,14 @@ ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
 # BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
 # BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
 BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, [(x isa AbstractVector ? Diagonal(x.^2) : x) for x in X])
+
+function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
+    dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructDataMatrices(DS)[2])...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
+    df = reduce((args...; kwargs...)->rightjoin(args...; on=Symbol("Xcolumn"), makeunique=true, kwargs...), dfs)
+    X, Y = Unpack(@view df[:, 1]), float.(MissingToNan.(Matrix(@view df[:, 2:end])))
+    X isa AbstractVector && (X = reshape(X,:,1))
+    X, Y
+end
 
 ysigma(CDS::CompositeDataSet; kwargs...) = map(x->ysigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize
 xsigma(CDS::CompositeDataSet; kwargs...) = map(x->xsigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize

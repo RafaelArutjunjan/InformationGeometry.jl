@@ -286,8 +286,8 @@ end
 #     transpose(EmbeddingMatrix(DSE,dmodel,θ; kwargs...)) * gradlogpdf(ydist(DSE), EmbeddingMap(DSE,model,θ; kwargs...))
 # end
 
-
-function UnknownVarianceDataSet(DS::DataSetUncertain, invxerrormodel::Function=xdim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c)), testpx::AbstractVector=Fill(0.1,xdim(dims)); kwargs...)
+## Cannot work with missing values in UVD yet.
+function UnknownVarianceDataSet(DS::DataSetUncertain{<:Any,<:Nothing}, invxerrormodel::Function=xdim(dims) == 1 ? ((x,y,c::AbstractVector)->exp10(-c[1])) : ((x,y,c::AbstractVector)->exp10.(-c)), testpx::AbstractVector=Fill(0.1,xdim(dims)); kwargs...)
     UnknownVarianceDataSet(xdata(DS), ydata(DS), dims(DS), invxerrormodel, yinverrormodelraw(DS), testpx, DS.testpy; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
 end
 function DataSetUncertain(DS::UnknownVarianceDataSet; kwargs...)
