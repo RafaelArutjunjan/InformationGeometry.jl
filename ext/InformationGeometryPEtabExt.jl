@@ -31,7 +31,7 @@ for F in [:MLE, :LogLikeMLE, :pdim, :DOF, :name, :LogPrior, :HasPrior, :Domain, 
         :xdata, :ydata, :dims, :Npoints, :xdim, :ydim, 
         :logdetInvCov, :WoundX, :WoundY, :WoundYmasked, :WoundInvCov, :HasEstimatedUncertainties,
         :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror, :HasMissingValues,
-        :xdataMat, :ydataMat, :SplitErrorParams, :SkipXs, :GetOnlyModelParams, :GetDomain, :GetInDomain,
+        :ReconstructDataMatrices, :SplitErrorParams, :SkipXs, :GetOnlyModelParams, :GetDomain, :GetInDomain,
         :length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid; kwargs...) = InformationGeometry.$F(P.DM; kwargs...)
 end
@@ -395,11 +395,7 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
 
         # Has pre_equilibration or not
         ind = findfirst(isequal(cid), all_simulations)
-        sol = if all_pre_equilibrations[ind] === :None
-            PEtab.get_odesol(x, petab_prob; condition = cid)
-        else
-            PEtab.get_odesol(x, petab_prob; condition = all_pre_equilibrations[ind] => cid)
-        end
+        sol = PEtab.get_odesol(x, petab_prob; condition = (all_pre_equilibrations[ind] === :None ? cid : (all_pre_equilibrations[ind] => cid)))
 
         xdynamic, xobservable, xnoise, xnondynamic = PEtab.split_x(x, model_info.xindices)
         xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,

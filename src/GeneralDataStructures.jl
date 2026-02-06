@@ -131,18 +131,20 @@ function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
 end
 
-xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
-ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
+# xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
+# ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
+
+@deprecate xdataMat ReconstructDataMatrices
+@deprecate ydataMat ReconstructDataMatrices
 
 Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
 
 
 # Generic passthrough of queries from AbstractDataModel to AbstractDataSet for following functions:
 for F in [  :xdata, :ydata,
-            :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim,
+            :dims, :length, :Npoints, :xdim, :ydim, :DataspaceDim, :ReconstructDataMatrices,
             :logdetInvCov, :WoundX, :WoundY, :WoundYmasked, :WoundInvCov, :HasEstimatedUncertainties,
             :xnames, :ynames, :Xnames, :Ynames, :xdist, :ydist, :dist, :HasXerror, :HasMissingValues,
-            :xdataMat, :ydataMat,
             :SplitErrorParams]
     @eval $F(DM::AbstractDataModel) = $F(Data(DM))
 end

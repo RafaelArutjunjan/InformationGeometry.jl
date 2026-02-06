@@ -210,8 +210,6 @@ _TryVectorizeNoSqrt(X::AbstractVector{<:AbstractArray}) = BlockMatrix(X) |> _Try
 _TryVectorizeNoSqrt(M::AbstractMatrix) = isdiag(M) ? Diagonal(M).diag : M
 _TryVectorizeNoSqrt(D::DiagonalType) = D.diag
 
-BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
-
 ## Get submatrix specified via BitVector
 MaskedSymmetricMatrix(M::AbstractMatrix, ::Nothing) = M
 MaskedSymmetricMatrix(M::Diagonal, keep::AbstractVector) = Diagonal(view(M.diag,keep))

@@ -155,9 +155,26 @@ Data(CDS::CompositeDataSet) = CDS.DSs
 xdata(CDS::CompositeDataSet) = mapreduce(xdata, vcat, Data(CDS))
 ydata(CDS::CompositeDataSet) = mapreduce(ydata, vcat, Data(CDS))
 
-# BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = reduce(vcat, X)
-# BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
+
+## Should get rid of this extra method and make conditional squaring explicit where needed
+"""
+    BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}})
+    BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}})
+    BlockReduce(X::AbstractVector{<:DiagonalType})
+    BlockReduce(X::AbstractVector{<:Number})
+Produces symmetric matrix from blocks of either Matrices or Vectors.
+Vectors are assumed to be standard deviations, i.e. need to be squared first.
+However, Diagonal is assumed to already be matrix.
+"""
 BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, [(x isa AbstractVector ? Diagonal(x.^2) : x) for x in X])
+BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = Diagonal(reduce(vcat, X).^2)
+
+### Just the same as BlockMatrix
+BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
+BlockReduce(X::AbstractVector{<:DiagonalType}) = reduce(BlockMatrix, X)
+BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
+
+# @deprecate BlockReduce BlockMatrix
 
 function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
     dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructDataMatrices(DS)[2])...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
