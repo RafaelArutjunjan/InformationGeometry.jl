@@ -80,7 +80,7 @@ function Long2WidePEtabMeasurements(sdf::AbstractDataFrame, CondName::Symbol; Ob
     measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
     @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
     gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas]) for ID in UniqueObsids]
-    sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame(float.(Matrix(df)), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)]), Time)
+    sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame(float.(MissingToNan.(Matrix(df))), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)]), Time)
 end
 
 
@@ -360,9 +360,12 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
     all_pre_equilibrations = conditionids[:pre_equilibration]
     all_simulations = conditionids[:simulation]
 
+    # Map pure simulationConditionId to merged pre_equilibration_id * simulationConditionId, which appears in simulation_info.imeasurements
+    PreEquilMergedCidDict = Dict([pre_equil === :None ? simu => simu : simu => Symbol(string(pre_equil)*string(simu)) for (pre_equil, simu) in zip(all_pre_equilibrations,all_simulations)])
+
     ####### Check if observable maps and noise maps consistent within condition, so that values can be interpolated between measurements
     ## Dict for unique index of each measurement in given condition
-    imeasurementsCid = model_info.simulation_info.imeasurements[cid]
+    imeasurementsCid = model_info.simulation_info.imeasurements[PreEquilMergedCidDict[cid]]
     observable_idCid = model_info.petab_measurements.observable_id[imeasurementsCid]
     UniqueObsInds = uniqueindices(observable_idCid)
     ## Representative inds to take observable and noise maps from for interpolation, given obsid
@@ -388,10 +391,10 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
         # sol = odesols[cid]
         Res = Matrix{T}(undef, length(UniqueObsids), length(ts))
         Xnom = collect(petab_prob.xnominal)
+        x = collect(θ)
 
         # Has pre_equilibration or not
         ind = findfirst(isequal(cid), all_simulations)
-        x = collect(θ)
         sol = if all_pre_equilibrations[ind] === :None
             PEtab.get_odesol(x, petab_prob; condition = cid)
         else
