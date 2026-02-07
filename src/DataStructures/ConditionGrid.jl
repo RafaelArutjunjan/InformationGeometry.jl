@@ -267,6 +267,27 @@ RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:
     end
 end
 
+## Order of data and fits is often messed up in nested plot recipes, so plot each individually and layout instead
+function RecipesBase.plot(CG::AbstractConditionGrid, mle::AbstractVector{<:Number}=MLE(CG); idxs=1:length(Conditions(CG)), ConditionNames=view(InformationGeometry.ConditionNames(CG), idxs), dof=DOF(CG),
+                        Confnum=1, Fisher=any(Confnum .> 0) ? FisherMetric(CG, mle) : nothing, ADmode=Val(:ForwardDiff), kwargs...)
+    ConditionNames isa Symbol && (ConditionNames = [ConditionNames])
+    @assert ConditionNames isa AbstractVector{<:Symbol} && idxs isa Union{<:Int,AbstractArray{<:Int}}
+    @assert all(∈(InformationGeometry.ConditionNames(CG)), ConditionNames) "Given condition names $ConditionNames not all in $(InformationGeometry.ConditionNames(CG))"
+    @assert isnothing(Fisher) || (size(Fisher,1) == size(Fisher,2) == length(mle))
+    Plts = []
+    for (i,Name) in enumerate(ConditionNames)
+        ind = findfirst(isequal(Name),ConditionNames)
+        FisherSub = if !isnothing(Fisher)
+            J = Trafos(CG)[ind] == identity ? LinearAlgebra.I : DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
+            J * Fisher * transpose(J)
+        else
+            Fisher
+        end
+        push!(Plts, RecipesBase.plot(Conditions(CG)[ind], Trafos(CG)[ind](mle); Confnum, dof, Fisher=FisherSub, plot_title="", kwargs...))
+    end
+    RecipesBase.plot(Plts...; plot_title=string(name(CG)), layout=length(ConditionNames), size=PlotSizer(length(ConditionNames)))
+end
+
 
 
 function ConditionSpecificProfiles(CG::AbstractConditionGrid, P::AbstractProfiles; idxs::AbstractVector{<:Int}=1:pdim(CG), OffsetResults::Bool=true, OffsetResultsBy::Union{Nothing,Number}=nothing, Trafo::Function=identity, Interpolate::Bool=false, Interp=QuadraticInterpolation, kwargs...)
