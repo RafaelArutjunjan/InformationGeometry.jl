@@ -6,6 +6,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
     title -->               string(name(DM))
+    color_palette = get(plotattributes, :color_palette, :default)
+    Colors = ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto
+    seriescolor := Colors
     @series begin
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
@@ -18,24 +21,24 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                 @warn "Not programmed for plotting $(typeof(Data(DM))) yet"
             end
         end
+        color_palette := color_palette
         Data(DM), xpositions
     end
     markeralpha :=      0.
     X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=401) : xdata(DM)
     Y = predictedY(DM, mle, X)
-    color_palette = get(plotattributes, :color_palette, :default)
     @series begin
         linewidth -->       2
-        seriescolor :=     (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : (ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto))
+        seriescolor -->      (ydim(DM) == 1 ? get(plotattributes, :seriescolor, :red) : Colors)
         linestyle -->       :solid
         RSEs = ResidualStandardError(DM, mle; verbose)
-        RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
+        RSEs = !isnothing(RSEs) ? round.(convert.(Float64, RSEs); sigdigits=3) : RSEs
         label -->  if ydim(DM) == 1
             # "Fit with RSE≈$(RSEs[1])"
-            "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[1]; sigdigits=3))")
+            "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(RSEs[1])")
         elseif ydim(DM) ≤ Npoints(DM)
             # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
-            reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)], 1, ydim(DM))
+            reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(RSEs[i])")  for i in 1:ydim(DM)], 1, ydim(DM))
         else
             reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
         end
@@ -59,9 +62,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                 if ydim(DM) == 1
                     SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
                     @series begin
-                        seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[(((4+j)%15)+1)])
+                        seriescolor :=  get(plotattributes, :seriescolor, palette(color_palette)[6])
                         linestyle   --> :dash
-                        linealpha   --> 0.85
+                        linealpha   --> max(0.1, 0.9 - (j-1)*0.6/length(Confnum))
                         label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
                         X, [Y .+ SqrtVar Y .- SqrtVar]
                     end
@@ -69,9 +72,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                     for i in 1:ydim(DM)
                         @series begin
-                            seriescolor := palette(color_palette)[((i*ydim(DM)+j)%15 +1)]
+                            seriescolor := Colors[i]
                             linestyle   --> :dash
-                            linealpha   --> 0.85
+                            linealpha   --> max(0.1, 0.9 - (j-1)*0.6/length(Confnum))
                             label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
                             X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
                         end
@@ -108,8 +111,12 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
     title -->               string(name(DS))
-    # color_palette -->       :tab10
-    seriescolor := :auto
+    color_palette = get(plotattributes, :color_palette, :default)
+    Colors = get(plotattributes, :seriescolor, ydim(DS) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DS)],1,:) : :auto)
+    seriescolor := Colors
+    Y = ReconstructDataMatrices(DS)[2]
+    ydim(DS) > Npoints(DS) && (Y = transpose(Y))
+
     if ydim(DS) == 1
         label --> "Data"
         yerror --> Σ_y
@@ -123,15 +130,6 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions
         label --> reshape("Data for $(xnames(DS)[1])=" .* string.(round.(xdata(DS); sigdigits=3)), 1, length(xdata(DS)))
         yerror --> transpose(Unpack(Windup(Σ_y, ydim(DS))))
         # No way to incorporate errors in xpositions here....
-    end
-    Y = if DS isa DataSetUncertain
-        Unpack(WoundYmasked(DS))
-    elseif ydim(DS) == 1
-        ydata(DS)
-    elseif ydim(DS) ≤ Npoints(DS)
-        Unpack(Windup(ydata(DS), ydim(DS)))
-    else
-        Unpack(Windup(ydata(DS), ydim(DS))) |> transpose
     end
     # Discard xpositions if xpositions == xdata but ydim > Npoints
     (ydim(DS) > Npoints(DS) && length(xpositions) != ydim(DS)) ? Y : (xpositions, Y)
@@ -161,13 +159,8 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
     @series begin
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
-                keep = Data(DM).keep
-                ysig = if isnothing(keep)
-                    ysigma(DM, mle)
-                else
-                    view(ysigma(DM, mle), keep)
-                end
-                yerror := Unpack(Windup(ysig, ydim(DM)))
+                ysig = WoundYSigmaMasked(Data(DM), (SplitErrorParams(DM)(mle))[end])
+                yerror := Unpack(ysig)
             elseif Data(DM) isa UnknownVarianceDataSet
                 xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
                 yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
@@ -204,7 +197,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
                 for i in 1:ydim(DM)
                     @series begin
                         subplot := i
-                        seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[(((4+j)%15)+1)])
+                        seriescolor --> get(plotattributes, :seriescolor, palette(color_palette)[6])
                         linestyle   --> :dash
                         linealpha   --> 0.85
                         yguide      :=  ynames(DM)[i]
@@ -278,6 +271,11 @@ RecipesBase.@recipe function f(DSs::Union{<:AbstractVector{<:AbstractDataSet},<:
             DSs[i]
         end
     end
+end
+
+## Color and series order often inconsistent for nested plot recipes
+function RecipesBase.plot(DSs::Union{<:AbstractVector{<:AbstractDataSet},<:AbstractVector{<:AbstractDataModel}}; kwargs...)
+    RecipesBase.plot([RecipesBase.plot(DSs[i]; plot_title="", kwargs...) for i in eachindex(DSs)]...; leg=false, layout=length(DSs), size=PlotSizer(length(DSs)))
 end
 
 
