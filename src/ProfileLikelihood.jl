@@ -585,7 +585,7 @@ end
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
                             MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), 
                             ProfileDomain::HyperCube=GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), kwargs...)
-    ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, kwargs...)
+    ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, ProfileDomain, kwargs...)
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
