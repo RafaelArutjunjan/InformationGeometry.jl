@@ -584,8 +584,13 @@ end
 
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
                             MLE::AbstractVector{<:Number}=MLE(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), 
-                            ProfileDomain::HyperCube=GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), kwargs...)
-    ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, ProfileDomain, kwargs...)
+                            ProfileDomain::Union{Nothing,HyperCube}=nothing, kwargs...)
+    if isnothing(ProfileDomain)
+        ProfileLikelihood(DM, GetProfileDomainCube(Fisher, MLE, Confnum; dof, ForcePositive=ForcePositive), inds; Confnum, MLE, Fisher, dof, kwargs...)
+    else
+        # kwarg ProfileDomain puts hard boundaries on profile, positional domain arg only used for non-adaptive ps.
+        ProfileLikelihood(DM, ProfileDomain, inds; Confnum, MLE, Fisher, dof, ProfileDomain, kwargs...)
+    end
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
@@ -922,11 +927,11 @@ Compute parameter profiles while accounting for the uncertainties in the indepen
 """
 function FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); ADmode=Val(:ForwardDiff), pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), 
                     LogLikelihoodFn::Function=(@assert !HasPrior(DM);   LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)), CostFunction::Function=Negate(LogLikelihoodFn), CostGradient=GetGrad!(ADmode, CostFunction),
-                    MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM,MLE), pDomain::Union{Nothing,HyperCube}=GetDomain(DM), 
+                    MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM,MLE), pDomain::Union{Nothing,HyperCube}=GetDomain(DM), Meta=:FullParameterProfiles,
                     xDomain::Union{Nothing,HyperCube}=(isnothing(pDomain) ? nothing : HyperCube(Fill(-Inf,length(xdata(DM))),Fill(Inf,length(xdata(DM))))), Domain::Union{Nothing,HyperCube}=(!isnothing(xDomain) && !isnothing(pDomain)) ? vcat(xDomain, pDomain) : nothing, 
                     ProfileDomain::Union{Nothing,HyperCube}=Domain, InDomain::Union{Nothing,Function}=isnothing(GetInDomain(DM)) ? nothing : GetInDomain(DM)∘(pd=pdim(DM);  x->(@view x[end-pd+1:end])), kwargs...)
     @assert HasXerror(DM)
-    ParameterProfiles(DM, Confnum, Inds; ADmode, pnames, LogLikelihoodFn, CostFunction, CostGradient, MLE, logLikeMLE, Fisher, Domain, InDomain, ProfileDomain, kwargs...)
+    ParameterProfiles(DM, Confnum, Inds; ADmode, pnames, LogLikelihoodFn, CostFunction, CostGradient, MLE, logLikeMLE, Fisher, Domain, InDomain, ProfileDomain, Meta, kwargs...)
 end
 
 
