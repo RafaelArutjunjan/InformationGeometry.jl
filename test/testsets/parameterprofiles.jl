@@ -72,6 +72,11 @@ IPU2 = IntegrationParameterProfiles(DMU, 2.2; N=31, γ=0.5, plot=false, verbose=
 
 @test StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false) isa InformationGeometry.MultistartResults
 
+## Test FullParameterProfiles
+DME = DataModel(DataSetExact(Data(DM), 0.5), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DME)
+FP = FullParameterProfiles(DME,1; pDomain=FullDomain(2,10), plot=false)
+@test all(isfinite∘sum, Tuple(ProfileBox(FP, 1))[end-1:end])
+
 
 CG = ConditionGrid([DM, DMp])
 PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)

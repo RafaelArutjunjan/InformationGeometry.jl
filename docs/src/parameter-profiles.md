@@ -112,11 +112,12 @@ A paper outlining this systematic reduction strategy in detail is given by [Driv
 The saved paths of a `ParameterProfiles` object `P` can be accessed via `InformationGeometry.Trajectories(P)` for computations.
 They can be plotted via several methods, such as `PlotProfilePaths`:
 ```@example Profiles
-PlotProfilePaths(P3; RelChange=false, TrafoPath=identity, idxs=1:length(P3))
+PlotProfilePaths(P3; RelChange=false, OnlyHighlightTop=1, TrafoPath=identity, idxs=1:length(P3))
 ```
 where the `RelChange` kwarg can be used to specify whether the relative change `p_i / p_mle` or the difference `p_i - p_mle` is plotted.
 Also, the `TrafoPath` allows for specifying a transformation which is broadcasted over the results to account for non-linear distortions on the parameter space, making relevant features more easily visible, for instance `TrafoPath=BiLog`.
 Interpolation can be turned in plots to smooth out sparsely sampled trajectories via the `InterpolatePaths` keyword as `PlotProfilePaths(P3; InterpolatePaths=true)`.
+The `OnlyHighlightTop=k` kwarg can be used to colorize only the top `k` paths which exhibit the largest absolute changes along the given profile, which can be very useful for reducing visual clutter when analyzing models with many parameters.
 
 In the above example, one can see from the trajectories of the profile for ``\theta_2`` that the first parameter ``\theta_1`` must decrease if the second parameter ``\theta_2`` increases in order to compensate, such that the model still describes the data as well as possible.
 
