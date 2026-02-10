@@ -1472,6 +1472,7 @@ end
     size --> PlotSizer(length(ToPlotInds))
     DoBiLog = get(plotattributes, :BiLog, false)
     TrafoPath = get(plotattributes, :TrafoPath, DoBiLog ? BiLog : identity)
+    OnlyHighlightTop = get(plotattributes, :OnlyHighlightTop, 0)
 
     for (plotnum, i) in enumerate(ToPlotInds)
         @series begin
@@ -1482,6 +1483,7 @@ end
             MLE --> mle
             OffsetResults --> OffsetResults
             ParameterFunctions --> ParameterFunctions
+            OnlyHighlightTop --> OnlyHighlightTop
             P[i], V
         end
     end
@@ -1490,6 +1492,7 @@ end
 # Kwarg BiLog=true for BiLog scale
 # Kwarg RelChange=false for parameter difference instead of ratio to MLE
 # Kwarg idxs for trajectories to plot
+# Kwarg OnlyHighlightTop to highlight top k most changing
 # Kwarg MLE and OffsetResults
 @recipe function f(PV::ParameterProfilesView, ::Union{Val{:PlotRelativeParamTrajectories},Val{:ProfilePaths}})
     @assert HasTrajectories(PV)
@@ -1516,10 +1519,17 @@ end
     color_palette = get(plotattributes, :color_palette, :default)
     InterpolatePaths = get(plotattributes, :InterpolatePaths, false)
     Interp = QuadraticSpline
-    # Colorize only parameters with 5 strongest changes
+
+    OnlyHighlightTop = get(plotattributes, :OnlyHighlightTop, 0)
+    DoColorizeInds = if OnlyHighlightTop > 0
+        MaxAffected = [j ∈ ToPlotInds ? maximum(abs, U[j,j] .* (getindex.(Trajectories(PV), j) .- mle[j])) : 0 for j in 1:pdim(PV)]
+        partialsortperm(MaxAffected, 1:OnlyHighlightTop; rev=true)
+    else
+        1:pdim(PV)
+    end
     for j in ToPlotInds
         @series begin
-            color --> palette(color_palette)[(((2+j) % 15) +1)]
+            color --> (j ∈ DoColorizeInds ? palette(color_palette)[(((2+j) % 15) +1)] : :lightgray)
             label --> pnames(PV.P)[j]
             lw --> 1.5
             Change = if DoRelChange
