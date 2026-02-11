@@ -237,6 +237,14 @@ ReconstructDataMatrices(DS::AbstractDataSet, args...) = (@assert !HasMissingValu
 ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy) = _ReconstructDataMatrix(ysigma(DSU, testpy), DSU.datakeep, ydim(DSU))
 
 
+# using non-raw out-of-place version of error model here
+function _InvCov(inverrmod::Function, errorparams::AbstractVector, woundX::AbstractVector, woundY::AbstractVector, testout=nothing)
+    ErrorPrediction = (x,y) -> (S=inverrmod(x,y,errorparams);      S' * S) ## inplace-ify this step
+    map(ErrorPrediction, woundX, woundY) |> BlockMatrix
+end
+
+
+
 ## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov
 
 # Uncertainty must be constructed around prediction!
@@ -258,8 +266,7 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVect
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = yinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
+    end;    _InvCov(yinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testout)
 end
 
 
@@ -275,7 +282,7 @@ function ysigma(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<
     try
         map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundYmasked(DS)) |> _TryVectorizeNoSqrt |> x->view(x, DS.datakeep)
     catch E;
-        println(E)
+        verbose && println(E)
         Fill(NaN, length(ydata(DS)))
     end
 end
@@ -287,11 +294,11 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = yinverrormodel(DS)
+    end
     try
-        MaskedSymmetricMatrix(BlockMatrix(map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundYmasked(DS))), DS.datakeep)
+        MaskedSymmetricMatrix(_InvCov(yinverrormodel(DS), C, WoundX(DS), WoundYmasked(DS), DS.testout), DS.datakeep)
     catch E;
-        println(E)
+        verbose && println(E)
         Diagonal(Fill(NaN, length(ydata(DS))))
     end
 end

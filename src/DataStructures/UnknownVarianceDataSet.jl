@@ -182,8 +182,7 @@ function xInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
     else
         verbose && c === DS.testpx && @warn "xInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = xinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
+    end;    _InvCov(xinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testoutx)
 end
 
 # Uncertainty must be constructed around prediction!
@@ -205,8 +204,7 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = yinverrormodel(DS)
-    map(((x,y)->(S=errmod(x,y,C); S' * S)), WoundX(DS), WoundY(DS)) |> BlockMatrix
+    end;    _InvCov(yinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testouty)
 end
 
 
