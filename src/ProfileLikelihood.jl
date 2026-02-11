@@ -1465,6 +1465,8 @@ end
     RelChange = get(plotattributes, :RelChange, false)
     idxs = get(plotattributes, :idxs, 1:pdim(P))
     mle = get(plotattributes, :MLE, MLE(P))
+    PNames = get(plotattributes, :pnames, pnames(P))
+
     OffsetResults = get(plotattributes, :OffsetResults, true)
 
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
@@ -1486,6 +1488,7 @@ end
             RelChange --> RelChange
             idxs --> ToPlotInds
             MLE --> mle
+            pnames --> PNames
             OffsetResults --> OffsetResults
             ParameterFunctions --> ParameterFunctions
             OnlyHighlightTop --> OnlyHighlightTop
@@ -1507,11 +1510,12 @@ end
     Fisher = get(plotattributes, :Fisher, Diagonal(Ones(pdim(PV))))
     U = cholesky(Fisher).U
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
+    PNames = get(plotattributes, :pnames, pnames(PV))
 
     idxs = get(plotattributes, :idxs, 1:pdim(PV))
     @assert all(1 .≤ idxs .≤ pdim(PV)) && allunique(idxs)
     i = PV.i
-    xguide --> pnames(PV)[i]
+    xguide --> pnames(PV)[i] # Do not use kwarg pnames here, only in legend
 
     mle = get(plotattributes, :MLE, MLE(PV))
     OffsetResults = get(plotattributes, :OffsetResults, true)
@@ -1535,7 +1539,7 @@ end
     for j in ToPlotInds
         @series begin
             color --> (j ∈ DoColorizeInds ? palette(color_palette)[(((2+j) % 15) +1)] : :lightgray)
-            label --> pnames(PV.P)[j]
+            label --> PNames[j]
             lw --> 1.5
             Change = if DoRelChange
                 getindex.(Trajectories(PV), j) ./ (OffsetResults ? mle[j] : 1)
