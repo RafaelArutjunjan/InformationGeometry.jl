@@ -1570,19 +1570,22 @@ end
     #         end
     #     end
     # end
-    if OffsetResults
-        # Mark MLE
-        @series begin
-            label --> nothing
-            seriescolor --> :red
-            marker --> :hex
-            markersize --> 2.5
-            markerstrokewidth --> 0
+    # Mark MLE
+    @series begin
+        label --> nothing
+        seriescolor --> :red
+        marker --> :hex
+        markersize --> 2.5
+        markerstrokewidth --> 0
+        if OffsetResults
             [MLE(PV)[i]], (DoRelChange ? [TrafoPath(1.0)] : [TrafoPath(0.0)])
+        else
+            [MLE(PV)[i]], [TrafoPath(MLE(PV)[ToPlotInds[1]])]
         end
     end
 end
 
+PlotProfilePaths!(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot!(PV, Val(:ProfilePaths); kwargs...)
 PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePaths); kwargs...)
 @deprecate PlotRelativeParameterTrajectories PlotProfilePaths
 
