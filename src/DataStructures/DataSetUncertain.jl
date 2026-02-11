@@ -33,6 +33,28 @@ function GetPredKeep(T::AbstractVector, Ydata::AbstractMatrix)
     Tstar, predkeep
 end
 
+function ErrorModelDependencies(DS::AbstractUnknownUncertaintyDataSet, errmodraw::Function=yinverrormodelraw(DS), ptest::AbstractVector=DS.testpy; verbose::Bool=true)
+    Xs = MakeSymbolicParsOld(Xnames(DS));    Ys = MakeSymbolicParsOld(Ynames(DS))
+    length(Xs) == 1 && (Xs = Xs[1]);    length(Ys) == 1 && (Ys = Ys[1])
+    Ps = MakeSymbolicParsOld(Symbol.(CreateSymbolNames(length(ptest))))
+    # [:derivative, :gradient, :jacobian, :hessian, :doublejacobian, :matrixjacobian]
+    DerivType(Z::AbstractVector, P::AbstractVector) = :jacobian
+    DerivType(Z::Number, P::AbstractVector) = :gradient
+    DerivType(Z::Number, P::Number) = :derivative
+    DerivType(Z::AbstractMatrix, P::AbstractVector) = :matrixjacobian
+    try
+        Z = errmodraw(Xs, Ys, Ps)
+        Xdep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Xs, DerivType(Z, Xs)))
+        Ydep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Ys, DerivType(Z, Ys)))
+        Pdep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Ps, DerivType(Z, Ps)))
+        (Xdep, Ydep, Pdep)
+    catch E;
+        verbose && println("ErrorModelDependencies: ", E)
+        (true, true, true)
+    end
+end
+
+
 # Use general bitvector mask to implement missing values
 
 """
@@ -243,6 +265,18 @@ function _InvCov(inverrmod::Function, errorparams::AbstractVector, woundX::Abstr
     map(ErrorPrediction, woundX, woundY) |> BlockMatrix
 end
 
+
+# using raw in-place version of error model here
+function _InvCov!(Σ⁻¹::AbstractVector, inverrmod!::Function, errorparams::AbstractVector, woundX::AbstractVector, woundY::AbstractVector, testout::AbstractVector=woundY[1])
+    Ydim = length(woundY[1])
+    @boundscheck @assert length(woundX) == length(woundY)
+    @boundscheck @assert length(Σ⁻¹) == length(woundY)*Ydim
+    S = similar(testout)
+    for (i, Σ⁻¹chunk) in enumerate(Iterators.partition(Σ⁻¹, Ydim))
+        inverrmod!(S, woundX[i], woundY[i], errorparams)
+        Σ⁻¹chunk .= S .^ 2
+    end;    Diagonal(Σ⁻¹)
+end
 
 
 ## Bessel correction should only be applied in likelihood for correct weighting, not in ysigma and YInvCov

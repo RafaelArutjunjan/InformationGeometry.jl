@@ -191,3 +191,13 @@ function InplaceDM(DM::AbstractDataModel; inplace::Bool=true, kwargs...)
     @assert !isnothing(model!) && !isnothing(dmodel!) "Could not create inplace version of given DataModel."
     DataModel(Data(DM), model!, dmodel!, MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
 end
+
+
+
+function OptimizedErrorModelCore(DS::AbstractUnknownUncertaintyDataSet, errmodraw::Function=yinverrormodelraw(DS), ptest::AbstractVector=DS.testpy; inplace::Bool=(ydim(DS) > 1), force_SA::Bool=false, # (ydim(DS)*length(ptest) < 20), 
+                                        parallel::Bool=false, parallelization=parallel ? Symbolics.MultithreadedForm() : Symbolics.SerialForm(), kwargs...)
+    Xs = MakeSymbolicParsOld(Xnames(DS));    Ys = MakeSymbolicParsOld(Ynames(DS))
+    length(Xs) == 1 && (Xs = Xs[1]);    length(Ys) == 1 && (Ys = Ys[1])
+    Ps = MakeSymbolicParsOld(Symbol.(CreateSymbolNames(length(ptest))))
+    errmod, errmod! = Symbolics.build_function(errmodraw(Xs, Ys, Ps), Xs, Ys, Ps; expression=Val{false}, parallel=parallelization, force_SA, kwargs...)
+end
