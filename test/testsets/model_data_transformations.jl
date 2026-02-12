@@ -40,7 +40,7 @@ DM2 = DataModel(DS2, ModelMap((x,p)->[p[1]*x + p[2]-1, p[3]*x + p[4]-1]; pnames=
 CG = ConditionGrid([DM, DM2], [ViewElements(1:2), ViewElements(3:6)], [MLE(DM);MLE(DM2)])
 @test LinkParameters(CG, [1,3]) == ConditionGrid([DM, DM2], [ViewElements(1:2), ViewElements([1; 3:5])], [MLE(DM);MLE(DM2)][[1:2; 4:6]])
 @test FixParameters(CG, [1,3]) == ConditionGrid([FixParameters(DM,1), FixParameters(DM2,1)], [ViewElements(1:1), ViewElements(2:4)], [MLE(DM);MLE(DM2)][[2:2; 4:6]])
-
+@test LinearAlgebra.tr(inv(FisherMetric(CG, MLE(CG)))*InformationGeometry.CostHessian(CG)(MLE(CG))) ≈ pdim(CG)
 
 
 # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))

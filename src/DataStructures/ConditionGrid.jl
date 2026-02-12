@@ -2,15 +2,26 @@
 
 struct ParameterTransformations{F<:Function} <: AbstractParameterTransformations{F}
     Trafos::AbstractVector{F}
+    IsLinear::AbstractVector{<:Bool}
+    # Jacobians::AbstractVector{<:Union{UniformScaling,AbstractMatrix}} ## Precompute Jacobians for linear trafos?
     ConditionNames::AbstractVector{<:Symbol}
-    function ParameterTransformations(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol})
+    function ParameterTransformations(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol}, testp::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff))
+        Jac = DerivableFunctionsBase._GetJac(ADmode);   testp2 = testp .+ 0.5rand(length(testp))
+        IsLinear = [Jac(Trafos[i], testp) ≈ Jac(Trafos[i], testp2) for i in eachindex(Trafos)]
+        ParameterTransformations(Trafos, IsLinear, ConditionNames; ADmode)
+    end
+    function ParameterTransformations(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol}; IsLinear::AbstractVector{<:Bool}=falses(length(ConditionNames)), ADmode::Val=Val(:ForwardDiff))
+        ParameterTransformations(Trafos, IsLinear, ConditionNames; ADmode)
+    end
+    function ParameterTransformations(Trafos::AbstractVector{<:Function}, IsLinear::AbstractVector{<:Bool}, ConditionNames::AbstractVector{<:Symbol}; ADmode::Val=Val(:ForwardDiff))
+        @assert length(Trafos) == length(ConditionNames) == length(IsLinear)
         @assert allunique(ConditionNames)
-        new{eltype(Trafos)}(Trafos, ConditionNames)
+        new{eltype(Trafos)}(Trafos, IsLinear, ConditionNames)
     end
 end
 const ParamTrafo = ParameterTransformations
 # No nesting
-ParameterTransformations(Trafos::ParameterTransformations, ConditionNames::AbstractVector{<:Symbol}) = ParameterTransformations(Trafos.Trafos, ConditionNames)
+ParameterTransformations(Trafos::ParameterTransformations, args...; kwargs...) = ParameterTransformations(Trafos.Trafos, args...; kwargs...)
 
 (P::ParamTrafo)(θ::AbstractVector{<:Number}; Cond::Union{Nothing,Symbol}=nothing) = _ExecuteParamTrafo(P, θ, Cond)
 (P::ParamTrafo)(θ::AbstractVector{<:Number}, i::Int; kwargs...) = P.Trafos[i](θ)
@@ -34,7 +45,11 @@ ConditionNames(P::ParamTrafo) = P.ConditionNames
 Trafos(P::ParamTrafo) = P.Trafos
 Trafos(X::AbstractVector{<:Function}) = X
 
-IsIdentityTrafo(P::ParamTrafo) = all(isequal(identity), Trafos(P))
+IsLinear(P::ParamTrafo) = P.IsLinear
+
+IsIdentityTrafo(P::ParamTrafo) = IsIdentityTrafo(Trafos(P))
+IsIdentityTrafo(P::AbstractVector{<:Function}) = all(isequal(identity), P)
+
 
 # function TryToInferPnames()
 # end
@@ -71,7 +86,7 @@ struct ConditionGrid <: AbstractConditionGrid
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
         name::StringOrSymb=Symbol(),
         Domain::Union{Nothing,Cuboid}=nothing,
-        Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)))),
+        Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, mle, Symbol.(InformationGeometry.name.(DMs)))),
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode,LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
@@ -257,6 +272,12 @@ RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:
     plot_title --> string(name(CG))
     layout --> length(ConditionNames)
     size --> PlotSizer(length(ConditionNames))
+    InvFisher = if isnothing(Fisher) || IsIdentityTrafo(Trafos(CG))
+        nothing
+    else
+        NotPosDef(Fisher) && @warn "Given Fisher information not positive definite, using pseudo-inverse for plot."
+        pinv(Fisher)
+    end
     for (i,Name) in enumerate(ConditionNames)
         @series begin
             subplot := i
@@ -264,8 +285,14 @@ RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:
             Confnum --> Confnum
             ind = findfirst(isequal(Name),ConditionNames)
             if !isnothing(Fisher)
-                J = Trafos(CG)[ind] == identity ? LinearAlgebra.I : DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
-                Fisher --> J * Fisher * transpose(J)
+                Fisher --> if Trafos(CG)[ind] == identity
+                        Fisher
+                    else
+                        J = DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
+                        inv(J * InvFisher * transpose(J))
+                    end
+            else
+                Fisher --> nothing
             end
             Conditions(CG)[ind], Trafos(CG)[ind](mle)
         end
@@ -279,15 +306,25 @@ function RecipesBase.plot(CG::AbstractConditionGrid, mle::AbstractVector{<:Numbe
     @assert ConditionNames isa AbstractVector{<:Symbol} && idxs isa Union{<:Int,AbstractArray{<:Int}}
     @assert all(∈(InformationGeometry.ConditionNames(CG)), ConditionNames) "Given condition names $ConditionNames not all in $(InformationGeometry.ConditionNames(CG))"
     @assert isnothing(Fisher) || (size(Fisher,1) == size(Fisher,2) == length(mle))
+    InvFisher = if isnothing(Fisher) || IsIdentityTrafo(Trafos(CG))
+        nothing
+    else
+        NotPosDef(Fisher) && @warn "Given Fisher information not positive definite, using pseudo-inverse for plot."
+        pinv(Fisher)
+    end
     Plts = []
-    for (i,Name) in enumerate(ConditionNames)
+    for Name in ConditionNames
         ind = findfirst(isequal(Name),ConditionNames)
         FisherSub = if !isnothing(Fisher)
-            J = Trafos(CG)[ind] == identity ? LinearAlgebra.I : DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
-            J * Fisher * transpose(J)
-        else
-            Fisher
-        end
+                if Trafos(CG)[ind] == identity
+                    Fisher
+                else
+                    J = DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
+                    inv(J * InvFisher * transpose(J))
+                end
+            else
+                nothing
+            end
         push!(Plts, RecipesBase.plot(Conditions(CG)[ind], Trafos(CG)[ind](mle); Confnum, dof, Fisher=FisherSub, plot_title="", kwargs...))
     end
     RecipesBase.plot(Plts...; plot_title=string(name(CG)), layout=length(ConditionNames), size=PlotSizer(length(ConditionNames)))
