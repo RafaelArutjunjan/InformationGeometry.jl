@@ -182,7 +182,10 @@ LogPrior(DM::DataModel, θ::AbstractVector{<:Number}) = EvalLogPrior(LogPrior(DM
 loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
 Score(DM::DataModel) = DM.ScoreFn
 FisherMetric(DM::DataModel) = DM.FisherInfoFn
+
 CostHessian(DM::DataModel) = DM.CostHessianFn
+AutoMetric(DM::DataModel) = CostHessian(DM)
+AutoMetric!(DM::DataModel) = CostHessian(DM)
 
 HasPrior(DM::DataModel) = !isnothing(LogPrior(DM))
 
