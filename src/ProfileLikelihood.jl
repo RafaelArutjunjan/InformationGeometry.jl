@@ -307,8 +307,8 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
-                        UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=true, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
-                        FisherMetricFn::Function=FisherMetric(DM), CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : FisherMetricFn)),
+                        UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=false, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
+                        FisherMetricFn::Function=FisherMetric(DM), CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
                         MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
@@ -1074,7 +1074,7 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVec
                 LogLikelihoodFn::Function=loglikelihood(DM), MLE::AbstractVector{<:Number}=MLE(DM), dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false,
                 IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
                 LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), verbose::Bool=true, 
-                CostHessian::Function=GetHess!(ADmode, Negate(LogLikelihoodFn)),
+                CostHessian::Function=CostHessian(DM),
                 ### Pure PostProcessing:
                 AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(LogPriorFn), OffsetResults::Bool=true, SaveTrajectories::Bool=true, # Catch last
                 kwargs...)
