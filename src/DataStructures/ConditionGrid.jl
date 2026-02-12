@@ -1,7 +1,5 @@
 
 
-abstract type AbstractParameterTransformations{F<:Function} <: AbstractVector{F} end
-
 struct ParameterTransformations{F<:Function} <: AbstractParameterTransformations{F}
     Trafos::AbstractVector{F}
     ConditionNames::AbstractVector{<:Symbol}
@@ -78,7 +76,7 @@ struct ConditionGrid <: AbstractConditionGrid
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode,LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         CostHessianFn::Function=MergeOneArgMethods(GetHess(ADmode, Negate(LogLikelihoodFn)),GetHess!(ADmode, Negate(LogLikelihoodFn))),
-        FisherInfoFn::Function=CostHessianFn, # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
+        FisherInfoFn::Function=GetFisherInfoFn(DMs, Trafos, LogPriorFn; ADmode),
         LogLikeMLE::Union{Nothing,Number}=nothing, SkipOptim::Bool=false, SkipTests::Bool=false, verbose::Bool=true, kwargs...)
         # Check pnames correct?
         # Condition names already unique from ParamTrafo
@@ -146,7 +144,8 @@ FisherMetric(CG::ConditionGrid) = CG.FisherInfoFn
 FisherMetric(CG::ConditionGrid, θ::AbstractVector{<:Number}) = FisherMetric(CG)(θ)
 
 CostHessian(CG::ConditionGrid) = CG.CostHessianFn
-
+AutoMetric(CG::ConditionGrid) = CostHessian(CG)
+AutoMetric!(CG::ConditionGrid) = CostHessian(CG)
 
 # Disable Boundaries for Optimization
 GetDomain(CG::ConditionGrid) = Domain(CG)

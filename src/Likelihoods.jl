@@ -283,6 +283,35 @@ function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::Mo
     end
 end
 
+function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, LogPriorFn::Union{Function,Nothing}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    @assert length(DMs) == length(Trafos)
+    function CompositeFisherMetricFn(θ::AbstractVector{<:Number}; kwargs...)
+        sum((if Trafos[i] == identity
+                FisherMetric(DM, θ; Kwargs..., kwargs...)
+            else
+                J = DerivableFunctionsBase._GetJac(ADmode)(Trafos[i], θ)
+                J * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * transpose(J)
+            end) for (i,DM) in enumerate(DMs))
+    end
+    function CompositeFisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{T}; kwargs...) where T<:Number
+        fill!(M, zero(T))
+        for (i,DM) in enumerate(DMs)
+            if Trafos[i] == identity
+                M .+= FisherMetric(DM, θ; Kwargs..., kwargs...)
+            else
+                J = DerivableFunctionsBase._GetJac(ADmode)(J, Trafos[i], θ)
+                M .+= J * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * transpose(J)
+            end
+        end;    M
+    end
+    if isnothing(LogPriorFn)
+        CompositeFisherMetricFn
+    else
+        CompositeFisherMetricFnWithPrior(θ::AbstractVector{<:Number}; kwargs...) = CompositeFisherMetricFn(θ; Kwargs..., kwargs...) .- EvalLogPriorHess(LogPriorFn, θ; ADmode)
+        CompositeFisherMetricFnWithPrior(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = (CompositeFisherMetricFn(M, θ; Kwargs..., kwargs...);   M .-= EvalLogPriorHess(LogPriorFn, θ; ADmode);  M)
+    end
+end
+
 
 """
     GetRemainderFunction(DM::AbstractDataModel)

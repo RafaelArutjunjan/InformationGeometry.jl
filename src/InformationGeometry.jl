@@ -113,6 +113,8 @@ export AbstractDataSet, AbstractDataModel, Cuboid
 abstract type AbstractUnknownUncertaintyDataSet <: AbstractDataSet end
 abstract type AbstractFixedUncertaintyDataSet <: AbstractDataSet end
 
+abstract type AbstractParameterTransformations{F<:Function} <: AbstractVector{F} end
+
 
 import Base: length, rand, BigFloat, in, union, intersect, join, ==
 import DataFrames.DataFrame
