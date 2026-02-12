@@ -164,7 +164,7 @@ AutoScore!(DM::AbstractDataModel; kwargs...) = (S::AbstractVector,θ::AbstractVe
 
 
 AutoMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number}->AutoMetric(DM, θ; kwargs...)
-AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}=LogPrior(DM); kwargs...) = AutoMetric(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing, Function}; kwargs...) = AutoMetric(Data(DM), Predictor(DM), θ, LogPriorFn; kwargs...)
 AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _AutoMetric(DS, model, θ; kwargs...)
 function AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
     _AutoMetric(DS, model, θ; ADmode=ADmode, kwargs...) - EvalLogPriorHess(LogPriorFn, θ; ADmode=ADmode)
@@ -173,6 +173,10 @@ _AutoMetric(DS::AbstractDataSet, model::ModelOrFunction, θ::AbstractVector{<:Nu
 
 AutoMetric!(H::AbstractMatrix, args...; kwargs...) = copyto!(H, AutoMetric(args...; kwargs...))
 AutoMetric!(DM::AbstractDataModel; kwargs...) = (H::AbstractMatrix,θ::AbstractVector)->AutoMetric!(H, DM, θ; kwargs...)
+
+AutoMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = CostHessian(DM)(θ; kwargs...)
+CostHessian(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = CostHessian(DM)(θ; kwargs...)
+
 
 
 ## Generate Hessian from given Gradient with ADmode
@@ -283,14 +287,18 @@ function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::Mo
     end
 end
 
-function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractVector{<:Function}, LogPriorFn::Union{Function,Nothing}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractParameterTransformations, LogPriorFn::Union{Function,Nothing}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
     @assert length(DMs) == length(Trafos)
+    Jac = DerivableFunctionsBase._GetJac(ADmode)
+    ## For Fisher information, second derivatives of Parameter Trafos (multiplied with Score) drop out since expectation of score is zero
+    ## For Hessians, have additional term H_paramtrafo * Score_i if parameter trafo non-linear
+    # IsLinear = IsLinear(Trafos)
     function CompositeFisherMetricFn(θ::AbstractVector{<:Number}; kwargs...)
         sum((if Trafos[i] == identity
                 FisherMetric(DM, θ; Kwargs..., kwargs...)
             else
-                J = DerivableFunctionsBase._GetJac(ADmode)(Trafos[i], θ)
-                J * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * transpose(J)
+                J = Jac(Trafos[i], θ)
+                transpose(J) * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * J
             end) for (i,DM) in enumerate(DMs))
     end
     function CompositeFisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{T}; kwargs...) where T<:Number
@@ -299,8 +307,8 @@ function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::Abstr
             if Trafos[i] == identity
                 M .+= FisherMetric(DM, θ; Kwargs..., kwargs...)
             else
-                J = DerivableFunctionsBase._GetJac(ADmode)(J, Trafos[i], θ)
-                M .+= J * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * transpose(J)
+                J = Jac(Trafos[i], θ)
+                M .+= transpose(J) * FisherMetric(DM, Trafos[i](θ); Kwargs..., kwargs...) * J
             end
         end;    M
     end
