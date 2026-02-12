@@ -54,6 +54,7 @@ struct DataModel <: AbstractDataModel
     LogLikelihoodFn::Function
     ScoreFn::Function
     FisherInfoFn::Function
+    CostHessianFn::Function
     name::Symbol
     DataModel(DF::DataFrame, args...; kwargs...) = DataModel(DataSet(DF), args...; kwargs...)
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff),kwargs...)
@@ -117,6 +118,7 @@ struct DataModel <: AbstractDataModel
                                     LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn; ADmode),
                                     ScoreFn::Function=GetScoreFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; SafeScore, ADmode=EnsureNoSymbolic(ADmode)), 
                                     FisherInfoFn::Function=GetFisherInfoFn(DS,model,dmodel,LogPriorFn,LogLikelihoodFn; ADmode=EnsureNoSymbolic(ADmode)),
+                                    CostHessianFn::Function=MergeOneArgMethods(GetHess(EnsureNoSymbolic(ADmode), Negate(LogLikelihoodFn)), GetHess!(EnsureNoSymbolic(ADmode), Negate(LogLikelihoodFn))),
                                     SkipTests::Bool=SkipOptimAndTests, SkipOptim::Bool=false, name::StringOrSymb=name(model), ModifyModelMap::Bool=true, verbose::Bool=true)
         MLE isa ComponentVector && !(model isa ModelMap) && (model = ModelMap(model, MLE))
         # length(MLE) < 20 && (MLE = SVector{length(MLE)}(MLE))
@@ -126,7 +128,7 @@ struct DataModel <: AbstractDataModel
         
         SkipTests || TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn; ADmode)
         
-        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, Symbol.(name))
+        new(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, Symbol.(name))
     end
 end
 
@@ -162,8 +164,9 @@ LogPrior::Union{Function,Nothing}=nothing,
 LogLikelihoodFn::Function=p->0.0,
 ScoreFn::Function=p->Ones(length(p)),
 FisherInfoFn::Function=p->Diagonal(Ones(length(p))),
+CostHessianFn::Function=p->Diagonal(Ones(length(p))),
 kwargs...,
-) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipTests=true, kwargs...)
+) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, SkipTests=true, kwargs...)
 
 
 # Specialized methods for DataModel
@@ -179,6 +182,7 @@ LogPrior(DM::DataModel, θ::AbstractVector{<:Number}) = EvalLogPrior(LogPrior(DM
 loglikelihood(DM::DataModel) = DM.LogLikelihoodFn
 Score(DM::DataModel) = DM.ScoreFn
 FisherMetric(DM::DataModel) = DM.FisherInfoFn
+CostHessian(DM::DataModel) = DM.CostHessianFn
 
 HasPrior(DM::DataModel) = !isnothing(LogPrior(DM))
 

@@ -268,14 +268,12 @@ end
 
 # using raw in-place version of error model here
 function _InvCov!(Σ⁻¹::AbstractVector, inverrmod!::Function, errorparams::AbstractVector, woundX::AbstractVector, woundY::AbstractVector, testout::AbstractVector=woundY[1])
-    Ydim = length(woundY[1])
-    @boundscheck @assert length(woundX) == length(woundY)
-    @boundscheck @assert length(Σ⁻¹) == length(woundY)*Ydim
-    S = similar(testout)
-    for (i, Σ⁻¹chunk) in enumerate(Iterators.partition(Σ⁻¹, Ydim))
-        inverrmod!(S, woundX[i], woundY[i], errorparams)
-        Σ⁻¹chunk .= S .^ 2
-    end;    Diagonal(Σ⁻¹)
+    # @boundscheck @assert length(woundX) == length(woundY)
+    # @boundscheck @assert length(Σ⁻¹) == length(woundY)*length(woundY[1])
+    for (i,Σ⁻¹chunk) in enumerate(Iterators.partition(Σ⁻¹, length(woundY[1])))
+        inverrmod!(Σ⁻¹chunk, woundX[i], woundY[i], errorparams)
+    end
+    Σ⁻¹ .*= Σ⁻¹;    Diagonal(Σ⁻¹)
 end
 
 

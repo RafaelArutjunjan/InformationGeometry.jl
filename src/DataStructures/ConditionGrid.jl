@@ -62,6 +62,7 @@ struct ConditionGrid <: AbstractConditionGrid
     LogLikelihoodFn::Function
     ScoreFn::Function
     FisherInfoFn::Function
+    CostHessianFn::Function
     LogLikeMLE::Number
     ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, Trafo::AbstractVector{<:Function}, mle::AbstractVector, LogPriorFn::Union{Nothing,Function}=nothing; kwargs...) = ConditionGrid(DMs, Trafo, LogPriorFn, mle; kwargs...)
     function ConditionGrid(DMs::AbstractVector{<:AbstractDataModel}, 
@@ -76,7 +77,8 @@ struct ConditionGrid <: AbstractConditionGrid
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode,LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
-        FisherInfoFn::Function=MergeOneArgMethods(GetHess(ADmode,Negate(LogLikelihoodFn)), GetHess!(ADmode,Negate(LogLikelihoodFn))), # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
+        CostHessianFn::Function=MergeOneArgMethods(GetHess(ADmode, Negate(LogLikelihoodFn)),GetHess!(ADmode, Negate(LogLikelihoodFn))),
+        FisherInfoFn::Function=CostHessianFn, # θ::AbstractVector->mapreduce(FisherMetric, +, DMs, [T(θ) for T in Trafos]) - EvalLogPriorHess(LogPriorFn, θ),
         LogLikeMLE::Union{Nothing,Number}=nothing, SkipOptim::Bool=false, SkipTests::Bool=false, verbose::Bool=true, kwargs...)
         # Check pnames correct?
         # Condition names already unique from ParamTrafo
@@ -92,7 +94,7 @@ struct ConditionGrid <: AbstractConditionGrid
         end
         logLikeMLE = isnothing(LogLikeMLE) ? LogLikelihoodFn(Mle) : LogLikeMLE
 
-        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, logLikeMLE)
+        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, logLikeMLE)
     end
 end
 
@@ -108,8 +110,9 @@ name::Symbol=Symbol(),
 LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherInfoFn::Function=x->[-Inf],
+CostHessianFn::Function=x->[-Inf],
 LogLikeMLE::Union{Nothing,Number}=-Inf, 
-SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
+SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
 
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)
 
@@ -141,6 +144,9 @@ Score(CG::ConditionGrid, θ::AbstractVector{<:Number}) = Score(CG)(θ)
 
 FisherMetric(CG::ConditionGrid) = CG.FisherInfoFn
 FisherMetric(CG::ConditionGrid, θ::AbstractVector{<:Number}) = FisherMetric(CG)(θ)
+
+CostHessian(CG::ConditionGrid) = CG.CostHessianFn
+
 
 # Disable Boundaries for Optimization
 GetDomain(CG::ConditionGrid) = Domain(CG)
