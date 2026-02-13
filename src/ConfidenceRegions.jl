@@ -555,6 +555,26 @@ end
 
 IsStructurallyIdentifiable(DM::AbstractDataModel, args...; kwargs...) = all(x->x>0, StructurallyIdentifiable(DM, args...; kwargs...)[1])
 
+"""
+    IdentifiabilityReport(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); threshold::Real=1e-10, pnames=pnames(DM), kwargs...)
+Determines which parameters are most likely structurally non-identifiable based on the Fisher information and which other parameters are affected as a result.
+"""
+IdentifiabilityReport(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); pnames=pnames(DM), kwargs...) = IdentifiabilityReport(FisherMetric(DM, mle); pnames, kwargs...)
+IdentifiabilityReport(F::AbstractMatrix; kwargs...) = IdentifiabilityReport(eigen(F; sortby=-); kwargs...)
+function IdentifiabilityReport(E::Eigen; threshold::Real=1e-10, pnames::AbstractVector{<:StringOrSymb}=string.(1:length(E.values)), Subset::Bool=true, verbose::Bool=true, kwargs...)
+    D, Vt = E;  @assert issorted(D; rev=true);  i = findfirst(x-> threshold>x, D);    isnothing(i) && (println("All seem identifiable, lowest eigenvalue is $(D[end]), change threshold kwarg accordingly to see most strongly coupled parameters.");   return (nothing, nothing))
+    AllAffected(v::AbstractVector) = IndVec(abs.(v) .> threshold)
+    Res = zeros(length(D), length(D));  keep = falses(length(D))
+    for j in reverse(i:length(D))
+        v = view(Vt, :, j);    CausativeInd = findmax(abs, v)[2];    AffectedInds = AllAffected(v)
+        Res[CausativeInd, AffectedInds] = 2abs.(view(v, AffectedInds))
+        Res[CausativeInd, CausativeInd] = 1.0 + log1p(D[i])
+        keep[AffectedInds] .= true
+        verbose && println("Structurally non-identifiable parameter: $(string(pnames[CausativeInd])). Second order non-identifiable parameters due to coupling: $(string.(pnames[setdiff(AffectedInds,CausativeInd)]))")
+    end
+    Subset ? ((@view Res[keep, keep]), @view(pnames[keep])) : (Res, pnames)
+end
+
 
 """
     ConfidenceRegions(DM::DataModel, Range::AbstractVector)

@@ -86,7 +86,7 @@ struct ConditionGrid <: AbstractConditionGrid
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
         name::StringOrSymb=Symbol(),
         Domain::Union{Nothing,Cuboid}=nothing,
-        Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, mle, Symbol.(InformationGeometry.name.(DMs)))),
+        Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)), mle)),
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode,LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
