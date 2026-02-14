@@ -302,7 +302,7 @@ function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVect
     @assert Mle ∈ NewModel.Domain
 
     LogLikelihoodFn = Negate(P.nllh)
-    ScoreFn = MergeOneArgMethods(Negate(P.grad), Negate!!(P.grad!));    FisherInfoFn = MergeOneArgMethods(P.hess, P.hess!)
+    ScoreFn = MergeOneArgMethods(Negate(P.grad), Negate!!(P.grad!));    CostHessianFn = MergeOneArgMethods(P.hess, P.hess!);    FisherInfoFn = MergeOneArgMethods(P.FIM, P.FIM!)
     # Check if there is a prior or nothing
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
@@ -314,10 +314,11 @@ function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVect
         DMs = [DataModel(DSs[i], remake(NewModel; Map=GetModelFunction(P; cid=C, ObsidsInCondDict), xyp=(1, ydim(DSs[i]), length(Mle))), convert(Vector,Mle), nothing; 
                             ADmode, LogLikelihoodFn=Negate(GetNllh(P; cids=[C])),
                             ScoreFn=((Sc!,Sc)=GetNllhGrads(P; cids=[C]);  MergeOneArgMethods(Negate(Sc), Negate!!(Sc!))),
-                            FisherInfoFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C]);   MergeOneArgMethods(Fi, Fi!)), # Set FIM = true later!
+                            FisherInfoFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C], FIM=true);   MergeOneArgMethods(Fi, Fi!)),
+                            CostHessianFn=((Fi!,Fi)=GetNllhHesses(P; cids=[C], FIM=false);   MergeOneArgMethods(Fi, Fi!)),
                             name=C, SkipTests=true, SkipOptim=true, verbose) for (i,C) in enumerate(UniqueConds)]
         InformationGeometry.ConditionGrid(DMs, [identity for i in eachindex(UniqueConds)], LogPriorFn, convert(Vector,Mle); 
-                    ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
+                    ADmode, Domain=HyperCube(P), pnames=PNames, name=Symbol(P.model_info.model.name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     end
 end
 

@@ -1142,7 +1142,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:
     end
     n = length(MLE);    λ_indices = setdiff(1:n, Comp)
     LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
-    H = Matrix{eltype(MLE)}(undef, n, n);   G = isnothing(CostGradient) ? nothing : (@assert γ ≥ 0;   Vector{eltype(MLE)}(undef, n))
+    H = Matrix{eltype(MLE)}(undef, n, n);   G = isnothing(CostGradient) ? nothing : (Vector{eltype(MLE)}(undef, n))
     
     params = (θ=copy(MLE), H=H, G=G, Comp=Comp, λ_indices=λ_indices, CostHessian=CostHessian, CostGradient=CostGradient, γ=γ, LogLikelihoodFn=LogLikelihoodFn, LogLikeThreshold=LogLikeThreshold)
     prob = ODEProblem(ODEFunction(ProfileODE!), MLE[λ_indices], psi_span, params)
