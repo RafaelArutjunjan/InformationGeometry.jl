@@ -458,6 +458,7 @@ BlockMatrix(A::DiagonalType, B::DiagonalType) = Diagonal(vcat(A.diag, B.diag))
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
 BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 
+BlockMatrix(X::AbstractVector{<:AbstractVector}) = Diagonal(Reduction(X))
 BlockMatrix(X::AbstractVector{<:DiagonalType}) = Diagonal(mapreduce(x->x.diag, vcat, X))
 BlockMatrix(X::AbstractVector{<:Number}) = Diagonal(X)
 

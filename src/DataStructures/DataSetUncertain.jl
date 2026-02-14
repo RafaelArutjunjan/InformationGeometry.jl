@@ -368,16 +368,27 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
     woundYpredSparse = Windup(yPredSparse, ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     ## Currently only works for diagonal error models
-    InvσSparse = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> Reduction
+    InvσSparse = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> BlockMatrix
+    InvσSparseKeep = if InvσSparse isa Diagonal
+        (@view InvσSparse.diag[DS.predkeep])
+    else
+        MaskedSymmetricMatrix(InvσSparse, DS.predkeep)
+    end
     
-    function _Eval(Ypred, Invσ, Ydat)
+    function _Eval(Ypred, Invσ::AbstractVector, Ydat)
         @assert length(Ydat) == length(Ypred) == length(Invσ)
         Res::T = -length(Ydat)*log(2T(π))
         @inbounds for i in eachindex(Ydat)
-            Res += 2log(Invσ[i]) - sum(abs2, Invσ[i] * (Ydat[i] - Ypred[i]))
+            Res += 2log(Invσ[i]) - abs2(Invσ[i] * (Ydat[i] - Ypred[i]))
         end
         Res *= 0.5;    Res
-    end;    _Eval((@view yPredSparse[DS.predkeep]), (@view InvσSparse[DS.predkeep]), ydata(DS))
+    end
+    function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
+        @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
+        Res::T = -length(Ydat)*log(2T(π))
+        Res += 2logdet(Invσ) - sum(abs2, Invσ * (Ydat .- Ypred))
+        Res *= 0.5;    Res
+    end;    _Eval((@view yPredSparse[DS.predkeep]), InvσSparseKeep, ydata(DS))
 end
 
 # Requires _Score !!!
@@ -386,33 +397,39 @@ end
 
 # Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
-function _FisherMetric(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
-    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
+function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS);    yinverrmodraw = yinverrormodelraw(DS)
     woundX = WoundX(DS)
     woundYpred = Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
-    Σneghalf = BlockMatrix(woundInvσ)
+    Σneghalf = MaskedSymmetricMatrix(BlockMatrix(woundInvσ), DS.datakeep)
 
     NormalParamJac = SplitterJacNormalParams(DS)(θ)
-    SJ = (MaskedSymmetricMatrix(Σneghalf, DS.datakeep) * MaskedJacobian(EmbeddingMatrix(Val(true), dmodel, normalparams, woundX), DS.datakeep)) * NormalParamJac
+    SJ = (Σneghalf * MaskedJacobian(EmbeddingMatrix(Val(true), dmodel, normalparams, woundX), DS.datakeep)) * NormalParamJac
     F_m = transpose(SJ) * SJ
 
-    Σposhalf = BlockMatrix(map(inv, woundInvσ))
+    Σposhalf = inv(Σneghalf)
     function InvSqrtCovFromFull(θ::AbstractVector)
         normalparams, errorparams = Splitter(θ)
-        BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
+        MaskedSymmetricMatrix(BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS)))), DS.datakeep)
     end
-    ΣneghalfJac = GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
+    function InvSqrtCovFromFullDiagonal(θ::AbstractVector)
+        normalparams, errorparams = Splitter(θ)
+        Res = reduce(vcat, map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
+        isnothing(DS.datakeep) ? Res : view(Res,DS.datakeep)
+    end
+    ΣneghalfJac = if Σneghalf isa Diagonal
+        GetJac(ADmode, InvSqrtCovFromFullDiagonal, length(θ))(θ)
+    else
+        GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
+    end
 
-    # @tullio F_e[i,j] := 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
     @inline AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::AbstractMatrix, ΣneghalfJac::AbstractArray{<:Number,3}) = @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
     @inline function AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::Diagonal, ΣneghalfJac::AbstractMatrix) # (N × θ) in diagonal case
         s = Σposhalf.diag;  @tullio F_m[i,j] += 2 * s[a]^2 * ΣneghalfJac[a,i] * ΣneghalfJac[a,j]    # F_m .+= 2 .* (ΣneghalfJac' * Diagonal(s.^2) * ΣneghalfJac)
     end
-
     AddCovarianceContribution!(F_m, Σposhalf, ΣneghalfJac)
-    # F_m .+ F_e
     F_m
 end
 
