@@ -170,9 +170,7 @@ BlockReduce(X::AbstractVector{<:AbstractArray{<:Number}}) = reduce(BlockMatrix, 
 BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = Diagonal(reduce(vcat, X).^2)
 
 ### Just the same as BlockMatrix
-BlockReduce(X::AbstractVector{<:AbstractMatrix{<:Number}}) = reduce(BlockMatrix, X)
-BlockReduce(X::AbstractVector{<:DiagonalType}) = reduce(BlockMatrix, X)
-BlockReduce(X::AbstractVector{<:Number}) = Diagonal(X)
+BlockReduce(X::AbstractVector{Union{<:AbstractMatrix{<:Number},<:Number}}) = BlockMatrix(X)
 
 # @deprecate BlockReduce BlockMatrix
 
