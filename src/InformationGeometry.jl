@@ -340,6 +340,13 @@ function NormalizedNeuralModel end
 
 export NeuralNet, NormalizedNeuralModel
 
+## GraphsExt
+ParameterGraph(args...; kwargs...) = throw("Need to load Graphs.jl and TikzGraphs.jl first.")
+ParameterGraphSymmetric(args...; kwargs...) = throw("Need to load Graphs.jl and TikzGraphs.jl first.")
+ParameterGraphAsymmetric(args...; kwargs...) = throw("Need to load Graphs.jl and TikzGraphs.jl first.")
+function IdentifiabilityReportGraph end
+export ParameterGraph, ParameterGraphSymmetric, ParameterGraphAsymmetric, IdentifiabilityReportGraph
+
 
 using SnoopPrecompile
 

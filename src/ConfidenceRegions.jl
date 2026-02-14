@@ -575,7 +575,6 @@ function IdentifiabilityReport(E::Eigen; threshold::Real=1e-10, pnames::Abstract
     Subset ? ((@view Res[keep, keep]), @view(pnames[keep])) : (Res, pnames)
 end
 
-IdentifiabilityReportGraph(args...; kwargs...) = throw("Need to load Graphs.jl and TikzGraphs.jl first.")
 
 
 """

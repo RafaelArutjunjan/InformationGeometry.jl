@@ -1,14 +1,19 @@
 module InformationGeometryGraphsExt
 
 
-using InformationGeometry, LinearAlgebra, Graphs, TikzGraphs, Printf
+using InformationGeometry, LinearAlgebra, Graphs, TikzGraphs
 import InformationGeometry: pnames, StringOrSymb
 
 
 signsqrtabs(x::Number) = sign(x) * sqrt(abs(x))
 ## Do not print as scientific notation!
-roundedstring(n::Number; digits::Int=6, kwargs...) = Printf.format(Printf.Format("%.$(digits)f"), round(n; digits, kwargs...))
-
+# using Printf
+# roundedstring(n::Number; digits::Int=6, kwargs...) = Printf.format(Printf.Format("%.$(digits)f"), round(n; digits, kwargs...))
+function roundedstring(n::Number; digits::Int=6)
+    io = IOBuffer()
+    Base.show(io, MIME"text/plain"(), round(n; digits))
+    return String(take!(io))
+end
 roundedstringInt(n::Number; kwargs...) = string(round(Int, n; kwargs...))
 
 
@@ -33,6 +38,7 @@ function MergeDictValues(D1::AbstractDict{A,B}, D2::AbstractDict{A,B}, MergeOp::
     end;    D
 end
 
+import InformationGeometry: ParameterGraph, ParameterGraphSymmetric, ParameterGraphAsymmetric
 ParameterGraph(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), F::AbstractMatrix{<:Number}=FisherMetric(DM, mle); 
                 pnames::AbstractVector{<:AbstractString}=pnames(DM), kwargs...) = ParameterGraphSymmetric(F, pnames; pnames, kwargs...)
 
