@@ -228,10 +228,14 @@ Prior(Func::Nothing, args...; kwargs...) = nothing
 Prior(args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...) = DFunction(args...; ADmode, kwargs...)
 Prior(D::DFunction, args...; kwargs...) = D
 
-EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetGrad(ADmode, P; kwargs...)(θ)
-EvalLogPriorHess(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), kwargs...) = GetHess(ADmode, P; kwargs...)(θ)
 function EvalLogPrior(P, θ::AbstractVector{T}; kwargs...)::T where T<:Number
     EvalF(P, θ; kwargs...)
+end
+function EvalLogPriorGrad(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), DerivOp=DerivableFunctionsBase._GetGrad(ADmode), kwargs...)
+    DerivOp(P, θ)
+end
+function EvalLogPriorHess(P, θ::AbstractVector{<:Number}; ADmode::Val=Val(:ForwardDiff), DerivOp=DerivableFunctionsBase._GetHess(ADmode), kwargs...)
+    DerivOp(P, θ)
 end
 
 function EvalLogPrior(D::Nothing, x::AbstractVector{T}; kwargs...)::T where T<:Number
