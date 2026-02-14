@@ -232,7 +232,7 @@ export AutoScore, AutoMetric
 export FindConfBoundary, FCriterion, FTest, FindFBoundary, ChisquaredReduced
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
-export IsStructurallyIdentifiable, StructurallyIdentifiable, IdentifiabilityReport
+export IsStructurallyIdentifiable, StructurallyIdentifiable, IdentifiabilityReport, IdentifiabilityReportGraph
 export FisherMetric, GeometricDensity, VariancePropagation
 export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity

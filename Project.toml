@@ -50,6 +50,7 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 [weakdeps]
 BoundaryValueDiffEqShooting = "ed55bfe0-3725-4db6-871e-a1dc9f42a757"
 DelayDiffEq = "bcd4f6db-9728-5f36-b5f7-82caef46ccdb"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 LibGEOS = "a90b1aa1-3769-5649-ba7e-abc5a9d163eb"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
@@ -59,10 +60,12 @@ ModelingToolkitBase = "7771a370-6774-4173-bd38-47e70ca0b839"
 PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 SciMLSensitivity = "1ed8b502-d754-442c-8d5d-10ac956f44a1"
 StochasticDiffEq = "789caeaf-c7a9-5a7d-9973-96adeb23e2a0"
+TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 
 [extensions]
 InformationGeometryBoundaryValueDiffEqExt = ["BoundaryValueDiffEqShooting"]
 InformationGeometryDelayDiffEqExt = ["DelayDiffEq"]
+InformationGeometryGraphsExt = ["Graphs", "TikzGraphs"]
 InformationGeometryLibGEOSExt = ["LibGEOS"]
 InformationGeometryLsqFitExt = ["LsqFit"]
 InformationGeometryLuxExt = ["Lux"]
@@ -87,6 +90,7 @@ DistributionsAD = "0.5, 0.6"
 FillArrays = "1"
 ForwardDiff = "0.10, 1"
 GenericLinearAlgebra = "0.3"
+Graphs = "1"
 HCubature = "1.4, 1.5, 1.6, 1.7"
 LibGEOS = "0.6, 0.7, 0.8, 0.9"
 LineSearches = "5, 6, 7"
@@ -121,6 +125,7 @@ StochasticDiffEq = "5, 6"
 Suppressor = "0.1, 0.2"
 SymbolicUtils = "1, 2, 3, 4"
 Symbolics = "1 - 6, 7"
+TikzGraphs = "1"
 Tullio = "0.3"
 julia = "1.10"
 
