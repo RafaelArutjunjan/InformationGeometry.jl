@@ -381,6 +381,30 @@ function EmbeddingMatrix(DSU::DataSetUncertain{<:Any,<:AbstractVector}, dmodel::
 end
 
 
+function _EvalWoundsLogLikelihood(woundYpred::AbstractVector{<:AbstractVector{T}}, woundInvσ::AbstractVector{<:AbstractMatrix}, woundY::AbstractVector{<:AbstractVector}) where T<:Number
+    Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
+    @inbounds for i in eachindex(woundY)
+        Res += 2logdet(woundInvσ[i])
+        # Could use loop to avoid intermediate allocation of Matrix-Vector product but also cannot exploit multiplication of specialized matrix types anymore
+        Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
+    end;    Res *= 0.5;    Res
+end
+function _EvalWoundsLogLikelihood(woundYpred::AbstractVector{<:AbstractVector{T}}, woundInvσ::AbstractVector{<:AbstractVector}, woundY::AbstractVector{<:AbstractVector}) where T<:Number
+    Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
+    @inbounds for i in eachindex(woundY)
+        d = woundInvσ[i];    ypred = woundYpred[i];    ydat = woundY[i]
+        @inbounds for k in eachindex(d)
+            Res += 2log(d[k]) - abs2(d[k]*(ydat[k] - ypred[k]))
+        end
+    end;    Res *= 0.5;    Res
+end
+function _EvalWoundsLogLikelihood(woundYpred::AbstractVector{T}, woundInvσ::AbstractVector{<:Number}, woundY::AbstractVector{<:Number}) where T<:Number
+    Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
+    @inbounds for i in eachindex(woundY)
+        Res += 2log(woundInvσ[i]) - abs2(woundInvσ[i]*(woundY[i] - woundYpred[i]))
+    end;    Res *= 0.5;    Res
+end
+
 
 function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmodraw = yinverrormodelraw(DS)
@@ -388,29 +412,7 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Nothing}, model::M
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundY = WoundY(DS);    woundX = WoundX(DS)
     woundInvσ = map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), woundX, woundYpred)
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractMatrix}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            Res += 2logdet(woundInvσ[i])
-            # Could use loop to avoid intermediate allocation of Matrix-Vector product but also cannot exploit multiplication of specialized matrix types anymore
-            Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
-        end;    Res *= 0.5;    Res
-    end
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractVector}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            d = woundInvσ[i];    ypred = woundYpred[i];    ydat = woundY[i]
-            @inbounds for k in eachindex(d)
-                Res += 2log(d[k]) - abs2(d[k]*(ydat[k] - ypred[k]))
-            end
-        end;    Res *= 0.5;    Res
-    end
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:Number}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            Res += 2log(woundInvσ[i]) - abs2(woundInvσ[i]*(woundY[i] - woundYpred[i]))
-        end;    Res *= 0.5;    Res
-    end;    _Eval(woundYpred, woundInvσ, woundY)
+    _EvalWoundsLogLikelihood(woundYpred, woundInvσ, woundY)
 end
 
 ### Missing data
@@ -433,8 +435,7 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
         Res::T = -length(Ydat)*log(2T(π))
         @inbounds for i in eachindex(Ydat)
             Res += 2log(Invσ[i]) - abs2(Invσ[i] * (Ydat[i] - Ypred[i]))
-        end
-        Res *= 0.5;    Res
+        end;    Res *= 0.5;    Res
     end
     function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
         @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
@@ -445,8 +446,7 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
             @inbounds for j in eachindex(Ydat)
                 Res -= abs2(Invσ[j,i] * z)
             end
-        end
-        Res *= 0.5;    Res
+        end;    Res *= 0.5;    Res
     end;    _Eval((@view yPredSparse[DS.predkeep]), InvσSparseKeep, ydata(DS))
 end
 

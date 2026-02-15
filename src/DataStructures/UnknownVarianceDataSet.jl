@@ -222,29 +222,7 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
     woundInvXσ = map((x,y)->Bessel .* xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred)
-    woundX = WoundX(DS);    woundY = WoundY(DS)
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractMatrix}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            Res += 2logdet(woundInvσ[i])
-            Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
-        end;    Res *= 0.5;    Res
-    end
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractVector}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            d = woundInvσ[i];    ypred = woundYpred[i];    ydat = woundY[i]
-            @inbounds for k in eachindex(d)
-                Res += 2log(d[k]) - abs2(d[k]*(ydat[k] - ypred[k]))
-            end
-        end;    Res *= 0.5;    Res
-    end
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:Number}, woundY)
-        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
-        @inbounds for i in eachindex(woundY)
-            Res += 2log(woundInvσ[i]) - abs2(woundInvσ[i]*(woundY[i] - woundYpred[i]))
-        end;    Res *= 0.5;    Res
-    end;    _Eval(woundYpred, woundInvYσ, woundY) + _Eval(woundXpred, woundInvXσ, woundX)
+    _EvalWoundsLogLikelihood(woundYpred, woundInvYσ, WoundY(DS)) + _EvalWoundsLogLikelihood(woundXpred, woundInvXσ, WoundX(DS))
 end
 
 
@@ -264,7 +242,7 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
     woundInvXσ = map((x,y)->Bessel .* xinverrmod(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
 
-    NormalParamJac = SplitterJacNormalParams(DS; SplitXs=identity)(θ)
+    NormalParamJac = SplitterJacNormalParams(DS; SkipXs=identity)(θ)
     J = BlockMatrix(BlockMatrix(woundInvXσ), BlockMatrix(woundInvYσ)) * (GetJac(ADmode, LiftedEmb, length(normalparams))(normalparams)) * NormalParamJac
     F_m = transpose(J) * J
 
