@@ -188,6 +188,7 @@ export GeneralizedDataSet
 
 include("DataStructures/DataSetUncertain.jl")
 export DataSetUncertain
+export ProportionalInvErrorModelFixed, ProportionalErrorModelFixed, ProportionalInvErrorModel, ProportionalErrorModel
 
 
 include("DataStructures/UnknownVarianceDataSet.jl")
