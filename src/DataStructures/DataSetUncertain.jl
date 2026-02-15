@@ -383,40 +383,45 @@ end
 
 
 function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Nothing}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where BesselCorrection
-    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS)
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmodraw = yinverrormodelraw(DS)
     woundYpred = Windup(EmbeddingMap(DS, model, normalparams; kwargs...), ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundY = WoundY(DS);    woundX = WoundX(DS)
-    woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
+    woundInvσ = map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), woundX, woundYpred)
     function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractMatrix}, woundY)
         Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
         @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
+            # Could use loop to avoid intermediate allocation of Matrix-Vector product but also cannot exploit multiplication of specialized matrix types anymore
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
-        end
-        Res *= 0.5;    Res
+        end;    Res *= 0.5;    Res
     end
-    function _Eval(woundYpred, woundInvσ::AbstractVector{<:DiagonalType}, woundY)
+    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractVector}, woundY)
         Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
         @inbounds for i in eachindex(woundY)
-            d = woundInvσ[i].diag;    ypred = woundYpred[i];    ydat = woundY[i]
+            d = woundInvσ[i];    ypred = woundYpred[i];    ydat = woundY[i]
             @inbounds for k in eachindex(d)
                 Res += 2log(d[k]) - abs2(d[k]*(ydat[k] - ypred[k]))
             end
-        end
-        Res *= 0.5;    Res
+        end;    Res *= 0.5;    Res
+    end
+    function _Eval(woundYpred, woundInvσ::AbstractVector{<:Number}, woundY)
+        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
+        @inbounds for i in eachindex(woundY)
+            Res += 2log(woundInvσ[i]) - abs2(woundInvσ[i]*(woundY[i] - woundYpred[i]))
+        end;    Res *= 0.5;    Res
     end;    _Eval(woundYpred, woundInvσ, woundY)
 end
 
 ### Missing data
 function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::ModelOrFunction, θ::AbstractVector{T}; kwargs...)::T where T<:Number where {BesselCorrection,Keep}
-    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodelraw(DS) ### raw here
+    Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmodraw = yinverrormodelraw(DS) ### raw here
     yPredSparse = EmbeddingMap(Val(true), model, normalparams, DS.woundXpred; kwargs...)
     woundYpredSparse = Windup(yPredSparse, ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
-    # Reallocation in BlockMatrix is limiting step for performance of matrix error models
+    # Reallocation in BlockMatrix is limiting step for performance of matrix error models!
     # Could probably decrease by rewriting _Eval for Vector{Vector} and Vector{Matrix}
-    InvσSparse = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> BlockMatrix
+    InvσSparse = map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> BlockMatrix
     InvσSparseKeep = if InvσSparse isa Diagonal
         (@view InvσSparse.diag[DS.predkeep])
     else
@@ -434,6 +439,7 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
     function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
         @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
         Res::T = -length(Ydat)*log(2T(π)) + 2logdet(Invσ)
+        # Res -= sum(abs2, Invσ * (Ydat .- Ypred))
         @inbounds for i in eachindex(Ydat)
             z = Ydat[i] - Ypred[i]
             @inbounds for j in eachindex(Ydat)
@@ -448,7 +454,6 @@ end
 
 # Build dedicated method for constructing full cholesky matrix from given error model and add to struct.
 
-# Potential for optimization by specializing on Type of invcov
 # AutoMetric SIGNIFICANTLY more performant for large datasets since orders of magnitude less allocations
 function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number where BesselCorrection
     Splitter = SplitErrorParams(DS);    normalparams, errorparams = Splitter(θ);    yinverrmod = yinverrormodel(DS);    yinverrmodraw = yinverrormodelraw(DS)
