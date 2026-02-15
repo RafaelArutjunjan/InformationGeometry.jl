@@ -115,19 +115,43 @@ Yd = [[(i ∈ [1,3,5] ? NaN : y) for (i,y) in enumerate(Y)] [(i ∉ [1,3,5] ? Na
 
 DSU = DataSetUncertain(T, Y)
 DMU = DataModel(DSU, SingleModel)
+# Matrix error mdoels
+DSU2 = DataSetUncertain(T, Y, (3,2,2), (x,y,c)->diagm([exp10(-c[1]), exp10(-c[1])]), InformationGeometry.DefaultErrorModelSplitter(1), [0.1])
+DMU2 = DataModel(DSU2, (t::AbstractVector,p) -> [SingleModel(t[1],p); SingleModel(t[2],p)])
 
+## Missing values
 DSUm = DataSetUncertain(T, Unwind(Yd), (6,1,2), (x,y,c)->[exp10(-c[1]), exp10(-c[1])], InformationGeometry.DefaultErrorModelSplitter(1), [0.1])
 DMUm = DataModel(DSUm, CopiedModel)
+# Matrix error model
+DSUm2 = DataSetUncertain(T, Unwind(Yd), (6,1,2), (x,y,c)->diagm([exp10(-c[1]), exp10(-c[1])]), InformationGeometry.DefaultErrorModelSplitter(1), [0.1])
+DMUm2 = DataModel(DSUm2, CopiedModel)
+
+@test DMU == DMU2
+@test DMUm == DMUm2
 
 
 @test loglikelihood(DMU, MLE(DMU)) ≈ loglikelihood(DMUm, MLE(DMU))
 @test Score(DMU, MLE(DMU)) ≈ Score(DMUm, MLE(DMU))
-# Currently using AutoMetric
 @test FisherMetric(DMU, MLE(DMU)) ≈ FisherMetric(DMUm, MLE(DMU))
-# @test InformationGeometry._FisherMetric(Data(DMU), Predictor(DMU), dPredictor(DMU), MLE(DMU)) ≈ InformationGeometry._FisherMetric(Data(DMUm), Predictor(DMUm), dPredictor(DMUm), MLE(DMU))
+@test AutoMetric(DMU, MLE(DMU)) ≈ AutoMetric(DMUm, MLE(DMU))
+
+@test abs(tr(inv(FisherMetric(DMU, MLE(DMU))) * AutoMetric(DMU, MLE(DMU))) - pdim(DMU)) < 1e-9
+@test abs(tr(inv(FisherMetric(DMU2, MLE(DMU))) * AutoMetric(DMU2, MLE(DMU))) - pdim(DMU)) < 1e-9
+@test abs(tr(inv(FisherMetric(DMUm, MLE(DMU))) * AutoMetric(DMUm, MLE(DMU))) - pdim(DMU)) < 1e-9
+@test abs(tr(inv(FisherMetric(DMUm2, MLE(DMU))) * AutoMetric(DMUm2, MLE(DMU))) - pdim(DMU)) < 1e-9
+
+@test loglikelihood(DMU2, MLE(DMU)) ≈ loglikelihood(DMUm2, MLE(DMU))
+@test sum(abs,Score(DMU2, MLE(DMU)) ≈ Score(DMUm2, MLE(DMU))) < 1e-9
+@test FisherMetric(DMU2, MLE(DMU)) ≈ FisherMetric(DMUm2, MLE(DMU))
+@test AutoMetric(DMU2, MLE(DMU)) ≈ AutoMetric(DMUm2, MLE(DMU))
+
+
 
 @test ysigma(DMU, MLE(DMU)) ≈ ysigma(DMUm, MLE(DMU))
 @test yInvCov(DMU, MLE(DMU)) ≈ yInvCov(DMUm, MLE(DMU))
+
+@test ysigma(DMU2, MLE(DMU)) ≈ ysigma(DMUm2, MLE(DMU))
+@test yInvCov(DMU2, MLE(DMU)) ≈ yInvCov(DMUm2, MLE(DMU))
 
 
 # DMU = SIRDMU
