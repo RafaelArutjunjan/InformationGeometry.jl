@@ -14,8 +14,8 @@ end
     include("testsets/more_boundary_tests.jl")
 end
 
-@safetestset "ODE-based models" begin 
-    include("testsets/diffeq_based_models.jl")
+@safetestset "Priors" begin 
+    include("testsets/priors.jl")
 end
 
 @safetestset "Model and Data Transformations" begin 
@@ -34,8 +34,8 @@ end
     include("testsets/datasetuncertain.jl")
 end
 
-@safetestset "Priors" begin 
-    include("testsets/priors.jl")
+@safetestset "UnknownVarianceDataSet" begin 
+    include("testsets/unknownvariancedataset.jl")
 end
 
 # @safetestset "PEtabExtension Tests" begin 
@@ -60,6 +60,10 @@ end
 
 @safetestset "Numerical Helper Functions" begin 
     include("testsets/numerical_helper_functions.jl")
+end
+
+@safetestset "ODE-based models" begin 
+    include("testsets/diffeq_based_models.jl")
 end
 
 @safetestset "Differential Geometry - Geodesics" begin 

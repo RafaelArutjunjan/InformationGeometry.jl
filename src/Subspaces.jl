@@ -286,7 +286,7 @@ struct HyperCube{Q<:AbstractVector{<:Number}} <: Cuboid
             diff = (0.5.*Padding) .* (uppers .- lowers)
             lowers = lowers .- diff;     uppers = uppers .+ diff
         end
-        !all(lowers .≤ uppers) && throw("First argument of HyperCube must be smaller than second.")
+        !all(lowers .≤ uppers) && throw("First argument of HyperCube must be smaller than second, got L=$lowers, U=$uppers.")
         # Circumvent StaticArray promotion for lazy FillArrays
         TypePromoter(lowers::FillArrays.AbstractFillVector, uppers::FillArrays.AbstractFillVector) = floatify(lowers), floatify(uppers)
         function TypePromoter(lowers::AbstractVector{<:Number}, uppers::AbstractVector{<:Number})

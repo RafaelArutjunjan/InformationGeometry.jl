@@ -139,6 +139,7 @@ DMUm2 = DataModel(DSUm2, CopiedModel)
 @test FisherMetric(DMU, MLE(DMU)) ≈ FisherMetric(DMUm, MLE(DMU))
 @test AutoMetric(DMU, MLE(DMU)) ≈ AutoMetric(DMUm, MLE(DMU))
 
+# trace test only works near MLE
 @test abs(tr(inv(FisherMetric(DMU, MLE(DMU))) * AutoMetric(DMU, MLE(DMU))) - pdim(DMU)) < 1e-9
 @test abs(tr(inv(FisherMetric(DMU2, MLE(DMU))) * AutoMetric(DMU2, MLE(DMU))) - pdim(DMU)) < 1e-9
 @test abs(tr(inv(FisherMetric(DMUm, MLE(DMU))) * AutoMetric(DMUm, MLE(DMU))) - pdim(DMU)) < 1e-9

@@ -430,14 +430,14 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
         MaskedSymmetricMatrix(InvσSparse, DS.predkeep)
     end
     
-    function _Eval(Ypred, Invσ::AbstractVector, Ydat)
+    @inline function _Eval(Ypred, Invσ::AbstractVector, Ydat)
         @assert length(Ydat) == length(Ypred) == length(Invσ)
         Res::T = -length(Ydat)*log(2T(π))
         @inbounds for i in eachindex(Ydat)
             Res += 2log(Invσ[i]) - abs2(Invσ[i] * (Ydat[i] - Ypred[i]))
         end;    Res *= 0.5;    Res
     end
-    function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
+    @inline function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
         @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
         Res::T = -length(Ydat)*log(2T(π)) + 2logdet(Invσ)
         # Res -= sum(abs2, Invσ * (Ydat .- Ypred))
@@ -468,18 +468,18 @@ function _FisherMetric(DS::DataSetUncertain{BesselCorrection}, model::ModelOrFun
     F_m = transpose(SJ) * SJ
 
     Σposhalf = inv(Σneghalf)
-    function InvSqrtCovFromFull(θ::AbstractVector)
-        normalparams, errorparams = Splitter(θ)
-        MaskedSymmetricMatrix(BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS)))), DS.datakeep)
-    end
-    function InvSqrtCovFromFullDiagonal(θ::AbstractVector)
-        normalparams, errorparams = Splitter(θ)
-        Res = reduce(vcat, map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
-        isnothing(DS.datakeep) ? Res : view(Res,DS.datakeep)
-    end
     ΣneghalfJac = if Σneghalf isa Diagonal
+        function InvSqrtCovFromFullDiagonal(θ::AbstractVector)
+            normalparams, errorparams = Splitter(θ)
+            Res = reduce(vcat, map((x,y)->Bessel .* yinverrmodraw(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS))))
+            isnothing(DS.datakeep) ? Res : view(Res,DS.datakeep)
+        end
         GetJac(ADmode, InvSqrtCovFromFullDiagonal, length(θ))(θ)
     else
+        function InvSqrtCovFromFull(θ::AbstractVector)
+            normalparams, errorparams = Splitter(θ)
+            MaskedSymmetricMatrix(BlockMatrix(map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, Windup(EmbeddingMap(Val(true), model, normalparams, woundX), ydim(DS)))), DS.datakeep)
+        end
         GetMatrixJac(ADmode, InvSqrtCovFromFull, length(θ), size(Σposhalf))(θ)
     end
 
