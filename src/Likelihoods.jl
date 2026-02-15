@@ -188,6 +188,21 @@ AutoMetricFromScore(S::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMet
 AutoMetricFromNegScore(N::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMethods(GetJac(ADmode, N), GetJac!(ADmode, N))
 
 
+# FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM)(θ; kwargs...)
+
+"""
+    FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
+Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
+```math
+g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
+```
+"""
+FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM)(θ; kwargs...)
+
+# Specialize this for other DataSet types
+_FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
+
+
 
 Score(DM::AbstractDataModel; kwargs...) = LogLikelihoodGradient(θ::AbstractVector{<:Number}; Kwargs...) = Score(DM, θ; kwargs..., Kwargs...)
 NegScore(DM::AbstractDataModel; kwargs...) = NegateBoth(Score(DM; kwargs...))
@@ -266,28 +281,35 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
             !!! note
                 The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
             """
-            ScoreWithPrior(θ::AbstractVector{<:Number}; kwargs...) = S(θ; kwargs...) .+ EvalLogPriorGrad(LogPriorFn, θ; ADmode)
-            function ScoreWithPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
-                S!(dl, θ; kwargs...);    dl += EvalLogPriorGrad(LogPriorFn, θ; ADmode);    dl
+            ScoreWithPrior(θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...) = S(θ; kwargs...) .+ EvalLogPriorGrad(LogPriorFn, θ; ADmode)
+            function ScoreWithPrior(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...)
+                S!(dl, θ; kwargs...);    dl .+= EvalLogPriorGrad(LogPriorFn, θ; ADmode);    dl
             end
         end
     end
 end
 
-function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
-                                    UseHess::Bool=DS isa AbstractUnknownUncertaintyDataSet, Kwargs...)
+function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Union{Function,Nothing}=nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
+                                    UseHess::Bool=false, IncludePrior::Bool=true, Kwargs...)
     ## Pure autodiff typically slow since must be recompiled!
     if UseHess
+        @assert !isnothing(LogLikelihoodFn)
         NL = Negate(LogLikelihoodFn);    F, F! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
         FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
         FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
     else
-        FisherMetricFn(θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DS, model, dmodel, θ, LogPriorFn; kwargs...)
-        FisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = copyto!(M, FisherMetricFn(θ; kwargs...))
+        FisherMetricFn(θ::AbstractVector{<:Number}; kwargs...) = _FisherMetric(DS, model, dmodel, θ; Kwargs..., kwargs...)
+        FisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = copyto!(M, FisherMetricFn(θ; Kwargs..., kwargs...))
+        if !IncludePrior || isnothing(LogPriorFn)
+            FisherMetricFn
+        else
+            FisherMetricFnWithPrior(θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...) = FisherMetricFn(θ; Kwargs..., kwargs...) .- EvalLogPriorHess(LogPriorFn, θ; ADmode)
+            FisherMetricFnWithPrior(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...) = (FisherMetricFn(M, θ; Kwargs..., kwargs...);    M .-= EvalLogPriorHess(LogPriorFn, θ; ADmode);    M)
+        end
     end
 end
 
-function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractParameterTransformations, LogPriorFn::Union{Function,Nothing}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::AbstractParameterTransformations, LogPriorFn::Union{Function,Nothing}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), IncludePrior::Bool=true, Kwargs...)
     @assert length(DMs) == length(Trafos)
     Jac = DerivableFunctionsBase._GetJac(ADmode)
     ## For Fisher information, second derivatives of Parameter Trafos (multiplied with Score) drop out since expectation of score is zero
@@ -312,11 +334,11 @@ function GetFisherInfoFn(DMs::AbstractVector{<:AbstractDataModel}, Trafos::Abstr
             end
         end;    M
     end
-    if isnothing(LogPriorFn)
+    if isnothing(LogPriorFn) || !IncludePrior
         CompositeFisherMetricFn
     else
-        CompositeFisherMetricFnWithPrior(θ::AbstractVector{<:Number}; kwargs...) = CompositeFisherMetricFn(θ; Kwargs..., kwargs...) .- EvalLogPriorHess(LogPriorFn, θ; ADmode)
-        CompositeFisherMetricFnWithPrior(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = (CompositeFisherMetricFn(M, θ; Kwargs..., kwargs...);   M .-= EvalLogPriorHess(LogPriorFn, θ; ADmode);  M)
+        CompositeFisherMetricFnWithPrior(θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...) = CompositeFisherMetricFn(θ; Kwargs..., kwargs...) .- EvalLogPriorHess(LogPriorFn, θ; ADmode)
+        CompositeFisherMetricFnWithPrior(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; ADmode=ADmode, kwargs...) = (CompositeFisherMetricFn(M, θ; Kwargs..., kwargs...);   M .-= EvalLogPriorHess(LogPriorFn, θ; ADmode);  M)
     end
 end
 

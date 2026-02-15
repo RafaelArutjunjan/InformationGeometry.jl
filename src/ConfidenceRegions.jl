@@ -676,27 +676,6 @@ function GenerateInterruptedBoundary(DM::AbstractDataModel, u0::AbstractVector{<
 end
 
 
-# Assume that sums from Fisher metric defined with first derivatives of loglikelihood pull out
-
-# FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM)(θ; kwargs...)
-
-"""
-    FisherMetric(DM::DataModel, θ::AbstractVector{<:Number})
-Computes the Fisher metric ``g`` given a `DataModel` and a parameter configuration ``\\theta`` under the assumption that the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` is a multivariate normal distribution.
-```math
-g_{ab}(\\theta) \\coloneqq -\\int_{\\mathcal{D}} \\mathrm{d}^m y_{\\mathrm{data}} \\, L(y_{\\mathrm{data}} \\,|\\, \\theta) \\, \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} = -\\mathbb{E} \\bigg( \\frac{\\partial^2 \\, \\mathrm{ln}(L)}{\\partial \\theta^a \\, \\partial \\theta^b} \\bigg)
-```
-"""
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = FisherMetric(DM)(θ; kwargs...)
-FisherMetric(DM::AbstractDataModel, θ::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; kwargs...) = (@warn "Will deprecate this FisherMetric method soon!";   FisherMetric(Data(DM), Predictor(DM), dPredictor(DM), θ, LogPriorFn; kwargs...))
-
-FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Nothing; kwargs...) = _FisherMetric(DS, model, dmodel, θ; kwargs...)
-# ADD MINUS SIGN FOR LogPrior TERM TO ACCOUNT FOR NEGATIVE SIGN IN DEFINTION OF FISHER METRIC
-FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, LogPriorFn::Function; kwargs...) = _FisherMetric(DS, model, dmodel, θ; kwargs...) - EvalLogPriorHess(LogPriorFn, θ)
-
-
-# Specialize this for other DataSet types
-_FisherMetric(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}; kwargs...) = Pullback(DS, dmodel, yInvCov(DS), θ; kwargs...)
 
 # Does not work for CDS
 # Data covariance matrix for a single data point, computed from the mean
