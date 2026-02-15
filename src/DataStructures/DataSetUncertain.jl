@@ -54,8 +54,45 @@ function ErrorModelDependencies(DS::AbstractUnknownUncertaintyDataSet, errmodraw
     end
 end
 
+"""
+    ProportionalInvErrorModelFixed(Ts::AbstractVector, YsigmaInvHalf::AbstractVector)
+Creates error model which scales errors of known magnitude based on given x-values.
+Allows one to estimate overall error to correct size while keeping relative weights between data points fixed.
+Checks for equality between inputs `t` and given `Ts`.
+"""
+function ProportionalInvErrorModelFixed(Ts::AbstractVector, YsigmaInvHalf::AbstractVector)
+    @assert length(Ts) == length(YsigmaInvHalf)
+    @assert allunique(Ts)
+    ExpScale(c::AbstractVector, YsigmaInvHalf::AbstractVector) = exp10.(-c) .* YsigmaInvHalf
+    ExpScale(c::AbstractVector, YsigmaInvHalf::Number) = exp10(-c[1]) * YsigmaInvHalf
+    function ScaledKnownErrors(x, y, c::AbstractVector)
+        i = findfirst(isequal(x), Ts)
+        isnothing(i) && throw("Given inputs x=$x not in recorded X=$Ts.")
+        ExpScale(c, YsigmaInvHalf[i])
+    end
+end
+ProportionalErrorModelFixed(Ts::AbstractVector, Ysigma::AbstractVector; kwargs...) = ProportionalInvErrorModelFixed(Ts, inv.(Ysigma); kwargs...)
 
-# Use general bitvector mask to implement missing values
+# Also works when Ts slightly deviate from observed, i.e. not testing for exact equality
+"""
+    ProportionalInvErrorModelFixed(Ts::AbstractVector, YsigmaInvHalf::AbstractVector)
+Creates error model which scales errors of known magnitude based on given x-values.
+Allows one to estimate overall error to correct size while keeping relative weights between data points fixed.
+Matches closest entry of given `Ts` to inputs `t`, i.e. does not test for exact equality.
+"""
+function ProportionalInvErrorModel(Ts::AbstractVector, YsigmaInvHalf::AbstractVector; MaxDiff::Real=MaxDiff=minimum(diff(sort(Ts))))
+    @assert length(Ts) == length(YsigmaInvHalf)
+    @assert allunique(Ts)
+    ExpScale(c::AbstractVector, YsigmaInvHalf::AbstractVector) = exp10.(-c) .* YsigmaInvHalf
+    ExpScale(c::AbstractVector, YsigmaInvHalf::Number) = exp10(-c[1]) * YsigmaInvHalf
+    function ScaledKnownErrors(x, y, c::AbstractVector)
+        f, i = findmin(t->abs(t-x), Ts)
+        @assert f < MaxDiff "Error in proportional error model for: x=$x, Ts=$Ts."
+        ExpScale(c, YsigmaInvHalf[i])
+    end
+end
+ProportionalErrorModel(Ts::AbstractVector, Ysigma::AbstractVector; kwargs...) = ProportionalInvErrorModel(Ts, inv.(Ysigma); kwargs...)
+
 
 """
     DataSetUncertain(x::AbstractVector, y::AbstractVector, σ⁻¹::Function, c::AbstractVector; BesselCorrection::Bool=false)
@@ -351,11 +388,21 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Nothing}, model::M
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
     woundY = WoundY(DS);    woundX = WoundX(DS)
     woundInvσ = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), woundX, woundYpred)
-    function _Eval(woundYpred, woundInvσ, woundY)
+    function _Eval(woundYpred, woundInvσ::AbstractVector{<:AbstractMatrix}, woundY)
         Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
         @inbounds for i in eachindex(woundY)
             Res += 2logdet(woundInvσ[i])
             Res -= sum(abs2, woundInvσ[i] * (woundY[i] - woundYpred[i]))
+        end
+        Res *= 0.5;    Res
+    end
+    function _Eval(woundYpred, woundInvσ::AbstractVector{<:DiagonalType}, woundY)
+        Res::T = -(length(woundY)*length(woundY[1]))*log(2T(π))
+        @inbounds for i in eachindex(woundY)
+            d = woundInvσ[i].diag;    ypred = woundYpred[i];    ydat = woundY[i]
+            @inbounds for k in eachindex(d)
+                Res += 2log(d[k]) - abs2(d[k]*(ydat[k] - ypred[k]))
+            end
         end
         Res *= 0.5;    Res
     end;    _Eval(woundYpred, woundInvσ, woundY)
@@ -367,7 +414,8 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
     yPredSparse = EmbeddingMap(Val(true), model, normalparams, DS.woundXpred; kwargs...)
     woundYpredSparse = Windup(yPredSparse, ydim(DS))
     Bessel = BesselCorrection ? sqrt((length(ydata(DS))-DOF(DS, θ))/(length(ydata(DS)))) : one(T)
-    ## Currently only works for diagonal error models
+    # Reallocation in BlockMatrix is limiting step for performance of matrix error models
+    # Could probably decrease by rewriting _Eval for Vector{Vector} and Vector{Matrix}
     InvσSparse = map((x,y)->Bessel .* yinverrmod(x,y,errorparams), DS.woundXpred, woundYpredSparse) |> BlockMatrix
     InvσSparseKeep = if InvσSparse isa Diagonal
         (@view InvσSparse.diag[DS.predkeep])
@@ -385,8 +433,13 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
     end
     function _Eval(Ypred, Invσ::AbstractMatrix, Ydat)
         @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
-        Res::T = -length(Ydat)*log(2T(π))
-        Res += 2logdet(Invσ) - sum(abs2, Invσ * (Ydat .- Ypred))
+        Res::T = -length(Ydat)*log(2T(π)) + 2logdet(Invσ)
+        @inbounds for i in eachindex(Ydat)
+            z = Ydat[i] - Ypred[i]
+            @inbounds for j in eachindex(Ydat)
+                Res -= abs2(Invσ[j,i] * z)
+            end
+        end
         Res *= 0.5;    Res
     end;    _Eval((@view yPredSparse[DS.predkeep]), InvσSparseKeep, ydata(DS))
 end
