@@ -70,7 +70,9 @@ IPU = IntegrationParameterProfiles(DMU, 2.2; N=31, plot=false, verbose=false)
 IPU2 = IntegrationParameterProfiles(DMU, 2.2; N=31, γ=0.5, plot=false, verbose=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(IPU2, 2)))
 
-@test StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false) isa InformationGeometry.MultistartResults
+S = StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false)
+@test S isa InformationGeometry.MultistartResults
+
 
 ## Test FullParameterProfiles
 DME = DataModel(DataSetExact(Data(DM), 0.25), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DME)
@@ -93,3 +95,11 @@ using ComponentArrays, InformationGeometry
 X = ComponentVector(A=5.0, B=3.0)
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
 @test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, X); plot=false))))
+
+
+using Plots
+@test Plots.plot(PU) isa Plots.Plot
+@test PlotProfilePaths(PU) isa Plots.Plot
+@test PlotProfileTrajectories(PU) isa Plots.Plot
+@test PlotAlongProfilePaths(PU, norm) isa Plots.Plot
+@test Plots.plot(S) isa Plots.Plot

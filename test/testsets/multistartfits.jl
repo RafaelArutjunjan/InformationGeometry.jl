@@ -26,3 +26,6 @@ RU3 = MultistartFit(InformationGeometry.Negloglikelihood(DMU), MvNormal([0.,0], 
 @test sum(abs, MLE(LocalMultistartFit(DMU, MLE(RU); N=5)) -MLE(RU)) < 3e-8
 
 @test sum(abs, IncrementalTimeSeriesFit(DMU, MLE(RU))-MLE(RU)) < 3e-8
+
+using Plots
+@test Plots.plot(RU) isa Plots.Plot
