@@ -687,7 +687,7 @@ end
 
 
 ## Get Jacobian from full parameter vector to inner model parameters i.e. without xpars or errorpars
-SplitterJacNormalParams(DS::Union{AbstractDataModel,AbstractDataSet}; ADmode::Val=Val(:ForwardDiff)) = !HasEstimatedUncertainties(DS) ? (x->1.0) : GetJac(ADmode, x->SkipXs(DS)((SplitErrorParams(DS)(x))[1]))
+SplitterJacNormalParams(DS::Union{AbstractDataModel,AbstractDataSet}; SkipXs::Bool=SkipXs(DS), ADmode::Val=Val(:ForwardDiff)) = !HasEstimatedUncertainties(DS) ? (x->1.0) : GetJac(ADmode, x->SkipXs((SplitErrorParams(DS)(x))[1]))
 
 
 
