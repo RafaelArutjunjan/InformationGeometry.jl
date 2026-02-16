@@ -182,10 +182,10 @@ CostHessian(DM::AbstractDataModel, θ::AbstractVector{<:Number}; kwargs...) = Co
 ## Generate Hessian from given Gradient with ADmode
 ## E.g. when cost not AutoDiffble but Score manually provided
 ## For FiniteDifferences and similar, much faster than using GetHess on original scalar function
-AutoMetricFromScore(DM::AbstractDataModel, S::Function=Score(DM); kwargs...) = AutoMetricFromScore(S; kwargs...)
-AutoMetricFromScore(S::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMethods(GetJac(ADmode, Negate(S)), GetJac!(ADmode, Negate!!(S)))
+AutoMetricFromScore(DM::AbstractDataModel, S::Function=Score(DM), args...; kwargs...) = AutoMetricFromScore(S, args...; kwargs...)
+AutoMetricFromScore(S::Function, args...; ADmode::Val=Val(:ForwardDiff), kwargs...) = MergeOneArgMethods(GetJac(ADmode, Negate(S), args...; kwargs...), GetJac!(ADmode, Negate!!(S), args...; kwargs...))
 # No negation
-AutoMetricFromNegScore(N::Function; ADmode::Val=Val(:ForwardDiff)) = MergeOneArgMethods(GetJac(ADmode, N), GetJac!(ADmode, N))
+AutoMetricFromNegScore(N::Function, args...; ADmode::Val=Val(:ForwardDiff), kwargs...) = MergeOneArgMethods(GetJac(ADmode, N, args...; kwargs...), GetJac!(ADmode, N, args...; kwargs...))
 
 
 # FisherMetric(DM::AbstractDataModel; kwargs...) = θ::AbstractVector{<:Number} -> FisherMetric(DM)(θ; kwargs...)
