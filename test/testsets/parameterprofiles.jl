@@ -80,6 +80,11 @@ FP = FullParameterProfiles(DME,1; pDomain=FullDomain(2,10), plot=false)
 @test all(isfinite∘sum, Tuple(ProfileBox(FP, 1))[end-1:end])
 
 
+# Test PredictionProfiles
+PP = PredictionProfiles(DM, 1)
+@test all(isfinite∘sum, Tuple(ProfileBox(PP,1)))
+
+
 CG = ConditionGrid([DM, DMp])
 PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)
 PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10, plot=false, verbose=false)

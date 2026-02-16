@@ -306,11 +306,12 @@ end
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
-                        LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(UseGrad ? NegScore(DM) : nothing),
-                        UseHess::Bool=false, ADmode::Val=Val(:ForwardDiff), GenerateNewDerivatives::Bool=false, SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing,
-                        FisherMetricFn::Function=FisherMetric(DM), CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
+                        LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), GenerateNewDerivatives::Bool=false, ADmode::Val=Val(:ForwardDiff), 
+                        SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing, FisherMetricFn::Function=FisherMetric(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), 
+                        UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(!UseGrad ? nothing : (GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM))),
+                        UseHess::Bool=false, CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
-                        MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
+                        logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
@@ -1710,17 +1711,19 @@ end
 
 
 # Generate validation profile centered on prediction at a single independent variable t
+# Ficticious point contribution accounted for via prior field, if a prior already exists then it is not saved separately in the profile object but still accounted for
 function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM),
-                                MLE::AbstractVector{<:Number}=MLE(DM), ypred::Real=Predictor(DM)(t,MLE)[yComp], yoffset::Real=ypred, 
+                                MLE::AbstractVector{<:Number}=MLE(DM), ypred::Real=Predictor(DM)(t,MLE)[yComp], yoffset::Real=ypred,
                                 dof::Int=DOF(DM), LinPredictionUncert::Real=(C=VariancePropagation(DM, MLE; Confnum, dof)(t);   ydim(DM)>1 ? C[yComp, yComp] : C),
-                                DivideBy::Real=5, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+                                DivideBy::Real=6, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0
     M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - M(t, θ)[yComp] + yoffset))
     VPL(θnew::AbstractVector) = LogLikelihoodFn(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
     mleNew = [MLE; (ypred-yoffset)];    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
-    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
+    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
+                Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
 # Generate multiple validation profiles and add back offset to prediction scale
@@ -1736,14 +1739,14 @@ function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVecto
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
     for i in eachindex(Ts)
         zProf = map(TrajPoint->Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp], Trajs[i])
-        Profs[i] = @views hcat(Profs[i][:,1:end-1], zProf, Profs[i][:,end])
+        insert!(Profs[i].u, length(Profs[i].u), zProf)
     end
     # If should remain on true scale, add ypreds back on
     offsetvec = OffsetToZero ? Zeros(length(Ts)) : ypreds
     for i in eachindex(Ts)   Profs[i][:,1] .+= offsetvec[i];     for j in 1:size(Trajs[i],1)    Trajs[i][j][end] += offsetvec[i]    end    end
     VPL = "VPL"*(ydim(DM) > 1 ? "[$(yComp)]" : "");   ParameterProfiles(Profs, Trajs, [VPL*"($(Ts[i]))" for i in eachindex(Ts)], offsetvec, dof, IsCost; Meta)
 end
-ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = ValidationProfile(DM, yComp, [t]; kwargs...)
+ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = ValidationProfiles(DM, yComp, [t]; kwargs...)
 
 # Add virtual point to validation profile again to obtain prediction profile
 """
@@ -1755,7 +1758,7 @@ function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
     @assert VP.Meta === :ValidationProfiles
     @assert all(size.(Profiles(VP),2) .> 4) # Make sure z-values saved in the Profile matrix, as well as priors
     # Use fourth column with z-values instead of original v-parameters from validation profile
-    Profs = [(M=P[:, [4,2,size(P,2)]];   M[:,2] .-= P[:, 3]; M) for P in Profiles(VP)]
+    Profs = [(M=P[[4,2,length(P)]];   M[2] .-= P[3];   VectorOfArray(M)) for P in Profiles(VP)]
     remake(VP; Profiles=Profs, Meta=:PredictionProfiles, Names=Symbol.(map(x->replace(x, "VPL"=>"PPL"), string.(VP.Names))), kwargs...)
 end
 """
