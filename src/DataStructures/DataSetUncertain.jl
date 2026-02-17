@@ -25,18 +25,19 @@ By further masking `predkeep` with `datakeep`, missing values can be accounted f
 function GetPredKeep(T::AbstractVector, Ydata::AbstractMatrix)
     @boundscheck @assert length(T) == size(Ydata,1)
     @assert !any(z->!any(x->!ismissing(x) && isfinite(x),z), eachrow(Ydata)) "Whole rows in ydata matrix missing, remove empty rows and corresponding times first."
-    Ydim = size(Ydata,2)
-    RowIndices(row::Int) = (row-1)*Ydim+1:row*Ydim
-    
+    Ydim = size(Ydata,2);    RowIndices(row::Int) = (row-1)*Ydim+1:row*Ydim
     Tstar = sort!(unique(T))
     predkeep = reduce(vcat, [RowIndices(row) for row in Int.(indexin(T, Tstar))])
     Tstar, predkeep
 end
 
+using DerivableFunctionsBase: SymbolicPassthrough
 function ErrorModelDependencies(DS::AbstractUnknownUncertaintyDataSet, errmodraw::Function=yinverrormodelraw(DS), ptest::AbstractVector=DS.testpy; verbose::Bool=true)
-    Xs = MakeSymbolicParsOld(Xnames(DS));    Ys = MakeSymbolicParsOld(Ynames(DS))
+    ErrorModelDependencies(errmodraw, Xnames(DS), Ynames(DS), Symbol.(CreateSymbolNames(length(ptest))); verbose)
+end
+function ErrorModelDependencies(errmodraw::Function, Xnames::AbstractVector{<:StringOrSymb}, Ynames::AbstractVector{<:StringOrSymb}, Pnames::AbstractVector{<:StringOrSymb}; verbose::Bool=true)
+    Xs = MakeSymbolicPars(Symbol.(Xnames));    Ys = MakeSymbolicPars(Symbol.(Ynames));    Ps = MakeSymbolicPars(Symbol.(Pnames))
     length(Xs) == 1 && (Xs = Xs[1]);    length(Ys) == 1 && (Ys = Ys[1])
-    Ps = MakeSymbolicParsOld(Symbol.(CreateSymbolNames(length(ptest))))
     # [:derivative, :gradient, :jacobian, :hessian, :doublejacobian, :matrixjacobian]
     DerivType(Z::AbstractVector, P::AbstractVector) = :jacobian
     DerivType(Z::Number, P::AbstractVector) = :gradient
@@ -44,15 +45,16 @@ function ErrorModelDependencies(DS::AbstractUnknownUncertaintyDataSet, errmodraw
     DerivType(Z::AbstractMatrix, P::AbstractVector) = :matrixjacobian
     try
         Z = errmodraw(Xs, Ys, Ps)
-        Xdep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Xs, DerivType(Z, Xs)))
-        Ydep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Ys, DerivType(Z, Ys)))
-        Pdep = !all(isequal(zero(Num)), DerivableFunctionsBase.SymbolicPassthrough(Z, Ps, DerivType(Z, Ps)))
+        Xdep = !all(isequal(zero(Num)), SymbolicPassthrough(Z, Xs, DerivType(Z, Xs)))
+        Ydep = !all(isequal(zero(Num)), SymbolicPassthrough(Z, Ys, DerivType(Z, Ys)))
+        Pdep = !all(isequal(zero(Num)), SymbolicPassthrough(Z, Ps, DerivType(Z, Ps)))
         (Xdep, Ydep, Pdep)
     catch E;
-        verbose && println("ErrorModelDependencies: ", E)
+        verbose && println("ErrorModelDependencies: $E")
         (true, true, true)
     end
 end
+
 
 """
     ProportionalInvErrorModelFixed(Ts::AbstractVector, YsigmaInvHalf::AbstractVector)
@@ -130,6 +132,8 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
     datakeep::Union{Nothing, AbstractVector{<:Bool}} ## falses correspond to locations of missing values
     predkeep::Union{Nothing, AbstractVector{<:Int}} ## Which ys to keep from EmbeddingMap evaluated at sparsified woundXpred to reconstruct ydata
     woundXpred::Union{Nothing, AbstractVector} # sorted woundX with duplicates removed
+    nerrorparameters::Int
+    ErrorModelDependencies::Tuple{Bool,Bool,Bool}
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -166,6 +170,7 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
     end
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, errorparamsplitter::Function, testpy::AbstractVector,
                 xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(ydim(dims),"y"), name::StringOrSymb=Symbol(); 
+                nerrorparameters::Int=length(testpy), ErrorModelDependencies::Tuple{Bool,Bool,Bool}=(true, true, true), # ErrorModelDependencies(inverrormodelraw, xnames, ynames, CreateSymbolNames(length(testpy))), 
                 datakeep::Union{Nothing,AbstractVector{<:Bool}}=map(z->!ismissing(z) && isfinite(z), y), predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing, woundXpred::Union{Nothing,AbstractVector}=nothing, kwargs...)
         testout = inverrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
         Inverrormodelraw, Inverrormodel = ErrorModelTester(inverrormodelraw, testout)
@@ -178,12 +183,13 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
                 sparseX, predkeepraw[datakeep]
             end
         else  woundXpred, predkeep  end
-        DataSetUncertain(x, (!all(datakeep) ? y[datakeep] : y), dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, (!all(datakeep) ? datakeep : nothing), Keep, WoundXpred, xnames, ynames, name; kwargs...)
+        DataSetUncertain(x, (!all(datakeep) ? y[datakeep] : y), dims, Inverrormodelraw, testout, Inverrormodel, testpy, errorparamsplitter, (!all(datakeep) ? datakeep : nothing), Keep, WoundXpred, 
+                            nerrorparameters, ErrorModelDependencies, xnames, ynames, name; kwargs...)
     end
     ## Assume missings already removed and accounted for in keep and WoundX
     function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, testpy::AbstractVector, 
                 errorparamsplitter::Function, datakeep::Union{Nothing,AbstractVector{<:Bool}}, predkeep::Union{Nothing,AbstractVector{<:Int}}, woundXpred::Union{Nothing,AbstractVector}, 
-                xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
+                nerrorparameters::Int, ErrorModelDependencies::Tuple{Bool,Bool,Bool}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
@@ -194,7 +200,7 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
         ydim(dims) == 1 && (@assert testout isa Number && testout > 0)
         ydim(dims) > 1 && @assert (testout isa AbstractVector && length(testout) == ydim(dims) && all(testout .> 0)) || (testout isa AbstractMatrix && size(testout,1) == size(testout,2) == ydim(dims) && det(testout) > 0)
         
-        new{BesselCorrection, typeof(predkeep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection, typeof(predkeep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, nerrorparameters, ErrorModelDependencies, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
@@ -212,14 +218,17 @@ testout::Union{Number,<:AbstractVector,<:AbstractMatrix}=5,
 inverrormodel::Function=identity, 
 testpy::AbstractVector{<:Number}=[0.],
 errorparamsplitter::Function=x->(x[1], x[2]),
+datakeep::Union{Nothing,AbstractVector{<:Bool}}=nothing, 
+predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing,
+woundXpred::Union{Nothing,AbstractVector}=nothing,
+nerrorparameters::Int=length(testpy), 
+ErrorModelDependencies::Tuple{Bool,Bool,Bool}=(true,true,true), 
 xnames::AbstractVector{<:StringOrSymb}=[:x],
 ynames::AbstractVector{<:StringOrSymb}=[:y],
 BesselCorrection::Bool=false,
 verbose::Bool=true,
-datakeep::Union{Nothing,AbstractVector{<:Bool}}=nothing, 
-predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing,
-woundXpred::Union{Nothing,AbstractVector}=nothing,
-name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, xnames, ynames, name; BesselCorrection, verbose)
+name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, 
+                            woundXpred, nerrorparameters, ErrorModelDependencies, xnames, ynames, name; BesselCorrection, verbose)
 
 DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
 Identity2Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ))
@@ -253,6 +262,9 @@ yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(
 HasBessel(DS::DataSetUncertain{T}) where T = T
 
 HasMissingValues(CDS::DataSetUncertain{<:Any, <:AbstractVector}) = true
+
+NumberOfErrorParameters(DS::DataSetUncertain, mle::AbstractVector) = DS.nerrorparameters
+
 
 ## Map WoundY to WoundYmasked for DataSetUncertain, since the only reason to want to wind up is for predictions without missings
 WoundY(DS::DataSetUncertain) = WoundYmasked(DS)

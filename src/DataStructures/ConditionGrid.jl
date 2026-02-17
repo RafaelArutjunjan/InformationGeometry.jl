@@ -51,9 +51,6 @@ IsIdentityTrafo(P::ParamTrafo) = IsIdentityTrafo(Trafos(P))
 IsIdentityTrafo(P::AbstractVector{<:Function}) = all(isequal(identity), P)
 
 
-# function TryToInferPnames()
-# end
-
 # Get Vector of inds for viewing into concatenated vector made of individual lengths
 IndsVecFromLengths(Lenghts::AbstractVector{<:Int}) = (C=[0;cumsum(Lenghts)];   [1+C[i-1]:C[i] for i in 2:length(C)])
 
@@ -99,12 +96,7 @@ struct ConditionGrid <: AbstractConditionGrid
         @assert allunique(InformationGeometry.name.(DMs))
         !isnothing(Domain) && @assert length(Domain) == length(mle)
 
-        Mle = if SkipOptim
-            verbose && @info "ConditionGrid: Not performing optimization!"
-            mle
-        else
-            InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
-        end
+        Mle = SkipOptim ? mle : InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
         logLikeMLE = isnothing(LogLikeMLE) ? LogLikelihoodFn(Mle) : LogLikeMLE
 
         new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, logLikeMLE)
@@ -289,7 +281,8 @@ RecipesBase.@recipe function f(CG::AbstractConditionGrid, mle::AbstractVector{<:
                         Fisher
                     else
                         J = DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
-                        inv(J * InvFisher * transpose(J))
+                        # pseudo-inverse here?
+                        try inv(J * InvFisher * transpose(J)) catch; nothing end
                     end
             else
                 Fisher --> nothing
@@ -320,7 +313,8 @@ function RecipesBase.plot(CG::AbstractConditionGrid, mle::AbstractVector{<:Numbe
                     Fisher
                 else
                     J = DerivableFunctionsBase._GetJac(ADmode)(Trafos(CG)[ind], mle)
-                    inv(J * InvFisher * transpose(J))
+                    # pseudo-inverse here?
+                    try inv(J * InvFisher * transpose(J)) catch; nothing end
                 end
             else
                 nothing
@@ -381,5 +375,5 @@ function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::Abstra
         SubComponentModel(Predictor(DM), Structure[i], xdim(DM), ydim(DM)),
         SubComponentDModel(dPredictor(DM), Structure[i], xdim(DM), ydim(DM)),
         MLE(DM), true; name=Symbol(Structure[i])) for i in eachindex(Structure)]
-    ConditionGrid(DMs, InformationGeometry.ParamTrafo([identity for i in eachindex(Structure)], Symbol.(Structure)), LogPrior(DM), MLE(DM); name=name(DM), SkipOptim=true, SkipTests=true)
+    ConditionGrid(DMs, InformationGeometry.ParamTrafo([identity for i in eachindex(Structure)], Symbol.(Structure), MLE(DM)), LogPrior(DM), MLE(DM); name=name(DM), SkipOptim=true, SkipTests=true)
 end
