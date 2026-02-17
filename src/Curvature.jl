@@ -204,10 +204,7 @@ Computes the second fundamental form where J is the Jacobian and H the Hessian o
 P_N is the projection onto the direction normal to the model manifold in the "tangent space of the data space".
 """
 function _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix) where T<:Number
-    N, k = size(J)
-    @boundscheck @assert N == size(H,1) == size(P_N,1) == size(P_N,2)
-    @boundscheck @assert k == size(H,2) == size(H,3)
-    
+    N, k = size(J);    @boundscheck @assert N == size(H,1) == size(P_N,1) == size(P_N,2);    @boundscheck @assert k == size(H,2) == size(H,3)
     II = Array{Vector{T}}(undef, k, k)
     @inbounds for i in 1:k, j in 1:k
         II[i,j] = P_N * view(H, :, i, j)
@@ -223,15 +220,15 @@ function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmod
                         g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=inv(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
     @boundscheck @assert length(mle) == size(g,1) == size(g,2) == size(g⁻¹,1) == size(g⁻¹,2)
     J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
-    P_N = Eye(size(J,1)) .- J * g⁻¹ * (J' * Σ⁻¹) # Normal projector of model manifold tangent space in ambient space
+    P_N = Eye(size(J,1)) .- J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
     @inbounds _SecondFundamentalForm(J, H, P_N)
 end
 
 for F in [:EfronScalarCurvature, :EfronMeanCurvature,
-    :EfronRicciCurvature, :EfronRicciCurvature2,
-    :EfronRiemannCurvature, :EfronRiemannCurvature2,
-    :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
-    :EfronShapeOperator, :EfronCurvatureIsotropy]
+            :EfronRicciCurvature, :EfronRicciCurvature2,
+            :EfronRiemannCurvature, :EfronRiemannCurvature2,
+            :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
+            :EfronShapeOperator, :EfronCurvatureIsotropy]
     @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
             g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
