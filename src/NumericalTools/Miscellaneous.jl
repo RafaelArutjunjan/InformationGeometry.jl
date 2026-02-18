@@ -112,9 +112,9 @@ DataSetType(DS::GeneralizedDataSet) = GeneralizedDataSet
 
 
 ## Originally used det(F) > 0 but det numerically less accurate and gives false positives
-NotPosDef(F::AbstractMatrix) = !isposdef(F) || !(det(F) > 0)
+NotPosDef(F::AbstractMatrix; Fast::Bool=false, kwargs...) = Fast ? (!isposdef(F) || !(det(F) > 0)) : NotPosDefSlow(F; kwargs...)
 ## > 10x slower but more accurate and can choose flexible threshold:
-# NotPosDef(F::AbstractMatrix; threshold::Real=1e-10) = length(eigen(Symmetric(F), -Inf, threshold).values) > 0
+NotPosDefSlow(F::AbstractMatrix; threshold::Real=1e-10) = length(eigen(Symmetric(F), -Inf, threshold).values) > 0
 
 # Surely, this can be made more efficient?
 SplitAfter(n::Int) = X->(view(X,1:n), view(X,n+1:length(X)))
@@ -454,15 +454,91 @@ function BlockMatrix(A::AbstractMatrix{T}, B::AbstractMatrix{S}) where {T<:Numbe
     Res
 end
 BlockMatrix(A::DiagonalType, B::DiagonalType) = Diagonal(vcat(A.diag, B.diag))
-
 BlockMatrix(A::AbstractMatrix, B::AbstractMatrix, args...) = BlockMatrix(BlockMatrix(A,B), args...)
-BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 
 BlockMatrix(X::AbstractVector{<:AbstractVector}) = Diagonal(Reduction(X))
 BlockMatrix(X::AbstractVector{<:DiagonalType}) = Diagonal(mapreduce(x->x.diag, vcat, X))
 BlockMatrix(X::AbstractVector{<:Number}) = Diagonal(X)
 
 
+BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
+# BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = BlockDiagonals(As)
+
+### Overload view for BlockDiagonals to propagate view() to blocks so that specialized methods for BlockDiagonals such as multiplication still apply
+# function Base.view(B::BlockDiagonal, I, J)
+#     if size(B, 1) > 35
+#         CustomView(B, I, J)
+#     else # Fallback to generic view method
+#         invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
+#     end
+# end
+
+## Has allocations in view construction, so only results in overall faster multiplication of masked arrays beyond a certain size
+function CustomView(B::BlockDiagonal, I::Union{AbstractUnitRange,AbstractVector{<:Integer},AbstractVector{Bool}}, J::Union{AbstractUnitRange,AbstractVector{<:Integer},AbstractVector{Bool}})
+    @inline function _block_offsets(B::BlockDiagonal)
+        nb = length(B.blocks);    offs = Vector{Int}(undef, nb + 1);    offs[1] = 0
+        @inbounds for i in 1:nb
+            offs[i+1] = offs[i] + size(B.blocks[i],1)
+        end;    offs
+    end
+    @inline function _normalize_indices(I::AbstractVector{Bool}, n)
+        length(I) == n || throw(DimensionMismatch("Boolean mask wrong length"))
+        findall(I)
+    end
+    @inline _normalize_indices(I::Union{AbstractUnitRange,AbstractVector{<:Integer}}, n) = I
+
+    n = size(B,1);    I = _normalize_indices(I, n);    J = _normalize_indices(J, n)
+    ## If not sorted, structure is broken
+    # !(I isa AbstractUnitRange) && !issorted(I) && return invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
+    # !(J isa AbstractUnitRange) && !issorted(J) && return invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
+
+    offsets = _block_offsets(B);    nb = length(B.blocks)
+    # Determine resulting block type from first surviving block
+    new_blocks = nothing;    Vnew = nothing
+    i_ptr = firstindex(I);    j_ptr = firstindex(J)
+
+    @inbounds for k in 1:nb
+        r0 = offsets[k] + 1
+        r1 = offsets[k+1]
+        # advance I pointer
+        i_start = i_ptr
+        while i_ptr ≤ lastindex(I) && I[i_ptr] < r0
+            i_ptr += 1
+        end
+        i_start = i_ptr
+        while i_ptr ≤ lastindex(I) && I[i_ptr] ≤ r1
+            i_ptr += 1
+        end
+        i_end = i_ptr - 1
+        # advance J pointer
+        j_start = j_ptr
+        while j_ptr ≤ lastindex(J) && J[j_ptr] < r0
+            j_ptr += 1
+        end
+        j_start = j_ptr
+        while j_ptr ≤ lastindex(J) && J[j_ptr] ≤ r1
+            j_ptr += 1
+        end
+        j_end = j_ptr - 1
+
+        hasI = i_start ≤ i_end;    hasJ = j_start ≤ j_end
+
+        if hasI ⊻ hasJ
+            # asymmetrical → not block diagonal anymore
+            return invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
+        end
+        if hasI && hasJ
+            local_I = (@view I[i_start:i_end]) .- r0 .+ 1
+            local_J = (@view J[j_start:j_end]) .- r0 .+ 1
+            blk = view(B.blocks[k], local_I, local_J)
+
+            if new_blocks === nothing
+                Vnew = typeof(blk);    new_blocks = Vector{Vnew}()
+            end
+            push!(new_blocks, blk)
+        end
+    end;    BlockDiagonal{eltype(B), Vnew}(new_blocks)
+end
 
 """
     FindExtremalNeighboring(X::AbstractVector; Diff::Function=(x,y)->(y-x), Comparison=Base.:>)
