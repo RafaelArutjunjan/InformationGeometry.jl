@@ -106,32 +106,38 @@ function _get_grad_forward_AD_adapted(probinfo::PEtabODEProblemInfo,
                               model_info::ModelInfo; cids::AbstractVector{Symbol}=[:all])::Function
     @unpack split_over_conditions, gradient_method, chunksize = probinfo
     @unpack sensealg, cache = probinfo
-    _nllh_not_solveode = _get_nllh_not_solveode_adapted(probinfo, model_info;
-                                                grad_forward_AD = true, cids = cids)
+
+    _nllh_not_solveode = _get_nllh_not_solveode_adapted(
+        probinfo, model_info; grad_forward_AD = true, cids = cids
+    )
 
     if split_over_conditions == false
         _nllh_solveode = PEtab._get_nllh_solveode(probinfo, model_info; grad_xdynamic = true)
 
-        @unpack xdynamic = cache
-        chunksize_use = PEtab._get_chunksize(chunksize, xdynamic)
-        cfg = ForwardDiff.GradientConfig(_nllh_solveode, xdynamic, chunksize_use)
+        @unpack xdynamic_grad = cache
+        chunksize_use = PEtab._get_chunksize(chunksize, xdynamic_grad)
+        cfg = ForwardDiff.GradientConfig(_nllh_solveode, xdynamic_grad, chunksize_use)
         _grad! = let _nllh_not_solveode = _nllh_not_solveode,
-            _nllh_solveode = _nllh_solveode, cfg = cfg, minfo = model_info, pinfo = probinfo
+                _nllh_solveode = _nllh_solveode, cfg = cfg, minfo = model_info,
+                pinfo = probinfo
 
-            (grad, x) -> PEtab.grad_forward_AD!(grad, x, _nllh_not_solveode, _nllh_solveode, cfg,
-                                          pinfo, minfo)
+            (grad, x) -> PEtab.grad_forward_AD!(
+                grad, x, _nllh_not_solveode, _nllh_solveode, cfg, pinfo, minfo
+            )
         end
     end
 
     if split_over_conditions == true
-        _nllh_solveode = PEtab._get_nllh_solveode(probinfo, model_info; cid = true,
-                                            grad_xdynamic = true)
+        _nllh_solveode = PEtab._get_nllh_solveode(
+            probinfo, model_info; cid = true, grad_xdynamic = true
+        )
 
         _grad! = let _nllh_not_solveode = _nllh_not_solveode,
-            _nllh_solveode = _nllh_solveode, minfo = model_info, pinfo = probinfo
+                _nllh_solveode = _nllh_solveode, minfo = model_info, pinfo = probinfo
 
-            (g, x) -> PEtab.grad_forward_AD_split!(g, x, _nllh_not_solveode, _nllh_solveode,
-                                             pinfo, minfo)
+            (g, x) -> PEtab.grad_forward_AD_split!(
+                g, x, _nllh_not_solveode, _nllh_solveode, pinfo, minfo
+            )
         end
     end
     return _grad!
@@ -143,29 +149,38 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
                                model_info::ModelInfo; cids::AbstractVector{Symbol}=[:all])::Function
     @unpack split_over_conditions, gradient_method, chunksize = probinfo
     @unpack sensealg, cache = probinfo
-    @unpack xdynamic, odesols = cache
-    chunksize_use = PEtab._get_chunksize(chunksize, xdynamic)
+    @unpack xdynamic_grad, odesols = cache
+    chunksize_use = PEtab._get_chunksize(chunksize, xdynamic_grad)
 
     if sensealg == :ForwardDiff && split_over_conditions == false
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
             (sols, x) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; sensitivities_AD = true)
         end
-        cfg = ForwardDiff.JacobianConfig(_solve_conditions!, odesols, xdynamic,
-                                         chunksize_use)
+        cfg = ForwardDiff.JacobianConfig(
+            _solve_conditions!, odesols, xdynamic_grad, chunksize_use
+        )
     end
 
     if sensealg == :ForwardDiff && split_over_conditions == true
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
-            (sols, x, cid) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = cid,
-                                                sensitivities_AD = true)
+            (sols, x, cid) -> PEtab.solve_conditions!(
+                sols, x, pinfo, minfo; cids = cid, sensitivities_AD = true
+            )
         end
-        cfg = ForwardDiff.JacobianConfig(_solve_conditions!, odesols, xdynamic,
-                                         chunksize_use)
+        cfg = ForwardDiff.JacobianConfig(
+            _solve_conditions!, odesols, xdynamic_grad, chunksize_use
+        )
     end
 
     if sensealg != :ForwardDiff
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
-            (x, cid) -> PEtab.solve_conditions!(minfo, x, pinfo; cids = cid, sensitivities = true)
+            (x, cid) -> begin
+                xdynamic_mech, x_ml_models = PEtab.split_xdynamic(x, minfo.xindices, pinfo.cache)
+                return PEtab.solve_conditions!(
+                    minfo, xdynamic_mech, x_ml_models, pinfo; cids = cid,
+                    sensitivities = true
+                )
+            end
         end
         cfg = nothing
     end
@@ -177,8 +192,9 @@ function _get_grad_forward_eqs_adapted(probinfo::PEtabODEProblemInfo,
         _solve_conditions! = _solve_conditions!, minfo = model_info, pinfo = probinfo,
         cfg = cfg, Cids = cids
 
-        (g, x; cids=Cids) -> PEtab.grad_forward_eqs!(g, x, _nllh_not_solveode, _solve_conditions!, pinfo,
-                                    minfo, cfg; cids = cids)
+        (g, x; cids=Cids) -> PEtab.grad_forward_eqs!(
+            g, x, _nllh_not_solveode, _solve_conditions!, pinfo, minfo, cfg; cids = cids
+        )
     end
     return _grad!
 end
@@ -194,7 +210,7 @@ function _get_hess_forward_AD_adapted(probinfo::PEtabODEProblemInfo,
         _nllh = let pinfo = probinfo, minfo = model_info, Cids = cids
             (x) -> PEtab.nllh(x, pinfo, minfo, Cids, true, false)
         end
-        nestimate = length(model_info.xindices.xids[:estimate])
+        nestimate = PEtab._get_nx_estimate(model_info.xindices)
         chunksize_use = PEtab._get_chunksize(chunksize, zeros(nestimate))
         cfg = ForwardDiff.HessianConfig(_nllh, zeros(nestimate), chunksize_use)
         _hess_nllh! = let _nllh = _nllh, cfg = cfg, minfo = model_info
@@ -217,43 +233,54 @@ end
 function _get_hess_block_forward_AD_adapted(probinfo::PEtabODEProblemInfo,
                                     model_info::ModelInfo; cids::AbstractVector{Symbol}=[:all])::Function
     @unpack split_over_conditions, chunksize = probinfo
-    xdynamic = probinfo.cache.xdynamic
+    xdynamic_grad = probinfo.cache.xdynamic_grad
 
-    _nllh_not_solveode = _get_nllh_not_solveode_adapted(probinfo, model_info;
-                                                grad_forward_AD = true, cids = cids)
+    _nllh_not_solveode = _get_nllh_not_solveode_adapted(
+        probinfo, model_info;
+        grad_forward_AD = true, 
+        cids = cids
+    )
 
     if split_over_conditions == false
         _nllh_solveode = let pinfo = probinfo, minfo = model_info, Cids = cids
-            @unpack xnoise, xobservable, xnondynamic = pinfo.cache
-            (x) -> PEtab.nllh_solveode(x, xnoise, xobservable, xnondynamic, pinfo, minfo;
-                                 grad_xdynamic = true, cids = Cids)
+            xnoise, xobservable, xnondynamic_mech = PEtab._get_x_notsystem(pinfo.cache, 1.0)
+            (x) -> begin
+                xmech, x_ml_models = PEtab.split_xdynamic(x, minfo.xindices, probinfo.cache)
+                return PEtab.nllh_solveode(
+                    xmech, xnoise, xobservable, xnondynamic_mech, x_ml_models, pinfo,
+                    minfo; grad_xdynamic = true, cids = Cids
+                )
+            end
         end
-
-        chunksize_use = PEtab._get_chunksize(chunksize, xdynamic)
-        cfg = ForwardDiff.HessianConfig(_nllh_solveode, xdynamic, chunksize_use)
+        chunksize_use = PEtab._get_chunksize(chunksize, xdynamic_grad)
+        cfg = ForwardDiff.HessianConfig(_nllh_solveode, xdynamic_grad, chunksize_use)
         _hess_nllh! = let _nllh_solveode = _nllh_solveode,
-            _nllh_not_solveode = _nllh_not_solveode, pinfo = probinfo, minfo = model_info, Cids = cids,
-            cfg = cfg
-
-            (H, x) -> PEtab.hess_block!(H, x, _nllh_not_solveode, _nllh_solveode, pinfo,
-                                  minfo, cfg; cids = Cids)
+                _nllh_not_solveode = _nllh_not_solveode, pinfo = probinfo,
+                minfo = model_info, cfg = cfg, Cids = cids
+            (H, x) -> PEtab.hess_block!(
+                H, x, _nllh_not_solveode, _nllh_solveode, pinfo, minfo, cfg; cids = Cids
+            )
         end
     end
 
     if split_over_conditions == true
         _nllh_solveode = let pinfo = probinfo, minfo = model_info
-            @unpack xnoise, xobservable, xnondynamic = pinfo.cache
-            (x, cid) -> PEtab.nllh_solveode(x, xnoise, xobservable, xnondynamic,
-                                      pinfo, minfo,
-                                      grad_xdynamic = true,
-                                      cids = cid)
+            xnoise, xobservable, xnondynamic_mech = _get_x_notsystem(pinfo.cache, 1.0)
+            (x, cid) -> begin
+                xmech, x_ml_models = split_xdynamic(x, minfo.xindices, probinfo.cache)
+                return nllh_solveode(
+                    xmech, xnoise, xobservable, xnondynamic_mech, x_ml_models, pinfo, minfo,
+                    grad_xdynamic = true, cids = cid
+                )
+            end
         end
 
         _hess_nllh! = let _nllh_solveode = _nllh_solveode,
-            _nllh_not_solveode = _nllh_not_solveode, pinfo = probinfo, minfo = model_info, Cids = cids
+                _nllh_not_solveode = _nllh_not_solveode, pinfo = probinfo, minfo = model_info, Cids = cids
 
-            (H, x) -> PEtab.hess_block_split!(H, x, _nllh_not_solveode, _nllh_solveode,
-                                        pinfo, minfo; cids = Cids)
+            (H, x) -> PEtab.hess_block_split!(
+                H, x, _nllh_not_solveode, _nllh_solveode, pinfo, minfo; cids = Cids
+            )
         end
     end
     return _hess_nllh!
@@ -263,45 +290,47 @@ end
 function _get_hess_gaussnewton_adapted(probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                                ret_jacobian::Bool; cids::AbstractVector{Symbol}=[:all])::Function
     @unpack split_over_conditions, chunksize, cache = probinfo
-    xdynamic = probinfo.cache.xdynamic
 
     if split_over_conditions == false
         _solve_conditions! = let pinfo = probinfo, minfo = model_info, Cids = cids
-            (sols, x) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = Cids,
-                                           sensitivities_AD = true)
+            (sols, x) -> PEtab.solve_conditions!(
+                sols, x, pinfo, minfo; cids = Cids, sensitivities_AD = true
+            )
         end
     end
     if split_over_conditions == true
         _solve_conditions! = let pinfo = probinfo, minfo = model_info
-            (sols, x, cid) -> PEtab.solve_conditions!(sols, x, pinfo, minfo; cids = cid,
-                                                sensitivities_AD = true)
+            (sols, x, cid) -> PEtab.solve_conditions!(
+                sols, x, pinfo, minfo; cids = cid, sensitivities_AD = true
+            )
         end
     end
-    chunksize_use = PEtab._get_chunksize(chunksize, xdynamic)
-    cfg = cfg = ForwardDiff.JacobianConfig(_solve_conditions!,
-                                           cache.odesols,
-                                           cache.xdynamic, chunksize_use)
+    chunksize_use = PEtab._get_chunksize(chunksize, cache.xdynamic_grad)
+    cfg = cfg = ForwardDiff.JacobianConfig(
+        _solve_conditions!, cache.odesols, cache.xdynamic_grad, chunksize_use
+    )
 
     _residuals_not_solveode = let pinfo = probinfo, minfo = model_info, Cids = cids
-        ixnoise = minfo.xindices.xindices_notsys[:noise]
-        ixobservable = minfo.xindices.xindices_notsys[:observable]
-        ixnondynamic = minfo.xindices.xindices_notsys[:nondynamic]
         (residuals, x) -> begin
-            PEtab.residuals_not_solveode(residuals, x[ixnoise], x[ixobservable],
-                                   x[ixnondynamic], pinfo, minfo; cids = Cids)
+            xn, xo, xnm, x_ml_models = PEtab.split_x_notsystem(x, minfo.xindices, pinfo.cache)
+            PEtab.residuals_not_solveode(
+                residuals, xn, xo, xnm, x_ml_models, pinfo, minfo; cids = Cids
+            )
         end
     end
 
-    xnot_ode = zeros(Float64, length(model_info.xindices.xids[:not_system]))
-    cfg_notsolve = ForwardDiff.JacobianConfig(_residuals_not_solveode,
-                                              cache.residuals_gn, xnot_ode,
-                                              ForwardDiff.Chunk(xnot_ode))
+    xnot_ode = zeros(Float64, length(model_info.xindices.indices_est[:est_to_not_system]))
+    cfg_notsolve = ForwardDiff.JacobianConfig(
+        _residuals_not_solveode, cache.residuals_gn, xnot_ode, ForwardDiff.Chunk(xnot_ode)
+    )
     _hess_nllh! = let _residuals_not_solveode = _residuals_not_solveode,
-        pinfo = probinfo, minfo = model_info, cfg = cfg, cfg_notsolve = cfg_notsolve,
-        ret_jacobian = ret_jacobian, _solve_conditions! = _solve_conditions!, Cids = cids
+            pinfo = probinfo, minfo = model_info, cfg = cfg, cfg_notsolve = cfg_notsolve,
+            ret_jacobian = ret_jacobian, _solve_conditions! = _solve_conditions!, Cids = cids
 
-        (H, x) -> PEtab.hess_GN!(H, x, _residuals_not_solveode, _solve_conditions!, pinfo, minfo,
-                           cfg, cfg_notsolve; cids = Cids, ret_jacobian = ret_jacobian)
+        (H, x) -> PEtab.hess_GN!(
+            H, x, _residuals_not_solveode, _solve_conditions!, pinfo, minfo,
+            cfg, cfg_notsolve; cids = Cids, ret_jacobian = ret_jacobian
+        )
     end
     return _hess_nllh!
 end
@@ -314,88 +343,89 @@ function _get_nllh_not_solveode_adapted(probinfo::PEtabODEProblemInfo, model_inf
                                 grad_forward_AD::Bool = false, grad_adjoint::Bool = false,
                                 grad_forward_eqs::Bool = false, cids::AbstractVector{Symbol}=[:all])::Function
     _nllh_not_solveode = let pinfo = probinfo, minfo = model_info, Cids = cids
-        ixnoise = minfo.xindices.xindices_notsys[:noise]
-        ixobservable = minfo.xindices.xindices_notsys[:observable]
-        ixnondynamic = minfo.xindices.xindices_notsys[:nondynamic]
-        (x) -> PEtab.nllh_not_solveode(x[ixnoise], x[ixobservable], x[ixnondynamic], pinfo, minfo;
-                                 cids = Cids, grad_forward_AD = grad_forward_AD,
-                                 grad_forward_eqs = grad_forward_eqs,
-                                 grad_adjoint = grad_adjoint)
+        (x) -> begin
+            xn, xo, xnm, x_ml_models = PEtab.split_x_notsystem(x, minfo.xindices, pinfo.cache)
+            return PEtab.nllh_not_solveode(
+                xn, xo, xnm, x_ml_models, pinfo, minfo; cids = Cids,
+                grad_forward_AD = grad_forward_AD, grad_forward_eqs = grad_forward_eqs,
+                grad_adjoint = grad_adjoint
+            )
+        end
     end
     return _nllh_not_solveode
 end
 
 
-## Rewrite methods due to typos
-## Using T<:Union to be more specific than PEtab base function without direct overwriting.
-## Can be deleted when typos fixed
-function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
-                            probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
-                            cfg::Union{ForwardDiff.JacobianConfig, Nothing};
-                            cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
-    @unpack cache, sensealg = probinfo
-    @unpack xindices, simulation_info = model_info
-    xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
-    xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
-    xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
-    xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
+# ## Rewrite methods due to typos
+# ## Using T<:Union to be more specific than PEtab base function without direct overwriting.
+# ## Can be deleted when typos fixed
+# function PEtab._grad_forward_eqs!(grad::Vector{T}, _solve_conditions!::Function,
+#                             probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
+#                             cfg::Union{ForwardDiff.JacobianConfig, Nothing};
+#                             cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+#     @unpack cache, sensealg = probinfo
+#     @unpack xindices, simulation_info = model_info
+#     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
+#     xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
+#     xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
+#     xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
 
-    # Solve the expanded ODE system for the sensitivities
-    success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps, sensealg,
-                                  probinfo, cids, cfg)
-    if success != true
-        @warn "Failed to solve sensitivity equations"
-        fill!(grad, 0.0)
-        return nothing
-    end
-    if isempty(xdynamic_ps)
-        return nothing
-    end
+#     # Solve the expanded ODE system for the sensitivities
+#     success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps, sensealg,
+#                                   probinfo, cids, cfg)
+#     if success != true
+#         @warn "Failed to solve sensitivity equations"
+#         fill!(grad, 0.0)
+#         return nothing
+#     end
+#     if isempty(xdynamic_ps)
+#         return nothing
+#     end
 
-    fill!(grad, 0.0)
-    for icid in eachindex(simulation_info.conditionids[:experiment])
-        if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
-            continue
-        end
-        PEtab._grad_forward_eqs_cond!(grad, xdynamic_ps, xnoise_ps, xobservable_ps,
-                                xnondynamic_ps,
-                                icid, sensealg, probinfo, model_info)
-    end
-    return nothing
-end
+#     fill!(grad, 0.0)
+#     for icid in eachindex(simulation_info.conditionids[:experiment])
+#         if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
+#             continue
+#         end
+#         PEtab._grad_forward_eqs_cond!(grad, xdynamic_ps, xnoise_ps, xobservable_ps,
+#                                 xnondynamic_ps,
+#                                 icid, sensealg, probinfo, model_info)
+#     end
+#     return nothing
+# end
 
-function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_conditions!::Function,
-                                  probinfo::PEtabODEProblemInfo,
-                                  model_info::ModelInfo, cfg::ForwardDiff.JacobianConfig;
-                                  cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
-    @unpack cache, sensealg, reuse_sensitivities = probinfo
-    @unpack xindices, simulation_info = model_info
-    xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
-    xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
-    xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
-    xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
+# function PEtab._jac_residuals_xdynamic!(jac::AbstractMatrix{T}, _solve_conditions!::Function,
+#                                   probinfo::PEtabODEProblemInfo,
+#                                   model_info::ModelInfo, cfg::ForwardDiff.JacobianConfig;
+#                                   cids::Vector{Symbol} = [:all])::Nothing where {T <: Union{BigFloat, Float16, Float32, Float64}}
+#     @unpack cache, sensealg, reuse_sensitivities = probinfo
+#     @unpack xindices, simulation_info = model_info
+#     xnoise_ps = PEtab.transform_x(cache.xnoise, xindices, :xnoise, cache)
+#     xobservable_ps = PEtab.transform_x(cache.xobservable, xindices, :xobservable, cache)
+#     xnondynamic_ps = PEtab.transform_x(cache.xnondynamic, xindices, :xnondynamic, cache)
+#     xdynamic_ps = PEtab.transform_x(cache.xdynamic, xindices, :xdynamic, cache)
 
-    if reuse_sensitivities == false
-        success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps,
-                                      :ForwardDiff, probinfo, cids, cfg)
-        if success != true
-            @warn "Failed to solve sensitivity equations"
-            fill!(jac, 0.0)
-            return nothing
-        end
-    end
-    if isempty(xdynamic_ps)
-        fill!(jac, 0.0)
-        return nothing
-    end
+#     if reuse_sensitivities == false
+#         success = PEtab.solve_sensitivities!(model_info, _solve_conditions!, xdynamic_ps,
+#                                       :ForwardDiff, probinfo, cids, cfg)
+#         if success != true
+#             @warn "Failed to solve sensitivity equations"
+#             fill!(jac, 0.0)
+#             return nothing
+#         end
+#     end
+#     if isempty(xdynamic_ps)
+#         fill!(jac, 0.0)
+#         return nothing
+#     end
 
-    # Compute the gradient by looping through all experimental conditions.
-    for icid in eachindex(simulation_info.conditionids[:experiment])
-        if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
-            continue
-        end
-        PEtab._jac_residuals_cond!(jac, xdynamic_ps, xnoise_ps, xobservable_ps, xnondynamic_ps,
-                             icid, probinfo, model_info)
-    end
-    return nothing
-end
+#     # Compute the gradient by looping through all experimental conditions.
+#     for icid in eachindex(simulation_info.conditionids[:experiment])
+#         if cids[1] != :all && !(simulation_info.conditionids[:experiment][icid] in cids)
+#             continue
+#         end
+#         PEtab._jac_residuals_cond!(jac, xdynamic_ps, xnoise_ps, xobservable_ps, xnondynamic_ps,
+#                              icid, probinfo, model_info)
+#     end
+#     return nothing
+# end

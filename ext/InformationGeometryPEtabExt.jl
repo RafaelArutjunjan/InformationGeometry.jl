@@ -397,31 +397,31 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
         # Has pre_equilibration or not
         ind = findfirst(isequal(cid), all_simulations)
         sol = PEtab.get_odesol(x, petab_prob; condition = (all_pre_equilibrations[ind] === :None ? cid : (all_pre_equilibrations[ind] => cid)))
+        
+        _, xobservable, xnoise, xnondynamic_mech, x_ml_models = PEtab.split_x(x, model_info.xindices, probinfo.cache)
+        xnondynamic_mech_ps = PEtab.transform_x(xnondynamic_mech, model_info.xindices, :xnondynamic_mech, probinfo.cache)
+        @unpack x_ml_models_constant = probinfo.cache
 
-        xdynamic, xobservable, xnoise, xnondynamic = PEtab.split_x(x, model_info.xindices)
-        xnondynamic_ps = PEtab.transform_x(xnondynamic, model_info.xindices,
-                                        :xnondynamic, probinfo.cache)
         if !Error
             verbose && !CanInterpolateObservables && @warn "Cannot interpolate observables!"
-            xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices,
-                                            :xobservable, probinfo.cache)
+            xobservable_ps = PEtab.transform_x(xobservable, model_info.xindices, :xobservable, probinfo.cache)
             for (i,obsid) in enumerate(UniqueObsids)
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxobservables = model_info.xindices.xobservable_maps[imeasurement]
                 for (j,t) in enumerate(ts)
-                    Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_ps,
+                    Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant, 
                             model_info.model, mapxobservables, obsid, Xnom)
                 end
             end
+            
         else
             verbose && !CanInterpolateUncertainties && @warn "Cannot interpolate uncertainties!"
-            xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices,
-                                            :xnoise, probinfo.cache)
+            xnoise_ps = PEtab.transform_x(xnoise, model_info.xindices, :xnoise, probinfo.cache)
             for (i,obsid) in enumerate(UniqueObsids)
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxnoise = model_info.xindices.xnoise_maps[imeasurement]
                 for (j,t) in enumerate(ts)
-                    Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_ps, 
+                    Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant,
                             model_info.model, mapxnoise, obsid, Xnom)
                 end
             end
