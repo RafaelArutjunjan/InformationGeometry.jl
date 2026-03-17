@@ -231,8 +231,8 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
             :EfronShapeOperator, :EfronCurvatureIsotropy]
     @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
             g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
-            Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), kwargs...)
-        @assert !HasEstimatedUncertainties(DM) "Not implemented for parameter-dependent data variance yet."
+            Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), SkipTests::Bool=false, kwargs...)
+        SkipTests || @assert !HasEstimatedUncertainties(DM) "Not implemented for parameter-dependent data variance yet."
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
     end
     @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
