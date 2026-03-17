@@ -13,10 +13,10 @@ struct ParameterTransformations{F<:Function} <: AbstractParameterTransformations
     function ParameterTransformations(Trafos::AbstractVector{<:Function}, ConditionNames::AbstractVector{<:Symbol}; IsLinear::AbstractVector{<:Bool}=falses(length(ConditionNames)), ADmode::Val=Val(:ForwardDiff))
         ParameterTransformations(Trafos, IsLinear, ConditionNames; ADmode)
     end
-    function ParameterTransformations(Trafos::AbstractVector{<:Function}, IsLinear::AbstractVector{<:Bool}, ConditionNames::AbstractVector{<:Symbol}; ADmode::Val=Val(:ForwardDiff))
+    function ParameterTransformations(Trafos::AbstractVector{F}, IsLinear::AbstractVector{<:Bool}, ConditionNames::AbstractVector{<:Symbol}; ADmode::Val=Val(:ForwardDiff)) where F<:Function
         @assert length(Trafos) == length(ConditionNames) == length(IsLinear)
         @assert allunique(ConditionNames)
-        new{eltype(Trafos)}(Trafos, IsLinear, ConditionNames)
+        new{F}(Trafos, IsLinear, ConditionNames)
     end
 end
 const ParamTrafo = ParameterTransformations
