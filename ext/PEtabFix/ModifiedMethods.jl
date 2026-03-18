@@ -5,7 +5,7 @@ function GetNllh(probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                     prior::Function=PEtab._get_prior(model_info)[1], residuals::Bool=false; cids::AbstractVector{Symbol}=[:all])::Function
     _nllh = let pinfo = probinfo, minfo = model_info, res = residuals, _prior = prior, Cids = cids
         (x::AbstractVector; prior::Bool = true, cids::AbstractVector{Symbol}=Cids) -> begin
-            PEtab._test_ordering(x, minfo.xindices.xids[:estimate_ps])
+            PEtab._test_ordering(x, minfo.xindices.ids[:estimate_ps])
             _x = x |> collect
             nllh_val = PEtab.nllh(_x, pinfo, minfo, cids, false, res)
             if prior == true && res == false
@@ -19,7 +19,7 @@ function GetNllh(probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
     return _nllh
 end
 
-
+# Copied from _get_grad
 function GetNllhGrads(method, probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                    grad_prior::Function; cids::AbstractVector{Symbol}=[:all])::Tuple{Function, Function}
     if probinfo.gradient_method == :ForwardDiff
@@ -56,7 +56,7 @@ function GetNllhHesses(probinfo::PEtabODEProblemInfo, model_info::ModelInfo,
                    hess_prior::Function; ret_jacobian::Bool = false,
                    FIM::Bool = false, cids::AbstractVector{Symbol}=[:all])::Tuple{Function, Function}
     @unpack hessian_method, split_over_conditions, chunksize, cache = probinfo
-    @unpack xdynamic = cache
+    # @unpack xdynamic_mech = cache
     if FIM == true
         hessian_method = probinfo.FIM_method
     end
