@@ -2,6 +2,39 @@
 using InformationGeometry, PEtab, FiniteDifferences
 using Test, Distributions, LinearAlgebra, Optim, ProgressMeter
 
+import InformationGeometry: Trafos
+function TestConversion(petab_prob::PEtabODEProblem; atol=1e-10, atol2=0.1)
+    DM = ConditionGrid(petab_prob)
+    @test sum(abs, -InformationGeometry.loglikelihood(DM,MLE(DM)) - petab_prob.nllh(MLE(DM))) < atol
+    @test sum(abs, -Score(DM, MLE(DM)) - petab_prob.grad(MLE(DM))) < atol
+    @test sum(abs, FisherMetric(DM, MLE(DM)) - petab_prob.FIM(MLE(DM))) < atol
+    @test sum(abs, InformationGeometry.CostHessian(DM)(MLE(DM)) - petab_prob.hess(MLE(DM))) < atol
+
+    ###### Score seems to be slightly dissimilar
+
+    # Consistency of likelihoods of individual conditions with total
+    @test sum(loglikelihood(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) == loglikelihood(DM, MLE(DM))
+    @test sum(abs, sum(Score(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- Score(DM, MLE(DM))) < atol2
+    @test sum(abs, sum(FisherMetric(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- FisherMetric(DM, MLE(DM))) < atol
+
+    cids = InformationGeometry.ConditionNames(DM);  j = 1
+    # Compute reduced chi^2
+    @test sum(abs2, (EmbeddingMap(DM, MLE(DM), cids[j]) - ydata(Data(Conditions(DM)[j]))) ./ ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))) / InformationGeometry.DataspaceDim(Conditions(DM)[j]) < 5
+    # Test derivative of prediction (currently FiniteDifferences)
+    @test !all(iszero, EmbeddingMatrix(DM, MLE(DM), cids[j]))
+
+    ## Check that reconstructed objective function and Score corresponds to PEtab.jl for simple model
+    ## Assuming normal data!
+    dmj = DataModel(DataSet(xdata(Data(Conditions(DM)[j])), ydata(Data(Conditions(DM)[j])), ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))), Predictor(Conditions(DM)[j]), Trafos(DM)[j](MLE(DM)), true)
+    @test sum(InformationGeometry.LogLikeMLE(dmj) - loglikelihood(DM[j], Trafos(DM)[j](MLE(DM)))) < atol
+
+    ###### Check data transfer for DataSetUncertain
+end
+
+
+
+
+
 begin
     ## For local execution only
     const BenchmarkModels_PEtab_Path = expanduser("~/Software/Benchmark-Models-PEtab/Benchmark-Models")
@@ -44,12 +77,9 @@ begin
     end
 end
 
+
 Bruno = PEtabODEProblem(LoadPEtabModel("Bruno"))
 Boehm = PEtabODEProblem(LoadPEtabModel("Boehm"))
 
 BrunoDM = ConditionGrid(Bruno)
-
-using Plots
-plot(BrunoDM) |> display
-
-sleep(30)
+TestConversion(BrunoDM)
