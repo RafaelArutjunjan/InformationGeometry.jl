@@ -72,7 +72,7 @@ tryfloat(x) = x
 using InformationGeometry: MissingToNan
 
 function Long2WidePEtabMeasurements(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), kwargs...)
-    sdf = CreateSymbolDF(M)
+    sdf = CreateSymbolDFmeasurements(M)
     Dict([k => Long2WidePEtabMeasurements(sdf, k; UniqueObsids=ObsidsInCondDict[k], ObsID, CondID, kwargs...) for k in keys(ObsidsInCondDict)])
 end
 function Long2WidePEtabMeasurements(sdf::AbstractDataFrame, CondName::Symbol; ObsID=:observableId, Time=:time, Meas=:measurement, CondID=:simulationConditionId, 
@@ -85,14 +85,26 @@ end
 
 
 function Long2WidePEtabMeasurementsWithErrors(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), kwargs...)
-    sdf = CreateSymbolDF(M)
-    Dict([k => Long2WidePEtabMeasurementsWithErrors(sdf, k; UniqueObsids=ObsidsInCondDict[k], ObsID, CondID, kwargs...) for k in keys(ObsidsInCondDict)])
+    sdf = CreateSymbolDFmeasurements(M);    odf = CreateSymbolDFobservables(M)
+    Dict([k => Long2WidePEtabMeasurementsWithErrors(sdf, k; UniqueObsids=ObsidsInCondDict[k], ObsID, CondID, ObservableDf=odf, kwargs...) for k in keys(ObsidsInCondDict)])
 end
 function Long2WidePEtabMeasurementsWithErrors(sdf::AbstractDataFrame, CondName::Symbol; ObsID=:observableId, Time=:time, Meas=:measurement, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
-                        UniqueObsids::AbstractVector{<:Symbol}=Symbol[])
+                        UniqueObsids::AbstractVector{<:Symbol}=Symbol[], ObservableDf::DataFrame=DataFrame(), NoiseDist::Symbol=:noiseDistribution, NoiseFormula::Symbol=:noiseFormula)
     measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
     @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
-    gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas, NoiseParam]) for ID in UniqueObsids]
+    gdf = if string(NoiseParam) ∉ names(measurements)
+        gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas]) for ID in UniqueObsids]
+        for (i,ID) in enumerate(UniqueObsids)
+            @assert !isempty(ObservableDf)
+            odf = @view ObservableDf[ObservableDf[!,ObsID] .=== ID,:]
+            @assert size(odf,1) == 1
+            @assert Symbol(odf[!,NoiseDist][1]) === :normal
+            NoiseCol = DataFrame([[odf[!,NoiseFormula] for i in 1:sum(measurements[!,ObsID] .=== ID)]], [NoiseParam])
+            gdf[i] = hcat(gdf[i], NoiseCol)
+        end;    gdf
+    else
+        [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas, NoiseParam]) for ID in UniqueObsids]
+    end
     sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame([vec(col) for col in eachcol(df)], [Time, UniqueObsids[i], Symbol("sd_"*string(UniqueObsids[i]))]) for (i,df) in enumerate(gdf)]), Time)
 end
 
@@ -141,11 +153,16 @@ GetObservableParamInds(X::PEtabODEProblem) = InformationGeometry.GetNamesSymb(ge
 
 
 HasErrorModel(P::PEtabODEProblem, args...; kwargs...) = HasErrorModel(P.model_info.model, args...; kwargs...)
-function HasErrorModel(P::PEtabModel, CondName::Symbol; CondID=:simulationConditionId, NoiseParam=:noiseParameters)
-    df = @view P.petab_tables[:measurements][Symbol.(P.petab_tables[:measurements][!,CondID]) .=== CondName, :]
+function HasErrorModel(P::PEtabModel, CondName::Symbol; CondID=:simulationConditionId, NoiseParam=:noiseParameters, NoiseFormula=:noiseFormula)
+    df = CreateSymbolDFmeasurements(P);    df = @view df[Symbol.(df[!,CondID]) .=== CondName, :]
     @assert !isempty(df) "Condition Name wrong? Got $CondName."
     IsFloat(x::Number) = true;  IsFloat(x) = Meta.parse(x) isa Number
-    !all(IsFloat, df[!, NoiseParam])
+    if NoiseParam ∈ Symbol.(names(df))
+        !all(IsFloat, df[!, NoiseParam])
+    else
+        odf = CreateSymbolDFobservables(P);    CondID ∈ Symbol.(names(odf)) && (odf = @view odf[Symbol.(odf[!,CondID]) .=== CondName, :])
+        !all(IsFloat, odf[!, NoiseFormula])
+    end 
 end
 
 
@@ -212,13 +229,13 @@ function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame
 end
 
 
-function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDF(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
+function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDFmeasurements(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
                         ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID),
                         FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== CondName, :]
     verbose && @info "Starting Condition $CondName."
     # df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
-    df = Long2WidePEtabMeasurementsWithErrors(sdf, CondName; UniqueObsids=ObsidsInCondDict[CondName], Time, CondID)
+    df = Long2WidePEtabMeasurementsWithErrors(sdf, CondName; UniqueObsids=ObsidsInCondDict[CondName], Time, CondID, ObservableDf=CreateSymbolDFobservables(M))
     Xdf = MissingToNan.(df[!,[Time]]);    YdfE = broadcast(x->ismissing(x) ? NaN : x, df[!,Not(Time)])
     Ydf = broadcast(x->ismissing(x) ? NaN : x, YdfE[!,map(!startswith("sd_"), names(YdfE))])
     Sdf = if HasErrorModel(M, CondName; CondID, NoiseParam)
@@ -264,10 +281,15 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
     end
 end
 
-CreateSymbolDF(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = (sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID]);     sdf)
+CreateSymbolDFmeasurements(M::PEtabModel; ObsID=:observableId, CondID=:simulationConditionId) = (sdf = copy(M.petab_tables[:measurements]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, CondID] .= Symbol.(sdf[!, CondID]);     sdf)
+@deprecate CreateSymbolDF CreateSymbolDFmeasurements
+# Add further cols to apply Symbol()?
+CreateSymbolDFobservables(M::PEtabModel; ObsID=:observableId, NoiseDist=:noiseDistribution) = (sdf = copy(M.petab_tables[:observables]);    sdf[!, ObsID] .= Symbol.(sdf[!, ObsID]);  sdf[!, NoiseDist] .= Symbol.(sdf[!, NoiseDist]);     sdf)
+
+
 # Get vector of all condition datasets
 function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), UniqueConds=collect(keys(ObsidsInCondDict)), FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false)
-    sdf = CreateSymbolDF(M; ObsID, CondID)
+    sdf = CreateSymbolDFmeasurements(M; ObsID, CondID)
     [GetConditionData(P, M, sdf, C; ObsID, CondID, ObsidsInCondDict, FixedError, Mle, verbose) for C in UniqueConds]
 end
 
@@ -285,7 +307,7 @@ function NicifyPEtabNames(PNames::AbstractVector{<:AbstractString}; Textifier::A
 end
 
 
-InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:conditions][1,1]); ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true) = GetConditionData(M, CreateSymbolDF(M; ObsID, CondID), C; ObsID, CondID, FixedError)
+InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:conditions][1,1]); ObsID=:observableId, CondID=:simulationConditionId, FixedError::Bool=true) = GetConditionData(M, CreateSymbolDFmeasurements(M; ObsID, CondID), C; ObsID, CondID, FixedError)
 
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
