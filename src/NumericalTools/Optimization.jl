@@ -115,7 +115,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
                 CostGradient=nothing, CostHessian=nothing,
                 cons=nothing, lcons=nothing, ucons=nothing, # inplace::Bool=(length(Fs) > 1 && MaximalNumberOfArguments(Fs[2])>1),
                 lb=(!isnothing(Domain) ? convert(Vector{T},Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(Vector{T},Domain.U) : nothing),
-                g_tol::Real=tol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=abstol, f_reltol::Real=reltol, g_abstol::Real=1e-8, 
+                g_tol::Real=reltol, g_abstol::Real=abstol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
                 store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, 
                 retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...) where T <: Number

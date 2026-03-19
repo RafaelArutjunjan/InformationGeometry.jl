@@ -96,7 +96,7 @@ struct ConditionGrid <: AbstractConditionGrid
         @assert allunique(InformationGeometry.name.(DMs))
         !isnothing(Domain) && @assert length(Domain) == length(mle)
 
-        Mle = SkipOptim ? mle : InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn), FisherInfoFn), mle, Domain; kwargs...)
+        Mle = SkipOptim ? mle : InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn)), mle, Domain; kwargs...)
         logLikeMLE = isnothing(LogLikeMLE) ? LogLikelihoodFn(Mle) : LogLikeMLE
 
         new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, logLikeMLE)
