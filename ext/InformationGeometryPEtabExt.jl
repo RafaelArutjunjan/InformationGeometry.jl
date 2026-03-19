@@ -80,7 +80,7 @@ function Long2WidePEtabMeasurements(sdf::AbstractDataFrame, CondName::Symbol; Ob
     measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
     @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
     gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas]) for ID in UniqueObsids]
-    sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame(float.(MissingToNan.(Matrix(df))), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)]), Time)
+    sort!((x->ismissing(x) ? NaN : x).(reduce((args...; kwargs...)->outerjoin(args...; on=Time, kwargs...), [DataFrame(float.(MissingToNan.(Matrix(df))), [Time, UniqueObsids[i]]) for (i,df) in enumerate(gdf)])), Time)
 end
 
 
@@ -92,6 +92,7 @@ function Long2WidePEtabMeasurementsWithErrors(sdf::AbstractDataFrame, CondName::
                         UniqueObsids::AbstractVector{<:Symbol}=Symbol[], ObservableDf::DataFrame=DataFrame(), NoiseDist::Symbol=:noiseDistribution, NoiseFormula::Symbol=:noiseFormula)
     measurements = @view sdf[sdf[!, CondID] .=== CondName, :]
     @assert all(∈(unique(measurements[!,ObsID])), UniqueObsids) "Need to provide correct $(ObsID)s for given $CondID."
+    TryParse(x::AbstractString) = try parse(Float64, x) catch; x end
     gdf = if string(NoiseParam) ∉ names(measurements)
         gdf = [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas]) for ID in UniqueObsids]
         for (i,ID) in enumerate(UniqueObsids)
@@ -99,13 +100,14 @@ function Long2WidePEtabMeasurementsWithErrors(sdf::AbstractDataFrame, CondName::
             odf = @view ObservableDf[ObservableDf[!,ObsID] .=== ID,:]
             @assert size(odf,1) == 1
             @assert Symbol(odf[!,NoiseDist][1]) === :normal
-            NoiseCol = DataFrame([[odf[!,NoiseFormula] for i in 1:sum(measurements[!,ObsID] .=== ID)]], [NoiseParam])
+            val = TryParse(odf[!,NoiseFormula][1])
+            NoiseCol = DataFrame([[val for i in 1:sum(measurements[!,ObsID] .=== ID)]], [NoiseParam])
             gdf[i] = hcat(gdf[i], NoiseCol)
         end;    gdf
     else
         [select(measurements[measurements[!,ObsID] .=== ID,:], [Time, Meas, NoiseParam]) for ID in UniqueObsids]
     end
-    sort(reduce((args...; kwargs...)->rightjoin(args...; on=Time, kwargs...), [DataFrame([vec(col) for col in eachcol(df)], [Time, UniqueObsids[i], Symbol("sd_"*string(UniqueObsids[i]))]) for (i,df) in enumerate(gdf)]), Time)
+    sort!((x->ismissing(x) ? NaN : x).(reduce((args...; kwargs...)->outerjoin(args...; on=Time, kwargs...), [DataFrame([vec(col) for col in eachcol(df)], [Time, UniqueObsids[i], Symbol("sd_"*string(UniqueObsids[i]))]) for (i,df) in enumerate(gdf)])), Time)
 end
 
 import PEtab: PEtabODEProblemInfo, ModelInfo
@@ -262,16 +264,18 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
     else
         MissingToNan.(YdfE[!,map(startswith("sd_"), names(YdfE))])
     end
+
+    HasMissingData = any(x->any(z->(z isa Number) && isnan(z) ? true : false,x), eachrow(df))
     if Sdf isa AbstractDataFrame
-        (any(ismissing, eachrow(df)) ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+        (!HasMissingData ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
     else
-        if !any(ismissing, eachrow(df))
+        if !HasMissingData
             ## Need identity splitter
             DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
         else
             @warn "Throwing away any rows with missing or NaN currently"
-            keep = map(x->all(isfinite∘MissingToNan, x), eachrow(df))
-            bigkeep = reduce(vcat, [repeat(n, size(Ydf,2)) for n in keep])
+            keep = map(x->any(z->z isa Number && isfinite(z), x), eachrow(Ydf))
+            bigkeep = reduce(vcat, [[n for _ in 1:size(Ydf,2)] for n in keep])
             ## Need to modify error model for missings...
 
             throw("Not programmed for reading error models with missing values yet.")
@@ -311,8 +315,8 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
-
+function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=false, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
+    verbose && SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     SortConditions && sort!(UniqueConds)
