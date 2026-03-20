@@ -289,19 +289,15 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
         (!HasMissingData ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
     else
         ## using xindices.ids[:xnoise] is unreliable
-        nerrorparameters = GetErrorParametersInCondition(P, CondName; ObsID, CondID, ObsidsInCondDict, ObsNames=ObsidsInCondDict[CondName])
+        nerrorparameters = length(GetErrorParametersInCondition(P, CondName; ObsID, CondID, ObsidsInCondDict, ObsNames=ObsidsInCondDict[CondName]))
         if !HasMissingData
             ## Need identity splitter
             DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
         else
-            @warn "Throwing away any rows with missing or NaN currently"
+            # @warn "Throwing away any rows with missing or NaN currently"
+            # bigkeep = reduce(vcat, [[n for _ in 1:size(Ydf,2)] for n in keep])
             keep = map(x->any(z->z isa Number && isfinite(z), x), eachrow(Ydf))
-            bigkeep = reduce(vcat, [[n for _ in 1:size(Ydf,2)] for n in keep])
-            ## Need to modify error model for missings...
-
-            throw("Not programmed for reading error models with missing values yet.")
-            DataSetUncertain(Xdf[keep], Ydf[keep,:], (x,y,p)->Sdf(x,y,p)[bigkeep], Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
-            ### Try version with throwing away all rows containing any missing value
+            DataSetUncertain(Xdf[keep,:], Ydf[keep,:], Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
         end
     end
 end
