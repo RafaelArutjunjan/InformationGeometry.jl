@@ -49,7 +49,7 @@ Base.show(io::IO, P::PEtabConditionGrid) = Base.show(io, P.DM)
 
 
 for F in [:plot, :plot!]
-    @eval RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; kwargs...) = RecipesBase.$F(CG.DM, mle, args...; kwargs...)
+    @eval RecipesBase.$F(CG::AbstractPEtabBasedConditionGrid, mle::AbstractVector{<:Number}=MLE(CG), args...; dof::Int=InformationGeometry.DOF(CG), kwargs...) = RecipesBase.$F(CG.DM, mle, args...; dof, kwargs...)
 end
 
 ## Different order than GetUniqueConditions
@@ -181,13 +181,8 @@ import InformationGeometry: DataModel, DataSet, CompositeDataSet, ModelMap, Cond
 import InformationGeometry: Identity2Splitter
 
 # Get fixed uncertainties based on error parameter values from P
-function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=P.petab_tables[:observables], ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
+function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame=CreateSymbolDFobservables(P), ObsNames::AbstractVector{<:Symbol}=Symbol.(observablesDF[!,:observableId]); Mle::AbstractVector=Float64[],
                         FixedError::Bool=true, ObsID=:observableId, CondID=:simulationConditionId, Formula=:noiseFormula, ObsTrafo=:observableTransformation, NoiseDist=:noiseDistribution, Pscale=:parameterScale, ParamID=:parameterId, debug::Bool=false, kwargs...)
-    Odf = @view (observablesDF[[findfirst(isequal(O),Symbol.(observablesDF[!,ObsID])) for O in ObsNames], :])
-    # @assert all(Symbol.(Odf[!,ObsTrafo]) .=== :lin)
-    @assert all(Symbol.(Odf[!,NoiseDist]) .=== :normal)
-    ParsedError = Tuple(Meta.parse.(X) for X in Odf[!, Formula])
-    all(x->isa(x,Number), ParsedError) && return collect(ParsedError)
     function FindLineInParamTable(Symb::Symbol)
         S = deepcopy(Symb)
         i = findfirst(isequal(S), Symbol.(P.petab_tables[:parameters][!,ParamID]))
@@ -222,6 +217,12 @@ function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame
     GetInds(x::Symbol) = [findfirst(isequal(x), InformationGeometry.GetNamesSymb(Mle))];    GetInds(x::Number) = x
     GetInds(x) = (@warn "GetInds: Got $x, trying to continue.";  x)
     MakeConstError(X::AbstractVector{<:Int}, S::Symbol) = (R=Mle[X];   length(R) == 1 ? R[1] : R);  MakeConstError(x::Number, S) = x
+    
+    Odf = @view (observablesDF[[findfirst(isequal(O),Symbol.(observablesDF[!,ObsID])) for O in ObsNames], :])
+    # @assert all(Symbol.(Odf[!,ObsTrafo]) .=== :lin)
+    @assert all(Symbol.(Odf[!,NoiseDist]) .=== :normal)
+    ParsedError = Tuple(Meta.parse.(X) for X in Odf[!, Formula])
+    all(x->isa(x,Number), ParsedError) && return collect(ParsedError)
     NameOrValue = GetFullParameterName.(ParsedError)
     IndOrValue = GetInds.(NameOrValue)
     ## For debugging
@@ -230,12 +231,30 @@ function GetFixedDataUncertainty(P::PEtabModel, observablesDF::AbstractDataFrame
     FixedError && return [Transform(Value) for (Transform, Value) in Iterators.zip(GetInverseTrafo.(ParsedError), MakeConstError.(IndOrValue, ParsedError))]
 end
 
+function GetErrorParametersInCondition(PM::PEtabODEProblem, CondName::Symbol; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(PM; ObsID, CondID),
+                        P::PEtabModel=PM.model_info.model, observablesDF::AbstractDataFrame=CreateSymbolDFobservables(P), ObsNames::AbstractVector{<:Symbol}=ObsidsInCondDict[CondName],
+                        NoiseFormula=:noiseFormula, NoiseDist=:noiseDistribution, kwargs...)
+    function GetInds2(x::Symbol)
+        FullNames = PM.model_info.petab_parameters.parameter_id
+        findfirst(isequal(x), FullNames)
+    end
+    GetInds2(x::Number) = nothing;    GetInds2(x) = (@warn "GetInds: Got $x, trying to continue.";  x)
+
+    Odf = @view (observablesDF[[findfirst(isequal(O),Symbol.(observablesDF[!,ObsID])) for O in ObsNames], :])
+    @assert all(Symbol.(Odf[!,NoiseDist]) .=== :normal)
+    Res = Int[]
+    for X in Odf[!, NoiseFormula]
+        Val = GetInds2(Meta.parse(X))
+        !isnothing(Val) && push!(Res,Val)
+    end;    Res
+end
+
 
 function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDFmeasurements(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
                         ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID),
                         FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
     cdf = sdf[sdf[!, CondID] .=== CondName, :]
-    verbose && @info "Starting Condition $CondName."
+    debug && @info "Starting Condition $CondName."
     # df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
     df = Long2WidePEtabMeasurementsWithErrors(sdf, CondName; UniqueObsids=ObsidsInCondDict[CondName], Time, CondID, ObservableDf=CreateSymbolDFobservables(M))
     Xdf = MissingToNan.(df[!,[Time]]);    YdfE = broadcast(x->ismissing(x) ? NaN : x, df[!,Not(Time)])
@@ -269,9 +288,11 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
     if Sdf isa AbstractDataFrame
         (!HasMissingData ? DataSet : CompositeDataSet)(Xdf, Ydf, Sdf; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
     else
+        ## using xindices.ids[:xnoise] is unreliable
+        nerrorparameters = GetErrorParametersInCondition(P, CondName; ObsID, CondID, ObsidsInCondDict, ObsNames=ObsidsInCondDict[CondName])
         if !HasMissingData
             ## Need identity splitter
-            DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+            DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
         else
             @warn "Throwing away any rows with missing or NaN currently"
             keep = map(x->any(z->z isa Number && isfinite(z), x), eachrow(Ydf))
@@ -279,7 +300,7 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
             ## Need to modify error model for missings...
 
             throw("Not programmed for reading error models with missing values yet.")
-            DataSetUncertain(Xdf[keep], Ydf[keep,:], (x,y,p)->Sdf(x,y,p)[bigkeep], Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName)
+            DataSetUncertain(Xdf[keep], Ydf[keep,:], (x,y,p)->Sdf(x,y,p)[bigkeep], Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
             ### Try version with throwing away all rows containing any missing value
         end
     end
@@ -315,8 +336,8 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=false, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
-    verbose && SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
+function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
+    SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     SortConditions && sort!(UniqueConds)
