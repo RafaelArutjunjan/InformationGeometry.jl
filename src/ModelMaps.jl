@@ -681,7 +681,7 @@ EmbedModelXP(model::Function, Emb::Function, Inplace::Bool=isinplacemodel(model)
 
 
 # Provided by ModelingToolkitExt
-SystemTransform() = throw("Need to load ModelingToolkit.jl first to use SystemTransform!")
+SystemTransform() = throw("Need to load ModelingToolkitBase.jl first to use SystemTransform!")
 
 
 IsDEbased(F::Function) = occursin("DEmodel", string(nameof(typeof(F))))

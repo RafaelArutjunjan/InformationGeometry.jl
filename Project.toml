@@ -136,7 +136,7 @@ BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"
 DelayDiffEq = "bcd4f6db-9728-5f36-b5f7-82caef46ccdb"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
-ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+ModelingToolkitBase = "7771a370-6774-4173-bd38-47e70ca0b839"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationNLopt = "4e6fcdb7-1186-4e1f-a706-475e75c168bb"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
@@ -148,4 +148,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["BoundaryValueDiffEq", "DelayDiffEq", "FiniteDifferences", "LsqFit", "ModelingToolkit", "OrdinaryDiffEq", "Optimization", "OptimizationNLopt", "Plots", "SafeTestsets", "SciMLSensitivity", "StochasticDiffEq", "Test", "Zygote"]
+test = ["BoundaryValueDiffEq", "DelayDiffEq", "FiniteDifferences", "LsqFit", "ModelingToolkitBase", "OrdinaryDiffEq", "Optimization", "OptimizationNLopt", "Plots", "SafeTestsets", "SciMLSensitivity", "StochasticDiffEq", "Test", "Zygote"]

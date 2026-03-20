@@ -48,10 +48,10 @@ MakeMTKVariables(S::Symbol; base::AbstractString="@variables") = eval(Meta.parse
 MakeMTKVariables(S::AbstractArray{<:Symbol}; kwargs...) = [MakeMTKVariables(s; kwargs...) for s in S]
 
 MakeMTKParameters(S; base="@parameters", kwargs...) = MakeMTKVariables(S; base, kwargs...)
-MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
+MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # updated by ModelingToolkitBase extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
 
-MakeSymbolicParsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
-MakeSymbolicVarsOld(X; kwargs...) = throw("Need to load ModelingToolkit.jl first.") # updated by ModelingToolkit extension to eval(Symbolics._parse_vars(:variables, Real, X, ModelingToolkitBase.toparam))
+MakeSymbolicParsOld(X; kwargs...) = throw("Need to load ModelingToolkitBase.jl first.") # updated by ModelingToolkitBase extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
+MakeSymbolicVarsOld(X; kwargs...) = throw("Need to load ModelingToolkitBase.jl first.") # updated by ModelingToolkitBase extension to eval(Symbolics._parse_vars(:variables, Real, X, ModelingToolkitBase.toparam))
 
 
 # Apply String to make LaTeXStrings into strings as well
@@ -182,7 +182,7 @@ end
 
 function OptimizedDM(DM::AbstractDataModel; kwargs...)
     model, dmodel = OptimizeModel(DM; kwargs...)
-    # Very simple models (ydim=1) typically slower after simplification using ModelingToolkit.jl / Symbolics.jl
+    # Very simple models (ydim=1) typically slower after simplification using ModelingToolkitBase.jl / Symbolics.jl
     !isnothing(dmodel) ? DataModel(Data(DM), Predictor(DM), dmodel, MLE(DM), LogLikeMLE(DM), LogPrior(DM)) : DM
 end
 

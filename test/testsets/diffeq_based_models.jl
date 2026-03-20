@@ -1,4 +1,4 @@
-using InformationGeometry, Test, OrdinaryDiffEq, ModelingToolkit, Symbolics, LinearAlgebra
+using InformationGeometry, Test, OrdinaryDiffEq, ModelingToolkitBase, Symbolics, LinearAlgebra
 
 function SIR!(du,u,p,t)
     S, I, R = u

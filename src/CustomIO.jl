@@ -47,7 +47,7 @@ Base.summary(DS::AbstractUnknownUncertaintyDataSet) = string(TYPE_COLOR, nameof(
 
 ###### Useful info: Autodmodel? Symbolic? StaticArray output? In-place?
 function Base.summary(DM::AbstractDataModel)
-    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
+    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkitBase.jl
     string(TYPE_COLOR, nameof(typeof(DM)),
     NO_COLOR, (name(DM) === Symbol() ? "" : " "*ColoredString(name(DM))),
     " containing ",
@@ -72,7 +72,7 @@ Base.summary(R::MultistartResults) = string(TYPE_COLOR, "MultistartResults", NO_
 
 Base.summary(P::ParamTrafo) = string(TYPE_COLOR, "ParameterTransformations", NO_COLOR, " for ", NUMBER_COLOR, string(length(P.Trafos)), NO_COLOR, " conditions")
 function Base.summary(CG::ConditionGrid)
-    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkit.jl
+    # Also use "RuntimeGeneratedFunction" string from build_function in ModelingToolkitBase.jl
     Name = string(name(CG))
     string(TYPE_COLOR, "Condition Grid",
     NO_COLOR, (length(Name) > 0 ? " "*ColoredString(name(CG)) : ""),

@@ -273,7 +273,7 @@ function FindMLE(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM),
 end
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
                 LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(EnsureNoSymbolic(ADmode), CostFunction),
-                tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+                tol::Real=1e-10, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
@@ -291,7 +291,7 @@ end
 
 function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, Start::AbstractVector{<:Number}=GetStartP(DS,model), LogPriorFn::Union{Function,Nothing}=nothing; Big::Bool=false, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), 
                 LogLikelihoodFn::Function=GetLogLikelihoodFn(DS,model,LogPriorFn), CostFunction::Function=Negate(LogLikelihoodFn), ScoreFn::Function=GetGrad!(EnsureNoSymbolic(ADmode), CostFunction),
-                tol::Real=1e-14, meth=nothing, verbose::Bool=true, kwargs...)
+                tol::Real=1e-10, meth=nothing, verbose::Bool=true, kwargs...)
     start = floatify(Start)
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."

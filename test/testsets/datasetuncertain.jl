@@ -63,7 +63,7 @@ TestAgreement(DMU, 0.2)
 
 
 
-using ModelingToolkit, OrdinaryDiffEq, LinearAlgebra, Symbolics
+using ModelingToolkitBase, OrdinaryDiffEq, LinearAlgebra, Symbolics
 
 ## Using MakeSymbolicParsOld method does to not put the individual variable names into global scope
 # InformationGeometry.MakeSymbolicParsOld([:t, :β, :γ])
