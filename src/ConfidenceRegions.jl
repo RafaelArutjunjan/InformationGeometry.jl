@@ -278,7 +278,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, Start::AbstractVec
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
-        Curve_fit(DS, model, start; tol=tol).param
+        Curve_fit(DS, model, start; tol=tol, kwargs...).param
     else
         if isnothing(meth)
             InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol, verbose, kwargs...)
@@ -296,7 +296,7 @@ function FindMLE(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFun
     (Big || tol < 2.3e-15 || suff(start) == BigFloat) && return FindMLEBig(DS, model, start, LogPriorFn; LogLikelihoodFn, CostFunction, ScoreFn, ADmode, tol, kwargs...)
     verbose && HasXerror(DS) && !isa(DS, UnknownVarianceDataSet) && @warn "Ignoring x-uncertainties in maximum likelihood estimation. Can be incorporated using the TotalLeastSquares() method."
     if isnothing(meth) && isnothing(LogPriorFn) && DS isa DataSet
-        Curve_fit(DS, model, dmodel, start; tol=tol).param
+        Curve_fit(DS, model, dmodel, start; tol=tol, kwargs...).param
     else
         if isnothing(meth)
             InformationGeometry.minimize(CostFunction, ScoreFn, start, (model isa ModelMap ? Domain(model) : nothing); tol=tol, verbose=verbose, kwargs...)
@@ -698,6 +698,7 @@ Computes the forward propagation of the parameter covariance to the residuals. T
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
+    @assert dof > 0;    @assert Confnum > 0
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
     ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
     SplitPars = SplitErrorParams(DM)(mle)
