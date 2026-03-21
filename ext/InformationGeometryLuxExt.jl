@@ -13,13 +13,14 @@ GetWidths(X::AbstractVector{<:Number}) = (E=extrema(X);    2(E[2]-E[1]))
 NeuralNet(DS::AbstractDataSet, args...; kwargs...) = NeuralNet(xdim(DS), ydim(DS), args...; kwargs...)
 """
     NeuralNet(DS::AbstractDataSet, N::Int=2, hidden::Int=1; kwargs...)
-    NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, HiddenActivation::Function=tanh, 
-                            FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, kwargs...)
-`N` is number of neurons in intermediate layers, `hidden` is number of hidden layers, returns `Lux.Chain`.
-If `hidden` is `-1`, the dedicated output layer is also dropped, returning a single `Lux.Dense` layer.
+    NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; ForcePositiveOutputs::Bool=false, HiddenActivation::Function=tanh, 
+                            FinalActivation::Function=(ForcePositiveOutputs ? softplus : identity), gain::Real=1, kwargs...)
+`N` is number of neurons in intermediate layers, `hidden` is number of hidden layers, sandwiched between the input and output layers, returning a `Lux.Chain`.
+If `hidden` is `-1`, the dedicated output layer is dropped, returning a single `Lux.Dense` layer.
 """
-function NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; positive::Bool=false, activation::Function=tanh, HiddenActivation::Function=activation, 
-                            FinalActivation::Function=(positive ? softplus : identity), gain::Real=1, 
+function NeuralNet(In::Int, Out::Int, N::Int=2, hidden::Int=1; activation::Function=tanh, HiddenActivation::Function=activation, 
+                            positive::Bool=false, ForcePositiveOutputs::Bool=positive,
+                            FinalActivation::Function=(ForcePositiveOutputs ? softplus : identity), gain::Real=1, 
                             init_weight=Lux.kaiming_uniform(; gain), kwargs...)
     hidden == -1 && return Lux.Dense(In, Out, HiddenActivation; init_weight, kwargs...)
 
@@ -37,22 +38,23 @@ end
                     PostTransform::Function=y->(Ydiv .* y) .+ Ymean, kwargs...)
 Returns Tuple `(M, P, U)` where `M` is a `ModelMap` of the neural net with given input dimensions including a normalization of inputs and outputs.
 `P` is a random initial `ComponentVector` parameter configuration and `U` is the `Lux.Chain` object of the underlying neural net.
+Other kwargs are forwarded to the `NeuralNet` method.
 """
 function NormalizedNeuralModel(xd::Int, yd::Int, args...; rng=Random.default_rng(), 
-                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : Zeros(xd)), 
-                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : Ones(xd)),
-                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : Zeros(yd)), 
-                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : Ones(yd)), 
+                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0 : Zeros(Int,xd)), 
+                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1 : Ones(Int,xd)),
+                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0 : Zeros(Int,yd)), 
+                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1 : Ones(Int,yd)), 
                     PreTransform::Function=x->(x .- Xmean) ./ Xdiv, 
                     PostTransform::Function=y->(Ydiv .* y) .+ Ymean, Domain::Union{Nothing,HyperCube}=nothing, kwargs...)
     U = NeuralNet(xd, yd, args...; kwargs...)
     NormalizedNeuralModel(U, xd, yd; rng, Xmean, Xdiv, Ymean, Ydiv, PreTransform, PostTransform, Domain)
 end
 function NormalizedNeuralModel(U::Lux.AbstractLuxLayer, xd::Int, yd::Int; rng=Random.default_rng(), 
-                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0.0 : Zeros(xd)), 
-                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1.0 : Ones(xd)),
-                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0.0 : Zeros(yd)), 
-                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1.0 : Ones(yd)), 
+                    Xmean::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 0 : Zeros(Int,xd)), 
+                    Xdiv::Union{AbstractVector{<:Number},<:Number}=(xd == 1 ? 1 : Ones(Int,xd)),
+                    Ymean::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 0 : Zeros(Int,yd)), 
+                    Ydiv::Union{AbstractVector{<:Number},<:Number}=(yd == 1 ? 1 : Ones(Int,yd)), 
                     PreTransform::Function=x->(x .- Xmean) ./ Xdiv, 
                     PostTransform::Function=y->(Ydiv .* y) .+ Ymean, Domain::Union{Nothing,HyperCube}=nothing)
     p_NN_32, _st = Lux.setup(rng, U);    p_NN = ComponentVector{Float64}(p_NN_32)

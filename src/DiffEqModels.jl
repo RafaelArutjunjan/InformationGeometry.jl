@@ -17,8 +17,9 @@ end
 # No ObservationFunction, therefore try to use sys to infer state names of ODEsys
 # Extend for other DEFunctions in the future
 function DataModel(DS::AbstractDataSet, sys::SciMLBase.AbstractDiffEqFunction, u0::Union{Number,AbstractArray{<:Number},Function},
-                        observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, OptimTol::Real=tol*1e-2, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), kwargs...)
-    DataModel(DS, GetModel(sys, u0, observables; tol, Domain, kwargs...), args...; OptimMeth, OptimTol)
+                        observables::Union{Int,AbstractVector{<:Int},BoolArray,Function}=1:length(u0), args...; tol::Real=1e-7, Domain::Union{HyperCube,Nothing}=nothing, OptimTol::Real=tol*1e-2, OptimMeth=LBFGS(;linesearch=LineSearches.BackTracking()), 
+                        SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+    DataModel(DS, GetModel(sys, u0, observables; tol, Domain, kwargs...), args...; OptimMeth, OptimTol, SkipOptim, SkipTests)
 end
 
 
