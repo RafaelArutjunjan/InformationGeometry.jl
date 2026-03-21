@@ -8,6 +8,11 @@ function TestConversion(petab_prob::PEtabODEProblem, DM::AbstractDataModel=Condi
     @test sum(abs, -Score(DM, MLE(DM)) - petab_prob.grad(MLE(DM))) < atol
     @test sum(abs, FisherMetric(DM, MLE(DM)) - petab_prob.FIM(MLE(DM))) < atol
     @test sum(abs, InformationGeometry.CostHessian(DM)(MLE(DM)) - petab_prob.hess(MLE(DM))) < atol
+    
+    GradRes1 = rand(length(MLE(DM)));    GradRes2 = rand(length(MLE(DM)));    HessRes1 = rand(length(MLE(DM)), length(MLE(DM)));    HessRes2 = rand(length(MLE(DM)), length(MLE(DM)))
+    Score(DM)(GradRes1, MLE(DM));   petab_prob.grad!(GradRes2, MLE(DM));    @test sum(abs, -GradRes1 -GradRes2) < atol
+    FisherMetric(DM)(HessRes1, MLE(DM));   petab_prob.FIM!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
+    CostHessian(DM)(HessRes1, MLE(DM));   petab_prob.hess!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
 
     ###### Score seems to be slightly dissimilar
 
@@ -71,7 +76,7 @@ begin
     sol = solve(oprob, Rodas5P(); saveat = 0:0.5:5.0)
 
     obs1 = (sol[:S] + sol[:E]) .+ randn(length(sol[:E]))
-    obs2   = sol[:P] .+ randn(length(sol[:P]))
+    obs2 = sol[:P] .+ randn(length(sol[:P]))
 
     df1 = DataFrame(obs_id = "petab_obs1", time = sol.t, measurement = obs1)
     df2 = DataFrame(obs_id = "petab_obs2", time = sol.t[1:end-1], measurement = obs2[1:end-1])
@@ -88,6 +93,7 @@ begin
 end
 
 start = [-0.4, 0.5, 2, 0.08]
+# For DOF, see https://github.com/sebapersson/PEtab.jl/issues/362
 DM1 = ConditionGrid(petab_prob, start; FixedError=true, SkipOptim=false);       @test Plots.plot(DM1) isa Plots.Plot;     @test_broken InformationGeometry.DOF(DM1) == 3
 DM2 = ConditionGrid(petab_prob, start; FixedError=false, SkipOptim=false);      @test Plots.plot(DM2) isa Plots.Plot;     @test_broken InformationGeometry.DOF(DM2) == 3;      @test Data(DM2).nerrorparameters == 1
 DM3 = ConditionGrid(petab_prob2, start; FixedError=true, SkipOptim=false);      @test Plots.plot(DM3) isa Plots.Plot;     @test InformationGeometry.DOF(DM3) == 3
