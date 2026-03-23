@@ -637,7 +637,7 @@ end
     VFRescale(ZeilenVecs::AbstractMatrix{<:Number},C::HyperCube;scaling=0.85)
 Rescale vector to look good in 2D plot.
 """
-function VFRescale(ZeilenVecs::AbstractMatrix{<:Number},C::HyperCube;scaling=0.85)
+function VFRescale(ZeilenVecs::AbstractMatrix{<:Number}, C::HyperCube; scaling::Real=0.85)
     VecsPerLine = sqrt(size(ZeilenVecs,1))
     SpacePerVec = (scaling/VecsPerLine) * CubeWidths(C)
     for i in axes(ZeilenVecs,1)
@@ -654,7 +654,7 @@ function VFRescale(ZeilenVecs::AbstractMatrix{<:Number},C::HyperCube;scaling=0.8
 end
 
 
-function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Float64=0.85, OverWrite::Bool=false, kwargs...)
+function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Real=0.85, OverWrite::Bool=false, kwargs...)
     @assert length(Lims) == length(V(Center(Lims))) == 2
     AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
     Vcomp(a,b) = V([a,b])

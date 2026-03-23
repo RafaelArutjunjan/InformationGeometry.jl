@@ -441,4 +441,24 @@ module InformationGeometryMakieExt
             end
         end;    fig
     end
+
+    """
+        Plot2DVFMakie(V::Function, C::HyperCube; N::Int=32, fig=nothing, ax=nothing, colormap=:viridis, arrow_size::Real=11,
+                                xlabel="", ylabel="", title="", kwargs...)
+    Creates Makie streamplot for 2D vector field.
+    """
+    function InformationGeometry.Plot2DVFMakie(V::Function, C::HyperCube; N::Int=32, fig=nothing, ax=nothing, colormap=:viridis, arrow_size::Real=11,
+                                xlabel="", ylabel="", title="", kwargs...)
+        @assert length(C) == length(V(Center(C))) == 2
+        Intervals(C::HyperCube) = [(C.L[i])..(C.U[i]) for i in eachindex(C)]
+        Vcomp(x) = Makie.Point2f(V(Vector(x)))
+        if fig === nothing
+            fig = Figure()
+        end
+        if ax === nothing
+            ax = Makie.Axis(fig[1,1]; xlabel, ylabel, title)
+        end
+        Makie.streamplot!(ax, Vcomp, Intervals(C)...; colormap, gridsize=(N,N,N), arrow_size, kwargs...)
+        fig
+    end
 end # module

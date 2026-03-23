@@ -6,11 +6,11 @@ The [**PEtab.jl**](https://github.com/sebapersson/PEtab.jl) package allows for l
 In addition to datasets of recorded measurements, the PEtab format allows for the specification of a mathematical model for describing said data (which are usually based on Ordinary Differential Equations and provided via [**SBML**](https://sbml.org/documents/specifications/) files), as well as the final parameter values resulting from the estimation process.
 Most prominently, the [**PEtab**](https://petab.readthedocs.io/en/latest) standard has been used to publish modelling results in Systems Biology so far, see e.g. the [Benchmark Collection](https://github.com/Benchmarking-Initiative/Benchmark-Models-PEtab).
 
-Currently, it is possible to convert a `PEtabODEProblem` from the [**PEtab.jl**](https://github.com/sebapersson/PEtab.jl) package into a `DataModel`, (or a `ConditionGrid` if it consists of more than one condition) via by applying the `DataModel` constructor. For instance, for the Böhm model with .yaml saved under `BöhmYamlPath`:
+Currently, it is possible to convert a `PEtabODEProblem` from the [**PEtab.jl**](https://github.com/sebapersson/PEtab.jl) package into a `DataModel`, (or a `ConditionGrid` if it consists of more than one condition) via by applying the `DataModel` constructor. For instance, for the Boehm model with .yaml saved under `BoehmYamlPath`:
 ```julia
 using InformationGeometry, PEtab, Optim, Plots
-Böhm = PEtabODEProblem(PEtabModel(BöhmYamlPath); gradient_method=:ForwardEquations, hessian_method=:ForwardDiff)
-DM = Refit(ConditionGrid(Böhm; FixedError=true); meth=IPNewton())
+Boehm = PEtabODEProblem(PEtabModel(BoehmYamlPath); gradient_method=:ForwardEquations, hessian_method=:ForwardDiff)
+DM = Refit(ConditionGrid(Boehm; FixedError=true); meth=IPNewton())
 ```
 This will automatically extract a simplified representation of the dataset. 
 If error models are used in the `PEtabODEProblem` to estimate the data uncertainties, they are currently dropped and the uncertainties are fixed to the values dictated by the error model at the best fit values of the error parameters. However, since the likelihood function and its gradient are directly accessed from the given `PEtabODEProblem`, this does not affect optimisation (such as during profile likelihood computation or multistart optimisation), where changes in the given error parameters are properly accounted for.
@@ -23,7 +23,3 @@ plot(DM; Confnum=0)
 R = MultistartFit(DM; N=5000)
 P = ParameterProfiles(DM; N=50, meth=LBFGS(), Domain=nothing, ProfileDomain=InformationGeometry.Domain(DM))
 ```
-
-!!! note
-    For `PEtabODEProblem`s consisting of multiple conditions, only the gradient method `:ForwardEquations` is currently supported.  
-    For the Hessian method, the three options `:ForwardDiff`, `:BlockForwardDiff` and `:GaussNewton` are supported.
