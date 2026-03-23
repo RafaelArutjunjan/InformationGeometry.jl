@@ -334,6 +334,7 @@ function GetObservableParamInds end
 
 ## MakieExt
 function adapted_aog_theme end
+function Plot2DVFMakie end
 
 ## LuxExt
 function NeuralNet end
