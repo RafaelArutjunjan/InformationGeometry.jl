@@ -71,9 +71,9 @@ function AutoDiffble(F::Function, x::AbstractVector)
 end
 
 
-function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true) where T <: Number
+function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true, ForceClamp::Bool=true) where T <: Number
     @assert length(Start) == length(Dom) "Got parameter configuration of length $(length(Start)) but Domain has length $(length(Dom))."
-    start = if Start ∈ Dom
+    start = if Start ∈ Dom || !ForceClamp
         Start
     else
         verbose && @warn "Initial guess $Start not within given bounds. Clamping to bounds and continuing."
@@ -109,7 +109,7 @@ minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth; kwargs...) = minimize
 
 # Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
 function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
-                Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, reltol::Real=tol, abstol::Real=tol, 
+                Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, reltol::Real=tol, abstol::Real=tol, ForceClamp::Bool=true,
                 Full::Bool=false, verbose::Bool=true, maxtime::Real=600.0, time_limit::Real=maxtime,
                 # catch for now:
                 CostGradient=nothing, CostHessian=nothing,
@@ -121,7 +121,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
                 retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...) where T <: Number
     @assert !retry || !isnothing(retrymeth)
     @assert 1 ≤ length(Fs) ≤ 3
-    start = ConstrainStart(Start, Domain; verbose=verbose)
+    start = ConstrainStart(Start, Domain; verbose, ForceClamp)
     length(Fs) == 3 && @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
     
@@ -202,7 +202,7 @@ end
 
 # For Optimizers from the Optimization.jl ecosystem
 function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
-                    tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, 
+                    tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, ForceClamp::Bool=true,
                     lb=(!isnothing(Domain) ? convert(typeof(Start),Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(typeof(Start),Domain.U) : nothing), lcons=nothing, ucons=nothing, # cons already captured in optf
                     Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), 
                     retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...)
@@ -216,14 +216,14 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
         !isnothing(ub) && (ub = nothing)
     end
     
-    prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
+    prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(Start, Domain; verbose=verbose, ForceClamp); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
 
     sol = OptimizationBase.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
         verbose && @warn "minimize(): Optimization appears to not have converged."
         if retry
             verbose && @warn "minimize(): Try to continue with $retrymeth."
-            prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
+            prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose, ForceClamp); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
             sol = OptimizationBase.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
                 verbose && @warn "minimize(): Repeated Optimization with $retrymeth appears to not have converged, too."
@@ -359,11 +359,11 @@ function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initi
     res = copy(initial)
     Results = typeof(initial)[]
     PerStep = Npoints(DM)÷steps
-    for chunk in vcat([1:i*(PerStep) for i in 1:steps-1], [1:Npoints(DM)])
+    @showprogress "Incremental Fit: " for chunk in vcat([1:i*(PerStep) for i in 1:steps-1], [1:Npoints(DM)])
         FullRes = Method(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
         res .= GetMinimizer(FullRes)
         push!(Results, res)
-    end;    res
+    end;    Results[end]
 end
 
 
