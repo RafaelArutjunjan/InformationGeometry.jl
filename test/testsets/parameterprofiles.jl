@@ -99,7 +99,9 @@ using FiniteDifferences
 using ComponentArrays, InformationGeometry
 X = ComponentVector(A=5.0, B=3.0)
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, X); plot=false))))
+cpdm = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, X)
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm; plot=false))))
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm, 1, 1:1; plot=false))))
 
 
 using Plots

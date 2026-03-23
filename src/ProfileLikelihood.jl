@@ -790,11 +790,11 @@ mutable struct ParameterProfiles <: AbstractProfiles
         Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
         if !(inds == 1:length(MLE))
             EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
-            EmptyTraj = [Fill(NaN, length(MLE))]
+            EmptyTraj = SaveTrajectories ? [convert(eltype(Trajs[1]), fill(NaN, length(MLE)))] : nothing
             for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
                 if i ∉ inds
                     insert!(Profs, i, EmptyProf)
-                    SaveTrajectories ? insert!(Trajs, i, EmptyTraj) : insert!(Trajs, i, nothing)
+                    insert!(Trajs, i, EmptyTraj)
                 end
             end
         end
