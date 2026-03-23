@@ -234,10 +234,10 @@ end
 
 function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
     widths = try
-        sqrt.(Diagonal(inv(F)).diag)
+        sqrt.(abs.(Diagonal(inv(F)).diag))
     catch;
         # For structurally unidentifiable models, return value given by "failed".
-        1 ./ sqrt.(Diagonal(F).diag)
+        1 ./ sqrt.(abs.(Diagonal(F).diag))
     end
     sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
 end
@@ -1719,26 +1719,33 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
     @assert IC > 0 && dof > 0
     M = Predictor(DM);    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - M(t, θ)[yComp] + yoffset))
+    FictDataPointPrior(θnew::ComponentVector) = logpdf(FicticiousPoint, θnew.new[1] - M(t, θnew.original)[yComp] + yoffset)
     VPL(θnew::AbstractVector) = LogLikelihoodFn(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
-    mleNew = [MLE; (ypred-yoffset)];    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
+    VPL(θnew::ComponentVector) = LogLikelihoodFn(θnew.original) + FictDataPointPrior(θnew)
+    MakeNewMLE(MLE::AbstractVector{T}) where T<:Number = [MLE; T(ypred-yoffset)]
+    MakeNewMLE(MLE::ComponentVector{T}) where T<:Number = ComponentVector{T}(original=MLE; new=T(ypred-yoffset))
+    mleNew = MakeNewMLE(MLE);    Fisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
     GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
-                Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
+                Fisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
 # Generate multiple validation profiles and add back offset to prediction scale
 """
     ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector; Confnum::Real=2, dof::Int=DOF(DM), OffsetToZero::Bool=false, kwargs...)
 Computes a set of validation profiles for the component `yComp` of the prediction at various values of the independent variables `Ts`.
-The uncertainty of the ficticious validation data point can be optionally chosen via the keyword argument `σv`.
+The uncertainty of the ficticious validation data point can be optionally chosen via the keyword argument `σv::Real`.
+Therefore, if the validation profiles are not only computed as an intermediate step to obtain prediction profiles, `σv` should be chosen as the assumed uncertainty in the validation measurements.
 Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
 """
 function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = [Predictor(DM)(t,MLE)[yComp] for t in Ts]      # Always compute with offset to zero internally
     Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, MLE, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
+    InsertToZprof(TrajPoint::AbstractVector, i::Int) = Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp]
+    InsertToZprof(TrajPoint::ComponentVector, i::Int) = Predictor(DM)(Ts[i], TrajPoint.original)[yComp]
     for i in eachindex(Ts)
-        zProf = map(TrajPoint->Predictor(DM)(Ts[i], (@view TrajPoint[1:end-1]))[yComp], Trajs[i])
+        zProf = map(TrajPoint->InsertToZprof(TrajPoint,i), Trajs[i])
         insert!(Profs[i].u, length(Profs[i].u), zProf)
     end
     # If should remain on true scale, add ypreds back on
