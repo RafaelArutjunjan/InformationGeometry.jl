@@ -288,10 +288,12 @@ end
 
 
 """
-    ParameterSavingCallback(DM::AbstractDataModel)
-    ParameterSavingCallback(start::AbstractVector) -> (Vector{typeof(start)}, Function)
-Produces tuple where first entry constitutes empty `Vector{typeof(start)}` array into which the parameter trajectory will be saved.
-Second entry is the callback function itself, which is to be added to the optimization method via the `callback` keyword argument.
+    ParameterSavingCallback(start::AbstractVector; SaveLoss::Bool=false, PrintLossEvery::Int=0, Terminate::Function=(State,loss)->false)
+Produces tuple `(Params, Func)` where first entry `Param` constitutes empty `Vector{typeof(start)}` array into which the parameter trajectory will be saved.
+Second entry `Func` is the callback function itself, which is to be added to the optimization method via the `callback` keyword argument.
+
+The `Terminate` kwarg can be used to specify custom termination criteria. The `PrintLossEvery` kwarg enables printing current loss during optimization.
+The `SaveLoss` kwarg can be used to return `((Params, Losses), Func)`, also saving the losses in addition to the parameters during optimization.
 
 # Examples
 ```julia
@@ -302,16 +304,22 @@ TracePlot(Pars)
 !!! note
     Does not work for optimizers from Optim.jl unless wrapped with OptimizationOptimJL.jl, i.e. when setting keyword `OptimJL=false`.
 """
-function ParameterSavingCallback(X::AbstractVector{<:Number})
-    SavedParams = typeof(X)[]
-    GetCurPar(S::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
+function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, PrintLossEvery::Int=0, Terminate::Function=(State,loss)->false) where T<:Number
+    SavedParams = typeof(X)[];    Losses = SaveLoss ? T[] : nothing
+    GetCurPar(State::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
     ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
-    GetCurPar(S) = try  S.u  catch;   throw("Got $S instead of OptimizationState.") end
-    SaveOptimizationpath(State, args...) = (push!(SavedParams, GetCurPar(State));   false)
-    SavedParams, SaveOptimizationpath
+    GetCurPar(State) = try  State.u  catch;   throw("Got $State instead of OptimizationState.");    fill(Inf, length(X))  end
+    # GetCurLoss(S) = try  S.u  catch;   throw("Got $S instead of OptimizationState.") end
+    SaveOptimizationpath(State, loss) = (push!(SavedParams, copy(GetCurPar(State)));   PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss");    Terminate(State,loss))
+    SaveOptimizationpathSaveLoss(State, loss) = (push!(SavedParams, copy(GetCurPar(State)));   push!(Losses, loss);   PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss");    Terminate(State,loss))
+    if SaveLoss
+        (SavedParams, Losses), SaveOptimizationpathSaveLoss
+    else
+        SavedParams, SaveOptimizationpath
+    end
 end
-ParameterSavingCallback(DM::AbstractDataModel) = ParameterSavingCallback(MLE(DM))
+ParameterSavingCallback(DM::AbstractDataModel; kwargs...) = ParameterSavingCallback(MLE(DM); kwargs...)
 
 
 GetRobustCostFunction(DM::AbstractDataModel; kwargs...) = GetRobustCostFunction(Data(DM), Predictor(DM), LogPrior(DM); kwargs...)

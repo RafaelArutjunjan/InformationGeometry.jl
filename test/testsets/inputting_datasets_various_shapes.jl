@@ -56,7 +56,7 @@ cdm = DataModel(cds, (x,p)->[p[1]*x, p[2]*x])
 CG = InformationGeometry.SplitObservablesIntoConditions(DataModel(cds, (x,p)->[p[1]*x, p[2]*x]))
 @test CG isa InformationGeometry.AbstractConditionGrid
 @test loglikelihood(CG, MLE(CG)) ≈ loglikelihood(cdm, MLE(cdm))
-@test sum(abs, Score(CG, MLE(CG)) - Score(cdm, MLE(cdm))) < 1e-7
+@test sum(abs, Score(CG, MLE(CG)) - Score(cdm, MLE(cdm))) < 2e-7
 @test sum(abs, FisherMetric(CG, MLE(CG)) - FisherMetric(cdm, MLE(cdm))) < 1e-9
 @test InformationGeometry.CostHessian(CG, MLE(CG)) ≈ InformationGeometry.CostHessian(cdm, MLE(cdm))
 

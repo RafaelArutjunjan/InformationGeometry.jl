@@ -8,8 +8,8 @@ WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::B
 WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(1.); dof::Int=DOF(DM), kwargs...) = cdf(Chisq(dof), 2(LogLikeMLE(DM) - loglikelihood(DM, θ; kwargs...))) - Confvol
 
 # Do not give default to third argument here such as to not overrule the defaults from above
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Float64}, Confvol::BigFloat; kwargs...) = WilksCriterion(DM, BigFloat.(θ), Confvol; kwargs...)
-WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::Float64; kwargs...) = WilksCriterion(DM, θ, BigFloat(Confvol); kwargs...)
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:AbstractFloat}, Confvol::BigFloat; kwargs...) = WilksCriterion(DM, BigFloat.(θ), Confvol; kwargs...)
+WilksCriterion(DM::AbstractDataModel, θ::AbstractVector{<:BigFloat}, Confvol::AbstractFloat; kwargs...) = WilksCriterion(DM, θ, BigFloat(Confvol); kwargs...)
 
 """
     WilksTest(DM::DataModel, θ::AbstractVector{<:Number}, Confvol=ConfVol(1)) -> Bool
