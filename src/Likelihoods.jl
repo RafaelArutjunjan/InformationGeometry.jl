@@ -378,7 +378,7 @@ Constructs lifted embedding map from initial space into extended dataspace ``\\h
 """
 LiftedEmbedding(DM::AbstractDataModel) = LiftedEmbedding(Data(DM), Predictor(DM), pdim(DM))
 function LiftedEmbedding(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
-    ĥ(ξ::AbstractVector; kwargs...) = ĥ2(view(ξ,1:length(ξ)-pd), view(ξ,length(ξ)-pd+1:length(ξ)); kwargs...)
+    ĥ(ξ::AbstractVector; kwargs...) = (L=length(ξ);   ĥ2(SafeView(ξ,1:L-pd), SafeView(ξ,L-pd+1:L); kwargs...))
     ĥ2(xdat::AbstractVector, θ::AbstractVector{<:Number}; kwargs...) = [xdat; EmbeddingMap(DS, Model, θ, Windup(xdat, xdim(DS)); kwargs...)]
     ĥ
 end
@@ -390,9 +390,9 @@ Constructs lifted embedding map from initial space into extended dataspace ``\\h
 LiftedEmbeddingInplace(DM::AbstractDataModel) = LiftedEmbeddingInplace(Data(DM), Predictor(DM), pdim(DM))
 function LiftedEmbeddingInplace(DS::AbstractDataSet, Model::ModelOrFunction, pd::Int)
     function ĥ!(XY::AbstractVector, XP::AbstractVector; kwargs...)
-        xlen = length(XP) - pd;     Xinds = 1:xlen;    Xs = view(XP, Xinds)
+        xlen = length(XP) - pd;     Xinds = 1:xlen;    Xs = SafeView(XP, Xinds)
         copyto!(view(XY,Xinds), Xs)
-        EmbeddingMap!(view(XY,xlen+1:length(XY)), DS, Model, view(XP, xlen+1:length(XP)), Windup(Xs, xdim(DS)); kwargs...)
+        EmbeddingMap!(SafeView(XY,xlen+1:length(XY)), DS, Model, SafeView(XP, xlen+1:length(XP)), Windup(Xs, xdim(DS)); kwargs...)
     end
 end
 
@@ -404,7 +404,7 @@ FullLiftedLogLikelihood(DM::AbstractDataModel; kwargs...) = FullLiftedLogLikelih
 FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int; kwargs...) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; kwargs...)
 function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int; Kwargs...)
     L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; Kwargs...)
-    ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, view(Xθ, length(Xθ)-pd+1:length(Xθ)))
+    ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, SafeView(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
 FullLiftedNegLogLikelihood(args...; kwargs...) = Negate(FullLiftedLogLikelihood(args...; kwargs...))
 
