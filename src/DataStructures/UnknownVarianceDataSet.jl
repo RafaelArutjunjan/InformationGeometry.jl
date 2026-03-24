@@ -67,7 +67,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invxerrormodelraw::Function, invyerrormodelraw::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
-            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); SkipXs::Function=(n = length(x); p::AbstractVector{<:Number}->@view p[n+1:end]), kwargs...)
+            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); SkipXs::Function=(n = length(x); p::AbstractVector{<:Number}->SafeView(p,n+1:length(P))), kwargs...)
         Q = invxerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpx)
         Invxerrormodelraw, Invxerrormodel = ErrorModelTester(invxerrormodelraw, Q)
         M = invyerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
@@ -120,7 +120,10 @@ verbose::Bool=true
 ) = UnknownVarianceDataSet(x, y, dims, invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, xnames, ynames, name; BesselCorrection, verbose)
 
 
-DefaultErrorModelSplitter(n::Int, m::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end]))
+function DefaultErrorModelSplitter(n::Int, m::Int)
+    Splitter(θ::AbstractVector{<:Number}; kwargs...) = @views (θ[1:end-n-m], θ[end-n-m+1:end-m], θ[end-m+1:end])
+    Splitter(θ::ComponentVector{<:Number}; kwargs...) = (L=length(θ);    (θ[KeepIndex(1:L-n-m)], θ[KeepIndex(L-n-m+1:L-m)], θ[KeepIndex(L-m+1:L)]))
+end
 Identity3Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ, θ))
 
 

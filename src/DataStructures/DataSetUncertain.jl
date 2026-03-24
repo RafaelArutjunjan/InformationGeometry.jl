@@ -230,7 +230,10 @@ verbose::Bool=true,
 name::StringOrSymb=Symbol()) = DataSetUncertain(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, 
                             woundXpred, nerrorparameters, ErrorModelDependencies, xnames, ynames, name; BesselCorrection, verbose)
 
-DefaultErrorModelSplitter(n::Int) = ((θ::AbstractVector{<:Number}; kwargs...) -> @views (θ[1:end-n], θ[end-n+1:end]))
+function DefaultErrorModelSplitter(n::Int)
+    Splitter(θ::AbstractVector{<:Number}; kwargs...) = @views (θ[1:end-n], θ[end-n+1:end])
+    Splitter(θ::ComponentVector{<:Number}; kwargs...) = (L=length(θ);    (θ[KeepIndex(1:L-n)], θ[KeepIndex(L-n+1:L)]))
+end
 Identity2Splitter = ((θ::AbstractVector{<:Number}; kwargs...) -> (θ, θ))
 
 xdata(DS::DataSetUncertain) = DS.x

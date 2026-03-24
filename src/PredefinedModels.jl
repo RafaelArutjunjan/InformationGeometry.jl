@@ -175,14 +175,16 @@ The new parameters `T_shift` and `r` are appended to the ODE parameters.
 function ODESystemTimeRetardation(Func::AbstractODEFunction{T}) where T
     oldf! = Func.f
     function newf!(du,u,p,t)
-        oldf!(du,u,(@view p[1:end-2]), t)
+        L = length(p)
+        oldf!(du,u,SafeView(p,1:L-2), t)
         T_shift, r_coupling = @view p[end-1:end]
         du .*= exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift))
         nothing
     end
     function newf(u,p,t)
+        L = length(p)
         T_shift, r_coupling = @view p[end-1:end]
-        oldf!(u,(@view p[1:end-2]),t) .* (exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift)))
+        oldf!(u,SafeView(p,1:L-2),t) .* (exp10(r_coupling * t) / (exp10(r_coupling * t) + exp10(r_coupling * T_shift)))
     end
     ODEFunction{T}(T ? newf! : newf)
 end

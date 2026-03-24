@@ -11,7 +11,7 @@ module InformationGeometryLsqFitExt
 
     
 
-    import InformationGeometry: Curve_fit, muladd!, rescaledjac, MLE, LogPrior, EmbeddingMap, EmbeddingMatrix, Predictor, dPredictor, Data
+    import InformationGeometry: Curve_fit, muladd!, rescaledjac, MLE, LogPrior, EmbeddingMap, EmbeddingMatrix, Predictor, dPredictor, Data, SafeView
     import InformationGeometry: GetDomain, yInvCov, InvCov, WoundX, WoundY, GetStartP, Windup, BlockMatrix, ysigma, xdim, ydim, pdim, Npoints, xdist, ydist
 
     function Curve_fit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM); kwargs...)
@@ -65,7 +65,7 @@ module InformationGeometryLsqFitExt
 
         plen = pdim(DSE,model);  xlen = Npoints(DSE) * xdim(DSE)
         function predictY(ξ::AbstractVector)
-            x = view(ξ, 1:xlen);        p = view(ξ, (xlen+1):length(ξ))
+            x = SafeView(ξ, 1:xlen);        p = SafeView(ξ, (xlen+1):length(ξ))
             # INPLACE EmbeddingMap!() would be great here!
             vcat(x, EmbeddingMap(DSE, model, p, Windup(x,xdim(DSE))))
         end
