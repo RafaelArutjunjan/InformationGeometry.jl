@@ -682,7 +682,7 @@ end
 function AverageSingleYsigmaMatrix(DM::AbstractDataModel, mle::AbstractVector=MLE(DM))
     @assert !HasEstimatedUncertainties(DM)
     Ysig = yInvCov(DM, mle) |> pinv
-    mean([view(Ysig, inds, inds) for inds in Iterators.partition(1:size(Ysig,1), ydim(DM))])
+    mean(view(Ysig, inds, inds) for inds in Iterators.partition(1:size(Ysig,1), ydim(DM)))
 end
 
 
@@ -697,29 +697,29 @@ SplitterJacNormalParams(DS::Union{AbstractDataModel,AbstractDataSet}; SkipXs::Fu
 Computes the forward propagation of the parameter covariance to the residuals. The output constitutes the cholesky decomposition (i.e. square root) of the variance associated with the residuals.
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Model::ModelOrFunction=Predictor(DM), dModel::ModelOrFunction=dPredictor(DM), 
+                            yInvErrorModel::Union{Nothing,Function}=HasEstimatedUncertainties(DM) ? yinverrormodel(Data(DM)) : nothing, ConfScaling::Real=InvChisqCDF(dof, ConfVol(Confnum)),
+                            xdim::Int=xdim(DM), ydim::Int=ydim(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
     @assert dof > 0;    @assert Confnum > 0
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
-    ConfScaling = InvChisqCDF(dof, ConfVol(Confnum))
     SplitPars = SplitErrorParams(DM)(mle)
     normalparamsNoXs, yerrorparams = SkipXs(DM)(SplitPars[1]), SplitPars[end]
     # As function of independent variable x
-    YsigmaGenerator = if !HasEstimatedUncertainties(DM)
+    YsigmaGenerator = if isnothing(yInvErrorModel)
         # If Validation Band, add data uncertainty for single point to 
         Ysig = if Validation
             @assert !InterpolateDataUncertainty "InterpolateDataUncertainty not implemented yet!"
             verbose && !allequal(ysigma(DM)) && @warn "Need to compute average data uncertainty to plot validation profile between observations!"
             AverageSingleYsigmaMatrix(DM, mle)
         else    # No data uncertainty contribution
-            Diagonal(Zeros(ydim(DM)))
+            Diagonal(Zeros(ydim))
         end
         Ysig *= ConfScaling
-        ydim(DM) == 1 && (Ysig = Ysig[1])
+        ydim == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
         if Validation
-            yinverrmod = yinverrormodel(Data(DM))
-            x -> (S=inv(yinverrmod(x, Predictor(DM)(x,normalparamsNoXs), yerrorparams));   ConfScaling * (S' * S))
+            x -> (S=inv(yInvErrorModel(x, Model(x,normalparamsNoXs), yerrorparams));   ConfScaling * (S' * S))
         else
             x -> 0.0
         end
@@ -737,18 +737,18 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
     # Make sure that missings expected in data are not filtered out, e.g. by CompositeDataSet method
     SplitterJ = SplitterJacNormalParams(DM)(mle)
-    embeddingMatrix(DM::AbstractDataModel, normalparamsNoXs::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dPredictor(DM), normalparamsNoXs, X) * SplitterJ
+    embeddingMatrix(DM::AbstractDataModel, normalparamsNoXs::AbstractVector{<:Number}, X::AbstractVector) = EmbeddingMatrix(Val(true), dModel, normalparamsNoXs, X) * SplitterJ
 
-    VarCholesky1(x::Number) = (J = dPredictor(DM)(x, normalparamsNoXs)*SplitterJ;   CholeskyU(J * C * transpose(J),x))
-    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim(DM)), X))
-    VarSqrt1(x::Number) = (J = dPredictor(DM)(x, normalparamsNoXs)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
-    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
+    VarCholesky1(x::Number) = (J = dModel(x, normalparamsNoXs)*SplitterJ;   CholeskyU(J * C * transpose(J),x))
+    VarCholesky1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->CholeskyU(J * C * transpose(J),x), JacobianWindup(Jf, ydim), X))
+    VarSqrt1(x::Number) = (J = dModel(x, normalparamsNoXs)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrt1(X::AbstractVector{<:Number}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim), X))
 
-    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparamsNoXs)*SplitterJ;   CholeskyU(J * C * transpose(J), x))
-    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim(DM)), X))
-    VarSqrtN(x::AbstractVector{<:Number}) = (J = dPredictor(DM)(x, normalparamsNoXs)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
-    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim(DM)), X))
-    xdim(DM) == 1 ? (ydim(DM) > 1 ? VarCholesky1 : VarSqrt1) : (ydim(DM) > 1 ? VarCholeskyN : VarSqrtN)
+    VarCholeskyN(x::AbstractVector{<:Number}) = (J = dModel(x, normalparamsNoXs)*SplitterJ;   CholeskyU(J * C * transpose(J), x))
+    VarCholeskyN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->CholeskyU(J * C * transpose(J), x), JacobianWindup(Jf, ydim), X))
+    VarSqrtN(x::AbstractVector{<:Number}) = (J = dModel(x, normalparamsNoXs)*SplitterJ;   R = Sqrt((J * C * transpose(J))[1], x))
+    VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim), X))
+    xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), F::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
     verbose && NotPosDef(F) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
