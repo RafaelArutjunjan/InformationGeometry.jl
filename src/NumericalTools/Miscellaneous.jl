@@ -350,7 +350,7 @@ GetArgSize(model::ModelMap; inplace::Bool=false, max::Int=MaxArgLen) = (model.xy
 
 # overload non-static out-of-place method
 normalize(x::AbstractVector{<:Number}) = x ./ norm(x)
-function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, scaling::Float64=1.0)
+function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, scaling::Real=1.0)
     newu = u;    newv = v
     for i in eachindex(u)
         factor = sqrt(u[i]^2 + v[i]^2)
@@ -359,7 +359,7 @@ function normalizeVF(u::AbstractVector{<:Number}, v::AbstractVector{<:Number}, s
     end
     newu, newv
 end
-function normalizeVF(u::AbstractVector{<:Number},v::AbstractVector{<:Number},PlanarCube::HyperCube,scaling::Float64=1.0)
+function normalizeVF(u::AbstractVector{<:Number},v::AbstractVector{<:Number},PlanarCube::HyperCube,scaling::Real=1.0)
     length(PlanarCube) != 2 && throw("normalizeVF: Cube not planar.")
     newu = u;    newv = v
     Widths = CubeWidths(PlanarCube) |> normalize
@@ -568,7 +568,8 @@ FindMaxDiff(X::AbstractArray{<:Number}) = FindExtremalNeighboring(X; Comparison=
 
 
 SafeView(X::AbstractArray, Inds, args...) = view(X, Inds, args...)
-SafeView(X::ComponentArray, Inds, args...) = X[KeepIndex(Inds, args...)]
+SafeView(X::ComponentVector, Inds) = X[KeepIndex(Inds)]
+SafeView(X::ComponentMatrix, Inds1, Inds2) = X[KeepIndex(Inds1),KeepIndex(Inds2)]
 
 
 """
