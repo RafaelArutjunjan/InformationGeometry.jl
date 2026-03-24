@@ -196,6 +196,8 @@ HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
 HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
 HasEstimatedUncertainties(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
 
+yinverrormodel(DS::AbstractFixedUncertaintyDataSet) = nothing
+xinverrormodel(DS::AbstractFixedUncertaintyDataSet) = nothing
 
 HasMissingValues(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
 HasMissingValues(DS::AbstractDataSet) = false
