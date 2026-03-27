@@ -731,7 +731,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         try     cholesky(Symmetric(YsigmaGenerator(x) .+ M)).U
         catch err
             !isa(err, PosDefException) && rethrow(err)
-            UpperTriangular(Diagonal(Zeros(size(M,1))))
+            UpperTriangular(Diagonal(Fill(Inf, size(M,1))))
         end
     end
     Sqrt(M::Real, x) = sqrt(YsigmaGenerator(x) + M)
