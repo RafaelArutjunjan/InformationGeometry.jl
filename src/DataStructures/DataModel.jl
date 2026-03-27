@@ -250,11 +250,14 @@ EvalLogPriorHess(D::Nothing, x::AbstractVector{T}; kwargs...) where T<:Number = 
 Add `NewLogPrior` to `DM`, potentially on top of already existing log-prior.
 """
 function AddLogPrior(DM::AbstractDataModel, NewLogPrior::Union{Function,Nothing}; kwargs...)
-    DataModel(Data(DM), Predictor(DM), dPredictor(DM), MLE(DM), _AddLogPrior(LogPrior(DM), NewLogPrior); kwargs...)
+    DataModel(Data(DM), Predictor(DM), dPredictor(DM), MLE(DM), CombinePriors(LogPrior(DM), NewLogPrior); kwargs...)
 end
-function _AddLogPrior(LogPriorFn::Union{Function,Nothing}, NewLogPrior::Union{Function,Nothing})
-    CombinedLogPrior(θ::AbstractVector{<:Number}) = EvalLogPrior(LogPriorFn,θ) + EvalLogPrior(NewLogPrior,θ)
+function CombinePriors(LogPriorFn::Union{Function,Nothing}, NewLogPrior::Union{Function,Nothing})
+    function CombinedLogPrior(θ::AbstractVector{T})::T where T<:Number
+        EvalLogPrior(LogPriorFn,θ) + EvalLogPrior(NewLogPrior,θ)
+    end
 end
+@deprecate _AddLogPrior CombinePriors false
 
 """
     InformDataSetErrors(DM::DataModel, MLE::AbstractVector=MLE(DM); kwargs...)

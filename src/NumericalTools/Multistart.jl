@@ -1,8 +1,8 @@
 
 
 SOBOL.SobolSeq(C::HyperCube, Maxval::Real=1e15; maxval::Real=Maxval, seed::Int=rand(0:Int(1e7)), N::Int=100) = SOBOL.skip(SOBOL.SobolSeq(clamp(C.L, Fill(-maxval,length(C)), Fill(maxval,length(C))), clamp(C.U, Fill(-maxval,length(C)), Fill(maxval,length(C)))), seed; exact=true)
-SobolGenerator(args...; kwargs...) = (S=SOBOL.SobolSeq(args...; kwargs...);    (SOBOL.next!(S) for i in 1:Int(1e12)))
-GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for i in 1:N])
+SobolGenerator(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    (SOBOL.next!(S) for _ in 1:N))
+GenerateSobolPoints(args...; N::Int=100, kwargs...) = (S=SOBOL.SobolSeq(args...; N, kwargs...);    [SOBOL.next!(S) for _ in 1:N])
 
 function SobolRejectionSampling(S::SOBOL.AbstractSobolSeq, P::Distributions.Distribution, n::Int=100; N::Int=n)
     @assert N ≥ 1
