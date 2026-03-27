@@ -1744,8 +1744,8 @@ function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVecto
     ypreds = @view EmbeddingMap(Val(true), Model, MLE, Ts)[yComp:ydim:end]      # Always compute with offset to zero internally
     Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], dof=dof, MLE, Model, ydim=ydim, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
-    InsertToZprof(TrajPoint::AbstractVector, i::Int) = Model(Ts[i], (@view TrajPoint[1:end-1]))[yComp]
-    InsertToZprof(TrajPoint::ComponentVector, i::Int) = Model(Ts[i], TrajPoint.original)[yComp]
+    InsertToZprof(TrajPoint::AbstractVector{T}, i::Int) where T<:Number = T.(Model(Ts[i], (@view TrajPoint[1:end-1]))[yComp])
+    InsertToZprof(TrajPoint::ComponentVector{T}, i::Int) where T<:Number = T.(Model(Ts[i], TrajPoint.original)[yComp])
     for i in eachindex(Ts)
         zProf = map(TrajPoint->InsertToZprof(TrajPoint,i), Trajs[i])
         insert!(Profs[i].u, length(Profs[i].u), zProf)

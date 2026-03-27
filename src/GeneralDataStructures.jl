@@ -120,7 +120,7 @@ However, as a secondary effect, many more parameters than these can also exhibit
 Nevertheless, upon fixing or removing the purely degenerate parameters, the additional parameters whose profiles were only flat as a secondary effect become structurally identifiable.
 For `Safe=true`, infinite values are also imputed for any parameters related to the degenerate parameters, whose profiles may be secondarily affected.
 """
-MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; scale::Real=1, kwargs...) = mle .± scale .* MLEuncertStd(F; kwargs...)
+MLEuncert(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; scale::Real=1, kwargs...) = mle .± scale .* abs.(MLEuncertStd(F; kwargs...))
 MLEuncertStd(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=try AutoMetric(DM, mle) catch; FisherMetric(DM, mle) end; kwargs...) = MLEuncertStd(F; kwargs...)
 
 function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
