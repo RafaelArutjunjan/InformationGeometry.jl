@@ -97,12 +97,17 @@ using FiniteDifferences
 
 
 using ComponentArrays, InformationGeometry
-X = ComponentVector(A=5.0, B=3.0)
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
-cpdm = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, X)
+cpdm = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, ComponentVector(A=5.0, B=3.0))
 @test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm; plot=false, Confnum=2), 2)))
 @test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm, 1, 1:1; plot=false, Confnum=2), 2))[1])
 @test all(isfinite∘sum, Tuple(ProfileBox(PredictionProfiles(cpdm, 1; Confnum=2), 2)))
+
+# LinearModel ensures correct use of GetOnlyModelParams in PredictionProfiles
+cpdmu = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]), LinearModel, ComponentVector(A=5.0, B=3.0, σ=0.1))
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdmu; plot=false, Confnum=2), 2)))
+@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdmu, 1, 1:1; plot=false, Confnum=2), 2))[1])
+@test all(isfinite∘sum, Tuple(ProfileBox(PredictionProfiles(cpdmu, 1; Confnum=2), 2)))
 
 
 using Plots
