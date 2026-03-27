@@ -324,6 +324,12 @@ end
 Base.length(Cube::HyperCube) = length(Cube.L)
 Base.keys(Cube::HyperCube) = Base.OneTo(length(Cube.L))
 
+
+function (::Type{T})(Cube::HyperCube; kwargs...) where T<:Number
+    HyperCube(T.(Cube.L), T.(Cube.U))
+end
+
+
 """
     in(p::AbstractVector{<:Number}, Cube::HyperCube) -> Bool
 Checks whether a point `p` lies inside `Cube`.
