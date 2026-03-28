@@ -119,6 +119,14 @@ CostHessianFn::Function=x->[-Inf],
 LogLikeMLE::Union{Nothing,Number}=-Inf, 
 SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
 
+
+function (::Type{T})(CG::ConditionGrid; kwargs...) where T<:Number
+    ConditionGrid(T.(Conditions(CG)), Trafos(CG), LogPrior(CG), T.(MLE(CG)); name=name(CG), SkipOptim=true, SkipTests=true, 
+            Domain=!isnothing(Domain(CG)) ? T(Domain(CG)) : nothing, pnames=Pnames(CG), kwargs...)
+end
+
+
+
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)
 
 # Forwarding:

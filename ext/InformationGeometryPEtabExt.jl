@@ -22,6 +22,12 @@ struct PEtabConditionGrid <: AbstractPEtabBasedConditionGrid
 end
 const PEtabDataModel = PEtabConditionGrid
 
+
+function (::Type{T})(PCG::PEtabConditionGrid; kwargs...) where T<:Number
+    PEtabConditionGrid(T(PCG.DM), PCG.P)
+end
+
+
 for F in [:pdim, :DOF, :getindex]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end

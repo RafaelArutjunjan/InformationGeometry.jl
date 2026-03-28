@@ -129,6 +129,10 @@ SymbolicCache=nothing,
 Meta=nothing, kwargs...) = ModelMap(Map, InDomain, Domain, xyp, pnames, inplace, CustomEmbedding, name, Meta, SymbolicCache; kwargs...)
 
 
+function (::Type{T})(M::ModelMap; kwargs...) where T<:Number
+    isnothing(Domain(M)) ? M : remake(M; Domain=T(Domain(M)), kwargs...)
+end
+
 
 function InformNames(M::ModelMap, pnames::AbstractVector{<:StringOrSymb})
     @assert length(pnames) == M.xyp[3]

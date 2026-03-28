@@ -169,6 +169,13 @@ kwargs...,
 ) = DataModel(Data, model, dmodel, MLE, LogLikeMLE, LogPrior; LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, SkipTests=true, kwargs...)
 
 
+function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
+    @inline ConvertModelMap(F::Function) = F
+    @inline ConvertModelMap(M::ModelMap) = T(M)
+    # Want to rebuild cost function to use new data here
+    DataModel(T(Data(DM)), ConvertModelMap(Predictor(DM)), ConvertModelMap(dPredictor(DM)), T.(MLE(DM)), LogPrior(DM), true; name=name(DM), kwargs...)
+end
+
 # Specialized methods for DataModel
 Conditions(DM::DataModel) = [DM]
 ConditionNames(DM::DataModel) = [Symbol(name(DM))]
@@ -206,17 +213,6 @@ LogLikeMLE(DM::DataModel) = DM.LogLikeMLE
 pdim(DM::DataModel) = length(MLE(DM))
 
 name(DM::DataModel) = DM.name
-
-
-function (::Type{T})(DM::DataModel; kwargs...) where T<:Number
-    D = try
-        T(Data(DM))
-    catch err
-        @warn "Was unable to convert $(typeof(Data(DM))) to $T due to: $err"
-        Data(DM)
-    end
-    DataModel(D, Predictor(DM), dPredictor(DM), T.(MLE(DM)), LogPrior(DM), true; kwargs...)
-end
 
 
 InformNames(DM::AbstractDataModel, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}) = DataModel(InformNames(Data(DM), xnames, ynames), Predictor(DM), dPredictor(DM), MLE(DM), LogLikeMLE(DM), LogPrior(DM), true)
