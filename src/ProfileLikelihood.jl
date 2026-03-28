@@ -923,11 +923,11 @@ PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(vie
 
 
 """
-    FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=LiftedLogLikelihood(DM)∘LiftedEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
+    FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=FullLiftedLogLikelihoodAfterEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
 Compute parameter profiles while accounting for the uncertainties in the independent variables.
 """
 function FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); ADmode=Val(:ForwardDiff), pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), 
-                    LogLikelihoodFn::Function=(@assert !HasPrior(DM);   LiftedLogLikelihood(DM)∘LiftedEmbedding(DM)), CostFunction::Function=Negate(LogLikelihoodFn), CostGradient=GetGrad!(ADmode, CostFunction),
+                    LogLikelihoodFn::Function=FullLiftedLogLikelihoodAfterEmbedding(DM), CostFunction::Function=Negate(LogLikelihoodFn), CostGradient=GetGrad!(ADmode, CostFunction),
                     MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), logLikeMLE::Real=LogLikelihoodFn(MLE), Fisher::AbstractMatrix=FullFisherMetric(DM,MLE), pDomain::Union{Nothing,HyperCube}=GetDomain(DM), Meta=:FullParameterProfiles,
                     xDomain::Union{Nothing,HyperCube}=(isnothing(pDomain) ? nothing : HyperCube(Fill(-Inf,length(xdata(DM))),Fill(Inf,length(xdata(DM))))), maxval::Real=1e3, Domain::Union{Nothing,HyperCube}=(!isnothing(xDomain) && !isnothing(pDomain)) ? vcat(xDomain, pDomain) : FullDomain(xpdim(DM), maxval), 
                     ProfileDomain::Union{Nothing,HyperCube}=Domain, InDomain::Union{Nothing,Function}=isnothing(GetInDomain(DM)) ? nothing : GetInDomain(DM)∘(pd=pdim(DM);  x->(@view x[end-pd+1:end])), kwargs...)

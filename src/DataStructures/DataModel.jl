@@ -255,6 +255,13 @@ function CombinePriors(LogPriorFn::Union{Function,Nothing}, NewLogPrior::Union{F
 end
 @deprecate _AddLogPrior CombinePriors false
 
+
+AddPriorToLogLikelihood(L::Function, ::Nothing) = L
+function AddPriorToLogLikelihood(L::Function, P::Function; kwargs...)
+    CombinedLogLikelihood(θ::AbstractVector; Kwargs...) = L(θ; kwargs..., Kwargs...) + P(θ)
+end
+
+
 """
     InformDataSetErrors(DM::DataModel, MLE::AbstractVector=MLE(DM); kwargs...)
 Overwrites the initial guesses for error parameters in dataset object `Data(DM)` contained in given `DM`.

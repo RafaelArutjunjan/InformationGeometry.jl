@@ -397,16 +397,19 @@ function LiftedEmbeddingInplace(DS::AbstractDataSet, Model::ModelOrFunction, pd:
 end
 
 """
-    FullLiftedLogLikelihood(DM::AbstractDataModel) -> Function
+    FullLiftedLogLikelihoodAfterEmbedding(DM::AbstractDataModel) -> Function
 Computes the full likelihood ``\\hat{\\ell} : \\mathcal{X}^N \\times\\mathcal{M}^N \\longrightarrow \\mathbb{R}`` given `Xθ` from initial space INCLUDING PRIOR.
 """
-FullLiftedLogLikelihood(DM::AbstractDataModel; kwargs...) = FullLiftedLogLikelihood(Data(DM), Predictor(DM), LogPrior(DM), pdim(DM); kwargs...)
-FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int; kwargs...) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; kwargs...)
-function FullLiftedLogLikelihood(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int; Kwargs...)
+FullLiftedLogLikelihoodAfterEmbedding(DM::AbstractDataModel; kwargs...) = FullLiftedLogLikelihoodAfterEmbedding(Data(DM), Predictor(DM), LogPrior(DM), pdim(DM); kwargs...)
+FullLiftedLogLikelihoodAfterEmbedding(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Nothing, pd::Int; kwargs...) = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; kwargs...)
+function FullLiftedLogLikelihoodAfterEmbedding(DS::AbstractDataSet, model::ModelOrFunction, LogPriorFn::Function, pd::Int; Kwargs...)
     L = LiftedLogLikelihood(DS)∘LiftedEmbedding(DS, model, pd; Kwargs...)
     ℓ(Xθ::AbstractVector{<:Number}; kwargs...) = L(Xθ; kwargs...) + EvalLogPrior(LogPriorFn, SafeView(Xθ, length(Xθ)-pd+1:length(Xθ)))
 end
-FullLiftedNegLogLikelihood(args...; kwargs...) = Negate(FullLiftedLogLikelihood(args...; kwargs...))
+FullLiftedNegLogLikelihoodAfterEmbedding(args...; kwargs...) = Negate(FullLiftedLogLikelihoodAfterEmbedding(args...; kwargs...))
+
+@deprecate FullLiftedLogLikelihood FullLiftedLogLikelihoodAfterEmbedding false
+@deprecate FullLiftedNegLogLikelihood FullLiftedNegLogLikelihoodAfterEmbedding false
 
 
 """
