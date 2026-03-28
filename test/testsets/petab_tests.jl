@@ -12,7 +12,7 @@ function TestConversion(petab_prob::PEtabODEProblem, DM::AbstractDataModel=Condi
     GradRes1 = rand(length(MLE(DM)));    GradRes2 = rand(length(MLE(DM)));    HessRes1 = rand(length(MLE(DM)), length(MLE(DM)));    HessRes2 = rand(length(MLE(DM)), length(MLE(DM)))
     Score(DM)(GradRes1, MLE(DM));   petab_prob.grad!(GradRes2, MLE(DM));    @test sum(abs, -GradRes1 -GradRes2) < atol
     FisherMetric(DM)(HessRes1, MLE(DM));   petab_prob.FIM!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
-    CostHessian(DM)(HessRes1, MLE(DM));   petab_prob.hess!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
+    InformationGeometry.CostHessian(DM)(HessRes1, MLE(DM));   petab_prob.hess!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
 
     ###### Score seems to be slightly dissimilar
 

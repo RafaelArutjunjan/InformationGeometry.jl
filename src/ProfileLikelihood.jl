@@ -1206,9 +1206,16 @@ PlotSizer(n::Int; size::Tuple{<:Int,<:Int}=(250,250)) = (s=Int(ceil(sqrt(n)));  
     layout := sum(IsPopulated(P)) + 1
     size --> PlotSizer(sum(IsPopulated(P)) + 1)
 
+    tol = get(plotattributes, :tol, 0.05)
+    ymin = get(plotattributes, :Ymin, Trafo.(-tol))
+    Ylims = get(plotattributes, :ylims, (ymin, Trafo.(maxy)))
+
     @series begin
         layout := sum(IsPopulated(P)) + 1
         Trafo := Trafo
+        tol --> tol
+        Ymin --> ymin
+        ylims --> Ylims
         P, Val(false)
     end
 
@@ -1229,11 +1236,12 @@ end
 
     P.Meta !== :ParameterProfiles && (plot_title --> string(P.Meta))
     Trafo = get(plotattributes, :Trafo, identity)
-    tol = 0.05
+    tol = get(plotattributes, :tol, 0.05)
     M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
     maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
     maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
-    Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
+    ymin = get(plotattributes, :Ymin, Trafo.(-tol))
+    Ylims = get(plotattributes, :ylims, (ymin, Trafo.(maxy)))
     j = 1
     for i in eachindex(Profiles(P))
         if PopulatedInds[i]
