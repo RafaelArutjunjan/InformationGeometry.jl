@@ -204,8 +204,8 @@ HasMissingValues(DS::AbstractDataSet) = false
 
 ## Is the likelihood Gaussian?
 IsGaussian(DS::AbstractDataSet) = ydist(DS) isa MvNormal && (Xd = xdist(DS);    Xd isa MvNormal || Xd isa InformationGeometry.Dirac)
-IsGaussian(DS::Union{DataSet,AbstractUnknownUncertaintyDataSet}) = true
-IsGaussian(DM::DataModel) = IsGaussian(Data(DM))
+IsGaussian(DS::AbstractUnknownUncertaintyDataSet) = true
+IsGaussian(DM::AbstractDataModel) = IsGaussian(Data(DM))
 IsGaussian(CG::AbstractConditionGrid) = all(IsGaussian, Conditions(CG))
 
 
