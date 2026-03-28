@@ -550,6 +550,9 @@ isbounded(C::HyperCube) = all(isfinite, C.L) && all(isfinite, C.U)
 Base.isfinite(C::HyperCube) = isbounded(C)
 
 
+Base.Matrix(C::HyperCube) = [C.L C.U]
+
+
 struct EmbeddedODESolution{T,N,uType,uType2,EType,tType,rateType,P,A,IType,DE} <: AbstractODESolution{T,N,uType}
     u::uType
     u_analytic::uType2

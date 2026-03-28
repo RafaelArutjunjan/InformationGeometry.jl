@@ -202,6 +202,12 @@ xinverrormodel(DS::AbstractFixedUncertaintyDataSet) = nothing
 HasMissingValues(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
 HasMissingValues(DS::AbstractDataSet) = false
 
+## Is the likelihood Gaussian?
+IsGaussian(DS::AbstractDataSet) = ydist(DS) isa MvNormal && (Xd = xdist(DS);    Xd isa MvNormal || Xd isa InformationGeometry.Dirac)
+IsGaussian(DS::Union{DataSet,AbstractUnknownUncertaintyDataSet}) = true
+IsGaussian(DM::DataModel) = IsGaussian(Data(DM))
+IsGaussian(CG::AbstractConditionGrid) = all(IsGaussian, Conditions(CG))
+
 
 # How many error parameters do the containing datasets have?
 NumberOfErrorParameters(DM::AbstractDataModel, mle::AbstractVector=MLE(DM)) = NumberOfErrorParameters(Data(DM), mle)

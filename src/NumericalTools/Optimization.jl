@@ -29,7 +29,7 @@ function TotalLeastSquares(DM::AbstractDataModel, initialp::AbstractVector{<:Num
         return TotalLeastSquaresOLD(Data(DM), Predictor(DM), initialp; rescale, Full, ADmode, kwargs...)
     end
     !HasXerror(DM) && throw("Cannot perform Total Least Squares Fitting for DataSets without x-uncertainties.")
-    Res = InformationGeometry.minimize(FullLiftedNegLogLikelihood(DM), start; Full, kwargs...)
+    Res = InformationGeometry.minimize(FullLiftedNegLogLikelihoodAfterEmbedding(DM), start; Full, kwargs...)
     Full ? Res : (Windup(Res[1:length(xdata(DM))],xdim(DM)), Res[length(xdata(DM))+1:end])
 end
 
@@ -257,7 +257,7 @@ function GetConstraintFunc(M::ModelMap, startp::AbstractVector{<:Number}=GetStar
 end
 
 function minimize(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); Domain::Union{HyperCube,Nothing}=GetDomain(DM), meth=missing, ADmode::Val=Val(:ForwardDiff), 
-                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihood(DM) : Negloglikelihood(DM)), GenerateNewDerivatives::Bool=Lifted,
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DM)) ? FullLiftedNegLogLikelihoodAfterEmbedding(DM) : Negloglikelihood(DM)), GenerateNewDerivatives::Bool=Lifted,
                     UseGrad::Bool=true, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : (!GenerateNewDerivatives ? NegScore(DM) : GetGrad!(ADmode, CostFunction))), 
                     UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : (!GenerateNewDerivatives ? CostHessian(DM) : GetHess!(ADmode, CostFunction))), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
@@ -272,7 +272,7 @@ end
 
 # If DM not constructed yet
 function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVector{<:Number}, LogPriorFn::Union{Nothing,Function}; Domain::Union{HyperCube,Nothing}=GetDomain(Model), meth=missing, ADmode::Val=Val(:ForwardDiff), 
-                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : GetNeglogLikelihoodFn(DS,Model,LogPriorFn)), GenerateNewDerivatives::Bool=Lifted,
+                    Lifted::Bool=false, CostFunction::Function=((Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihoodAfterEmbedding(DS,Model,LogPriorFn,length(start)) : GetNeglogLikelihoodFn(DS,Model,LogPriorFn)), GenerateNewDerivatives::Bool=Lifted,
                     UseGrad::Bool=true, CostGradient::Union{Nothing,Function}=(!UseGrad ? nothing : GetGrad!(ADmode, CostFunction)), 
                     UseHess::Bool=false, CostHessian::Union{Nothing,Function}=(!UseHess ? nothing : GetHess!(ADmode, CostFunction)), kwargs...)
     # Allow meth=nothing if no constraints to use LsqFit
@@ -281,8 +281,8 @@ function minimize(DS::AbstractDataSet, Model::ModelOrFunction, start::AbstractVe
     !Lifted && isnothing(meth) && isnothing(LogPriorFn) && isnothing(Cons) && (return Curve_fit(DS, Model, start, LogPriorFn; Domain, kwargs...))
     
     F = isnothing(CostGradient) ? (CostFunction, ) : (isnothing(CostHessian) ? (CostFunction, CostGradient) : (CostFunction, CostGradient, CostHessian))
-    # F = (Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
-    # ∇F = (Lifted && HasXerror(DS)) ? GetGrad(ADmode,FullLiftedNegLogLikelihood(DS,Model,LogPriorFn,length(start))) : GetGrad(ADmode,(θ->-loglikelihood(DS,Model,θ,LogPriorFn)))
+    # F = (Lifted && HasXerror(DS)) ? FullLiftedNegLogLikelihoodAfterEmbedding(DS,Model,LogPriorFn,length(start)) : (θ->-loglikelihood(DS,Model,θ,LogPriorFn))
+    # ∇F = (Lifted && HasXerror(DS)) ? GetGrad(ADmode,FullLiftedNegLogLikelihoodAfterEmbedding(DS,Model,LogPriorFn,length(start))) : GetGrad(ADmode,(θ->-loglikelihood(DS,Model,θ,LogPriorFn)))
     isnothing(Cons) ? minimize(F, start, Domain; PassMeth..., kwargs...) : minimize(F, start, Domain; lcons=Lcons, ucons=Ucons, cons=Cons, PassMeth..., kwargs...)
 end
 
