@@ -429,6 +429,41 @@ function ConservativeInverseNonPreserving(Fraw::AbstractMatrix; Impute::Real=Inf
 end
 
 
+"""
+    WeightedAverage(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number})
+Computes weighted average of `x`.
+"""
+function WeightedAverage(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number})
+    @boundscheck @assert length(x) == length(weights)
+    sum(abs.(weights) .* x) / sum(abs, weights)
+end
+
+"""
+    WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights))
+Computes weighted covariance associated with weighted average `x̄` of `x`.
+"""
+function WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights)) where XT <: Union{Number, AbstractVector{<:Number}}
+    @boundscheck @assert length(x) == length(weights)
+    W = sum(abs, weights);    R = zeros(eltype(x̄), length(x̄), length(x̄));    Rcache = similar(R);     xcache = zeros(eltype(x̄), length(x̄))
+    @inbounds for i in eachindex(x)
+        xcache .= x[i] .- x̄
+        mul!(Rcache, xcache, xcache')
+        R .+= abs(weights[i]) .* Rcache
+    end
+    R .*= W / (W^2 - dot(weights,weights));     R
+end
+
+"""
+    WeightedStandardError(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights))
+Computes standard error of weighted average `x̄` of `x`.
+"""
+function WeightedStandardError(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number}, args...; kwargs...)
+    @boundscheck @assert length(x) == length(weights)
+    dot(weights, weights) / sum(abs, weights) .* WeightedCovariance(x, weights, args...; kwargs...)
+end
+
+
+
 
 """
     BlockMatrix(M::AbstractMatrix, N::Int)

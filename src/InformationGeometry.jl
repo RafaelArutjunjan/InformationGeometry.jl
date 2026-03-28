@@ -206,6 +206,7 @@ export SplitObservablesIntoConditions
 
 include("NumericalTools/Miscellaneous.jl")
 export BiLog, BiExp, BiLog10, BiExp10, BiRoot, BiPower, SoftAbs, SoftLog, SoftNorm, ViewElements
+export WeightedAverage, WeightedCovariance, WeightedStandardError
 
 include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
