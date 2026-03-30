@@ -7,13 +7,13 @@ import InformationGeometry: pnames, StringOrSymb
 
 signsqrtabs(x::Number) = sign(x) * sqrt(abs(x))
 ## Do not print as scientific notation!
-# using Printf
-# roundedstring(n::Number; digits::Int=6, kwargs...) = Printf.format(Printf.Format("%.$(digits)f"), round(n; digits, kwargs...))
-function roundedstring(n::Number; digits::Int=6)
-    io = IOBuffer()
-    Base.show(io, MIME"text/plain"(), round(n; digits))
-    return String(take!(io))
-end
+using Printf
+roundedstring(n::Number; digits::Int=6, kwargs...) = Printf.format(Printf.Format("%.$(digits)f"), round(n; digits, kwargs...))
+# function roundedstring(n::Number; digits::Int=6)
+#     io = IOBuffer()
+#     Base.show(io, MIME"text/plain"(), round(n; digits))
+#     return String(take!(io))
+# end
 roundedstringInt(n::Number; kwargs...) = string(round(Int, n; kwargs...))
 
 
@@ -47,9 +47,9 @@ function ParameterGraphSymmetric(Fmatrix::AbstractMatrix{<:Number}, PNames::Abst
         nodetransform::Function=sqrt∘abs, transformedges::Bool=false, edgetransform::Function=(transformedges ? signsqrtabs : identity),
         F::AbstractMatrix{<:Number}=Symmetric(Fmatrix ./ maximum(abs, Fmatrix)), Latexify::Function=identity, 
         G::Graphs.SimpleGraph=Graphs.SimpleGraph(F - Diagonal(F)), pnames::AbstractVector{<:StringOrSymb}=PNames,
-        NodeSize::AbstractVector{<:Number}=(nod=nodetransform.(Diagonal(F).diag);   nod ./ maximum(nod)),
+        NodeSize::AbstractVector{<:Number}=(nod=nodetransform.(Diagonal(F).diag);   nod ./ maximum(nod)), 
         SignedEdgeWidth::AbstractVector{<:Number}=(Sedge=[edgetransform(F[i,j]) for i in axes(F,1), j in axes(F,2) if i < j];   Sedge ./ maximum(abs,Sedge)),
-        diverging::Bool=true, graph_options::AbstractString="node distance=7em", options::AbstractString="", kwargs...)
+        diverging::Bool=true, Unit::AbstractString="pt", graph_options::AbstractString="node distance=7em", options::AbstractString="", kwargs...)
     @assert backend === :TikZ
     # sqrt in nodetransform instead of cholesky(F)
     EdgeWidth = abs.(SignedEdgeWidth)
@@ -64,9 +64,9 @@ function ParameterGraphSymmetric(Fmatrix::AbstractMatrix{<:Number}, PNames::Abst
         """ * "\n\n", # Not needed later
         graph_options,
         options=(diverging ? raw"/pgfplots/colormap/ReverseBalance, " : raw"/pgfplots/colormap/viridis, ") * raw"coloring/.style={/utils/exec={\pgfplotscolormapdefinemappedcolor{#1}}, draw=mapped color}, " * options,
-        node_style="draw, circle, fill=defaultcolor!30!BackgroundColor, outer sep=0pt", 
-        node_styles=VectorDict(raw"label={60:{" .* string.(Latexify.(pnames)) .* raw"}}, " .* "inner sep=" .* roundedstring.(7NodeSize) .* "pt,"),
-        edge_styles=UpperMatrixDict("line width=" .* roundedstring.(6.5EdgeWidth) .* "pt" .* ", coloring=" .* roundedstringInt.(1000 .* (diverging ? 0.9 .* (0.5.*SignedEdgeWidth) .+ 0.5 : EdgeWidth))),
+        node_style="draw, circle, fill=defaultcolor!30!BackgroundColor, outer sep=0"*Unit, 
+        node_styles=VectorDict(raw"label={60:{" .* string.(Latexify.(pnames)) .* raw"}}, " .* "inner sep=" .* roundedstring.(7NodeSize) .* Unit*","),
+        edge_styles=UpperMatrixDict("line width=" .* roundedstring.(6.5EdgeWidth) .* Unit .* ", coloring=" .* roundedstringInt.(1000 .* (diverging ? 0.9 .* (0.5.*SignedEdgeWidth) .+ 0.5 : EdgeWidth))),
         kwargs...
     )
 end
@@ -79,7 +79,7 @@ function ParameterGraphAsymmetric(Fmatrix::AbstractMatrix{<:Number}, PNames::Abs
         G::SimpleDiGraph=Graphs.SimpleDiGraph((SelfInteraction ? F : (F - Diagonal(F)))), pnames::AbstractVector{<:AbstractString}=PNames,
         NodeSize::AbstractVector{<:Number}=SelfInteraction ? fill(0.75, size(Fmatrix,1)) : (nod=nodetransform.(Diagonal(F).diag);   nod ./ maximum(nod)), 
         SignedEdgeWidth::AbstractArray{<:Number}=(Sedge=[edgetransform(F[i,j]) for i in axes(F,1), j in axes(F,2)];   Sedge ./ maximum(abs,Sedge)),
-        diverging::Bool=true, graph_options::AbstractString="node distance=7em", options::AbstractString="", kwargs...)
+        diverging::Bool=true, Unit::AbstractString="pt", graph_options::AbstractString="node distance=7em", options::AbstractString="", kwargs...)
     @assert backend === :TikZ
     # sqrt here instead of cholesky(F)
     # SignedEdgeWidth = [i==j ? 0 : edgetransform(F[i,j]) for i in axes(F,1), j in axes(F,2)]
@@ -98,11 +98,11 @@ function ParameterGraphAsymmetric(Fmatrix::AbstractMatrix{<:Number}, PNames::Abs
         """ * "\n\n", # Not needed later
         graph_options,
         options=(diverging ? raw"/pgfplots/colormap/ReverseBalance, " : raw"/pgfplots/colormap/viridis, ") * raw"coloring/.style={/utils/exec={\pgfplotscolormapdefinemappedcolor{#1}}, draw=mapped color}, " * options,
-        node_style="draw, circle, fill=defaultcolor!30!BackgroundColor, outer sep=0pt", 
+        node_style="draw, circle, fill=defaultcolor!30!BackgroundColor, outer sep=0"*Unit, 
         node_styles=VectorDict(raw"label={60:{" .* string.(Latexify.(pnames)) .* raw"}}, " .* "inner sep=" .* roundedstring.(7NodeSize) .* "pt,"),
         # edge_style="bend left",
         ## FullMatrixDict instead of NullDiagonalMatrixDict for loops
-        edge_styles=FullMatrixDict("line width=" .* roundedstring.(6.5EdgeWidth) .* "pt" .* ", coloring=" .* roundedstringInt.(1000 .* (diverging ? 0.9 .* (0.5.*SignedEdgeWidth) .+ 0.5 : EdgeWidth)) .* LoopMat),
+        edge_styles=FullMatrixDict("line width=" .* roundedstring.(6.5EdgeWidth) .* Unit .* ", coloring=" .* roundedstringInt.(1000 .* (diverging ? 0.9 .* (0.5.*SignedEdgeWidth) .+ 0.5 : EdgeWidth)) .* LoopMat),
         kwargs...
     )
 end
