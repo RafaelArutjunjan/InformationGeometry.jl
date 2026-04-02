@@ -65,7 +65,7 @@ function ParameterGraphSymmetric(Fmatrix::AbstractMatrix{<:Number}, PNames::Abst
         graph_options,
         options=(diverging ? raw"/pgfplots/colormap/ReverseBalance, " : raw"/pgfplots/colormap/viridis, ") * raw"coloring/.style={/utils/exec={\pgfplotscolormapdefinemappedcolor{#1}}, draw=mapped color}, " * options,
         node_style="draw, circle, fill=defaultcolor!30!BackgroundColor, outer sep=0"*Unit, 
-        node_styles=VectorDict(raw"label={60:{" .* string.(Latexify.(pnames)) .* raw"}}, " .* "inner sep=" .* roundedstring.(7NodeSize) .* Unit*","),
+        node_styles=VectorDict(raw"label={60:{" .* string.(Latexify.(pnames)) .* raw"}}, " .* "inner sep=" .* roundedstring.(7NodeSize) .* Unit .*","),
         edge_styles=UpperMatrixDict("line width=" .* roundedstring.(6.5EdgeWidth) .* Unit .* ", coloring=" .* roundedstringInt.(1000 .* (diverging ? 0.9 .* (0.5.*SignedEdgeWidth) .+ 0.5 : EdgeWidth))),
         kwargs...
     )
