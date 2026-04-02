@@ -29,7 +29,7 @@ end
 
 # accuracy ≈ 6e-11
 function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-11, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, 
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-7, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, 
                         GeodesicODE=GetGeodesicODE(Metric, InitialPos, approx), kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
@@ -135,10 +135,9 @@ function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Abst
 end
 
 
-function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector,
-                                    Confnum::Real=1, Endtime::Real=500.0; dof::Int=DOF(DM), kwargs...)
-    WilksCond = (1/2)*InvChisqCDF(dof, ConfVol(Confnum))
-    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > WilksCond
+function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; 
+                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), kwargs...)
+    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > (1/2)*IC
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
 

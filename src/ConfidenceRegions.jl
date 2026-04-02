@@ -184,8 +184,8 @@ function OrthVF!(du::AbstractVector, F::Function, θ::AbstractVector{<:Number}; 
 end
 # Could try inplace Grad method into du, then divide inplace in alpha, then copy result back to du?
 
-function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)))
-    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha) = _OrthVF(Grad, θ; alpha=alpha)
+function OrthVF(F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Grad=GetGrad(ADmode,F), alpha::AbstractVector=GetAlpha(length(θ)), kwargs...)
+    OrthogonalVectorField(θ::AbstractVector; alpha::AbstractVector=alpha, Kwargs...) = _OrthVF(Grad, θ; alpha=alpha, kwargs..., Kwargs...)
 end
 
 """
@@ -195,8 +195,18 @@ Computes OrthVF by evaluating the GRADIENT dF.
 _OrthVF(dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn(dF(θ), alpha)
 _OrthVF!(Res::AbstractVector{<:Number}, dF::Function, θ::AbstractVector{<:Number}; alpha::AbstractVector=GetAlpha(length(θ))) = _turn!(Res, dF(θ), alpha)
 
+# Unlike _turn!, does NOT normalize result
+function _unsafe_turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector)
+    P = prod(S)
+    @inbounds for i in eachindex(Res)
+        Res[i] = α[i]*P/S[i]
+    end;    Res
+end
+
 function _turn!(Res::AbstractVector, S::AbstractVector, α::AbstractVector)
-    P = prod(S);    α .*= P;    map!(/, Res, α, S);    normalize!(Res)
+    @boundscheck @assert length(Res) == length(S) == length(α)
+    _unsafe_turn!(Res, S, α)
+    normalize!(Res);    Res
 end
 
 # Out-of-place versions
