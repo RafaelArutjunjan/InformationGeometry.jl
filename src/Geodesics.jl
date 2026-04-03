@@ -28,9 +28,13 @@ end
 
 
 # accuracy ≈ 6e-11
-function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
-                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-7, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), approx::Bool=false, 
+function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; approx::Bool=false, 
                         GeodesicODE=GetGeodesicODE(Metric, InitialPos, approx), kwargs...)
+    ComputeGeodesic(InitialPos, InitialVel, Endtime; Metric, GeodesicODE, kwargs...)
+end
+function ComputeGeodesic(InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
+                        Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-7, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth),
+                        Metric::Function=x->Diagonal(Ones(length(x))), GeodesicODE=GetGeodesicODE(Metric, InitialPos), kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
     solve(ODEProblem(GeodesicODE, u0, tspan), meth; reltol=tol, abstol=tol, (!isnothing(Boundaries) ? (;callback=DiscreteCallback(Boundaries,terminate!)) : (;))..., kwargs...)
