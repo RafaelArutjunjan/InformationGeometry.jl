@@ -232,14 +232,14 @@ function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwarg
     LinkParameters(DM, Sparam .|| Tparam, args...; kwargs...)
 end
 
-function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10)
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
     widths = try
         sqrt.(abs.(Diagonal(inv(F)).diag))
     catch;
         # For structurally unidentifiable models, return value given by "failed".
         1 ./ sqrt.(abs.(Diagonal(F).diag))
     end
-    sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failed, 1/failed)
+    sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failedlow, failedhigh)
 end
 
 GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; MLE::AbstractVector=MLE(DM), kwargs...) = GetProfileDomainCube(DM, MLE, Confnum; kwargs...)

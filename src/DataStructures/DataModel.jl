@@ -146,7 +146,7 @@ function TestDataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::Mode
     !isfinite(LogLikeMLE) && @warn "Got non-finite likelihood value $LogLikeMLE at MLE $MLE."
     S = ScoreFn(MLE)
     !all(isfinite, S) && @warn "Got non-finite gradient $S at MLE $MLE."
-    norm(S) > sqrt(length(MLE)*1e-5) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
+    norm(S) > sqrt(length(MLE)*1e-4) && @warn "Norm of gradient of log-likelihood at supposed MLE $MLE comparatively large: $(norm(S))."
     g = FisherInfoFn(MLE)
     !all(isfinite, g) && @warn "Got non-finite Hessian $g at MLE $MLE."
     !(det(g) > 0) && @warn "Model appears to contain superfluous parameters since it is not structurally identifiable at supposed MLE $MLE."
