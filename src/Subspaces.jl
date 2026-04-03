@@ -97,12 +97,13 @@ Base.length(X::OneHot) = X.n
 
 Base.:*(a::Number, X::OneHot) = OneHot(X.i, X.n, a*X.val)
 Base.:*(X::OneHot, a::Number) = Base.:*(a, X)
-Base.:*(A::Union{StaticArray{Tuple{S},T,2}, AbstractMatrix}, X::OneHot) where {S,T} = X.val .* (@view A[:, X.i])
+Base.:*(A::AbstractMatrix, X::OneHot) = X.val .* (@view A[:, X.i])
+Base.:*(A::StaticArray{Tuple{S,P},T,2}, X::OneHot) where {S,P,T} = X.val .* (@view A[:, X.i])
 
 # Hopefully this does not degrade performance
 Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y);  setindex(Y, Y[X.i] + X.val, X.i))
-Base.:+(X::OneHot, Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}) where {S,T} = (@boundscheck @assert length(X) == length(Y);   Z=copy(Y);  Z[X.i] += X.val;    Z)
-Base.:+(Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}, X::OneHot) where {S,T} = Base.:+(X, Y)
+Base.:+(X::OneHot, Y::Union{AbstractVector,<:StaticArray{Tuple{S},T,1}}) where {S,T} = (@boundscheck @assert length(X) == length(Y);   Z=copy(Y);  Z[X.i] += X.val;    Z)
+Base.:+(Y::Union{AbstractVector,<:StaticArray{Tuple{S},T,1}}, X::OneHot) where {S,T} = Base.:+(X, Y)
 Base.:+(X::OneHot, Y::OneHot) = (@boundscheck @assert length(X) == length(Y);   Z = zeros(X.n); Z[X.i] = X.val; Z[Y.i]=Y.val;   Z)
 
 Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val .* (@view A[:, X.i])

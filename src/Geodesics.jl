@@ -34,10 +34,10 @@ function ComputeGeodesic(Metric::Function, InitialPos::AbstractVector, InitialVe
 end
 function ComputeGeodesic(InitialPos::AbstractVector, InitialVel::AbstractVector, Endtime::Number=50.; tspan::Tuple{<:Number,<:Number}=(zero(Endtime), Endtime),
                         Boundaries::Union{Function,Nothing}=nothing, tol::Real=1e-7, meth::AbstractODEAlgorithm=GetMethod(tol), promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth),
-                        Metric::Function=x->Diagonal(Ones(length(x))), GeodesicODE=GetGeodesicODE(Metric, InitialPos), kwargs...)
+                        Metric::Function=x->Diagonal(Ones(length(x))), GeodesicODE=GetGeodesicODE(Metric, InitialPos), callback=nothing, kwargs...)
     @assert length(InitialPos) == length(InitialVel)
     u0 = promote ? PromoteStatic(vcat(InitialPos,InitialVel), true) : vcat(InitialPos,InitialVel)
-    solve(ODEProblem(GeodesicODE, u0, tspan), meth; reltol=tol, abstol=tol, (!isnothing(Boundaries) ? (;callback=DiscreteCallback(Boundaries,terminate!)) : (;))..., kwargs...)
+    solve(ODEProblem(GeodesicODE, u0, tspan), meth; callback=(!isnothing(Boundaries) ? CallbackSet(callback,DiscreteCallback(Boundaries,terminate!)) : callback), reltol=tol, abstol=tol, kwargs...)
 end
 
 """
@@ -138,11 +138,24 @@ function ConstLengthGeodesics(DM::AbstractDataModel, Metric::Function, MLE::Abst
     pmap(Constructor,Initials)
 end
 
-
+"""
+    BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; dof::Int, IC::Real)
+Computes geodesic ODE with discrete callback to check whether already outside of chosen boundary.
+Stops on first integrator step outside of boundary, not on boundary.
+"""
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; 
                                     Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), kwargs...)
-    BoundaryFunc(u,t,int) = LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2]) > (1/2)*IC
+    BoundaryFunc(u,t,int) = 2*(LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2])) > IC
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
+end
+"""
+    BoundaryViaGeodesicDirect(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; dof::Int, IC::Real)
+Computes geodesic ODE with continuous callback and terminates exactly on boundary.
+"""
+function BoundaryViaGeodesicDirect(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; 
+                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), kwargs...)
+    BoundaryFunc(u,t,int) = 2*(LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2])) - IC
+    ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; callback=ContinuousCallback(BoundaryFunc, terminate!), kwargs...)
 end
 
 ###############################################################
