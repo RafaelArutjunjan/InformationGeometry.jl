@@ -97,7 +97,7 @@ Base.length(X::OneHot) = X.n
 
 Base.:*(a::Number, X::OneHot) = OneHot(X.i, X.n, a*X.val)
 Base.:*(X::OneHot, a::Number) = Base.:*(a, X)
-Base.:*(A::AbstractMatrix, X::OneHot) = X.val * A[:, X.i]
+Base.:*(A::Union{StaticArray{Tuple{S},T,2}, AbstractMatrix}, X::OneHot) where {S,T} = X.val .* (@view A[:, X.i])
 
 # Hopefully this does not degrade performance
 Base.:+(X::OneHot, Y::SVector) = (@boundscheck @assert length(X) == length(Y);  setindex(Y, Y[X.i] + X.val, X.i))
@@ -105,13 +105,13 @@ Base.:+(X::OneHot, Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}) where {S,
 Base.:+(Y::Union{AbstractVector,StaticArray{Tuple{S},T,1}}, X::OneHot) where {S,T} = Base.:+(X, Y)
 Base.:+(X::OneHot, Y::OneHot) = (@boundscheck @assert length(X) == length(Y);   Z = zeros(X.n); Z[X.i] = X.val; Z[Y.i]=Y.val;   Z)
 
-Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
-Base.:*(A::Transpose{T,AbstractMatrix{T}}, X::OneHot) where T = X.val * A[:, X.i]
+Base.:*(A::Adjoint{T,AbstractMatrix{T}}, X::OneHot) where T = X.val .* (@view A[:, X.i])
+Base.:*(A::Transpose{T,AbstractMatrix{T}}, X::OneHot) where T = X.val .* (@view A[:, X.i])
 Base.:*(A::Adjoint{T,AbstractVector{T}}, X::OneHot) where T = X.val * A[X.i]
 Base.:*(A::Transpose{T,AbstractVector{T}}, X::OneHot) where T = X.val * A[X.i]
 
-Base.:*(A::Adjoint{T,OneHot}, X::AbstractMatrix{T}) where T = X.val * A[X.i, :]
-Base.:*(A::Transpose{T,OneHot}, X::AbstractMatrix{T}) where T = X.val * A[X.i, :]
+Base.:*(A::Adjoint{T,OneHot}, X::AbstractMatrix{T}) where T = X.val .* (@view A[X.i, :])
+Base.:*(A::Transpose{T,OneHot}, X::AbstractMatrix{T}) where T = X.val .* (@view A[X.i, :])
 Base.:*(A::Adjoint{T,OneHot}, X::AbstractVector{T}) where T = X.val * A[X.i]
 Base.:*(A::Transpose{T,OneHot}, X::AbstractVector{T}) where T = X.val * A[X.i]
 
@@ -119,8 +119,8 @@ LinearAlgebra.dot(X::OneHot, Y::AbstractVector) = X.val * Y[X.i]
 LinearAlgebra.dot(Y::AbstractVector, X::OneHot) = LinearAlgebra.dot(X, Y)
 LinearAlgebra.dot(X::OneHot{T}, Y::OneHot{T}) where T<:Number = (@boundscheck @assert X.n == Y.n;  ifelse(X.i == Y.i, X.val*Y.val, zero(T)))
 
-LinearAlgebra.mul!(Y::AbstractVector, A::AbstractMatrix, X::OneHot) = @. Y = X.val * A[:, X.i]
-LinearAlgebra.mul!(C::AbstractVector, A::AbstractMatrix, X::OneHot, α::Number, β::Number) = (C .*= β;   γ=α*X.val;  C .+= γ .* A[:, X.i])
+LinearAlgebra.mul!(Y::AbstractVector, A::AbstractMatrix, X::OneHot) = @. Y = X.val * (@view A[:, X.i])
+LinearAlgebra.mul!(C::AbstractVector, A::AbstractMatrix, X::OneHot, α::Number, β::Number) = (C .*= β;   γ=α*X.val;  C .+= γ .* (@view A[:, X.i]))
 
 # vectorized mul!
 # function LinearAlgebra.mul!(Y::AbstractVector, M::AbstractMatrix, X::OneHot)
