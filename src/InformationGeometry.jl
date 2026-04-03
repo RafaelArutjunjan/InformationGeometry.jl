@@ -272,7 +272,7 @@ export KullbackLeibler
 
 include("Geodesics.jl")
 export ComputeGeodesic, GeodesicLength, GeodesicCrossing, DistanceAlongGeodesic, Endpoints, EvaluateEach
-export RadialGeodesics, BoundaryViaGeodesic, GeodesicBetween, GeodesicDistance, GeodesicEnergy, ExponentialMap, LogarithmicMap, KarcherMean, MBAM
+export RadialGeodesics, BoundaryViaGeodesic, BoundaryViaGeodesicDirect, GeodesicBetween, GeodesicDistance, GeodesicEnergy, ExponentialMap, LogarithmicMap, KarcherMean, MBAM
 # Needs redo:
 # export ConstLengthGeodesics, ConstParamGeodesics
 
@@ -367,7 +367,7 @@ SnoopPrecompile.@precompile_all_calls begin
         nothing
     end
     DataModel(DataSet(collect(1:14), [3, 8, 28, 75, 221, 291, 255, 235, 190, 126, 70, 28, 12, 5], 15ones(14); xnames= ["Days"], ynames=["Infected"]),
-            ODEFunction(SIR!), X->([763.0-X[1], X[1], 0.0], @view X[2:3]), x->x[2], [0.614,0.00231,0.458], true; tol=1e-4)
+            ODEFunction(SIR!), X->([763.0-X[1], X[1], 0.0], @view X[2:3]), x->x[2], [0.614,0.00231,0.458], true; tol=1e-6)
 
     SIR! = nothing
 
