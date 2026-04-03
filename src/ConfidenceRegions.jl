@@ -501,7 +501,7 @@ Constructs appropriate callback kwarg for 2D cost function consisting of
 - a domain check based on `Boundaries` kwarg,
 - optional manifold projection.
 """
-function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}, FuncOnBoundary::Real; Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), autodiff::AbstractADType=ADtypeConverter(ADmode),
+function _CallbackConstructor(F::Function, u0::AbstractVector{<:Number}, FuncOnBoundary::Real=F(u0); Boundaries::Union{Function,Nothing}=nothing, mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), autodiff::AbstractADType=ADtypeConverter(ADmode),
                                     TerminateBackwards::Bool=false)
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = !TerminateBackwards ? ContinuousCallback(terminatecondition, terminate!, nothing) : ContinuousCallback(terminatecondition, nothing, terminate!)
