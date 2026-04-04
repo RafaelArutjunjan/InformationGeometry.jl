@@ -1,7 +1,7 @@
 module InformationGeometryStochasticDiffEqExt
 
 
-using InformationGeometry, StochasticDiffEq, SciMLSensitivity, SciMLBase
+using InformationGeometry, StochasticDiffEqCore, StochasticDiffEqHighOrder, SciMLSensitivity, SciMLBase
 
 import InformationGeometry: GetModel, GetMethod, MaximalNumberOfArguments, CompleteObservationFunction, MakeCustom, Reduction, ConditionalConvert, PromoteStatic
 import SciMLBase: AbstractSDEFunction, AbstractNoiseProcess
@@ -17,7 +17,7 @@ end
 function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T}, SplitterFunction::Function, PreObservationFunction::Function; trajectories::Union{Int,Nothing}=1000, filter::Function=x->true,
                     noise::Union{AbstractNoiseProcess,Nothing}=nothing, noise_rate_prototype::Union{AbstractArray,Nothing}=nothing, dt::Union{Real,Nothing}=nothing, mean::Bool=true,
                     sensealg::SenseAlg=SciMLSensitivity.ForwardDiffSensitivity(), callback=nothing, EnsembleAlg::SciMLBase.EnsembleAlgorithm=SciMLBase.EnsembleThreads(),
-                    meth::SciMLBase.AbstractSDEAlgorithm=(noise===noise_rate_prototype===nothing ? SOSRI() : SOSRA()), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, Kwargs...) where T
+                    meth::SciMLBase.AbstractSDEAlgorithm=(noise===noise_rate_prototype===nothing ? StochasticDiffEqHighOrder.SOSRI() : StochasticDiffEqHighOrder.SOSRA()), Domain::Union{HyperCube,Nothing}=nothing, inplace::Bool=true, Kwargs...) where T
     # @assert T == inplace
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
