@@ -80,8 +80,8 @@ module InformationGeometryMakieExt
         n_plots == 0 && error("No populated profiles to plot")
         if ylims === nothing
             tol = 0.05
-            M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
-            maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
+            M = [maximum(view(T.u[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T.u[1]) && any(GetConverged(T)) && maximum(view(T.u[2], GetConverged(T))) > tol]
+            maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T[1])])
             maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
             ylims = (Trafo(-tol), Trafo(maxy))
         end
@@ -111,20 +111,20 @@ module InformationGeometryMakieExt
             F = InterpolatedProfiles(PV, Interp); xran = range(F.t[1], F.t[end]; length=300)
             lines!(ax, xran, map(Trafo∘F, xran); color=Makie.wong_colors()[1], linewidth=2, label="Interpolated Profile", linecap=:round, joinstyle=:round, kwargs...)
         else
-            Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV)[2], Conv)
-            lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); linewidth=2, color=Makie.wong_colors()[1], label="Profile Likelihood", linecap=:round, joinstyle=:round, kwargs...)
-            !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[2], linewidth=2, label=nothing, linecap=:round, joinstyle=:round, kwargs...)
+            Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV).u[2], Conv)
+            lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,1]); linewidth=2, color=Makie.wong_colors()[1], label="Profile Likelihood", linecap=:round, joinstyle=:round, kwargs...)
+            !all(Conv) && lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[2], linewidth=2, label=nothing, linecap=:round, joinstyle=:round, kwargs...)
         end
         if HasPriors(PV)
             if Interpolate
                 Interp = QuadraticSpline;   Conv = GetConverged(Profiles(PV))
                 !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
-                F = Interp(Profiles(PV)[3], Profiles(PV)[1]); xran = range(F.t[1], F.t[end]; length=300)
+                F = Interp(Profiles(PV).u[3], Profiles(PV).u[1]); xran = range(F.t[1], F.t[end]; length=300)
                 lines!(ax, xran, vec(map(Trafo∘F, xran)); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             else
                 Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV)[3], Conv)
-                lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,1]); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
-                !all(Conv) && lines!(ax, Profiles(PV)[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[4], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
+                lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,1]); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
+                !all(Conv) && lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[4], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             end
         end
         scatter!(ax, [MLE(PV)[i]], [Trafo(0.0)]; marker=:hexagon, markersize=12, color=:red, strokewidth=0, label=nothing)
