@@ -437,7 +437,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             approx_PL_curvature((x1, x2, x3), (y1, y2, y3)) = @fastmath -2 * (y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) / ((x1 - x2) * (x2 - x3) * (x3 - x1))
             
             maxstepnumber = N
-            Fi = isnothing(Fisher) ? FisherMetricFn(MLE)[Comp,Comp] : Fisher[Comp,Comp]
+            Fi = isnothing(Fisher) ? abs(FisherMetricFn(MLE)[Comp,Comp]) : abs(Fisher[Comp,Comp])
             # Calculate initial stepsize based on curvature from fisher information
             initialδ = clamp(stepfactor * sqrt(IC) / (maxstepnumber * (flatstepconst + curvaturesensitivity*sqrt(Fi))) , 1e-12, 1e2)
 
@@ -617,7 +617,7 @@ end
 
 
 GetConverged(M::AbstractMatrix) = BitVector(@view M[:, end])
-GetConverged(M::VectorOfArray) = BitVector(M[end])
+GetConverged(M::VectorOfArray) = BitVector(M.u[end])
 # Convergify(Values::AbstractVector{<:Number}, Converged::Union{BitVector,BoolVector}) = [Values .+ (NaN .* .!Converged) Values .+ (NaN .* ShrinkTruesByOne(Converged))]
 Convergify(Values::AbstractVector{<:Number}, Converged::Union{BitVector,BoolVector}) = [Values .+ (Inf .* .!Converged) Values .+ (Inf .* ShrinkTruesByOne(Converged))]
 
@@ -635,7 +635,7 @@ end
 
 # What if trajectories NaN?
 HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, Nothing}) = false
-HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, AbstractVector}) = !all(x->all(isnan,x), M[2])
+HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, AbstractVector}) = !all(x->all(isnan,x), view(M,:,2))
 HasTrajectories(M::AbstractVector{<:Tuple}) = any(HasTrajectories, M)
 HasTrajectories(M::AbstractMatrix) = false
 HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = false
@@ -663,7 +663,7 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     @assert (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in eachindex(Profiles)
-        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, map(x->getindex(x,collect(idxs)),Profiles[i][2]); marker=:circle, label="Comp: $i", kwargs...)
+        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, map(x->getindex(x,collect(idxs)),Profiles[i].u[2]); marker=:circle, label="Comp: $i", kwargs...)
     end
     axislabels = (; xlabel=pnames(DM)[idxs[1]], ylabel=pnames(DM)[idxs[2]])
     length(idxs) == 3 && (axislabels = (; axislabels..., zlabel=pnames(DM)[idxs[3]]))
@@ -922,6 +922,7 @@ ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 
 
+## Not intended for UnknownVarianceDataSet
 """
     FullParameterProfiles(DM::AbstractDataModel, Confnum::Real=2., Inds::AbstractVector{<:Int}=(1:pdim(DM)) .+ length(xdata(DM)); LogLikelihoodFn::Function=FullLiftedLogLikelihoodAfterEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), kwargs...)
 Compute parameter profiles while accounting for the uncertainties in the independent variables.
@@ -953,7 +954,7 @@ Given a function `F(W::Vector)` or `F(p::Vector,W::Vector)`, the saved values of
 function ProfileTransform(P::ParameterProfiles, F::Function; Meta::Symbol=Symbol("Trafo: "*string(F)), TransformPriors::Bool=false, kwargs...)
     @assert IsCost(P);    HasPriors(P) && !TransformPriors && @warn "Saved priors of given profile are not transformed!"
     WrappedTrafo = MaximalNumberOfArguments(F) > 1 ? F : (x,y)->F(y)
-    ObjectTrafo(Prof::VectorOfArray) = (S=copy(Prof);  S[2]=WrappedTrafo(S[1], S[2]);  TransformPriors && (S[3]=WrappedTrafo(S[1], S[3]));     S)
+    ObjectTrafo(Prof::VectorOfArray) = (S=copy(Prof);  S.u[2]=WrappedTrafo(S.u[1], S.u[2]);  TransformPriors && (S.u[3]=WrappedTrafo(S.u[1], S.u[3]));     S)
     NewProfs = [ObjectTrafo(Prof) for Prof in Profiles(P)]
     remake(P; Profiles=NewProfs, IsCost=false, Meta, kwargs...)
 end
@@ -983,7 +984,7 @@ Plot a scalar function `F` along the parameter trajectories of the profiles in `
 """
 function PlotAlongProfilePaths(P::ParameterProfiles, F::Function; kwargs...)
     PopulatedInds = IsPopulated(P)
-    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i], kwargs...) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)))
+    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i].u[1], map(F, Trajectories(P)[i]); xlabel=pnames(P)[i], kwargs...) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)))
 end
 
 """
@@ -993,7 +994,7 @@ Plot i-th scalar function `F` in `Fs` along the parameter trajectories of the pr
 function PlotAlongProfilePaths(P::ParameterProfiles, Fs::AbstractVector{<:Function}; kwargs...)
     PopulatedInds = IsPopulated(P)
     @assert length(Fs) == pdim(P)
-    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i][1], map(Fs[i], Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
+    RecipesBase.plot([RecipesBase.plot(Profiles(P)[i].u[1], map(Fs[i], Trajectories(P)[i]); xlabel=pnames(P)[i]) for i in eachindex(P) if IsPopulated(P)[i]]...; layout=sum(PopulatedInds), size=PlotSizer(sum(PopulatedInds)), kwargs...)
 end
 
 
@@ -1237,8 +1238,8 @@ end
     P.Meta !== :ParameterProfiles && (plot_title --> string(P.Meta))
     Trafo = get(plotattributes, :Trafo, identity)
     tol = get(plotattributes, :tol, 0.05)
-    M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
-    maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
+    M = [maximum(view(T.u[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T.u[1]) && any(GetConverged(T)) && maximum(view(T.u[2], GetConverged(T))) > tol]
+    maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T.u[1])])
     maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
     ymin = get(plotattributes, :Ymin, Trafo.(-tol))
     Ylims = get(plotattributes, :ylims, (ymin, Trafo.(maxy)))
@@ -1267,8 +1268,8 @@ PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.
     Interpolate = get(plotattributes, :Interpolate, false)
     Trafo = get(plotattributes, :Trafo, identity)
     tol = 0.05
-    M = [maximum(view(T[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T[1]) && any(GetConverged(T)) && maximum(view(T[2], GetConverged(T))) > tol]
-    maxy = length(M) > 0 ? median(M) : median([maximum(T[2]) for T in Profiles(P) if !all(isnan, T[1])])
+    M = [maximum(view(T.u[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T.u[1]) && any(GetConverged(T)) && maximum(view(T.u[2], GetConverged(T))) > tol]
+    maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T.u[1])])
     maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (Trafo.(-tol), Trafo.(maxy)))
     @series begin
@@ -1395,7 +1396,7 @@ end
             xran, map(Trafo∘F, xran)
         else
             label --> ["Profile Likelihood" nothing]
-            Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[2], GetConverged(Profiles(PV))))
+            Profiles(PV).u[1], Trafo.(Convergify(Profiles(PV).u[2], GetConverged(Profiles(PV))))
         end
     end
     # Draw prior contribution
@@ -1408,12 +1409,12 @@ end
                 label --> "Interpolated Profile"
                 Conv = GetConverged(Profiles(PV))
                 !all(Conv) && @warn "Interpolating profile $i but $(sum(.!Conv))/$(length(Conv)) points not converged."
-                F = Interp(Profiles(PV)[3], Profiles(PV)[1])
+                F = Interp(Profiles(PV).u[3], Profiles(PV).u[1])
                 xran = range(F.t[1], F.t[end]; length=300)
                 xran, map(Trafo∘F, xran)
             else
                 label --> ["Prior contribution" nothing]
-                Profiles(PV)[1], Trafo.(Convergify(Profiles(PV)[3], GetConverged(Profiles(PV))))
+                Profiles(PV).u[1], Trafo.(Convergify(Profiles(PV).u[3], GetConverged(Profiles(PV))))
             end
         end
     end
@@ -1430,7 +1431,7 @@ end
     Confnum = get(plotattributes, :Confnum, 1:5)
     if IsCost(PV) && all(Confnum .> 0)
         dof = get(plotattributes, :dof, DOF(PV))
-        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV)[2],GetConverged(Profiles(PV))); init=-Inf))
+        MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV).u[2],GetConverged(Profiles(PV))); init=-Inf))
         for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
             if Thresh < MaxLevel
                 @series begin
@@ -1776,7 +1777,7 @@ function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
     @assert VP.Meta === :ValidationProfiles
     @assert all(size.(Profiles(VP),2) .> 4) # Make sure z-values saved in the Profile matrix, as well as priors
     # Use fourth column with z-values instead of original v-parameters from validation profile
-    Profs = [(M=P[[4,2,length(P)]];   M[2] .-= P[3];   VectorOfArray(M)) for P in Profiles(VP)]
+    Profs = [(M=P.u[[4,2,length(P)]];   M[2] .-= P.u[3];   VectorOfArray(M)) for P in Profiles(VP)]
     remake(VP; Profiles=Profs, Meta=:PredictionProfiles, Names=Symbol.(map(x->replace(x, "VPL"=>"PPL"), string.(VP.Names))), kwargs...)
 end
 """
