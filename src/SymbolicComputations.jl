@@ -47,7 +47,8 @@ end
 MakeMTKVariables(S::Symbol; base::AbstractString="@variables") = eval(Meta.parse(base*" "*string(S)))[1]
 MakeMTKVariables(S::AbstractArray{<:Symbol}; kwargs...) = [MakeMTKVariables(s; kwargs...) for s in S]
 
-MakeMTKParameters(S; base="@parameters", kwargs...) = MakeMTKVariables(S; base, kwargs...)
+## @ parameters no longer in Symoblics
+MakeMTKParameters(S; base="@variables", kwargs...) = MakeMTKVariables(S; base, kwargs...)
 MakeSymbolicPars(X::AbstractVector; kwargs...) = MakeMTKVariables(X; kwargs...) # updated by ModelingToolkitBase extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))
 
 MakeSymbolicParsOld(X; kwargs...) = throw("Need to load ModelingToolkitBase.jl first.") # updated by ModelingToolkitBase extension to eval(Symbolics._parse_vars(:parameters, Real, X, ModelingToolkitBase.toparam))

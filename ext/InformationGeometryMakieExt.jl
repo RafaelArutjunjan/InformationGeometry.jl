@@ -81,7 +81,7 @@ module InformationGeometryMakieExt
         if ylims === nothing
             tol = 0.05
             M = [maximum(view(T.u[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T.u[1]) && any(GetConverged(T)) && maximum(view(T.u[2], GetConverged(T))) > tol]
-            maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T[1])])
+            maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T.u[1])])
             maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
             ylims = (Trafo(-tol), Trafo(maxy))
         end
@@ -122,14 +122,14 @@ module InformationGeometryMakieExt
                 F = Interp(Profiles(PV).u[3], Profiles(PV).u[1]); xran = range(F.t[1], F.t[end]; length=300)
                 lines!(ax, xran, vec(map(Trafo∘F, xran)); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             else
-                Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV)[3], Conv)
+                Conv = GetConverged(Profiles(PV)); y_vals = Convergify(Profiles(PV).u[3], Conv)
                 lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,1]); color=Makie.wong_colors()[3], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
                 !all(Conv) && lines!(ax, Profiles(PV).u[1], Trafo.(@view y_vals[:,2]); color=Makie.wong_colors()[4], linewidth=2, linestyle=:dash, alpha=0.85, label="Prior contribution", linecap=:round, joinstyle=:round)
             end
         end
         scatter!(ax, [MLE(PV)[i]], [Trafo(0.0)]; marker=:hexagon, markersize=12, color=:red, strokewidth=0, label=nothing)
         if IsCost(PV) && all(Confnum .> 0)
-            MaxLevel === nothing && (MaxLevel = maximum(view(Profiles(PV)[2], GetConverged(Profiles(PV))); init=-Inf))
+            MaxLevel === nothing && (MaxLevel = maximum(view(Profiles(PV).u[2], GetConverged(Profiles(PV))); init=-Inf))
             sorted_conf = sort(Confnum; rev=true)
             for (j, (Conf, Thresh)) in enumerate(zip(sorted_conf, convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sorted_conf)))))
                 Thresh < MaxLevel && hlines!(ax, [Trafo(Thresh)]; linewidth=1.5, linestyle=:dash, color=palette(:viridis, length(sorted_conf); rev=true)[j], linecap=:round, label="$(j)σ level, dof=$dof")
