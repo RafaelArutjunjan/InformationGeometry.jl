@@ -650,7 +650,7 @@ function VFRescale(ZeilenVecs::AbstractMatrix{<:Number}, C::HyperCube; scaling::
             ZeilenVecs[i,:] .*= rescale
         end
     end
-    ZeilenVecs[:,1],ZeilenVecs[:,2]
+    ZeilenVecs[:,1], ZeilenVecs[:,2]
 end
 
 
@@ -658,7 +658,7 @@ function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Real=0.85, O
     @assert length(Lims) == length(V(Center(Lims))) == 2
     AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
     Vcomp(a,b) = V([a,b])
-    u, v = VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling)
+    u, v = scaling > 0 ? VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling) : ToCols(Unpack(Vcomp.(AV,BV)))
     if plot
         (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(AV, BV; seriestype=:quiver, quiver=(u,v), kwargs...) |> display
     end
