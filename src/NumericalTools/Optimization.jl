@@ -220,13 +220,13 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
 
     sol = OptimizationBase.solve(prob, meth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...) # callback
     if sol.retcode !== ReturnCode.Success 
-        verbose && @warn "minimize(): Optimization appears to not have converged."
+        verbose && @warn "minimize(): Optimization appears to not have converged according to the optimizer's internal criterion."
         if retry
             verbose && @warn "minimize(): Try to continue with $retrymeth."
             prob = OptimizationBase.OptimizationProblem(optf, ConstrainStart(sol.u, Domain; verbose=verbose, ForceClamp); lcons, ucons, lb=lb, ub=ub, sense=MinSense)
             sol = OptimizationBase.solve(prob, retrymeth; maxiters, maxtime, abstol, reltol, (!isnothing(callback) ? (;callback=callback) : (;))..., kwargs...)
             if sol.retcode !== ReturnCode.Success
-                verbose && @warn "minimize(): Repeated Optimization with $retrymeth appears to not have converged, too."
+                verbose && @warn "minimize(): Repeated Optimization with $retrymeth appears to not have converged either."
             end
         end
     end;    Full ? sol : sol.u

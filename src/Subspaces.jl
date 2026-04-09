@@ -514,13 +514,18 @@ FullDomain(n::Int, maxval::Real=1e5) = (@assert maxval > 1e-16;     HyperCube(Fi
     rand(C::HyperCube) -> AbstractVector
 Uniformly draws a vector which lies in `C`.
 """
-Base.rand(C::HyperCube) = _rand(C, Val(length(C)))
-_rand(C::HyperCube, ::Val{1}) = C.L[1] + (C.U[1] - C.L[1])*rand()
-function _rand(C::HyperCube, ::Val)
-    f(l,u) = l + (u-l) * rand()
+Base.rand(C::HyperCube{<:AbstractVector{T}}, V::Val=Val(length(C))) where T<:Number = rand(T, C, V)
+Base.rand(C::HyperCube{<:AbstractVector{T}}, N::Int, V::Val=Val(length(C))) where T<:Number = rand(T, C, N, V)
+_rand(C::HyperCube{<:AbstractVector{T}}, V::Val=Val(length(C))) where T<:Number = _rand(T, C, V)
+
+Base.rand(::Type{T}, C::HyperCube, V::Val=Val(length(C))) where T<:Number = _rand(T, C, V)
+Base.rand(::Type{T}, C::HyperCube, N::Int, V::Val=Val(length(C))) where T<:Number = [_rand(T, C, V) for i in 1:N]
+
+_rand(::Type{T}, C::HyperCube, ::Val{1}) where T<:Number = T(C.L[1] + (C.U[1] - C.L[1])*rand())
+function _rand(::Type{T}, C::HyperCube, ::Val) where T<:Number
+    f(l,u) = T(l + (u-l) * rand(T))
     map(f, C.L, C.U)
 end
-Base.rand(C::HyperCube, N::Int) = [rand(C) for i in 1:N]
 
 Base.clamp(x::T, C::HyperCube) where T<:AbstractVector{<:Number} = convert(T,Base.clamp.(x, C.L, C.U))
 function Base.clamp!(x::AbstractVector, C::HyperCube)
