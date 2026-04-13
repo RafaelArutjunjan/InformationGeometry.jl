@@ -192,6 +192,13 @@ function ProjectionOperator(A::AbstractMatrix)
 end
 ProjectionOperator(PL::Plane) = ProjectionOperator(Projector(PL))
 
+## g is ambient metric, compensating for non-orthonormal columns in A
+function ProjectionOperator(A::AbstractMatrix, g::AbstractMatrix)
+    @boundscheck @assert size(A,1) == size(g,1) == size(g,2) && size(A,2) == 2
+    A * inv(transpose(A) * g * A) * transpose(A) * g
+end
+ProjectionOperator(PL::Plane, g::AbstractMatrix) = ProjectionOperator(Projector(PL), g::AbstractMatrix)
+
 IsNormalToPlane(PL::Plane, v::AbstractVector; tol::Real=4e-15) = abs(dot(PL.Vx, v)) < tol && abs(dot(PL.Vy, v)) < tol
 
 function Make2ndOrthogonal(X::AbstractVector,Y::AbstractVector)
