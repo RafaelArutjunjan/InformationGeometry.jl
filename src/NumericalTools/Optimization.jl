@@ -411,17 +411,17 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::
 end
 
 function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12, kwargs...) where T<:Real
-    find_zero(Test, Domain, meth; xatol=tol, xrtol=tol, kwargs...)
+    Roots.find_zero(Test, Domain, meth; xatol=tol, xrtol=tol, kwargs...)
 end
-function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10))) where T<:BigFloat
-    Res = find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-12, xrtol=1e-12)
-    find_zero(Test, (BigFloat(Res-3e-12),BigFloat(Res+3e-12)), Roots.Bisection(); xatol=tol, xrtol=tol)
+function AltLineSearch(Test::Function, Domain::Tuple{T,T}, meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...) where T<:BigFloat
+    Res = Roots.find_zero(Test, (Float64(Domain[1]), Float64(Domain[2])), meth; xatol=1e-12, xrtol=1e-12)
+    Roots.find_zero(Test, (BigFloat(Res-3e-12),BigFloat(Res+3e-12)), Roots.Bisection(); xatol=tol, xrtol=tol, kwargs...)
 end
 
 function AltLineSearch(Test::Function, start::Real, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=1e-12, kwargs...)
-    find_zero(Test, start, meth; xatol=tol, xrtol=tol, kwargs...)
+    Roots.find_zero(Test, start, meth; xatol=tol, xrtol=tol, kwargs...)
 end
 function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
-    Res = find_zero(Test, Float64(start), meth; xatol=1e-12, xrtol=1e-12)
-    find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
+    Res = Roots.find_zero(Test, Float64(start), meth; xatol=1e-12, xrtol=1e-12)
+    Roots.find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
 end
