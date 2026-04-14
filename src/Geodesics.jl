@@ -74,13 +74,14 @@ end
     GeodesicCrossing(DM::DataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol=1e-15)
 Gives the parameter value of the geodesic `sol` at which the confidence level `Conf` is crossed.
 """
-function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, dof::Real=DOF(DM), meth::Roots.AbstractNonBracketing=Roots.Order1B(), kwargs...)
+function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, dof::Real=DOF(DM), meth::Roots.AbstractNonBracketing=Roots.Order1B(), 
+                IC::Real=InvChisqCDF(dof, Conf), kwargs...)
     if (tol < 1e-15)
         start *= one(BigFloat)
         @warn "GeodesicCrossing: Conf value not programmed for BigFloat yet."
     end
     n = length(sol.u[1])÷2
-    A = loglikelihood(DM, (@view sol(0.)[1:n])) - (1/2)*InvChisqCDF(dof, Conf)
+    A = loglikelihood(DM, (@view sol(0.)[1:n])) - (1/2)*IC
     f(t) = A - loglikelihood(DM, (@view sol(t)[1:n]))
     Roots.find_zero(f, sol.t[end]/2, meth; xatol=tol, kwargs...)
 end
@@ -93,9 +94,9 @@ Calculates at which parameter value of the geodesic `sol` the length `L` is reac
 function DistanceAlongGeodesic(Metric::Function, sol::AbstractODESolution, L::Number; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), kwargs...)
     L ≤ 0 && throw(BoundsError("DistanceAlongGeodesic: L=$L"))
     # Use interpolated Solution of integral for improved accuracy
-    GeoLength = GeodesicLength(Metric,sol,sol.t[end], FullSol=true, tol=tol)
+    GeoLength = GeodesicLength(Metric, sol, sol.t[end]; FullSol=true, tol=tol)
     Func(x) = L - GeoLength(x)
-    Roots.find_zero((Func,GetDeriv(ADmode, Func)), sol.t[end]/2*one(typeof(L)), Roots.Newton(), xatol=tol, kwargs...)
+    Roots.find_zero((Func,GetDeriv(ADmode, Func)), sol.t[end]/2*one(typeof(L)), Roots.Newton(); xatol=tol, kwargs...)
 end
 
 

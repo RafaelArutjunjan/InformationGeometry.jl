@@ -137,17 +137,17 @@ UnrollCache(dc::AbstractArray, u) = dc
 Finds ``z`` such that ``F(z) = x`` to a tolerance of `tol` for continuous ``F`` using Roots.jl. Ideally, `F` should be monotone and there should only be one correct result.
 """
 function invert(F::Function, x::T, Domain::Tuple{<:Number,<:Number}=(zero(T), 1e4*one(T));
-                    tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1()) where T<:Number
+                    tol::Real=GetH(x), meth::Roots.AbstractUnivariateZeroMethod=Roots.Order1(), kwargs...) where T<:Number
     @assert Domain[1] < Domain[2] && isfinite(Domain[2])
     try
         if meth isa Roots.AbstractNonBracketing
-            find_zero(z-> F(z) - x, 0.5one(T), meth; xatol=tol)
+            Roots.find_zero(z-> F(z) - x, 0.5one(T), meth; xatol=tol, kwargs...)
         else
-            find_zero(z-> F(z) - x, Domain, meth; xatol=tol)
+            Roots.find_zero(z-> F(z) - x, Domain, meth; xatol=tol, kwargs...)
         end
     catch err
         @warn "invert() errored: $(nameof(typeof(err))). Assuming result is bracketed by $Domain and falling back to Bisection-like method."
-        find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol)
+        Roots.find_zero(z-> F(z) - x, Domain, Roots.AlefeldPotraShi(); xatol=tol, kwargs...)
     end
 end
 # function invert(F::Function, x::T; tol::Real=GetH(x)*100, meth::Roots.AbstractUnivariateZeroMethod=Order1()) where T<:Number

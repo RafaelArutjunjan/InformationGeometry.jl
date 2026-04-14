@@ -336,9 +336,6 @@ function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real
         SFunc = x->Func(-x)
         LineSearch(SFunc, -B; tol)
     end
-    # Df = GetDeriv(ADmode, Func)
-    # B = find_zero((Func,Df),0.1,Roots.Order1(); xatol=tol)
-    # A = find_zero((Func,Df),-B,Roots.Order1(); xatol=tol)
     rts = (MLE(DM)[1]+A, MLE(DM)[1]+B)
     rts[1] ≥ rts[2] ? throw("ConfidenceInterval1D errored by producing $rts.") : return rts
 end
