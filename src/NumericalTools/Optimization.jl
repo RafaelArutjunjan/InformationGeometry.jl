@@ -304,8 +304,8 @@ TracePlot(Pars)
 !!! note
     Does not work for optimizers from Optim.jl unless wrapped with OptimizationOptimJL.jl, i.e. when setting keyword `OptimJL=false`.
 """
-function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, PrintLossEvery::Int=0, Terminate::Function=(State,loss)->false) where T<:Number
-    SavedParams = typeof(X)[];    Losses = SaveLoss ? T[] : nothing
+function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, PrintLossEvery::Int=0, Terminate::Function=(State,loss)->false,
+                    SavedParams::AbstractVector{<:AbstractVector}=typeof(X)[], Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing) where T<:Number
     GetCurPar(State::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl");    fill(Inf, length(X)))
     ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
