@@ -94,7 +94,7 @@ end
 
 function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{AbstractVector,Nothing}=nothing; N::Int=500, kwargs...)
     isnothing(X) && (X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM))
-    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", linewidth=2, kwargs...)
+    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", lw=2, kwargs...)
 end
 
 
@@ -578,18 +578,14 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
     PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Save::Bool=false, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
+    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=Nx);    B = range(Lims.L[2], Lims.U[2], length=Ny)
     func(args...) = F([args...])
-    if Save
-        X,Y = meshgrid(A, B)
-        Z = (parallel ? pmap : map)(func, X, Y)
-        (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Y, Z; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
-        return [X Y Z]
-    else
-        (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, func; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...)
-    end
+    X, Y = meshgrid(A, B)
+    Z = (parallel ? pmap : map)(func, X, Y)
+    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Y, Z; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
+    [X Y Z]
 end
 
 """
@@ -654,9 +650,9 @@ function VFRescale(ZeilenVecs::AbstractMatrix{<:Number}, C::HyperCube; scaling::
 end
 
 
-function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, scaling::Real=0.85, OverWrite::Bool=false, plot::Bool=true, kwargs...)
+function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, Nx::Int=N, Ny::Int=N, scaling::Real=0.85, OverWrite::Bool=false, plot::Bool=true, kwargs...)
     @assert length(Lims) == length(V(Center(Lims))) == 2
-    AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=N), range(Lims.L[2], Lims.U[2]; length=N))
+    AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=Nx), range(Lims.L[2], Lims.U[2]; length=Ny))
     Vcomp(a,b) = V([a,b])
     u, v = scaling > 0 ? VFRescale(Unpack(Vcomp.(AV,BV)), Lims; scaling=scaling) : ToCols(Unpack(Vcomp.(AV,BV)))
     if plot
