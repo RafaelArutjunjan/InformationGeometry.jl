@@ -578,13 +578,14 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
     PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=false, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=Nx);    B = range(Lims.L[2], Lims.U[2], length=Ny)
     func(args...) = F([args...])
+    A, B = range(PlanarCube.L[1], PlanarCube.U[1], length=Nx), range(PlanarCube.L[2], PlanarCube.U[2], length=Ny)
     X, Y = meshgrid(A, B)
     Z = (parallel ? pmap : map)(func, X, Y)
-    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(X, Y, Z; seriestype=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
+    # contour expects Z values as matrix
+    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, transpose(reshape(Z, Nx, :)); st=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
     [X Y Z]
 end
 
@@ -592,24 +593,19 @@ end
     PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` by evaluating the given `PlotPlane` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=35, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, nlevels::Int=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
-    Lims = PlanarCube;    A = range(Lims.L[1], Lims.U[1], length=N);    B = range(Lims.L[2], Lims.U[2], length=N)
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
-    if Save
-        X,Y = meshgrid(A,B)
-        Z = (parallel ? pmap : map)(Lcomp,X,Y)
-        p = RecipesBase.plot(X, Y, Z; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
+    A, B = range(PlanarCube.L[1], PlanarCube.U[1], length=Nx), range(PlanarCube.L[2], PlanarCube.U[2], length=Ny)
+    X, Y = meshgrid(A, B)
+    Z = (parallel ? pmap : map)(Lcomp, X, Y)
+    # contour expects Z values as matrix
+    if plot
+        p = RecipesBase.plot(A, B, transpose(reshape(Z, Nx, :)); st=:contour, fill=true, leg=false, nlevels=nlevels, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
             xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-        p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
+        p = RecipesBase.plot!(p, [0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
         display(p)
-        return [X Y Z]
-    else
-        p = RecipesBase.plot(A, B, Lcomp; seriestype=:contour, fill=true, leg=false, nlevels=nlevels, title="Plot centered around: $(round.(PlotPlane.stütz,sigdigits=4))",
-            xlabel="$(PlotPlane.Vx) direction", ylabel="$(PlotPlane.Vy) direction", kwargs...)
-        p = RecipesBase.plot!([0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
-        return p
-    end
+    end;    [X Y Z]
 end
 
 """
