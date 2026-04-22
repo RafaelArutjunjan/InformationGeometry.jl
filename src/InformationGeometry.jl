@@ -168,7 +168,7 @@ export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length, AddDataPoint
 export MLEinPlane, PlanarDataModel, DetermineDmodel
-export Refit
+export Refit, Prefit
 
 include("DataStructures/DataSet.jl")
 export DataSet
