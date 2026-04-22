@@ -504,20 +504,21 @@ end
 
 
 """
-    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(MLE(DM)), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8, kwargs...)
+    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8, kwargs...)
 Performs pre-fit of `DM` at potentially lower precision specified by `T` with stochastic optimizer and converts back to original precision in `DM` afterwards. Best for models with neural network components.
 All other `kwargs` are forwarded to `ParameterSavingCallback` and can thus be used for early termination.
 
 !!! note
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
 """
-function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(MLE(DM)), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
+function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
                 ## Purely forwarded ParameterSavingCallback() kwargs
                 SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
+                PlotEvery::Int=0, Plotter::Function=PlotEvery > 0 ? (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))) : (State,loss)->nothing, 
                 Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
     DM32 = (T === eltype(MLE(DM))) ? DM : T(DM)
-    CB = ParameterSavingCallback(pstart; SaveLoss=true, PrintLossEvery, Terminate, SavedParams, Losses)[2]
+    CB = ParameterSavingCallback(pstart; SaveLoss=true, PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
 
     @inline Devectorize(X::AbstractVector, i::Int) = X[i]
     @inline Devectorize(X, i::Int) = X
