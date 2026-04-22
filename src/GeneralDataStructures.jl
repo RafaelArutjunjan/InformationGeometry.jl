@@ -513,7 +513,7 @@ All other `kwargs` are forwarded to `ParameterSavingCallback` and can thus be us
 """
 function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(MLE(DM)), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
                 ## Purely forwarded ParameterSavingCallback() kwargs
-                SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(X)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
+                SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
                 Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
     DM32 = (T === eltype(MLE(DM))) ? DM : T(DM)
