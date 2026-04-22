@@ -78,25 +78,18 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e3, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
-                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, Robust::Bool=false, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, p::Real=2, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
+                                        Robust::Bool=false, MinimizeFunc::Function=!Robust ? InformationGeometry.minimize : (@assert !isnothing(DM) "Cannot generate RobustFit if DM==nothing.";  InformationGeometry.RobustFit), 
+                                        MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
     @assert resampling ? !(InitialPointGen isa AbstractVector) : (InitialPointGen isa AbstractVector)
     
     # +Inf if error during optimization, should rarely happen
     BareOptimFunc = if !isnothing(DM)
-        @assert !Robust || p > 0
-        # DM given, so information about Boundaries etc. passed on
-        #### SHOULD ALSO PASS COSTFUNCTION HERE
-        RobustFunc(θ::AbstractVector{<:Number}) = RobustFit(DM, θ; p, timeout, verbose, meth, Full, kwargs...)
-        Func(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(DM, θ; timeout, verbose, meth, Full, kwargs...)
-        Robust ? RobustFunc : Func
+        Func(θ::AbstractVector{<:Number}) = MinimizeFunc(DM, θ; timeout, verbose, meth, Full, kwargs...)
     else
-        @assert !Robust "Cannot generate Robust p-norm version if only Cost Function given."
-        FuncPureCost(θ::AbstractVector{<:Number}) = InformationGeometry.minimize(CostFunction, θ; timeout, verbose, meth, Full, kwargs...)
+        FuncPureCost(θ::AbstractVector{<:Number}) = MinimizeFunc(CostFunction, θ; timeout, verbose, meth, Full, kwargs...)
     end
-    # Allow for disabling try catch;
-    # TotalFunc(θ::AbstractVector{<:Number}) = try    InformationGeometry.TotalLeastSquaresV()    catch;  fill(-Inf, length(θ))   end
     
     TryCatchWrapper(F::Function, Default=-Inf; verbose::Bool=verbose) = x -> try F(x) catch E; verbose && println("Failed with $E");  Default   end
     # Double negation... Use LogLikelihoodFn instead? Make this consistent with GetProfile()

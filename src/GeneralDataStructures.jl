@@ -504,8 +504,8 @@ end
 
 
 """
-    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, kwargs...)
-Performs pre-fit of `DM` at potentially lower precision specified by `T` with stochastic optimizer and converts back to original precision in `DM` afterwards. Best for models with neural network components.
+    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PlotEvery::Int=0, PrintLossEvery=50, kwargs...)
+Performs pre-fit of `DM` at potentially lower precision specified by `T` (e.g. Float32) with stochastic optimizer and converts back to original precision in `DM` afterwards. Potential speed-up for models with neural network components.
 Kwarg `Safe` ensures that best configuration encountered during whole optimization is returned, instead of final.
 Kwargs can also be forwarded to `ParameterSavingCallback` and can thus be used for early termination.
 For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Terminate` and so on.
@@ -513,21 +513,28 @@ For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Ter
 !!! note
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
 """
-function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
+function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), 
+                ## Purely forwarded ParameterSavingCallback() kwargs:
+                SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[],
+                PlotEvery::Int=0, Plotter::Function=PlotEvery > 0 ? (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))) : (State,loss)->nothing, 
+                kwargs...)
+    DM32 = (T === originalT) ? DM : T(DM)
+    Prefit(Negloglikelihood(DM32), mle; originalT, T, pstart, SavedParams, Losses, Plotter, kwargs...)
+end
+function Prefit(CostFunction::Function, mle::AbstractVector; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
                 MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=true, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
-                PlotEvery::Int=0, Plotter::Function=PlotEvery > 0 ? (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))) : (State,loss)->nothing, 
+                PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing, 
                 Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
-    DM32 = (T === originalT) ? DM : T(DM)
     CB = ParameterSavingCallback(pstart; SaveLoss=true, PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
     TryCatchWrapper(F::Function) = (Args...;Kwargs...) -> try F(Args...;Kwargs...) catch E; verbose && println("Failed with $E");  Args[2]   end
     SafeMinimizeFunc = TryCatchOptimizer ? TryCatchWrapper(MinimizeFunc) : MinimizeFunc
 
     Devectorize(X::AbstractVector, i::Int) = X[i];    Devectorize(X, i::Int) = X
     for i in (meth isa AbstractVector ? eachindex(meth) : 1:1)
-        pstart .= SafeMinimizeFunc(DM32, pstart; OptimJL=false, meth=Devectorize(meth,i), maxiters=Devectorize(maxiters,i), tol=Devectorize(tol,i), Domain, callback=CB, verbose, kwargs...)
+        pstart .= SafeMinimizeFunc(CostFunction, pstart; OptimJL=false, meth=Devectorize(meth,i), maxiters=Devectorize(maxiters,i), tol=Devectorize(tol,i), Domain, callback=CB, verbose, kwargs...)
     end
     Safe ? originalT.(SavedParams[findmin(Losses)[2]]) : originalT.(pstart)
 end
