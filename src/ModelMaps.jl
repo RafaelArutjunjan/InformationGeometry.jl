@@ -74,11 +74,15 @@ struct ModelMap{Inplace, Custom}
     ModelMap(model::Function, xyp::Tuple{Int,Int,Int}; kwargs...) = ModelMap(model, nothing, nothing, xyp; kwargs...)
     # Given: Function only (potentially) -> Find xyp
     function ModelMap(model::Function, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; 
-                            startp::AbstractVector{<:Number}=isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain), kwargs...)
-        ModelMap(model, startp, InDomain, Domain; kwargs...)
+                            startp::Union{Nothing,AbstractVector{<:Number}}=nothing, kwargs...)
+        ModelMap(model, !isnothing(startp) ? startp : (isnothing(Domain) ? GetStartP(GetArgSize(model)[2]) : ElaborateGetStartP(Domain, InDomain)), InDomain, Domain; kwargs...)
     end
     function ModelMap(model::Function, startp::AbstractVector{<:Number}, InDomain::Union{Nothing,Function}=nothing, Domain::Union{Cuboid,Nothing}=nothing; inplace::Bool=isinplacemodel(model), kwargs...)
-        xlen = inplace ? GetArgLength((Res,x)->model(Res,x,startp); max=MaxArgLen) : GetArgLength(x->model(x,startp); max=MaxArgLen)
+        xlen = try 
+            inplace ? GetArgLength((Res,x)->model(Res,x,startp); max=MaxArgLen) : GetArgLength(x->model(x,startp); max=MaxArgLen)
+        catch;
+            throw("Given model function errored while attempting to automatically infer input size. Make sure the model function is well-defined and consider passing a suitable starting configuration for the parameters via the `startp` kwarg.")
+        end
         testout = _TestOut(model, startp, xlen; inplace)
         ModelMap(model, InDomain, Domain, (xlen, size(testout,1), length(startp)); inplace, startp=startp, kwargs...)
     end
@@ -174,8 +178,8 @@ _TestDomain(::Nothing, θ::AbstractVector) = true       # Excluded
 _TestDomain(Domain::Cuboid, θ::AbstractVector) = θ ∈ Domain
 
 
-MakeCustom(F::Function, Domain::Union{Bool,Nothing}=nothing; kwargs...) = MakeCustom(ModelMap(F); kwargs...)
-MakeCustom(F::Function, Domain::Cuboid; kwargs...) = MakeCustom(ModelMap(F, Domain); kwargs...)
+MakeCustom(F::Function, Domain::Union{Bool,Nothing}=nothing; startp=nothing, kwargs...) = MakeCustom(ModelMap(F; startp); kwargs...)
+MakeCustom(F::Function, Domain::Cuboid; startp=nothing, kwargs...) = MakeCustom(ModelMap(F, Domain; startp); kwargs...)
 function MakeCustom(M::ModelMap; Meta=M.Meta, verbose::Bool=true)
     if iscustommodel(M)
         verbose && @warn "MakeCustom: Given Map already uses custom embedding."
