@@ -5,6 +5,7 @@ SafeCopy(X::AbstractVector) = copy(X)
 SafeCopy(X::FillArrays.AbstractFillVector) = collect(X)
 SafeCopy(X::ComponentVector) = convert(Vector,X)
 SafeCopy(X::AbstractVector{<:Num}) = X
+SafeCopy(X::Symbolics.Arr) = collect(X)
 SafeCopy(X::AbstractRange) = collect(X)
 SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
