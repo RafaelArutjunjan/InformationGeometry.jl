@@ -1,4 +1,7 @@
 
+
+
+
 ### Maximum Likelihood Estimation
 ```@setup Multistart
 using InformationGeometry, Plots; gr()
@@ -17,19 +20,19 @@ plot(DM; Confnum=0)
 The optimization can then be performed with:
 ```@example Multistart
 using Optim
-mle = InformationGeometry.minimize(DM; meth=NewtonTrustRegion(), tol=1e-12, maxtime=60.0, Domain=HyperCube(zeros(2), 10ones(2)), verbose=true)
+mle = InformationGeometry.minimize(DM; meth=Optim.NewtonTrustRegion(), tol=1e-12, maxtime=60.0, Domain=HyperCube(zeros(2), 10ones(2)), verbose=true)
 ```
 The full solution object is returned if the keyword argument `Full=true` is additionally provided.
 
 Alternatively, one might use [optimizers](https://docs.sciml.ai/Optimization) from the [**Optimization.jl**](https://github.com/SciML/Optimization.jl) ecosystem e.g. via
 ```julia
 using Optimization, OptimizationOptimisers
-mle = InformationGeometry.minimize(DM, rand(2); meth=Optimisers.AdamW())
+mle = InformationGeometry.minimize(DM, rand(2); meth=OptimizationOptimisers.AdamW())
 ```
 or
 ```julia
 using Optimization, OptimizationNLopt
-mle = InformationGeometry.minimize(DM, rand(2); meth=NLopt.GN_DIRECT())
+mle = InformationGeometry.minimize(DM, rand(2); meth=OptimizationNLopt.GN_DIRECT())
 ```
 
 Finally, the newly found optimum can be visually inspected with
@@ -82,6 +85,45 @@ For instance, to compare the fit corresponding to the local optimum constituted 
 ```@example Multistart
 plot(DM, GetStepParameters(R, 2))
 ```
+
+
+### Robust Prefitting
+
+While the above described methods `InformationGeometry.minimize` and `MultistartFit` allow for transparent and explicit control over individual optimization processes, the methods `Prefit` and `Minimize` are provided as convenient wrappers for combining these different functionalities recursively in powerful ways.
+
+```@docs
+Minimize(::DataModel)
+Prefit(::DataModel)
+```
+
+The `Minimize` method merges the `MultistartFit` interface with the `InformationGeometry.minimize` interface, allowing the user to simply specify the number of multistarts via the `Multistart::Int` kwarg, where `Minimize` will only return the best parameter configuration observed during the multistart optimization and the default `Multistart=0` falls back to using `InformationGeometry.minimize`.
+
+```julia
+Minimize(DM; MultistartDomain=HyperCube([-1,-1],[3,4]), Multistart=200, meth=Newton())
+```
+
+The `Prefit` method allows for chaining multiple optimizations with different optimizers together in series and returning only the best observed parameter configuration.
+Moreover, it allows for sharing settings between the runs or choosing different settings per run by supplying the choices as a vector to the corresponding kwargs.
+For example:
+```julia
+using OptimizationOptimisers, OptimizationOptimJL
+Prefit(DM; meth=[OAdam(), LBFGS(), Newton()], maxiters=[3000, 500, 50], tol=[0, 1e-8, 1e-12])
+```
+
+Almost all "higher order" wrapping methods for optimization (e.g. `Prefit`, `IncrementalTimeSeriesFit`, `RobustFit`, `ParameterProfiles`, etc.) accept the `MinimizeFunc` kwarg, which can be used to specify which concrete function should be used for the optimization. Since many of these methods share a similar interface, they can be combined and nested in complex ways.
+For instance, multistart optimization can be performed, where each of the individual runs in the multistart is carried out with a sequence of different optimizers with different settings via `Prefit`:
+```julia
+Minimize(DM; Multistart=100, MultistartDomain=HyperCube([-1,-1],[3,4]), MinimizeFunc=Prefit, meth=[OAdam(), LBFGS(), Newton()], maxiters=[3000, 500, 50], tol=[0, 1e-8, 1e-12])
+```
+This results in 100 runs, where the random initial parameter configurations are first improved via robust stochastic optimizers to guide the optimization into roughly the correct region of parameter space and then refined with deterministic derivative-based optimizers.
+For complex models which easily become stiff for ill-chosen parameter configurations, this can significantly improve both convergence and overall computational effort of the multistart.
+This is because the deterministic optimisers get stuck far less often in parameter regions where the model is stiff and derivatives are more both more time-intensive to compute and less reliable.
+Therefore, less computational time is wasted on runs which eventually do not converge to a local optimum.
+
+
+!!! note
+    By default, the `Prefit` method uses `Domain=nothing` to turn of boundaries for parameters in order to improve compatibility with different optimization methods, which might not support specification of boundaries.
+    However, if the chosen optimization method(s) support(s) boundaries, this can be turned back by manually supplying the kwarg `Domain`.
 
 
 ```@docs

@@ -71,7 +71,7 @@ function AutoDiffble(F::Function, x::AbstractVector)
 end
 
 
-function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube{T}; verbose::Bool=true, ForceClamp::Bool=true) where T<:Number
+function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube{<:AbstractVector{T}}; verbose::Bool=true, ForceClamp::Bool=true) where T<:Number
     @assert length(Start) == length(Dom) "Got parameter configuration of length $(length(Start)) but Domain has length $(length(Dom))."
     start = if Start ∈ Dom || !ForceClamp
         Start
@@ -423,7 +423,7 @@ For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Ter
 
 The `Prefit` function can also be used to carry out multiple consecutive fits with shared or different settings, by supplying vectors for the arguments `meth`, `maxiters` and `tol`.
 For example:
-`Prefit(DM; meth=[OptimizationOptimisers.OAdam(), LBFGS()], maxiters=[3000, 1000], tol=[1e-3, 1e-10])`
+`Prefit(DM; meth=[OptimizationOptimisers.OAdam(), OptimizationOptimJL.LBFGS()], maxiters=[3000, 1000], tol=[1e-3, 1e-10])`
 
 !!! note
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
