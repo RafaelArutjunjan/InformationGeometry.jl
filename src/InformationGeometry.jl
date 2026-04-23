@@ -168,7 +168,6 @@ export Predictor, dPredictor, LogPrior, ConsistentElDims
 export MeasureAutoDiffPerformance
 export DataDist, SortDataSet, SortDataModel, SubDataSet, SubDataModel, DataFrame, join, length, AddDataPoint
 export MLEinPlane, PlanarDataModel, DetermineDmodel
-export Refit, Prefit
 
 include("DataStructures/DataSet.jl")
 export DataSet
@@ -216,8 +215,8 @@ export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
 export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
-export Curve_fit, RobustFit, TotalLeastSquares, BlockMatrix
-export ParameterSavingCallback, IncrementalTimeSeriesFit
+export ParameterSavingCallback, BlockMatrix
+export TotalLeastSquares, Minimize, Refit, Prefit, Curve_fit, RobustFit, IncrementalTimeSeriesFit
 
 
 include("Likelihoods.jl")
