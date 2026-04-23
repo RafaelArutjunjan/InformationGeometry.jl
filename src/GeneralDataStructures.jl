@@ -483,21 +483,23 @@ Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))
     Minimize(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); Full::Bool=false, Multistart::Int=0, kwargs...)
 Performs multistart optimization with `MultistartFit` or `InformationGeometry.minimize` depending on whether `Multistart > 0` under one interface.
 """
-function Minimize(DM, startp::AbstractVector=(DM isa AbstractDataModel ? MLE(DM) : Float64[]), args...; Full::Bool=false, Multistart::Int=0, kwargs...)
-    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(DM; N=Multistart, kwargs...) : InformationGeometry.minimize(DM, startp; kwargs...))
+function Minimize(DM, startp::AbstractVector=(DM isa AbstractDataModel ? MLE(DM) : Float64[]), args...; Full::Bool=false, Multistart::Int=0, MinimizeFunc::Function=InformationGeometry.minimize, kwargs...)
+    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(DM; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(DM, startp; kwargs...))
 end
-function Minimize(args...; Full::Bool=false, Multistart::Int=0, kwargs...)
-    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(args...; N=Multistart, kwargs...) : InformationGeometry.minimize(args...; kwargs...))
+function Minimize(args...; Full::Bool=false, Multistart::Int=0, MinimizeFunc::Function=InformationGeometry.minimize, kwargs...)
+    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(args...; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(args...; kwargs...))
 end
 
+
+# Can also call Refit(DM; Multistart=10, MinimizeFunc=Prefit)
 """
     Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); Multistart::Int=0, kwargs...)
 Refits `DM` and returns result as new `DataModel`.
 If `Multistart > 0`, then `MultistartFit` is used for the optimization and `startp` is dropped.
 Otherwise `InformationGeometry.minimize` is called with the given `startp`.
 """
-function Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); SkipTests::Bool=false, Multistart::Int=0, kwargs...)
-    X = InformationGeometry.Minimize(DM, startp; Full=false, Multistart, kwargs...)
+function Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); SkipTests::Bool=false, SkipOptim::Bool=false, Multistart::Int=0, kwargs...)
+    X = SkipOptim ? startp : InformationGeometry.Minimize(DM, startp; Full=false, Multistart, kwargs...)
     remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X), SkipTests)
 end
 
