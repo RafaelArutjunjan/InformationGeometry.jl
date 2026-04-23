@@ -312,7 +312,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(!UseGrad ? nothing : (GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM))),
                         UseHess::Bool=false, CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
-                        logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM),
+                        logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM), MinimizeFunc::Function=InformationGeometry.minimize,
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
@@ -344,12 +344,13 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && KnownVariance
         ((args...; Kwargs...)->Curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
-        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
+        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
-        ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, parallel=false, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
+        # Set parallel=false to avoid nesting of pmap over individual profiles with pmap over multistarts of the profiles
+        ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, parallel=false, MinimizeFunc, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
     else
-        Meth = (!isnothing(LogPriorFn) && isnothing(OptimMeth)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
-        ((args...; Kwargs...)->InformationGeometry.minimize(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
+        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
+        ((args...; Kwargs...)->MinimizeFunc(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
     end
     
     # Does not check proximity to boundary! Also does not check nonlinear constraints!
