@@ -1,5 +1,5 @@
 using InformationGeometry, Test, BenchmarkTools, LinearAlgebra, Optim
-import InformationGeometry.minimize
+import InformationGeometry: minimize, Minimize
 
 # Test optimizers:
 F(x) = x[1]^2 + 0.5x[2]^4;    initial = 10ones(2) + rand(2);    Cube = HyperCube(-2ones(2), 18ones(2))
@@ -12,11 +12,18 @@ F(x) = x[1]^2 + 0.5x[2]^4;    initial = 10ones(2) + rand(2);    Cube = HyperCube
 @test norm(minimize(F, initial; tol=1e-5, meth=Optim.LBFGS())) < 5e-2
 @test norm(minimize(F, initial; tol=1e-5, meth=Optim.Newton())) < 5e-2
 
+@test norm(Minimize(F, initial, Cube; tol=1e-5, meth=Optim.LBFGS(), Multistart=5)) < 5e-2
+@test norm(Minimize(F, initial; tol=1e-5, meth=Optim.LBFGS(), Multistart=5)) < 5e-2
 
 
 using Optimization, OptimizationNLopt
 @test norm(minimize(F, initial, Cube; tol=1e-5, meth=NLopt.LD_LBFGS())) < 5e-1
 @test norm(minimize(F, initial; tol=1e-5, meth=NLopt.LD_LBFGS())) < 5e-1
+
+
+using OptimizationOptimisers
+@test norm(Prefit(F, initial, Cube; tol=1e-5, meth=[OptimizationOptimisers.OAdam(), NLopt.LD_LBFGS()], maxiters=[500,500])) < 5e-1
+@test norm(Minimize(F, initial, Cube; MultistartFit=5, MinimizeFunc=Prefit, tol=1e-5, meth=[OptimizationOptimisers.OAdam(), NLopt.LD_LBFGS()], maxiters=[500,500])) < 5e-1
 
 
 # Check optimization with non-linear constraints and box constraints

@@ -71,7 +71,7 @@ function AutoDiffble(F::Function, x::AbstractVector)
 end
 
 
-function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=true, ForceClamp::Bool=true) where T <: Number
+function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube{T}; verbose::Bool=true, ForceClamp::Bool=true) where T<:Number
     @assert length(Start) == length(Dom) "Got parameter configuration of length $(length(Start)) but Domain has length $(length(Dom))."
     start = if Start ∈ Dom || !ForceClamp
         Start
@@ -81,6 +81,8 @@ function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube; verbose::Bool=
     end
     StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 end
+# Convert HyperCube type to match start if necessary
+ConstrainStart(start::AbstractVector{T}, Dom::HyperCube; kwargs...) where T<:Number = ConstrainStart(start, T(Dom); kwargs...)
 ConstrainStart(start::AbstractVector{T}, Dom::Nothing; kwargs...) where T<:Number = StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 
 
@@ -390,11 +392,11 @@ end
 Performs multistart optimization with `MultistartFit` or `InformationGeometry.minimize` depending on whether `Multistart > 0` under one interface.
 """
 function Minimize(DM, startp::AbstractVector=(DM isa AbstractDataModel ? MLE(DM) : Float64[]), args...; Full::Bool=false, Multistart::Int=0, MinimizeFunc::Function=InformationGeometry.minimize, kwargs...)
-    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(DM; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(DM, startp; kwargs...))
+    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(DM, startp, args...; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(DM, startp, args...; kwargs...))
 end
-function Minimize(args...; Full::Bool=false, Multistart::Int=0, MinimizeFunc::Function=InformationGeometry.minimize, kwargs...)
-    (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(args...; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(args...; kwargs...))
-end
+# function Minimize(args...; Full::Bool=false, Multistart::Int=0, MinimizeFunc::Function=InformationGeometry.minimize, kwargs...)
+#     (Full ? identity : GetMinimizer)(Multistart > 0 ? MultistartFit(args...; N=Multistart, MinimizeFunc, kwargs...) : MinimizeFunc(args...; kwargs...))
+# end
 
 
 # Can also call Refit(DM; Multistart=10, MinimizeFunc=Prefit)
@@ -405,8 +407,9 @@ If `Multistart > 0`, then `MultistartFit` is used for the optimization and `star
 Otherwise `InformationGeometry.minimize` is called with the given `startp`.
 """
 function Refit(DM::AbstractDataModel, startp::AbstractVector=MLE(DM); SkipTests::Bool=false, SkipOptim::Bool=false, Multistart::Int=0, kwargs...)
+    # Keep InformationGeometry.Minimize here explicitly so that MinimizeFunc kwarg is forwarded to downstream
     X = SkipOptim ? startp : InformationGeometry.Minimize(DM, startp; Full=false, Multistart, kwargs...)
-    remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X), SkipTests)
+    remake(DM; MLE=X, LogLikeMLE=loglikelihood(DM, X), SkipTests, SkipOptim=true)
 end
 
 
@@ -424,17 +427,19 @@ For example:
 
 !!! note
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
+    The optimizers provided by `OptimizationOptimisers.jl` only terminate on `maxiters`, not based on `tol`.
+    `Domain=nothing` is passed by default, deactivating parameter boundaries.
 """
-function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), 
+function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), Domain=nothing, 
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[],
-                PlotEvery::Int=0, Plotter::Function=PlotEvery > 0 ? (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))) : (State,loss)->nothing, 
+                PlotEvery::Int=0, Plotter::Function=PlotEvery == 0 ? (State,loss)->nothing : (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))), 
                 kwargs...)
     DM32 = (T === originalT) ? DM : T(DM)
-    Prefit(Negloglikelihood(DM32), mle; originalT, T, pstart, SavedParams, Losses, Plotter, kwargs...)
+    Prefit(Negloglikelihood(DM32), mle, args...; originalT, T, pstart, Domain, SavedParams, Losses, Plotter, kwargs...)
 end
-function Prefit(CostFunction::Function, mle::AbstractVector; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), 
-                MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=true, verbose::Bool=true,
+function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=true, pstart::AbstractVector{<:Number}=T.(mle), 
+                MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=false, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
                 PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing, 
@@ -446,7 +451,7 @@ function Prefit(CostFunction::Function, mle::AbstractVector; originalT::Type{<:N
 
     Devectorize(X::AbstractVector, i::Int) = X[i];    Devectorize(X, i::Int) = X
     for i in (meth isa AbstractVector ? eachindex(meth) : 1:1)
-        pstart .= SafeMinimizeFunc(CostFunction, pstart; OptimJL=false, meth=Devectorize(meth,i), maxiters=Devectorize(maxiters,i), tol=Devectorize(tol,i), Domain, callback=CB, verbose, kwargs...)
+        pstart .= SafeMinimizeFunc(CostFunction, pstart, args...; OptimJL=false, meth=Devectorize(meth,i), maxiters=Devectorize(maxiters,i), tol=Devectorize(tol,i), callback=CB, verbose, kwargs...)
     end
     Safe ? originalT.(SavedParams[findmin(Losses)[2]]) : originalT.(pstart)
 end
