@@ -512,6 +512,10 @@ Kwarg `Safe` ensures that best configuration encountered during whole optimizati
 Kwargs can also be forwarded to `ParameterSavingCallback` and can thus be used for early termination.
 For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Terminate` and so on.
 
+The `Prefit` function can also be used to carry out multiple consecutive fits with shared or different settings, by supplying vectors for the arguments `meth`, `maxiters` and `tol`.
+For example:
+`Prefit(DM; meth=[OptimizationOptimisers.OAdam(), LBFGS()], maxiters=[3000, 1000], tol=[1e-3, 1e-10])`
+
 !!! note
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
 """
@@ -523,7 +527,7 @@ function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); originalT::T
     DM32 = (T === originalT) ? DM : T(DM)
     Prefit(Negloglikelihood(DM32), mle; originalT, T, pstart, SavedParams, Losses, Plotter, kwargs...)
 end
-function Prefit(CostFunction::Function, mle::AbstractVector; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), tol=1e-8,
+function Prefit(CostFunction::Function, mle::AbstractVector; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=true, Domain=nothing, pstart::AbstractVector{<:Number}=T.(mle), 
                 MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=true, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 

@@ -340,8 +340,9 @@ end
 Uses `p`-Norm to judge distance on Dataspace as specified by the keyword.
 """
 RobustFit(DM::AbstractDataModel, start::AbstractVector{<:Number}=MLE(DM); kwargs...) = RobustFit(Data(DM), Predictor(DM), start, LogPrior(DM); kwargs...)
-function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
-    InformationGeometry.minimize(GetRobustCostFunction(DS, M, LogPriorFn; p), start, Domain; tol=tol, kwargs...)
+function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), 
+                        tol::Real=1e-10, p::Real=1, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+    MinimizeFunc(GetRobustCostFunction(DS, M, LogPriorFn; p), start, Domain; tol=tol, kwargs...)
 end
 # function RobustFit(DS::AbstractDataSet, M::ModelOrFunction, dM::ModelOrFunction, start::AbstractVector{<:Number}=GetStartP(DS,M), LogPriorFn::Union{Nothing,Function}=nothing; Domain::Union{HyperCube,Nothing}=(M isa ModelMap ? Domain(M) : nothing), tol::Real=1e-10, p::Real=1, kwargs...)
 #     HalfSig = cholesky(yInvCov(DS)).U
@@ -363,19 +364,19 @@ Fits DataModel incrementally by splitting up the times series into chunks, e.g. 
 This can yield much better fitting results from random starting points, particularly for autocorrelated time series data.
 For example when the time series data oscillates in such a way that the optimization often gets stuck in a local optimum where the model fits a mostly straight line through the data, not correctly recognizing the oscillations.
 """
-IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, kwargs...) = IncrementalTimeSeriesFit(Method, DM, initial; kwargs...)
+IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, MinimizeFunc::Function=Method, kwargs...) = IncrementalTimeSeriesFit(MinimizeFunc, DM, initial; kwargs...)
 
 """
     IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...) -> Vector
 Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`
 """
-function IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...)
+function IncrementalTimeSeriesFit(MinimizeFunc::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...)
     @assert steps ≤ Npoints(DM)
     res = copy(initial)
     Results = typeof(initial)[]
     PerStep = Npoints(DM)÷steps
     @showprogress "Incremental Fit: " for chunk in vcat([1:i*(PerStep) for i in 1:steps-1], [1:Npoints(DM)])
-        FullRes = Method(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
+        FullRes = MinimizeFunc(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
         res .= GetMinimizer(FullRes)
         push!(Results, res)
     end;    Results[end]
