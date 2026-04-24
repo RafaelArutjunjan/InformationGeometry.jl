@@ -1,11 +1,16 @@
 using Documenter
 using InformationGeometry
+# Load packages with extensions
+using Lux
 
 makedocs(
     sitename = "InformationGeometry",
     authors = "Rafael Arutjunjan",
     format = Documenter.HTML(),
-    modules = [InformationGeometry],
+    modules = [
+        InformationGeometry,
+        isdefined(Base, :get_extension) ? Base.get_extension(InformationGeometry, :InformationGeometryLuxExt) : InformationGeometry.InformationGeometryLuxExt,
+    ],
     pages = Any["Getting Started" => "index.md",
                 "Basics of Information Geometry" => "basics.md",
                 "Tutorial" => [     "Providing Data and Models" => "datamodels.md",
@@ -21,7 +26,7 @@ makedocs(
                 # Advanced Tutorial: Confidence Bands, Geodesics, DataSetExact, Plotting, PDE / Stochastic Examples
                 "Advanced Examples" => ["ODE-based Models" => "ODEmodels.md", "Advanced Dataset Types" => "AdvancedData.md", 
                                         "Linking Multiple Models and Datasets" => "ConditionGrids.md"],
-                "Package Extensions" => ["PEtab.jl" => "PEtabExt.md"], #, "ProfileLikelihood.md"],
+                "Package Extensions" => ["PEtab.jl" => "PEtabExt.md", "Lux.jl" => "LuxExt.md"],
                 "List of useful methods" => "methodlist.md",
                 # "Contributing" => "todo.md",
             ],

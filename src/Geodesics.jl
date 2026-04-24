@@ -175,7 +175,7 @@ function ConstParamGeodesics(Metric::Function, MLE::AbstractVector, Endtime::Num
         println("Computing Geodesic $(solving) / $N")
         ComputeGeodesic(Metric, MLE, Initial, Endtime; tol=tol, Boundaries=Boundaries, kwargs...)
     end
-    (parallel ? pmap : map)(Constructor,Initials)
+    (parallel ? pmap : map)(Constructor, Initials)
 end
 
 GeodesicBoundaryFunction(Cube::HyperCube) = (u,p,t) -> (@view u[1:end÷2]) ∉ Cube

@@ -7,7 +7,7 @@ As a toy example, we will consider the well-known "SIR model" in the following, 
 
 While the [**DifferentialEquations.jl**](https://github.com/SciML/DifferentialEquations.jl) ecosystem offers many different ways of specifying such systems, we will use the syntax introduced by [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) since it is particularly convenient in this case.
 ```@example ODE
-using InformationGeometry, ModelingToolkit, Plots
+using InformationGeometry, ModelingToolkit, OrdinaryDiffEq, Plots
 using ModelingToolkit: t_nounits as t, D_nounits as D
 @parameters β γ
 @variables S(t) I(t) R(t)
@@ -41,7 +41,8 @@ SIRDS = DataSet(days, infected, 15ones(14); xnames=["Days"], ynames=["Infected"]
 Finally, the `DataModel` associated with the SIR model and the given data is constructed by
 ```@example ODE
 SIRobservables = [2]
-SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, SIRobservables, [0.002, 0.5]; tol=1e-11)
+SIRmodel = GetModel(SIRsys, SIRinitial, SIRobservables; startp=[0.002, 0.5], Domain=HyperCube(1e-4ones(2),2ones(2)), meth=Tsit5(), tol=1e-9)
+SIRDM = DataModel(SIRDS, SIRmodel, [0.002, 0.5])
 ```
 where `SIRobservables` denotes the components of the `ODESystem` that have actually been observed in the given dataset (i.e. the second component which are the infected in this case). The optional vector `[0.001, 0.1]` is our initial guess for the parameters `[β, γ]` for the maximum likelihood estimation and the keyword `tol` specifies the desired accuracy of the ODE solver for all model predictions.
 
