@@ -4,8 +4,8 @@
 SafeCopy(X::AbstractVector) = copy(X)
 SafeCopy(X::FillArrays.AbstractFillVector) = collect(X)
 SafeCopy(X::ComponentVector) = convert(Vector,X)
-SafeCopy(X::AbstractVector{<:Num}) = X
-SafeCopy(X::Symbolics.Arr) = collect(X)
+SafeCopy(X::AbstractVector{<:Num}) = collect(X)
+SafeCopy(X::SubArray{<:Number, 1}) = collect(X)
 SafeCopy(X::AbstractRange) = collect(X)
 SafeCopy(X::Union{SVector,MVector}) = convert(Vector,X)
 
@@ -356,7 +356,6 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # Does not check proximity to boundary! Also does not check nonlinear constraints!
     InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(nothing, Domain, θ)
     # InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(InDomain, Domain, θ)
-
 
     ConditionalPush!(N::Nothing, args...) = N
     ConditionalPush!(X::AbstractArray, args...) = push!(X, args...)

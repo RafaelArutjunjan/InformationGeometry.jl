@@ -307,7 +307,7 @@ TracePlot(Pars)
     Does not work for optimizers from Optim.jl unless wrapped with OptimizationOptimJL.jl, i.e. when setting keyword `OptimJL=false`.
 """
 function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, PrintLossEvery::Int=0, 
-                    SavedParams::AbstractVector{<:AbstractVector}=typeof(X)[], Losses::AbstractVector{<:Number}=T[],
+                    SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=typeof(X)[], Losses::Union{Nothing,AbstractVector{<:Number}}=T[],
                     TerminationCriterion::Real=0, TerminationLength::Int=50, Plotter::Function=(State,loss)->nothing,
                     Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                     ) where T<:Number
@@ -315,10 +315,10 @@ function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, Pri
     ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
     GetCurPar(State) = try  State.u  catch;   throw("Got $State instead of OptimizationState.");    fill(Inf, length(X))  end
-    # GetCurLoss(S) = try  S.u  catch;   throw("Got $S instead of OptimizationState.") end
-    # SaveOptimizationpath(State, loss) = (push!(SavedParams, copy(GetCurPar(State)));   PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss");    Terminate(State,loss))
+    ConditionalSafePush!(::Nothing, x) = nothing
+    ConditionalSafePush!(X::AbstractVector, x) = push!(X, copy(x))
     function SaveOptimizationpathSaveLoss(State, loss)
-        push!(SavedParams, copy(GetCurPar(State)));   push!(Losses, loss)
+        ConditionalSafePush!(SavedParams, GetCurPar(State));   ConditionalSafePush!(Losses, loss)
         PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss")
         Plotter(State,loss);    Terminate(State,loss)
     end
