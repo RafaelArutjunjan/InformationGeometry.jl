@@ -1778,7 +1778,7 @@ function ConvertValidationToPredictionProfiles(VP::ParameterProfiles; kwargs...)
     @assert VP.Meta === :ValidationProfiles
     @assert all(size.(Profiles(VP),2) .> 4) # Make sure z-values saved in the Profile matrix, as well as priors
     # Use fourth column with z-values instead of original v-parameters from validation profile
-    Profs = [(M=P.u[[4,2,length(P)]];   M[2] .-= P.u[3];   VectorOfArray(M)) for P in Profiles(VP)]
+    Profs = [(M=P.u[[4,2,length(P.u)]];   M[2] .-= P.u[3];   VectorOfArray(M)) for P in Profiles(VP)]
     remake(VP; Profiles=Profs, Meta=:PredictionProfiles, Names=Symbol.(map(x->replace(x, "VPL"=>"PPL"), string.(VP.Names))), kwargs...)
 end
 """
