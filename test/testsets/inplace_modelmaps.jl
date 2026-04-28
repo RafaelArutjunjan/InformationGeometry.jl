@@ -49,15 +49,15 @@ function TestDataModelQuantities(dm::AbstractDataModel)
     @test dPredictor(dm)(WoundX(dm)[1], MLE(dm)) ≈ j
 end
 
-function CompareTimings(dm::AbstractDataModel, idm::AbstractDataModel)
+function CompareTimings(dm::AbstractDataModel, idm::AbstractDataModel; Ratio=0.8)
     @test dm == idm
     S1, S2 = rand(pdim(dm)), rand(pdim(dm))
     F1, F2 = rand(pdim(dm),pdim(dm)), rand(pdim(dm),pdim(dm))
-    @test (@belapsed loglikelihood($dm, $(MLE(dm)))) > (@belapsed loglikelihood($idm, $(MLE(dm))))
-    @test (@belapsed Score($dm, $(MLE(dm)))) > (@belapsed Score($idm, $(MLE(dm))))
-    @test (@belapsed $(Score(dm))($S1, $(MLE(dm)))) > (@belapsed $(Score(idm))($S2, $(MLE(dm))))
-    @test (@belapsed FisherMetric($dm, $(MLE(dm)))) > (@belapsed FisherMetric($idm, $(MLE(dm))))
-    @test (@belapsed $(FisherMetric(dm))($F1, $(MLE(dm)))) > (@belapsed $(FisherMetric(idm))($F2, $(MLE(dm))))
+    @test (@belapsed loglikelihood($dm, $(MLE(dm)))) / (@belapsed loglikelihood($idm, $(MLE(dm)))) > Ratio
+    @test (@belapsed Score($dm, $(MLE(dm)))) / (@belapsed Score($idm, $(MLE(dm)))) > Ratio
+    @test (@belapsed $(Score(dm))($S1, $(MLE(dm)))) / (@belapsed $(Score(idm))($S2, $(MLE(dm)))) > Ratio
+    @test (@belapsed FisherMetric($dm, $(MLE(dm)))) / (@belapsed FisherMetric($idm, $(MLE(dm)))) > Ratio
+    @test (@belapsed $(FisherMetric(dm))($F1, $(MLE(dm)))) / (@belapsed $(FisherMetric(idm))($F2, $(MLE(dm)))) > Ratio
 end
 
 
