@@ -1,0 +1,87 @@
+
+using InformationGeometry, PEtab, FiniteDifferences, Plots, Test
+
+import InformationGeometry: Trafos
+function TestConversion(petab_prob::PEtabODEProblem, DM::AbstractDataModel=ConditionGrid(petab_prob); atol=1e-10, atol2=0.1)
+    
+    @test sum(abs, -InformationGeometry.loglikelihood(DM,MLE(DM)) - petab_prob.nllh(MLE(DM))) < atol
+    @test sum(abs, -Score(DM, MLE(DM)) - petab_prob.grad(MLE(DM))) < atol
+    @test sum(abs, FisherMetric(DM, MLE(DM)) - petab_prob.FIM(MLE(DM))) < atol
+    @test sum(abs, InformationGeometry.CostHessian(DM)(MLE(DM)) - petab_prob.hess(MLE(DM))) < atol
+    
+    GradRes1 = rand(length(MLE(DM)));    GradRes2 = rand(length(MLE(DM)));    HessRes1 = rand(length(MLE(DM)), length(MLE(DM)));    HessRes2 = rand(length(MLE(DM)), length(MLE(DM)))
+    Score(DM)(GradRes1, MLE(DM));   petab_prob.grad!(GradRes2, MLE(DM));    @test sum(abs, -GradRes1 -GradRes2) < atol
+    FisherMetric(DM)(HessRes1, MLE(DM));   petab_prob.FIM!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
+    InformationGeometry.CostHessian(DM)(HessRes1, MLE(DM));   petab_prob.hess!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
+
+    ###### Score seems to be slightly dissimilar
+
+    # Consistency of likelihoods of individual conditions with total
+    @test sum(loglikelihood(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) == loglikelihood(DM, MLE(DM))
+    @test sum(abs, sum(Score(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- Score(DM, MLE(DM))) < atol2
+    @test sum(abs, sum(FisherMetric(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- FisherMetric(DM, MLE(DM))) < atol
+
+    cids = InformationGeometry.ConditionNames(DM);  j = 1
+    # Compute reduced chi^2
+    @test sum(abs2, (EmbeddingMap(DM, MLE(DM), cids[j]) - ydata(Data(Conditions(DM)[j]))) ./ ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))) / InformationGeometry.DataspaceDim(Conditions(DM)[j]) < 5
+    # Test derivative of prediction (currently FiniteDifferences)
+    @test !all(iszero, EmbeddingMatrix(DM, MLE(DM), cids[j]))
+
+    ## Check that reconstructed objective function and Score corresponds to PEtab.jl for simple model
+    ## Assuming normal data!
+    dmj = DataModel(DataSet(xdata(Data(Conditions(DM)[j])), ydata(Data(Conditions(DM)[j])), ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))), Predictor(Conditions(DM)[j]), Trafos(DM)[j](MLE(DM)), true)
+    @test sum(InformationGeometry.LogLikeMLE(dmj) - loglikelihood(DM[j], Trafos(DM)[j](MLE(DM)))) < atol
+
+    ###### Check data transfer for DataSetUncertain
+end
+
+begin
+    ## For local execution only
+    const BenchmarkModels_PEtab_Path = expanduser("~/Software/Benchmark-Models-PEtab/Benchmark-Models")
+    GetModelYaml(path::AbstractString=BenchmarkModels_PEtab_Path) = map(x->GetModelYaml(path, x), readdir(path))
+    function GetModelYaml(path::AbstractString, ModelFolderName::AbstractString)
+        Names = readdir(joinpath(path, ModelFolderName))
+        Yamls = map(endswith(".yaml"), Names)
+        !any(Yamls) && throw("Model Folder $ModelFolderName contains no yaml files!")
+        if sum(Yamls) == 1
+            Names[Yamls][1]
+        else
+            if isfile(joinpath(path, ModelFolderName,ModelFolderName *".yaml"))
+                ModelFolderName *".yaml"
+            else
+                @warn("More than one yaml in $(ModelFolderName)! Taking first and hoping for the best!")
+                Names[Yamls][1]
+            end
+        end
+    end
+    ModelYamlsContaining(S::AbstractString) = ModelYamlsContaining([S])
+    ModelYamlsContaining(X::AbstractVector{<:AbstractString}) = filter(x->any(k->occursin(k, x), X), GetModelYaml())
+    ModelYamlsContaining(N::Nothing=nothing) = GetModelYaml()
+    extractBefore(S::AbstractString, token) = contains(S, token) ? (@view S[1:findfirst(token, S)[1]-1]) : S
+    extractAfter(S::AbstractString, token) = contains(S, token) ? (@view S[findfirst(token, S)[1]+1:end]) : S
+    extractBefore(tok::AbstractString) = S->extractBefore(S, tok)
+    extractAfter(tok::AbstractString) = S->extractAfter(S, tok)
+    # Sort A similarly to B but B only contains substrings of A
+    FuzzySort(A::AbstractArray, B::AbstractArray) = A[reduce(vcat,[findall(a->occursin(b, a), A) for b in B])]
+
+    # Name without .yaml suffix, unsafe loading
+    LoadSinglePEtabModel(ModelFolderName::AbstractString) = (FolderName=extractBefore(extractAfter(ModelFolderName, "/"),".yaml");   PEtabModel(joinpath(BenchmarkModels_PEtab_Path, FolderName, FolderName *".yaml")))
+
+    #### Fuzzy:
+    ## Safely loads only PEtab.PEtabModel from string WITH yaml
+    LoadPEtabModel(Name::AbstractString; kwargs...) = LoadPEtabModel([Name]; kwargs...)
+    function LoadPEtabModel(Names::Union{Nothing,AbstractVector{<:AbstractString}}; kwargs...)
+        ModelFolderNames = map(extractBefore(".yaml"), ModelYamlsContaining(Names))
+        DMs = progress_pmap(ModelFolderName->try LoadSinglePEtabModel(ModelFolderName; kwargs...) catch E; println(E);  ModelFolderName end, ModelFolderNames)
+        length(DMs) == 1 ? DMs[1] : DMs
+    end
+end
+
+
+Bruno = PEtabODEProblem(LoadPEtabModel("Bruno"))
+Boehm = PEtabODEProblem(LoadPEtabModel("Boehm"))
+## BrunoDM = ConditionGrid(Bruno)
+## BoehmDM = ConditionGrid(Boehm)
+
+TestConversion(Bruno)
+TestConversion(Boehm)
