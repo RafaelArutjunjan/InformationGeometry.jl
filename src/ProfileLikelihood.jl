@@ -636,7 +636,7 @@ end
 
 # What if trajectories NaN?
 HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, Nothing}) = false
-HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, AbstractVector}) = !all(x->all(isnan,x), view(M,:,2))
+HasTrajectories(M::Tuple{Union{AbstractMatrix,VectorOfArray}, AbstractVector}) = !all(x->all(isnan,x), M[2])
 HasTrajectories(M::AbstractVector{<:Tuple}) = any(HasTrajectories, M)
 HasTrajectories(M::AbstractMatrix) = false
 HasTrajectories(M::AbstractVector{<:AbstractMatrix}) = false
@@ -664,7 +664,7 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     @assert (2 ≤ length(idxs) ≤ 3 && allunique(idxs) && all(1 .≤ idxs .≤ pdim(DM)))
     P = OverWrite ? RecipesBase.plot() : RecipesBase.plot!()
     for i in eachindex(Profiles)
-        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, map(x->getindex(x,collect(idxs)),Profiles[i].u[2]); marker=:circle, label="Comp: $i", kwargs...)
+        HasTrajectories(Profiles[i]) && RecipesBase.plot!(P, map(x->getindex(x,collect(idxs)),Profiles[i][2]); marker=:circle, label="Comp: $i", kwargs...)
     end
     axislabels = (; xlabel=pnames(DM)[idxs[1]], ylabel=pnames(DM)[idxs[2]])
     length(idxs) == 3 && (axislabels = (; axislabels..., zlabel=pnames(DM)[idxs[3]]))
