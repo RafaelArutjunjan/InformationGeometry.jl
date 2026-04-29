@@ -152,12 +152,12 @@ function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
     PNames = [Pnames(DM)[i] for i in eachindex(Pnames(DM)) if i ∉ Components]
     ## Add SymbolicCache kwarg
-    DataModel(Data(DM), ProfilePredictor(DM, Components, Values; TrySymbolic, pnames=PNames), ProfileDPredictor(DM, Components, Values; pnames=PNames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values)); SkipOptim, SkipTests, name=name(DM), kwargs...)
+    DataModel(Data(DM), ProfilePredictor(DM, Components, Values, MLE; TrySymbolic, pnames=PNames), ProfileDPredictor(DM, Components, Values, MLE; pnames=PNames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values, MLE)); SkipOptim, SkipTests, name=name(DM), kwargs...)
 end
 function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
     @assert length(Components) == length(Values) && length(Components) < pdim(CG)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return CG)
-    Emb = ValInserter(Components, Values);      PNames = [Pnames(CG)[i] for i in eachindex(Pnames(CG)) if i ∉ Components]
+    Emb = ValInserter(Components, Values, MLE);      PNames = [Pnames(CG)[i] for i in eachindex(Pnames(CG)) if i ∉ Components]
     # remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, Emb), MLE=Drop(MLE, Components), pnames=PNames, Domain=Drop(Domain(CG), Components), SkipOptim, SkipTests, kwargs...) ## Does not rewrite likelihood and score
     ConditionGrid(Conditions(CG), Trafos(CG)∘Emb, EmbedLogPrior(CG, Emb), Drop(MLE, Components); pnames=PNames, Domain=Drop(Domain(CG), Components), SkipOptim, SkipTests, kwargs...)
 end
