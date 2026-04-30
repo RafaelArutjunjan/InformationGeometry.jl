@@ -192,6 +192,22 @@ xInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=
 yInvCov(DS::AbstractFixedUncertaintyDataSet, mle::AbstractVector; verbose::Bool=true) = yInvCov(DS)
 
 
+### Computes uncertainties based on model predictions instead of data
+ysigmaProper(DM::AbstractConditionGrid, mle::AbstractVector=MLE(DM); kwargs...) = throw("Cannot compute ysigmaProper for ConditionGrid.")
+function ysigmaProper(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...)
+    !HasEstimatedUncertainties(DM) && return ysigma(DM, mle; kwargs...)
+    woundX = WoundX(DM);    woundY = Windup(EmbeddingMap(Val(true), Predictor(DM), mle, woundX), ydim(DM))
+    _ysigma_internal(Data(DM), (SplitErrorParams(DM)(mle))[end], woundX, woundY, yinverrormodel(Data(DM)))
+end
+
+yInvCovProper(DM::AbstractConditionGrid, mle::AbstractVector=MLE(DM); kwargs...) = throw("Cannot compute yInvCovProper for ConditionGrid.")
+function yInvCovProper(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...)
+    !HasEstimatedUncertainties(DM) && return yInvCov(DM, mle; kwargs...)
+    woundX = WoundX(DM);    woundY = Windup(EmbeddingMap(Val(true), Predictor(DM), mle, woundX), ydim(DM))
+    _yInvCov_internal(Data(DM), (SplitErrorParams(DM)(mle))[end], woundX, woundY, yinverrormodel(Data(DM)))
+end
+
+
 HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
 HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
 HasEstimatedUncertainties(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))

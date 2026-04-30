@@ -339,8 +339,7 @@ function ysigma(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVecto
     else
         verbose && c === DS.testpy && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = yinverrormodel(DS)
-    map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    end;    _ysigma_internal(DS, C, WoundX(DS), WoundY(DS), yinverrormodel(DS))
 end
 
 function yInvCov(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where BesselCorrection
@@ -350,9 +349,9 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Nothing}, c::AbstractVect
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    _InvCov(yinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testout)
+    end;    _yInvCov_internal(DS, C, WoundX(DS), WoundY(DS), yinverrormodel(DS))
 end
-
+    
 
 ## Masked versions for missing data
 function ysigma(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where {BesselCorrection,Keep}
@@ -362,13 +361,7 @@ function ysigma(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<
     else
         verbose && c === DS.testpy && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    errmod = yinverrormodel(DS)
-    try
-        map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundYmasked(DS)) |> _TryVectorizeNoSqrt |> x->view(x, DS.datakeep)
-    catch E;
-        verbose && println(E)
-        Fill(NaN, length(ydata(DS)))
-    end
+    end;    _ysigma_internal(DS, C, WoundX(DS), WoundYmasked(DS), yinverrormodel(DS))
 end
 
 function yInvCov(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true) where {BesselCorrection,Keep}
@@ -378,9 +371,31 @@ function yInvCov(DS::DataSetUncertain{BesselCorrection,Keep}, c::AbstractVector{
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end
+    end;    _yInvCov_internal(DS, C, WoundX(DS), WoundY(DS), yinverrormodel(DS))
+end
+
+
+function _ysigma_internal(DS::DataSetUncertain{BesselCorrection,Nothing}, C::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS), 
+                        woundY::AbstractVector=WoundY(DS), errmod::Function=yinverrormodel(DS)) where BesselCorrection
+    map((x,y)->inv(errmod(x,y,C)), woundX, woundY) |> _TryVectorizeNoSqrt
+end
+function _yInvCov_internal(DS::DataSetUncertain{BesselCorrection,Nothing}, C::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS), 
+                        woundY::AbstractVector=WoundY(DS), errmod::Function=yinverrormodel(DS)) where BesselCorrection
+    _InvCov(errmod, C, woundX, woundY, DS.testout)
+end
+function _ysigma_internal(DS::DataSetUncertain{BesselCorrection,Keep}, C::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS), 
+                        woundY::AbstractVector=WoundYmasked(DS), errmod::Function=yinverrormodel(DS)) where {BesselCorrection,Keep}
     try
-        MaskedSymmetricMatrix(_InvCov(yinverrormodel(DS), C, WoundX(DS), WoundYmasked(DS), DS.testout), DS.datakeep)
+        map((x,y)->inv(errmod(x,y,C)), woundX, woundY) |> _TryVectorizeNoSqrt |> x->view(x, DS.datakeep)
+    catch E;
+        verbose && println(E)
+        Fill(NaN, length(ydata(DS)))
+    end
+end
+function _yInvCov_internal(DS::DataSetUncertain{BesselCorrection,Keep}, C::AbstractVector{<:Number}, woundX::AbstractVector=WoundX(DS), 
+                        woundY::AbstractVector=WoundYmasked(DS), errmod::Function=yinverrormodel(DS)) where {BesselCorrection,Keep}
+    try
+        MaskedSymmetricMatrix(_InvCov(errmod, C, woundX, woundY, DS.testout), DS.datakeep)
     catch E;
         verbose && println(E)
         Diagonal(Fill(NaN, length(ydata(DS))))
