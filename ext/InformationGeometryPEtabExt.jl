@@ -355,7 +355,7 @@ function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVect
     # Check if there is a prior or nothing
     LogPriorFn = P.prior
     if length(UniqueConds) == 1
-        DataModel(DSs[1], NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, 
+        DataModel(DSs[1], NewModel, convert(Vector,Mle), LogPriorFn; LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, 
                     ADmode, name=Symbol(P.model_info.model.name), SkipOptim, verbose, kwargs...) |> x->PEtabConditionGrid(x,P)
     else
         # NewModels = [remake(NewModel; Map=GetModelFunction(P; cid=C), xyp=(1, ydim(DSs[i]), length(Mle))) for (i,C) in enumerate(UniqueConds)]
