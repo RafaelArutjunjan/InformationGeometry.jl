@@ -43,6 +43,18 @@ CG = ConditionGrid([DM, DM2], [ViewElements(1:2), ViewElements(3:6)], [MLE(DM);M
 @test LinearAlgebra.tr(inv(FisherMetric(CG, MLE(CG)))*InformationGeometry.CostHessian(CG)(MLE(CG))) ≈ pdim(CG)
 
 
+
+using ComponentArrays
+cModel(x, p::ComponentVector) = p.A .* x.^2 .+ p.B .* x .+ p.C
+cdm = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), cModel, ComponentVector(A=5.0, B=3.0, C=0.1))
+ccdm = ConditionGrid([cdm], [identity], ComponentVector(A=5.0, B=3.0, C=0.1))
+
+fcdm = FixParameters(cdm, 1; SkipOptim=false, SkipTests=false)
+fccdm = FixParameters(ccdm, 1; SkipOptim=false, SkipTests=false)
+@test FixParameters(cdm, 1; SkipOptim=false, SkipTests=false) == FixParameters(ccdm, 1; SkipOptim=false, SkipTests=false)
+
+
+
 # TranstrumModel = ModelMap((x::Real,p::AbstractVector)->exp(-p[1]*x) + exp(-p[2]*x), θ::AbstractVector -> θ[1]>θ[2], PositiveDomain(2, 1e2), (1,1,2))
 # TranstrumDM = DataModel(DataSet([0.33, 1, 3], [0.88,0.5,0.35], [0.1,0.3,0.2]), TranstrumModel)
 # linTranstrum = LogTransform(TranstrumDM)

@@ -294,13 +294,15 @@ GetMinimum(R::AbstractMultistartResults, L::Function) = L(MLE(R))
 HasConverged(R::AbstractMultistartResults; StepTol::Real=1e-3) = 1 < GetFirstStepInd(R; StepTol)
 GetIterations(R::AbstractMultistartResults) = R.Iterations[1]
 
+SafeRange(X, Y, args...; maxval::Real=1e8, minval::Real=-maxval, kwargs...) = range(clamp(X, minval, maxval), clamp(Y, minval, maxval), args...; kwargs...)
+
 """
     GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; N::Int=50, dof::Int=DOF(DM), SaveTrajectories::Bool=true, SavePriors::Bool=false)
 Computes profile likelihood associated with the component `Comp` of the parameters over the domain `dom`.
 """
 function GetProfile(DM::AbstractDataModel, Comp::Int, dom::Tuple{<:Real, <:Real}; adaptive::Bool=true, N::Int=31, MLE::AbstractVector=MLE(DM), kwargs...)
     @assert dom[1] < dom[2] && (1 ≤ Comp ≤ length(MLE))
-    ps = range(dom...; length=N)
+    ps = SafeRange(dom...; length=N)
     GetProfile(DM, Comp, ps; adaptive, N, MLE, kwargs...)
 end
 

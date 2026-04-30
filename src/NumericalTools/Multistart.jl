@@ -635,10 +635,10 @@ end
     CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::Int; N::Int=20)
 Varies single component `vary` in range specified by HyperCube `C` while keeping the remaing indices fixed at the values in `center`.
 """
-function CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::Int; N::Int=20)
+function CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::Int; N::Int=20, kwargs...)
     @assert length(center) == length(C)
     @assert 1 ≤ vary ≤ length(center)
-    _CrossPatternSampling(center, vary, range(C, vary; length=N))
+    _CrossPatternSampling(center, vary, range(C, vary; length=N, kwargs...))
 end
 ## Vary single component
 function _CrossPatternSampling(center::AbstractVector{T}, vary::Int, ran::AbstractVector{T}) where T <: Number
@@ -649,14 +649,14 @@ function _CrossPatternSampling(center::AbstractVector{T}, vary::Int, ran::Abstra
     end;    Res
 end
 """
-    CrossPatternSampling(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+    CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::AbstractVector{<:Int}; N::Int=20)
 Varies components `Vary` one component at a time in range specified by HyperCube `C` while keeping the remaing indices fixed at the values in `center`.
 See also [`CrossPatternSamplingCombined`](@ref).
 """
-function CrossPatternSampling(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+function CrossPatternSampling(C::HyperCube, center::AbstractVector, vary::AbstractVector{<:Int}; N::Int=20, kwargs...)
     @assert length(center) == length(C)
     @assert 1 ≤ vary ≤ length(center)
-    _CrossPatternSampling(center, vary, range(C, vary; length=N))
+    _CrossPatternSampling(center, vary, range(C, vary; length=N, kwargs...))
 end
 
 
@@ -665,10 +665,10 @@ end
 Varies components `Vary` in range specified by HyperCube `C` in all possible combinations while keeping the remaing indices fixed at the values in `center`.
 See also [`CrossPatternSampling`](@ref).
 """
-function CrossPatternSamplingCombined(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20)
+function CrossPatternSamplingCombined(C::HyperCube, center::AbstractVector, Vary::AbstractVector{<:Int}; N::Int=20, kwargs...)
     @assert length(center) == length(C)
     @assert allunique(Vary) && all(1 .≤ Vary .≤ length(center))
-    _CrossPatternSamplingCombined(center, Vary, [range(C, vary; length=N) for vary in Vary])
+    _CrossPatternSamplingCombined(center, Vary, [range(C, vary; length=N, kwargs...) for vary in Vary])
 end
 # Vary multiple components
 function _CrossPatternSamplingCombined(center::AbstractVector{T}, indices::AbstractVector{<:Int}, ranges::AbstractVector{<:AbstractVector{T}}) where T <: Number
