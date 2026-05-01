@@ -338,14 +338,15 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
-function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, kwargs...)
+function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, 
+                    pnames::AbstractVector{<:InformationGeometry.StringOrSymb}=InformationGeometry.GetNamesSymb(P.xnominal_transformed), kwargs...)
     SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     SortConditions && sort!(UniqueConds)
     DSs = GetDataSets(P; ObsID, CondID, ObsidsInCondDict, UniqueConds, FixedError, Mle, verbose)
 
-    PNames = InformationGeometry.GetNamesSymb(Mle) # .|> string |> NicifyPEtabNames
+    PNames = pnames # .|> string |> NicifyPEtabNames
     NewModel = ModelMap(GetModelFunction(P; cid=UniqueConds[1], ObsidsInCondDict), HyperCube(P), (1, ydim(DSs[1]), length(Mle)); startp=Mle, pnames=PNames, inplace=false, IsCustom=true)
     
     @assert Mle ∈ NewModel.Domain

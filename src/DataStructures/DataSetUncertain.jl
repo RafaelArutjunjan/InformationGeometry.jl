@@ -308,7 +308,10 @@ ReconstructDataMatrices(DSU::DataSetUncertain) = _ReconstructDataMatrix(xdata(DS
 ReconstructDataMatrices(DS::AbstractDataSet, args...) = (@assert !HasMissingValues(DS);    (_ReconstructDataMatrix(xdata(DS), nothing, xdim(DS)), _ReconstructDataMatrix(ydata(DS), nothing, ydim(DS))))
 
 
-ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy) = _ReconstructDataMatrix(ysigma(DSU, testpy), DSU.datakeep, ydim(DSU))
+ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy, Ysig=ysigma(DSU,testpy)) = _ReconstructDataMatrix(Ysig, DSU.datakeep, ydim(DSU))
+function ReconstructYdataSigmaMatrix(DSU::AbstractDataSet, testpy::AbstractVector=try DSU.testpy catch; Float64[] end, Ysig=ysigma(DSU,testpy))
+    _ReconstructDataMatrix(Ysig, try DSU.datakeep catch; nothing end, ydim(DSU))
+end
 
 
 # using non-raw out-of-place version of error model here
