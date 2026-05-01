@@ -140,6 +140,11 @@ function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame; xerr
     @assert !stripedYs
     CompositeDataSet(hcat(xdf, ydf, sigdf), (xerrs ? Int(size(xdf,2)/2) : size(xdf,2)), size(ydf,2); xerrs, stripedYs, kwargs...)
 end
+function CompositeDataSet(xdf::AbstractArray, ydf::AbstractMatrix, sigdf::AbstractMatrix; kwargs...)
+    @assert size(ydf) == size(sigdf)
+    @assert length(xdf) == size(ydf,1)
+    CompositeDataSet(DataFrame(xdf isa AbstractMatrix ? xdf : [xdf], CreateSymbolNames(size(xdf,2), "x")), DataFrame(ydf, CreateSymbolNames(size(ydf,2), "y")), DataFrame(sigdf, :auto); kwargs...)
+end
 
 # For SciMLBase.remake
 CompositeDataSet(;
