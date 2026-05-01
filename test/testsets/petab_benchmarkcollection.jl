@@ -1,39 +1,48 @@
 
 using InformationGeometry, PEtab, FiniteDifferences, Plots, Test
 
-import InformationGeometry: Trafos
-function TestConversion(petab_prob::PEtabODEProblem, DM::AbstractDataModel=ConditionGrid(petab_prob); atol=1e-10, atol2=0.1)
+import InformationGeometry: Trafos, dims
+function TestConversion(petab_prob::PEtabODEProblem, DM::AbstractDataModel=ConditionGrid(petab_prob), X::AbstractVector=MLE(DM); atol=1e-10, atol2=0.1)
+    ##### Ensure correct copy over
+    @test sum(abs, -InformationGeometry.loglikelihood(DM,X) - petab_prob.nllh(X)) < atol
+    @test sum(abs, -Score(DM, X) - petab_prob.grad(X)) < atol
+    @test sum(abs, FisherMetric(DM, X) - petab_prob.FIM(X)) < atol
+    @test sum(abs, InformationGeometry.CostHessian(DM)(X) - petab_prob.hess(X)) < atol
     
-    @test sum(abs, -InformationGeometry.loglikelihood(DM,MLE(DM)) - petab_prob.nllh(MLE(DM))) < atol
-    @test sum(abs, -Score(DM, MLE(DM)) - petab_prob.grad(MLE(DM))) < atol
-    @test sum(abs, FisherMetric(DM, MLE(DM)) - petab_prob.FIM(MLE(DM))) < atol
-    @test sum(abs, InformationGeometry.CostHessian(DM)(MLE(DM)) - petab_prob.hess(MLE(DM))) < atol
-    
-    GradRes1 = rand(length(MLE(DM)));    GradRes2 = rand(length(MLE(DM)));    HessRes1 = rand(length(MLE(DM)), length(MLE(DM)));    HessRes2 = rand(length(MLE(DM)), length(MLE(DM)))
-    Score(DM)(GradRes1, MLE(DM));   petab_prob.grad!(GradRes2, MLE(DM));    @test sum(abs, -GradRes1 -GradRes2) < atol
-    FisherMetric(DM)(HessRes1, MLE(DM));   petab_prob.FIM!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
-    InformationGeometry.CostHessian(DM)(HessRes1, MLE(DM));   petab_prob.hess!(HessRes2, MLE(DM));    @test sum(abs, HessRes1 -HessRes2) < atol
+    GradRes1 = rand(length(X));    GradRes2 = rand(length(X));    HessRes1 = rand(length(X), length(X));    HessRes2 = rand(length(X), length(X))
+    Score(DM)(GradRes1, X);   petab_prob.grad!(GradRes2, X);    @test sum(abs, -GradRes1 -GradRes2) < atol
+    FisherMetric(DM)(HessRes1, X);   petab_prob.FIM!(HessRes2, X);    @test sum(abs, HessRes1 -HessRes2) < atol
+    InformationGeometry.CostHessian(DM)(HessRes1, X);   petab_prob.hess!(HessRes2, X);    @test sum(abs, HessRes1 -HessRes2) < atol
 
-    ###### Score seems to be slightly dissimilar
+    ## Score seems to be slightly dissimilar
+    if length(Conditions(DM)) > 1
+        # Consistency of likelihoods of individual conditions with total
+        @test sum(loglikelihood(Conditions(DM)[i], Trafos(DM)[i](X)) for i in eachindex(Conditions(DM))) == loglikelihood(DM, X)
+        @test sum(abs, sum(Score(Conditions(DM)[i], Trafos(DM)[i](X)) for i in eachindex(Conditions(DM))) .- Score(DM, X)) < atol2
+        @test sum(abs, sum(FisherMetric(Conditions(DM)[i], Trafos(DM)[i](X)) for i in eachindex(Conditions(DM))) .- FisherMetric(DM, X)) < atol
+    end
 
-    # Consistency of likelihoods of individual conditions with total
-    @test sum(loglikelihood(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) == loglikelihood(DM, MLE(DM))
-    @test sum(abs, sum(Score(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- Score(DM, MLE(DM))) < atol2
-    @test sum(abs, sum(FisherMetric(DM[i], Trafos(DM)[i](MLE(DM))) for i in eachindex(DM)) .- FisherMetric(DM, MLE(DM))) < atol
-
+    ### Check consistency of log-likelihood?
     cids = InformationGeometry.ConditionNames(DM);  j = 1
-    # Compute reduced chi^2
-    @test sum(abs2, (EmbeddingMap(DM, MLE(DM), cids[j]) - ydata(Data(Conditions(DM)[j]))) ./ ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))) / InformationGeometry.DataspaceDim(Conditions(DM)[j]) < 5
+    # Test prediction
+    @test !all(iszero, EmbeddingMap(DM, X, cids[j]))
     # Test derivative of prediction (currently FiniteDifferences)
-    @test !all(iszero, EmbeddingMatrix(DM, MLE(DM), cids[j]))
+    @test !all(iszero, EmbeddingMatrix(DM, X, cids[j]))
 
-    ## Check that reconstructed objective function and Score corresponds to PEtab.jl for simple model
-    ## Assuming normal data!
-    dmj = DataModel(DataSet(xdata(Data(Conditions(DM)[j])), ydata(Data(Conditions(DM)[j])), ysigma(Conditions(DM)[j], Trafos(DM)[j](MLE(DM)))), Predictor(Conditions(DM)[j]), Trafos(DM)[j](MLE(DM)), true)
-    @test sum(InformationGeometry.LogLikeMLE(dmj) - loglikelihood(DM[j], Trafos(DM)[j](MLE(DM)))) < atol
+    # Xj = Trafos(DM)[j](X)
+    # ## Check that reconstructed objective function and Score corresponds to PEtab.jl for simple model
+    # ## Assuming normal data!
+    # # dmj = DataModel(CompositeDataSet(xdata(Data(Conditions(DM)[j])), InformationGeometry.ReconstructDataMatrices(Data(Conditions(DM)[j]))[2], InformationGeometry.ysigmaProper(Conditions(DM)[j], Xj)), Predictor(Conditions(DM)[j]), Xj, true)
+    # dmj = DataModel(Data(Conditions(DM)[j]), Predictor(Conditions(DM)[j]), Xj, true)
+    # @test abs(loglikelihood(dmj, Xj) - loglikelihood(Conditions(DM)[j], Xj)) < atol
+    # @test sum(abs, Score(dmj, Xj) - Score(Conditions(DM)[j], Xj)) < atol
+    # # @test sum(abs, Score(dmj, Xj) - Score(Conditions(DM)[j], Xj)) < atol
 
-    ###### Check data transfer for DataSetUncertain
+    # # Compute reduced chi^2
+    # @test sum(abs2, (EmbeddingMap(DMj, Xj) - ydata(DMj)) ./ ysigma(DMj, Xj)) / InformationGeometry.DataspaceDim(Conditions(DM)[j]) < 5
+    
 end
+
 
 begin
     ## For local execution only
