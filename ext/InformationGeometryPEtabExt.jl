@@ -28,7 +28,8 @@ function (::Type{T})(PCG::PEtabConditionGrid; kwargs...) where T<:Number
 end
 
 
-for F in [:pdim, :DOF, :getindex]
+for F in [:pdim, :getindex, :DOF, :ysigma, :ysigmaProper, 
+        :ReconstructDataMatrices, :ReconstructYdataSigmaMatrix]
     @eval InformationGeometry.$F(P::AbstractPEtabBasedConditionGrid, args...; kwargs...) = InformationGeometry.$F(P.DM, args...; kwargs...)
 end
 # Only single arg
