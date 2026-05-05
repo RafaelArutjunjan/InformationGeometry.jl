@@ -57,10 +57,10 @@ Negate(F::Function) = negate∘F
 Negate!!(F!::Function) = (x, args...; kwargs...) -> (F!(x, args...; kwargs...);     negate!(x))
 NegateBoth(F::Function) = MergeOneArgMethods(Negate(F), Negate!!(F))
 
-function GetMethod(tol::Real, useimplicit::Bool=true)
+function GetMethod(tol::Real, useimplicit::Bool=true; kwargs...)
     @assert tol > 0
     if useimplicit
-        tol < 1e-11 ? AutoVern9(Rodas5()) : tol < 1e-8 ? AutoVern7(Rodas5()) : AutoTsit5(Rosenbrock23())
+        tol < 1e-11 ? AutoVern9(Rodas5(; kwargs...)) : tol < 1e-8 ? AutoVern7(Rodas5(; kwargs...)) : AutoTsit5(Rosenbrock23(; kwargs...))
     else
         tol < 1e-11 ? Vern9() : tol < 1e-8 ? Vern7() : Tsit5()
     end

@@ -52,6 +52,13 @@ df = DataFrame([1:5., [1,2,3,missing,5.], [2,missing,4,6,8.], 0.5ones(5), 0.3one
 cds = CompositeDataSet(df; stripedYs=false)
 @test cds isa AbstractDataSet && InformationGeometry.Ynames(cds) == [:x2, :x3] && InformationGeometry.DataspaceDim(cds) == 8
 
+## Check that NaN also works to declare missing data, instead of just type Missing
+
+df2 = DataFrame([1:5., [1,2,3,NaN,5.], [2,NaN,4,6,8.], 0.5ones(5), 0.3ones(5)], :auto)
+cds2 = CompositeDataSet(df2; stripedYs=false)
+@test cds2 isa AbstractDataSet && InformationGeometry.Ynames(cds2) == [:x2, :x3] && InformationGeometry.DataspaceDim(cds2) == 8
+
+
 cdm = DataModel(cds, (x,p)->[p[1]*x, p[2]*x])
 CG = InformationGeometry.SplitObservablesIntoConditions(DataModel(cds, (x,p)->[p[1]*x, p[2]*x]))
 @test CG isa InformationGeometry.AbstractConditionGrid
