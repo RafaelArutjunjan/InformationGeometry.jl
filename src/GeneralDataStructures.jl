@@ -131,11 +131,11 @@ function MLEuncertStd(F::AbstractMatrix; verbose::Bool=true, kwargs...)
     SafeSqrt.(Diagonal(ConservativeInverse(F; kwargs...)).diag)
 end
 
-# xdataMat(DS::AbstractDataSet) = UnpackWindup(xdata(DS), xdim(DS))
-# ydataMat(DS::AbstractDataSet) = UnpackWindup(ydata(DS), ydim(DS))
 
-@deprecate xdataMat ReconstructDataMatrices
-@deprecate ydataMat ReconstructDataMatrices
+xdataMat(DM::Union{AbstractDataModel,AbstractDataSet}, args...; kwargs...) = ReconstructDataMatrices(DM, args...; kwargs...)[1]
+ydataMat(DM::Union{AbstractDataModel,AbstractDataSet}, args...; kwargs...) = ReconstructDataMatrices(DM, args...; kwargs...)[2]
+
+
 
 Base.keys(DS::AbstractDataSet) = 1:Npoints(DS)
 
@@ -207,6 +207,11 @@ function yInvCovProper(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwarg
     _yInvCov_internal(Data(DM), (SplitErrorParams(DM)(mle))[end], woundX, woundY, yinverrormodel(Data(DM)))
 end
 
+
+function ReconstructDataMatrices(DS::AbstractDataSet, args...)
+    @assert !HasMissingValues(DS) "Need to implement a specialized ReconstructDataMatrices method for Dataset type $(typeof(DS)) first."
+    (_ReconstructDataMatrix(xdata(DS), nothing, xdim(DS)), _ReconstructDataMatrix(ydata(DS), nothing, ydim(DS)))
+end
 
 HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
 HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
@@ -448,6 +453,7 @@ function SubDataSetComponent(DS::AbstractFixedUncertaintyDataSet, i::Union{Int,A
     DS isa CompositeDataSet && return (length(idxs) == 1 ? Data(DS)[idxs[1]] : CompositeDataSet(Data(DS)[idxs])) # CompositeDataSet defined downstream
     @assert all(1 .≤ idxs .≤ ydim(DS)) && allunique(idxs)
     keep = repeat([j ∈ idxs for j in 1:ydim(DS)], Npoints(DS))
+    @assert !HasMissingValues(DS)
     if !HasXerror(DS)
         DataSet(xdata(DS), ydata(DS)[keep], (ysigma(DS) isa AbstractVector ? ysigma(DS)[keep] : ysigma(DS)[keep,keep]), (Npoints(DS), xdim(DS), length(idxs));
                 xnames=Xnames(DS), ynames=Ynames(DS)[idxs], name=name(DS))
