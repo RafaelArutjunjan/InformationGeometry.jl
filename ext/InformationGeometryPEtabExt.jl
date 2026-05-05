@@ -259,7 +259,7 @@ end
 
 function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, sdf::AbstractDataFrame=CreateSymbolDFmeasurements(M), CondName::Symbol=sdf[!,:simulationConditionId][1]; Time=:time, ObsID=:observableId, CondID=:simulationConditionId, NoiseParam=:noiseParameters, 
                         ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID),
-                        FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P))
+                        FixedError::Bool=true, verbose::Bool=false, debug::Bool=false, Mle=MLE(P), BesselCorrection::Bool=false)
     cdf = sdf[sdf[!, CondID] .=== CondName, :]
     debug && @info "Starting Condition $CondName."
     # df = Long2WidePEtabMeasurementsWithErrors(cdf; UniqueObsids=GetObservablesInCondition(M, CondName; ObsID, CondID))
@@ -299,12 +299,12 @@ function GetConditionData(P::PEtabODEProblem, M::PEtabModel=P.model_info.model, 
         nerrorparameters = length(GetErrorParametersInCondition(P, CondName; ObsID, CondID, ObsidsInCondDict, ObsNames=ObsidsInCondDict[CondName]))
         if !HasMissingData
             ## Need identity splitter
-            DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
+            DataSetUncertain(Xdf, Ydf, Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, BesselCorrection, nerrorparameters)
         else
             # @warn "Throwing away any rows with missing or NaN currently"
             # bigkeep = reduce(vcat, [[n for _ in 1:size(Ydf,2)] for n in keep])
             keep = map(x->any(z->z isa Number && isfinite(z), x), eachrow(Ydf))
-            DataSetUncertain(Xdf[keep,:], Ydf[keep,:], Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, nerrorparameters)
+            DataSetUncertain(Xdf[keep,:], Ydf[keep,:], Sdf, Identity2Splitter, Mle; xnames=names(Xdf), ynames=names(Ydf), name=CondName, BesselCorrection, nerrorparameters)
         end
     end
 end
@@ -316,9 +316,10 @@ CreateSymbolDFobservables(M::PEtabModel; ObsID=:observableId, NoiseDist=:noiseDi
 
 
 # Get vector of all condition datasets
-function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), UniqueConds=collect(keys(ObsidsInCondDict)), FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false)
+function GetDataSets(P::PEtabODEProblem, M::PEtabModel=P.model_info.model; ObsID=:observableId, CondID=:simulationConditionId, ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(M; ObsID, CondID), UniqueConds=collect(keys(ObsidsInCondDict)), 
+                    FixedError::Bool=true, Mle=MLE(P), verbose::Bool=false, BesselCorrection::Bool=false)
     sdf = CreateSymbolDFmeasurements(M; ObsID, CondID)
-    [GetConditionData(P, M, sdf, C; ObsID, CondID, ObsidsInCondDict, FixedError, Mle, verbose) for C in UniqueConds]
+    [GetConditionData(P, M, sdf, C; ObsID, CondID, ObsidsInCondDict, FixedError, Mle, verbose, BesselCorrection) for C in UniqueConds]
 end
 
 import InformationGeometry: StringOrSymb, NicifyPEtabNames
@@ -340,12 +341,12 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
 function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, 
-                    pnames::AbstractVector{<:InformationGeometry.StringOrSymb}=InformationGeometry.GetNamesSymb(P.xnominal_transformed), kwargs...)
+                    pnames::AbstractVector{<:InformationGeometry.StringOrSymb}=InformationGeometry.GetNamesSymb(P.xnominal_transformed), BesselCorrection::Bool=false, kwargs...)
     SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     SortConditions && sort!(UniqueConds)
-    DSs = GetDataSets(P; ObsID, CondID, ObsidsInCondDict, UniqueConds, FixedError, Mle, verbose)
+    DSs = GetDataSets(P; ObsID, CondID, ObsidsInCondDict, UniqueConds, FixedError, Mle, verbose, BesselCorrection)
 
     PNames = pnames # .|> string |> NicifyPEtabNames
     NewModel = ModelMap(GetModelFunction(P; cid=UniqueConds[1], ObsidsInCondDict), HyperCube(P), (1, ydim(DSs[1]), length(Mle)); startp=Mle, pnames=PNames, inplace=false, IsCustom=true)

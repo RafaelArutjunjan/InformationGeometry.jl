@@ -185,7 +185,7 @@ function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
     X isa AbstractVector && (X = reshape(X,:,1))
     X, Y
 end
-function ReconstructYdataSigmaMatrix(CDS::CompositeDataSet, args...; kwargs...)
+function ReconstructYdataSigmaMatrix(CDS::CompositeDataSet, X::AbstractVector=Float64[], args...; kwargs...)
     dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructYdataSigmaMatrix(DS))...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
     df = reduce((args...; kwargs...)->outerjoin(args...; on=Symbol("Xcolumn"), kwargs...), dfs)
     float.(MissingToNan.(Matrix(@view df[:, 2:end])))
