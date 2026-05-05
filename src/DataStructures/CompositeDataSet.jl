@@ -208,9 +208,7 @@ Ynames(CDS::CompositeDataSet) = mapreduce(Ynames, vcat, Data(CDS))
 name(CDS::CompositeDataSet) = CDS.name
 
 
-HasMissingValues(CDS::CompositeDataSet) = true
-## Change how Npoints is computed first
-# HasMissingValues(CDS::CompositeDataSet) = Npoints(CDS) * ydim(CDS) > DataspaceDim(CDS)
+HasMissingValues(CDS::CompositeDataSet) = !allequal(Npoints, Data(CDS))
 
 
 function InformNames(CDS::CompositeDataSet, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb})

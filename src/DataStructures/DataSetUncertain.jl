@@ -245,6 +245,9 @@ Xnames(DS::DataSetUncertain) = DS.xnames
 Ynames(DS::DataSetUncertain) = DS.ynames
 name(DS::DataSetUncertain) = DS.name
 
+## More robust than Npoints * ydim for missing data
+DataspaceDim(DS::DataSetUncertain) = length(ydata(DS))
+
 xsigma(DS::DataSetUncertain, mle::AbstractVector=Float64[]) = Zeros(length(xdata(DS)))
 
 HasXerror(DS::DataSetUncertain) = false
@@ -265,6 +268,7 @@ yerrorparams(DS::DataSetUncertain, mle::AbstractVector) = (SplitErrorParams(DS)(
 HasBessel(DS::DataSetUncertain{T}) where T = T
 
 HasMissingValues(CDS::DataSetUncertain{<:Any, <:AbstractVector}) = true
+HasMissingValues(CDS::DataSetUncertain{<:Any, <:Nothing}) = false
 
 NumberOfErrorParameters(DS::DataSetUncertain, mle::AbstractVector) = DS.nerrorparameters
 
@@ -305,7 +309,6 @@ _ReconstructDataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(
 
 ## Returns Xmatrix, Ymatrix
 ReconstructDataMatrices(DSU::DataSetUncertain) = _ReconstructDataMatrix(xdata(DSU), nothing, xdim(DSU)), _ReconstructDataMatrix(ydata(DSU), DSU.datakeep, ydim(DSU))
-ReconstructDataMatrices(DS::AbstractDataSet, args...) = (@assert !HasMissingValues(DS);    (_ReconstructDataMatrix(xdata(DS), nothing, xdim(DS)), _ReconstructDataMatrix(ydata(DS), nothing, ydim(DS))))
 
 
 ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy, Ysig=ysigma(DSU,testpy)) = _ReconstructDataMatrix(Ysig, DSU.datakeep, ydim(DSU))
