@@ -57,12 +57,12 @@ Negate(F::Function) = negate∘F
 Negate!!(F!::Function) = (x, args...; kwargs...) -> (F!(x, args...; kwargs...);     negate!(x))
 NegateBoth(F::Function) = MergeOneArgMethods(Negate(F), Negate!!(F))
 
-function GetMethod(tol::Real, useimplicit::Bool=true; kwargs...)
+function GetMethod(tol::Real, useimplicit::Bool=true; autodiff=ADTypes.AutoFiniteDiff(), kwargs...)
     @assert tol > 0
     if useimplicit
-        tol < 1e-11 ? AutoVern9(Rodas5(; kwargs...)) : tol < 1e-8 ? AutoVern7(Rodas5(; kwargs...)) : AutoTsit5(Rosenbrock23(; kwargs...))
+        tol < 1e-11 ? AutoVern9(Rodas5(; autodiff, kwargs...)) : tol < 1e-8 ? AutoVern7(Rodas5(; autodiff, kwargs...)) : AutoTsit5(Rosenbrock23(; autodiff, kwargs...))
     else
-        tol < 1e-11 ? Vern9() : tol < 1e-8 ? Vern7() : Tsit5()
+        tol < 1e-11 ? Vern9(; kwargs...) : tol < 1e-8 ? Vern7(; kwargs...) : Tsit5(; kwargs...)
     end
 end
 
@@ -658,7 +658,7 @@ end
 
 ## Convert from ADmode keyword syntax using Vals to corresponding ADtype
 ADtypeConverter(V::Val{true}; kwargs...) = ADTypes.AutoForwardDiff(; kwargs...)
-ADtypeConverter(V::Val{false}; kwargs...) = SciMLBase.NoAD(; kwargs...)
+ADtypeConverter(V::Val{false}; kwargs...) = ADTypes.AutoFiniteDiff(; kwargs...)
 ADtypeConverter(V::Val{:Symbolic}; kwargs...) = ADTypes.AutoSymbolics(; kwargs...)
 ADtypeConverter(S::Symbol; kwargs...) = ADtypeConverter(Val(S); kwargs...)
 

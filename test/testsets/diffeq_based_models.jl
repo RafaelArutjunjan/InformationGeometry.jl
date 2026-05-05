@@ -45,7 +45,7 @@ using ForwardDiff
 
 # ## DDE tests
 # # DDE example taken from https://docs.sciml.ai/DiffEqDocs/stable/tutorials/dde_example/
-using DelayDiffEq
+using SciMLBase, DelayDiffEq
 out = rand(3)
 ## Docs and tests
 function bc_model(du, u, h!, p, t)
@@ -77,7 +77,7 @@ using FiniteDifferences, Optimization
 model = GetModel(DDEFunction(bc_model), (θ)->(u0, (@view θ[1:3])), identity, h!; tol=1e-8, dependent_lags=((u,p,t)->p[end],), 
         Domain=HyperCube(zeros(3), 5ones(3)), pnames=["β₀", "β₁", "τ"])
 
-DDEDM = DataModel(DDEDS, model; meth=nothing, ADmode=Val(:FiniteDifferences))
+DDEDM = DataModel(DDEDS, model; ADmode=Val(:FiniteDifferences))
 @test DDEDM isa AbstractDataModel
 @test EmbeddingMatrix(DDEDM, MLE(DDEDM)) isa AbstractMatrix
 

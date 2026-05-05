@@ -180,7 +180,7 @@ BlockReduce(X::AbstractVector{Union{<:AbstractMatrix{<:Number},<:Number}}) = Blo
 
 function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
     dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructDataMatrices(DS)[2])...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
-    df = reduce((args...; kwargs...)->rightjoin(args...; on=Symbol("Xcolumn"), makeunique=true, kwargs...), dfs)
+    df = reduce((args...; kwargs...)->outerjoin(args...; on=Symbol("Xcolumn"), kwargs...), dfs)
     X, Y = Unpack(@view df[:, 1]), float.(MissingToNan.(Matrix(@view df[:, 2:end])))
     X isa AbstractVector && (X = reshape(X,:,1))
     X, Y
