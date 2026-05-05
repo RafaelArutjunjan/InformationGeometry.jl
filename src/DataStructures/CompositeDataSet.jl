@@ -185,6 +185,11 @@ function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
     X isa AbstractVector && (X = reshape(X,:,1))
     X, Y
 end
+function ReconstructYdataSigmaMatrix(CDS::CompositeDataSet, args...; kwargs...)
+    dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructYdataSigmaMatrix(DS))...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
+    df = reduce((args...; kwargs...)->outerjoin(args...; on=Symbol("Xcolumn"), kwargs...), dfs)
+    float.(MissingToNan.(Matrix(@view df[:, 2:end])))
+end
 
 ysigma(CDS::CompositeDataSet; kwargs...) = map(x->ysigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize
 xsigma(CDS::CompositeDataSet; kwargs...) = map(x->xsigma(x; kwargs...), Data(CDS)) |> BlockReduce |> _TryVectorize

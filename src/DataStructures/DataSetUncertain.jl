@@ -310,11 +310,7 @@ _ReconstructDataMatrix(Ydata::AbstractVector, ::Nothing, Ydim::Int) = transpose(
 ## Returns Xmatrix, Ymatrix
 ReconstructDataMatrices(DSU::DataSetUncertain) = _ReconstructDataMatrix(xdata(DSU), nothing, xdim(DSU)), _ReconstructDataMatrix(ydata(DSU), DSU.datakeep, ydim(DSU))
 
-
 ReconstructYdataSigmaMatrix(DSU::DataSetUncertain, testpy::AbstractVector=DSU.testpy, Ysig=ysigma(DSU,testpy)) = _ReconstructDataMatrix(Ysig, DSU.datakeep, ydim(DSU))
-function ReconstructYdataSigmaMatrix(DSU::AbstractDataSet, testpy::AbstractVector=try DSU.testpy catch; Float64[] end, Ysig=ysigma(DSU,testpy))
-    _ReconstructDataMatrix(Ysig, try DSU.datakeep catch; nothing end, ydim(DSU))
-end
 
 
 # using non-raw out-of-place version of error model here

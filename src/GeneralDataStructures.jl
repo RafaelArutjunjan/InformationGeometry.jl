@@ -213,6 +213,21 @@ function ReconstructDataMatrices(DS::AbstractDataSet, args...)
     (_ReconstructDataMatrix(xdata(DS), nothing, xdim(DS)), _ReconstructDataMatrix(ydata(DS), nothing, ydim(DS)))
 end
 
+function ReconstructYdataSigmaMatrix(DM::AbstractDataModel, MLE::AbstractVector{<:Number}=MLE(DM), args...; kwargs...)
+    ReconstructYdataSigmaMatrix(Data(DM), SplitErrorParams(DM)(MLE)[end], args...; kwargs...)
+    # Ysig = ysigma(DM, SplitErrorParams(DM)(MLE)[end]; kwargs...)
+    # Keeper = HasMissingValues(DM) ? try Data(DM).datakeep catch E; println(E);  nothing end : nothing
+    # _ReconstructDataMatrix(Ysig, Keeper, ydim(DM))
+end
+
+function ReconstructYdataSigmaMatrix(DSU::AbstractUnknownUncertaintyDataSet, testpy::AbstractVector=try DSU.testpy catch; Float64[] end, Ysig=ysigma(DSU,testpy))
+    _ReconstructDataMatrix(Ysig, try DSU.datakeep catch E; println(E);  nothing end, ydim(DSU))
+end
+function ReconstructYdataSigmaMatrix(DSU::AbstractFixedUncertaintyDataSet, testpy::AbstractVector=Float64[], Ysig=ysigma(DSU,testpy))
+    _ReconstructDataMatrix(Ysig, nothing, ydim(DSU))
+end
+
+
 HasEstimatedUncertainties(DM::AbstractUnknownUncertaintyDataSet) = true
 HasEstimatedUncertainties(DM::AbstractFixedUncertaintyDataSet) = false
 HasEstimatedUncertainties(DM::AbstractConditionGrid) = any(HasEstimatedUncertainties, Conditions(DM))
