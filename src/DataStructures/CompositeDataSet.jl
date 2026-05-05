@@ -2,11 +2,11 @@
 
 ToDataVec(M::AbstractVector) = floatify(M)
 ToDataVec(M::AbstractMatrix) = reduce(vcat, collect(eachrow(ToArray(M))))
-ToDataVec(M::DataFrame) = M |> ToArray |> ToDataVec
+ToDataVec(M::AbstractDataFrame) = M |> ToArray |> ToDataVec
 
 ToArray(df::AbstractVector{<:Real}) = df |> floatify
-ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(df[:,1]) : floatify(df)
-ToArray(df::DataFrame) = size(df,2) == 1 ? Vector(floatify(df[:,1])) : Matrix(floatify(df))
+ToArray(df::AbstractMatrix) = size(df,2) == 1 ? floatify(@view df[:,1]) : floatify(df)
+ToArray(df::AbstractDataFrame) = size(df,2) == 1 ? Vector(floatify(@view df[:,1])) : Matrix(floatify(df))
 
 MissingToNan(x::Number) = x
 MissingToNan(x::Missing) = NaN
@@ -17,8 +17,7 @@ function ToArray(df::AbstractVector{<:Union{Missing, AbstractFloat}})
     MissingToNan.(floatify(df))
 end
 
-
-function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true,
+function ReadIn(df::AbstractDataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, verbose::Bool=true,
                         xnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, ynames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing)
     if xerrs
         (size(df,2) != 2xdims + 2ydims) && throw("Inconsistent no. of columns on DataFrame: got $(size(df,2))")
@@ -38,23 +37,24 @@ function ReadIn(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-xdims)/2
     InformNames(DSs, Xnames, Ynames)
 end
 
-function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::AbstractVector{<:Int}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
-    X = df[:, xcols];    Xerr = df[:, xerrs];   Y = df[:, ycols];    Yerr = df[:, yerrs]
-    [(inds = DitchMissingRows(X, Col);    DataSetExact(ToDataVec(X[inds,:]), ToArray(Xerr[inds,:]), ToArray(Y[inds,:]), ToArray(Yerr[inds,:]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
+function _ReadIn(df::AbstractDataFrame, xcols::AbstractVector{<:Int}, xerrs::AbstractVector{<:Int}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
+    X = @view df[:, xcols];    Xerr = @view df[:, xerrs];   Y = @view df[:, ycols];    Yerr = @view df[:, yerrs]
+    [(inds = DitchMissingRows(X, Col);    DataSetExact(ToDataVec(@view X[inds,:]), ToArray(@view Xerr[inds,:]), ToArray(@view Y[inds,:]), ToArray(@view Yerr[inds,:]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
 end
 
-function _ReadIn(df::DataFrame, xcols::AbstractVector{<:Int}, xerrs::Val{false}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
-    X = df[:, xcols];    Y = df[:, ycols];    Yerr = df[:, yerrs]
-    [(inds = DitchMissingRows(X, Col);      DataSet(ToDataVec(X[inds,:]), ToArray(Y[inds,i]), ToArray(Yerr[inds,i]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
+function _ReadIn(df::AbstractDataFrame, xcols::AbstractVector{<:Int}, xerrs::Val{false}, ycols::AbstractVector{<:Int}, yerrs::AbstractVector{<:Int})
+    X = @view df[:, xcols];    Y = @view df[:, ycols];    Yerr = @view df[:, yerrs]
+    [(inds = DitchMissingRows(X, Col);      DataSet(ToDataVec(@view X[inds,:]), ToArray(Y[inds,i]), ToArray(Yerr[inds,i]), (sum(inds), size(X,2), 1))) for (i,Col) in enumerate(eachcol(Y))]
 end
 
 
-DitchMissingRows(B::AbstractArray, df::DataFrame) = DitchMissingRows(df, B)
-DitchMissingRows(df::DataFrame, B::AbstractMatrix) = DitchMissingRows(df, DataFrame(B, :auto))
-DitchMissingRows(df::DataFrame, B::AbstractVector) = DitchMissingRows(df, DataFrame(reshape(B, :, 1), :auto))
+DitchMissingRows(B::AbstractArray, df::AbstractDataFrame) = DitchMissingRows(df, B)
+DitchMissingRows(df::AbstractDataFrame, B::AbstractMatrix) = DitchMissingRows(df, DataFrame(B, :auto))
+DitchMissingRows(df::AbstractDataFrame, B::AbstractVector) = DitchMissingRows(df, DataFrame(reshape(B, :, 1), :auto))
 DitchMissingRows(df1, df2) = hcat(df1, df2; makeunique=true) |> DitchMissingRows
 DitchMissingRows(df) = DitchMissingRows(DataFrame(df, :auto))
-DitchMissingRows(df::Union{DataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})::BitVector = map(row->!any(ismissing, row), eachrow(df))
+## Both type Missing and NaNs lead to row being ditched
+DitchMissingRows(df::Union{AbstractDataFrame, AbstractArray{<:Union{Missing,AbstractFloat}}})::BitVector = map(row->all(x->!ismissing(x) && isfinite(x), row), eachrow(df))
 
 
 function SplitDS(DS::DataSet)
@@ -128,14 +128,14 @@ function (::Type{T})(DS::CompositeDataSet; kwargs...) where T<:Number
 end
 
 
-function CompositeDataSet(df::DataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, 
+function CompositeDataSet(df::AbstractDataFrame, xdims::Int=1, ydims::Int=Int((size(df,2)-1)/2); xerrs::Bool=false, stripedXs::Bool=true, stripedYs::Bool=true, 
                             xnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, ynames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, kwargs...)
     CompositeDataSet(ReadIn(floatify(df), xdims, ydims; xerrs, stripedXs, stripedYs, xnames, ynames); kwargs...)
 end
-function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sig::Real=1.0; kwargs...)
+function CompositeDataSet(xdf::AbstractDataFrame, ydf::AbstractDataFrame, sig::Real=1.0; kwargs...)
     CompositeDataSet(xdf, ydf, DataFrame(Fill(sig,size(ydf)...), names(ydf).*"_σ"); kwargs...)
 end
-function CompositeDataSet(xdf::DataFrame, ydf::DataFrame, sigdf::DataFrame; xerrs::Bool=false, stripedYs::Bool=false, kwargs...)
+function CompositeDataSet(xdf::AbstractDataFrame, ydf::AbstractDataFrame, sigdf::AbstractDataFrame; xerrs::Bool=false, stripedYs::Bool=false, kwargs...)
     # Enforce stripedYs=false
     @assert !stripedYs
     CompositeDataSet(hcat(xdf, ydf, sigdf), (xerrs ? Int(size(xdf,2)/2) : size(xdf,2)), size(ydf,2); xerrs, stripedYs, kwargs...)
@@ -177,7 +177,6 @@ BlockReduce(X::AbstractVector{<:AbstractVector{<:Number}}) = Diagonal(reduce(vca
 ### Just the same as BlockMatrix
 BlockReduce(X::AbstractVector{Union{<:AbstractMatrix{<:Number},<:Number}}) = BlockMatrix(X)
 
-# @deprecate BlockReduce BlockMatrix
 
 function ReconstructDataMatrices(CDS::CompositeDataSet, args...; kwargs...)
     dfs = [DataFrame([Windup(xdata(DS), xdim(DS)), ToCols(ReconstructDataMatrices(DS)[2])...], [Symbol("Xcolumn"); Symbol.("$(i)_".*ynames(DS))]) for (i,DS) in enumerate(Data(CDS))]
