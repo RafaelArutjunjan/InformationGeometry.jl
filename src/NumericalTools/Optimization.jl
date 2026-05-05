@@ -171,7 +171,8 @@ Optim.optimize(f, g!, h!, l::AbstractArray, u::AbstractArray, p::AbstractArray, 
 
 
 # Extend with constraint Functions
-function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), cons=nothing, lcons=nothing, ucons=nothing, kwargs...)
+function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth; ADmode::Union{Val,Symbol}=Val(:ForwardDiff), adtype::AbstractADType=ADtypeConverter(ADmode), 
+                            cons=nothing, lcons=nothing, ucons=nothing, kwargs...)
     @assert 1 ≤ length(Fs) ≤ 3
     
     if !SciMLBase.allowsconstraints(meth)
@@ -179,24 +180,27 @@ function minimizeOptimizationJL(Fs::Tuple, Start::AbstractVector{<:Number}, meth
     end
 
     optf = if length(Fs) == 1
-        OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
+        F = Fs[1]
+        OptimizationFunction{true}((x,p)->F(x), adtype; cons=cons)
     # else
     #     @warn "minimize(): Currently ignoring manually given derivatives in $Fs and using adtype=$adtype instead."
     #     OptimizationFunction{true}((x,p)->Fs[1](x), adtype; cons=cons)
     elseif length(Fs) == 2
         numarg = MaximalNumberOfArguments(Fs[2])
+        F, dF = Fs
         if numarg == 1
-            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x))
+            OptimizationFunction{(numarg > 1)}((x,p)->F(x), adtype; grad=(x,p)->dF(x))
         else
-            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x))
+            OptimizationFunction{(numarg > 1)}((x,p)->F(x), adtype; grad=(G,x,p)->dF(G,x))
         end
     else
         @assert MaximalNumberOfArguments(Fs[2]) == MaximalNumberOfArguments(Fs[3]) "Derivatives dF and ddF need to be either both in-place or both out-of-place."
         numarg = MaximalNumberOfArguments(Fs[2])
+        F, dF, ddF = Fs
         if numarg == 1
-            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(x,p)->Fs[2](x), hess=(x,p)->Fs[3](x))
+            OptimizationFunction{(numarg > 1)}((x,p)->F(x), adtype; grad=(x,p)->dF(x), hess=(x,p)->ddF(x))
         else
-            OptimizationFunction{(numarg > 1)}((x,p)->Fs[1](x), adtype; grad=(G,x,p)->Fs[2](G,x), hess=(H,x,p)->Fs[3](H,x))
+            OptimizationFunction{(numarg > 1)}((x,p)->F(x), adtype; grad=(G,x,p)->dF(G,x), hess=(H,x,p)->ddF(H,x))
         end
     end
     minimizeOptimizationJL(optf, Start, meth; lcons=lcons, ucons=ucons, kwargs...)
