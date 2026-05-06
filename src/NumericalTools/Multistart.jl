@@ -73,12 +73,13 @@ The keyword `TransformSample` can be used to specify a function which is applied
 """
 function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; 
                                         CostFunction::Function=Negloglikelihood(DM), LogPriorFn::Union{Nothing,Function}=LogPrior(DM), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
+                                        TypeConversion::Function=(!isa(MLE(DM), Vector) ? (Tp=typeof(MLE(DM));   x->convert(Tp, x)) : identity),
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), kwargs...)
-    MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM=DM, kwargs...)
+    MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM, TypeConversion, kwargs...)
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e3, plot::Bool=false, 
                                         DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
-                                        Robust::Bool=false, MinimizeFunc::Function=!Robust ? InformationGeometry.minimize : (@assert !isnothing(DM) "Cannot generate RobustFit if DM==nothing.";  InformationGeometry.RobustFit), 
+                                        Robust::Bool=false, MinimizeFunc::Function=!Robust ? InformationGeometry.minimize : (@assert !isnothing(DM) "Cannot generate RobustFit if DM==nothing.";  InformationGeometry.RobustFit), TypeConversion::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
     @assert N ≥ 1
@@ -99,7 +100,7 @@ function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVe
     TakeFromUnclamped(X::Base.Generator) = iterate(X)[1]
     TakeFromUnclamped(S::SOBOL.AbstractSobolSeq) = SOBOL.next!(S)
     TakeFromClamped(X) = clamp(TakeFromUnclamped(X), MultistartDomain)
-    TakeFrom = (!isnothing(MultistartDomain) && !(InitialPointGen isa Union{AbstractVector{<:AbstractVector{<:Number}},SOBOL.AbstractSobolSeq})) ? TransformSample∘TakeFromClamped : TransformSample∘TakeFromUnclamped
+    TakeFrom = (!isnothing(MultistartDomain) && !(InitialPointGen isa Union{AbstractVector{<:AbstractVector{<:Number}},SOBOL.AbstractSobolSeq})) ? TypeConversion∘TransformSample∘TakeFromClamped : TypeConversion∘TransformSample∘TakeFromUnclamped
     # count total sampling attempts when resampling
     InitialPoints, InitialObjectives = if resampling
         InitPoints = typeof(TakeFrom(InitialPointGen))[]
