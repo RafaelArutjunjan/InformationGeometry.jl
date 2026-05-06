@@ -10,7 +10,7 @@ const SenseAlg = SciMLBase.AbstractSensitivityAlgorithm
 
 # Filter according to func with output Bool
 function Base.filter(func::Function, ensemblesol::SciMLBase.AbstractEnsembleSolution)
-    EnsembleSolution([f for f in ensemblesol[(1:length(ensemblesol))[func.(ensemblesol.u)]]], ensemblesol.elapsedTime, ensemblesol.converged)
+    EnsembleSolution([f for f in (@view ensemblesol.u[(1:length(ensemblesol.u))[func.(ensemblesol.u)]])], ensemblesol.elapsedTime, ensemblesol.converged)
 end
 
 
@@ -26,7 +26,7 @@ function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T
                                     noise_rate_prototype::Union{AbstractArray,Nothing}=noise_rate_prototype, dt::Union{Real,Nothing}=dt, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::SciMLBase.AbstractSDEAlgorithm=meth, callback=nothing, 
                                     EnsembleAlg::SciMLBase.EnsembleAlgorithm=EnsembleAlg, kwargs...) where Ttype <:Number
         u0, p = SplitterFunction(θ)
-        sdeprob = SDEProblem(func, func.g, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p); noise_rate_prototype=noise_rate_prototype, noise=noise)
+        sdeprob = SDEProblem(func.f, func.g, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p); noise_rate_prototype=noise_rate_prototype, noise=noise)
         if isnothing(trajectories)
             isnothing(dt) ? solve(sdeprob, meth; sensealg=sensealg, callback=CallbackSet(callback, CB), Kwargs..., kwargs...) : solve(sdeprob, meth; sensealg=sensealg, dt=dt, adaptive=false, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         else
@@ -35,7 +35,10 @@ function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T
     end
     function SDEModel(t::Number, θ::AbstractVector{<:Number}; max_t::Number=t, kwargs...)
         res = SDEModel([t], θ; max_t=max_t, kwargs...)
-        (length(res) == 1 && res isa AbstractVector{<:Number}) ? res[1] : res
+        # (length(res) == 1 && res isa AbstractVector{<:Number}) ? res[1] : res
+        @inline Reducer(res::AbstractVector{<:Number}) = length(res) == 1 ? res[1] : res
+        @inline Reducer(res) = res
+        Reducer(res)
     end
     function SDEModel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; filter::Function=filter, ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
                                             noise::Union{AbstractNoiseProcess,Nothing}=noise, noise_rate_prototype::Union{AbstractArray,Nothing}=noise_rate_prototype, dt::Union{Real,Nothing}=dt, sensealg::SenseAlg=sensealg,

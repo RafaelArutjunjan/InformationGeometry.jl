@@ -74,7 +74,7 @@ DDEDS = DataSet([0.3, 1.0, 3.0], [0.209, 0.825, 0.918, 0.0026, 0.364, 0.62, 0.06
 
 using FiniteDifferences, Optimization
 # Often need to choose AutoFiniteDiff() for implicit solvers, i.e. meth = MethodOfSteps(Rosenbrock23(autodiff = AutoFiniteDiff()))
-model = GetModel(DDEFunction(bc_model), (θ)->(u0, (@view θ[1:3])), identity, h!; tol=1e-8, dependent_lags=((u,p,t)->p[end],), 
+model = GetModel(DDEFunction(bc_model), (θ)->(u0, (@view θ[1:3])), identity, h!; tol=1e-5, dependent_lags=((u,p,t)->p[end],), 
         Domain=HyperCube(zeros(3), 5ones(3)), pnames=["β₀", "β₁", "τ"])
 
 DDEDM = DataModel(DDEDS, model; ADmode=Val(:FiniteDifferences))
@@ -89,11 +89,17 @@ using StochasticDiffEq, SciMLSensitivity, Optim
 f(u,p,t) = p[1]*u
 g(u,p,t) = p[2]*u
 ## Only implemented for robust=false so far!
-sdemod = GetModel(SDEFunction(f,g), z->([z[1]], (@view z[2:end])), z->z[1]; robust=false, Domain=FullDomain(3), trajectories=1000)
+sdemod = GetModel(SDEFunction(f,g), z->([z[1]], (@view z[2:end])), z->z[1]; robust=false, Domain=FullDomain(3), trajectories=200)
 
 SDEDS = DataSet(0:0.2:1, [0.503, 0.637, 0.726, 0.897, 1.1, 1.32], 0.02)
 
 # Pseudo-Optimization takes a long time
 SDEDM = DataModel(SDEDS, sdemod, [0.5,1,0.2], true)
-@test InformationGeometry.minimize(SDEDM; maxiters=5, meth=NelderMead()) isa AbstractVector
+@test EmbeddingMap(SDEDM, MLE(SDEDM)) isa AbstractVector
+@test EmbeddingMap(SDEDM, MLE(SDEDM); trajectories=nothing) isa AbstractVector
+@test EmbeddingMap(SDEDM, MLE(SDEDM); filter=x->!(x.retcode === ReturnCode.Unstable)) isa AbstractVector
+
 @test EmbeddingMatrix(SDEDM, MLE(SDEDM)) isa AbstractMatrix
+@test EmbeddingMatrix(SDEDM, MLE(SDEDM); trajectories=nothing) isa AbstractMatrix
+
+@test InformationGeometry.minimize(SDEDM; maxiters=5, meth=NelderMead()) isa AbstractVector
