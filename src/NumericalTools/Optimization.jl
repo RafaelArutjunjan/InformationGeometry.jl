@@ -365,18 +365,19 @@ end
 
 
 """
-    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, Method::Function=InformationGeometry.minimize, kwargs...) -> Vector
+    IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, Method::Function=InformationGeometry.minimize, Safe::Bool=true, kwargs...) -> Vector
 Fits DataModel incrementally by splitting up the times series into chunks, e.g. fitting only the first quarter of data points, then half and so on.
 This can yield much better fitting results from random starting points, particularly for autocorrelated time series data.
 For example when the time series data oscillates in such a way that the optimization often gets stuck in a local optimum where the model fits a mostly straight line through the data, not correctly recognizing the oscillations.
+`Safe=true` returns the parameter configuration corresponding to the best intermediate result between steps that was seen, otherwise the output after the final step is returned.
 """
 IncrementalTimeSeriesFit(DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); Method::Function=InformationGeometry.minimize, MinimizeFunc::Function=Method, kwargs...) = IncrementalTimeSeriesFit(MinimizeFunc, DM, initial; kwargs...)
 
 """
-    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...) -> Vector
-Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`
+    IncrementalTimeSeriesFit(Method::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, Safe::Bool=true, kwargs...) -> Vector
+Uses `Method` for fitting, which should be of the form `(::DataModel, ::AbstractVector) -> ::AbstractVector`.
 """
-function IncrementalTimeSeriesFit(MinimizeFunc::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, kwargs...)
+function IncrementalTimeSeriesFit(MinimizeFunc::Function, DM::AbstractDataModel, initial::AbstractVector{<:Number}=MLE(DM); steps::Int=3, Safe::Bool=true, kwargs...)
     @assert steps ≤ Npoints(DM)
     res = copy(initial)
     Results = typeof(initial)[]
@@ -385,7 +386,9 @@ function IncrementalTimeSeriesFit(MinimizeFunc::Function, DM::AbstractDataModel,
         FullRes = MinimizeFunc(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
         res .= GetMinimizer(FullRes)
         push!(Results, res)
-    end;    Results[end]
+    end;    !Safe && return Results[end]
+    Losses = map(Negloglikelihood(DM), Results)
+    Results[findmin(Losses)[2]]
 end
 
 
@@ -419,11 +422,12 @@ end
 
 
 """
-    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PlotEvery::Int=0, PrintLossEvery=50, kwargs...)
+    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PrintLossEvery=50, PlotEvery::Int=0, kwargs...)
 Performs pre-fit of `DM` at potentially lower precision specified by `T` (e.g. Float32) with stochastic optimizer and converts back to original precision in `DM` afterwards. Potential speed-up for models with neural network components.
-Kwarg `Safe` ensures that best configuration encountered during whole optimization is returned, instead of final.
+Kwarg `Safe` ensures that best configuration encountered during whole optimization is returned, instead of the final one of the last optimizer.
 Kwargs can also be forwarded to `ParameterSavingCallback` and can thus be used for early termination.
 For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Terminate` and so on.
+By default, `PrintLossEvery=50` results in the current value of the loss function being printed every 50 iterations.
 
 The `Prefit` function can also be used to carry out multiple consecutive fits with shared or different settings, by supplying vectors for the arguments `meth`, `maxiters` and `tol`.
 For example:
@@ -449,7 +453,7 @@ function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT:
                 PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing, 
                 Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
-    CB = ParameterSavingCallback(pstart; SaveLoss=true, PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
+    CB = ParameterSavingCallback(pstart; SaveLoss=Safe, PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
     TryCatchWrapper(F::Function) = (Args...;Kwargs...) -> try F(Args...;Kwargs...) catch E; verbose && println("Failed with $E");  Args[2]   end
     SafeMinimizeFunc = TryCatchOptimizer ? TryCatchWrapper(MinimizeFunc) : MinimizeFunc
 
