@@ -106,8 +106,9 @@ ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{Number,AbstractAr
 ConditionalConvert(type::Type{ForwardDiff.Dual{T}}, var::Union{ForwardDiff.Dual{S},AbstractArray{<:ForwardDiff.Dual{S}}}) where {T,S} = convert.(type, var)
 ConditionalConvert(type::Type, var::Union{Number,AbstractArray{<:Number}}) = var
 
-function GetModelFast(args...; Domain::Union{HyperCube,Nothing}=nothing, startp=nothing, kwargs...)
+function GetModelFast(args...; Domain::Union{HyperCube,Nothing}=nothing, startp=nothing, Bare::Bool=false, kwargs...)
     DEmodel, Meta = _GetModelFast(args...; Domain, kwargs...)
+    Bare && return DEmodel
     MakeCustom(DEmodel, Domain; Meta, startp, verbose=false)
 end
 
@@ -264,8 +265,9 @@ function GetModelRobust(func::SciMLBase.AbstractDiffEqFunction, u0, Observables,
     GetModelRobust(func, SplitterFunction, ObservationFunction, args...; kwargs...)
 end
 
-function GetModelRobust(func::SciMLBase.AbstractDiffEqFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, args...; Domain::Union{HyperCube,Nothing}=nothing, startp=nothing, kwargs...) where T
+function GetModelRobust(func::SciMLBase.AbstractDiffEqFunction{T}, SplitterFunction::Function, PreObservationFunction::Function, args...; Domain::Union{HyperCube,Nothing}=nothing, startp=nothing, Bare::Bool=false, kwargs...) where T
     DEmodel, Meta = _GetModelRobust(func, SplitterFunction, PreObservationFunction, args...; Domain, kwargs...)
+    Bare && return DEmodel
     MakeCustom(DEmodel, Domain; Meta, startp, verbose=false)
 end
 
