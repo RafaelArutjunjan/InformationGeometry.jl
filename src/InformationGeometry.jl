@@ -7,7 +7,7 @@ using LinearAlgebra, GenericLinearAlgebra, Random, Distributions, DistributionsA
 using ComponentArrays, StaticArrays, PreallocationTools, RecursiveArrayTools, FillArrays, BlockDiagonals
 
 using Distributed, ForwardDiff
-using OrdinaryDiffEqCore, OrdinaryDiffEqVerner, OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK, OrdinaryDiffEqRosenbrock
+using SciMLBase, OrdinaryDiffEqCore, OrdinaryDiffEqVerner, OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK, OrdinaryDiffEqRosenbrock
 using DiffEqCallbacks
 using Symbolics, DataInterpolations
 using DerivableFunctionsBase
@@ -33,6 +33,9 @@ import DerivableFunctionsBase: suff, MaximalNumberOfArguments, KillAfter, GetArg
 import DerivableFunctionsBase: DerivableFunction, DFunction, EvalF, EvaldF, EvalddF
 import DerivableFunctionsBase: GetDeriv, GetGrad, GetJac, GetHess, GetMatrixJac
 import DerivableFunctionsBase: GetGrad!, GetJac!, GetHess!, GetMatrixJac!, diff_backends
+
+DerivableFunctionsBase.MaximalNumberOfArguments(F::SciMLBase.AbstractDiffEqFunction) = DerivableFunctionsBase.MaximalNumberOfArguments(F.f)
+
 
 # include("NumericalTools/Differentiation.jl")
 export diff_backends

@@ -123,8 +123,8 @@ function _GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractAr
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Ttype=10., meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
-        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,θ))
+    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
+        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,θ))
         solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractArray{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, u0::Union{Number,AbstractArray{<:Number}}=u0,
@@ -153,8 +153,8 @@ function _GetModelFast(func::AbstractODEFunction{T}, u0::Union{Number,AbstractAr
     # u0 = PromoteStatic(u0, inplace)
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Ttype=10., meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
-        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,θ))
+    function GetSol(θ::AbstractVector{<:Number}, u0::Union{Number,AbstractArray{<:Number}}; tol::Real=tol, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
+        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,θ))
         solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, u0::Union{Number,AbstractArray{<:Number}}=u0,
@@ -183,8 +183,8 @@ function _GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function,
     # If observable only has single component, don't pass vector to getindex() in second arg
     observables = length(Observables) == 1 ? Observables[1] : Observables
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
-        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,p))
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p))
         solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback,CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; observables::Union{Int,AbstractVector{<:Int},BoolArray}=observables, SplitterFunction::Function=SplitterFunction,
@@ -212,8 +212,8 @@ function _GetModelFast(func::AbstractODEFunction{T}, SplitterFunction::Function,
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
-        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,p))
+    function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::AbstractODEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p))
         solve(odeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
     end
     function ODEmodel(t::Number, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
@@ -279,8 +279,8 @@ function _GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Functio
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function _ODEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::AbstractODEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
-        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,p))
+                                            tol::Real=tol, max_t::Ttype=maximum(ts), tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), tspanback=nothing, meth::AbstractODEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        odeprob = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p))
 
         sol = solve(odeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         FullSol ? sol : Reduction([ObservationFunction(sol(t), t, θ) for t in ts])
@@ -296,16 +296,17 @@ function _GetModelRobust(func::AbstractODEFunction{T}, SplitterFunction::Functio
         end
     end
     function _ODEmodelback(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::AbstractODEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+                                            tol::Real=tol, min_t::Ttype=minimum(ts), max_t::Ttype=maximum(ts), tspanback::Tuple{Ttype,Ttype}=(zero(min_t), min_t), tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), 
+                                            meth::AbstractODEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
         @assert !FullSol "Cannot provide FullSol for backwards integration."
         u0, p = SplitterFunction(θ)
-        negTs = map(x->x<0.0, ts);  min_t = minimum(ts)
+        negTs = map(x->x<0.0, ts)
 
-        odeprob1 = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(min_t), min_t), ConditionalConvert(Ttype,p))
-        odeprob2 = ODEProblem(func, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,p))
+        odeprob1 = ODEProblem(func, ConditionalConvert(Ttype,u0), tspanback, ConditionalConvert(Ttype,p))
+        odeprob2 = ODEProblem(func, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p))
 
-        sol1 = solve(odeprob1, meth; reltol=tol, abstol=tol, saveat=ts[negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
-        sol2 = solve(odeprob2, meth; reltol=tol, abstol=tol, saveat=ts[.!negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol1 = solve(odeprob1, meth; reltol=tol, abstol=tol, saveat=(@view ts[negTs]), callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol2 = solve(odeprob2, meth; reltol=tol, abstol=tol, saveat=(@view ts[.!negTs]), callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         [ObservationFunction((t < 0.0 ? sol1(t) : sol2(t)) , t, θ) for t in ts] |> Reduction
     end
 
@@ -330,9 +331,9 @@ function _GetModelFast(func::AbstractDDEFunction{T}, SplitterFunction::Function,
     CB = callback
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
-    function GetSol(θ::AbstractVector{<:Number}, HistoryFunction::Function, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., constant_lags=constant_lags, dependent_lags=dependent_lags, 
+    function GetSol(θ::AbstractVector{<:Number}, HistoryFunction::Function, SplitterFunction::Function; tol::Real=tol, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), constant_lags=constant_lags, dependent_lags=dependent_lags, 
                                                     meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, kwargs...) where Ttype <: Number
-        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, tspan, ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
         solve(ddeprob, meth; reltol=tol, abstol=tol, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
     end
     function DelayDEmodel(t::Number, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
@@ -364,8 +365,8 @@ function _GetModelRobust(func::AbstractDDEFunction{T}, SplitterFunction::Functio
 
     function _DDEmodel(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
                                             ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
-        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+                                            tol::Real=tol, max_t::Ttype=maximum(ts), tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), tspanback=nothing, meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+        u0, p = SplitterFunction(θ);        ddeprob = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, tspan, ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
         sol = solve(ddeprob, meth; reltol=tol, abstol=tol, saveat=ts, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         FullSol ? sol : Reduction([ObservationFunction(sol(t), t, θ) for t in ts])
     end
@@ -381,16 +382,17 @@ function _GetModelRobust(func::AbstractDDEFunction{T}, SplitterFunction::Functio
     end
     function _DDEmodelback(ts::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; HistoryFunction::Function=HistoryFunction, constant_lags=constant_lags, dependent_lags=dependent_lags, 
                                             ObservationFunction::Function=ObservationFunction, SplitterFunction::Function=SplitterFunction,
-                                            tol::Real=tol, max_t::Ttype=maximum(ts), meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
+                                            tol::Real=tol, min_t::Ttype=minimum(ts), max_t::Ttype=maximum(ts), tspanback::Tuple{Ttype,Ttype}=(zero(min_t), min_t), tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), 
+                                            meth::SciMLBase.AbstractDDEAlgorithm=meth, callback=nothing, FullSol::Bool=false, kwargs...) where Ttype <: Number
         @assert !FullSol "Cannot provide FullSol for backwards integration."
         u0, p = SplitterFunction(θ)
-        negTs = map(x->x<0.0, ts);  min_t = minimum(ts)
+        negTs = map(x->x<0.0, ts)
 
-        ddeprob1 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(min_t), min_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
-        ddeprob2 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, (zero(max_t), max_t), ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        ddeprob1 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, tspanback, ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
+        ddeprob2 = DDEProblem(func, ConditionalConvert(Ttype,u0), HistoryFunction, tspan, ConditionalConvert(Ttype,p); constant_lags=constant_lags, dependent_lags=dependent_lags)
 
-        sol1 = solve(ddeprob1, meth; reltol=tol, abstol=tol, saveat=ts[negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
-        sol2 = solve(ddeprob2, meth; reltol=tol, abstol=tol, saveat=ts[.!negTs], callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol1 = solve(ddeprob1, meth; reltol=tol, abstol=tol, saveat=(@view ts[negTs]), callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
+        sol2 = solve(ddeprob2, meth; reltol=tol, abstol=tol, saveat=(@view ts[.!negTs]), callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         [ObservationFunction((t < 0.0 ? sol1(t) : sol2(t)) , t, θ) for t in ts] |> Reduction
     end
 
