@@ -23,10 +23,10 @@ function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T
     ObservationFunction = CompleteObservationFunction(PreObservationFunction)
 
     function GetSol(θ::AbstractVector{<:Number}, SplitterFunction::Function; trajectories::Union{Int,Nothing}=trajectories, sensealg::SenseAlg=sensealg, noise::Union{AbstractNoiseProcess,Nothing}=noise,
-                                    noise_rate_prototype::Union{AbstractArray,Nothing}=noise_rate_prototype, dt::Union{Real,Nothing}=dt, max_t::Ttype=10., meth::SciMLBase.AbstractSDEAlgorithm=meth, callback=nothing, 
+                                    noise_rate_prototype::Union{AbstractArray,Nothing}=noise_rate_prototype, dt::Union{Real,Nothing}=dt, max_t::Ttype=10., tspan::Tuple{Ttype,Ttype}=(zero(max_t), max_t), meth::SciMLBase.AbstractSDEAlgorithm=meth, callback=nothing, 
                                     EnsembleAlg::SciMLBase.EnsembleAlgorithm=EnsembleAlg, kwargs...) where Ttype <:Number
         u0, p = SplitterFunction(θ)
-        sdeprob = SDEProblem(func, func.g, ConditionalConvert(Ttype,u0), (zero(max_t), max_t), ConditionalConvert(Ttype,p); noise_rate_prototype=noise_rate_prototype, noise=noise)
+        sdeprob = SDEProblem(func, func.g, ConditionalConvert(Ttype,u0), tspan, ConditionalConvert(Ttype,p); noise_rate_prototype=noise_rate_prototype, noise=noise)
         if isnothing(trajectories)
             isnothing(dt) ? solve(sdeprob, meth; sensealg=sensealg, callback=CallbackSet(callback, CB), Kwargs..., kwargs...) : solve(sdeprob, meth; sensealg=sensealg, dt=dt, adaptive=false, callback=CallbackSet(callback, CB), Kwargs..., kwargs...)
         else
@@ -47,12 +47,12 @@ function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T
         else
             keep = map(filter, sol.u)
             if all(keep)
-                mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean(sol, ts) : SciMLBase.EnsembleAnalysis.timeseries_point_median(sol, ts)
+                (mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean : SciMLBase.EnsembleAnalysis.timeseries_point_median)(sol, ts)
             elseif any(keep)
-                mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean(sol[(1:trajectories)[keep]], ts) : SciMLBase.EnsembleAnalysis.timeseries_point_median(sol[(1:trajectories)[keep]], ts)
+                (mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean : SciMLBase.EnsembleAnalysis.timeseries_point_median)((@view sol.u[(1:trajectories)[keep]]), ts)
             else
                 @warn "All solutions in SDEModel filtered out. Aborting filtering process and return all solutions instead."
-                mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean(sol, ts) : SciMLBase.EnsembleAnalysis.timeseries_point_median(sol, ts)
+                (mean ? SciMLBase.EnsembleAnalysis.timeseries_point_mean : SciMLBase.EnsembleAnalysis.timeseries_point_median)(sol, ts)
             end
         end
         length(points) != length(ts) && throw("SDE integration failed, maybe try using a lower tolerance value.")
