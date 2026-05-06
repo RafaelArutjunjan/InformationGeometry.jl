@@ -105,7 +105,14 @@ start = [-0.4, 0.5, 2, 0.08]
 # For DOF, see https://github.com/sebapersson/PEtab.jl/issues/362
 DM1 = ConditionGrid(petab_prob, start; FixedError=true, SkipOptim=false);       @test Plots.plot(DM1) isa Plots.Plot;     @test_broken InformationGeometry.DOF(DM1) == 3
 DM2 = ConditionGrid(petab_prob, start; FixedError=false, SkipOptim=false);      @test Plots.plot(DM2) isa Plots.Plot;     @test_broken InformationGeometry.DOF(DM2) == 3;      @test Data(DM2).nerrorparameters == 1
+
 DM3 = ConditionGrid(petab_prob2, start; FixedError=true, SkipOptim=false);      @test Plots.plot(DM3) isa Plots.Plot;     @test InformationGeometry.DOF(DM3) == 3
 DM4 = ConditionGrid(petab_prob2, start; FixedError=false, SkipOptim=false);     @test Plots.plot(DM4) isa Plots.Plot;     @test InformationGeometry.DOF(DM4) == 3;      @test Data(DM4).nerrorparameters == 1
 
 TestConversion(petab_prob, DM1)
+TestConversion(petab_prob, DM2)
+TestConversion(petab_prob2, DM3)
+TestConversion(petab_prob2, DM4)
+
+@test_broken DM1 == DM2
+@test DM3 == DM4
