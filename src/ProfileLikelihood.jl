@@ -89,10 +89,10 @@ In effect, this allows one to pin multiple input components at a specific values
 """
 function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]; nonmutating::Bool=false) where T <: AbstractVector{<:Number}
     @assert length(Components) == length(Values)
-    if length(Components) == 0
-        return Identity(X::AbstractVector{<:Number}) = X
-    elseif !nonmutating && length(Components) ≥ 2 && Consecutive(Components) # consecutive components.
-        return ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Res)
+    Converter = Z isa Vector ? identity : x->convert(T,x)
+    length(Components) == 0 && return Converter
+    if !nonmutating && length(Components) ≥ 2 && Consecutive(Components) # consecutive components
+        return ConsecutiveInsertionEmbedding(P::AbstractVector) = (Res=SafeCopy(P);  splice!(Res, Components[1]:Components[1]-1, Values);    Converter(Res))
     end
 
     components, values = _SortTogether(Components, Values)
@@ -100,14 +100,14 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
         Res = insert(P, components[1], values[1])
         for i in 2:length(components)
             Res = insert(Res, components[i], values[i])
-        end;    Res
+        end;    Converter(Res)
     end
     nonmutating && return NonMutValInsertionEmbedding
     function ValInsertionEmbedding(P::AbstractVector)
         Res = SafeCopy(P)
         for i in eachindex(components)
             insert!(Res, components[i], values[i])
-        end;    Res
+        end;    Converter(Res)
     end
     ValInsertionEmbedding(P::Union{AbstractVector{<:Num},SVector,MVector}) = NonMutValInsertionEmbedding(P)
 end
@@ -233,14 +233,15 @@ function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwarg
     LinkParameters(DM, Sparam .|| Tparam, args...; kwargs...)
 end
 
-function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
+# Refactor to use MLEuncert
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), IC::Real=InvChisqCDF(dof,ConfVol(Confnum)), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
     widths = try
         sqrt.(abs.(Diagonal(inv(F)).diag))
     catch;
         # For structurally unidentifiable models, return value given by "failed".
         1 ./ sqrt.(abs.(Diagonal(F).diag))
     end
-    sqrt(InvChisqCDF(dof, ConfVol(Confnum))) * clamp.(widths, failedlow, failedhigh)
+    sqrt(IC) * clamp.(widths, failedlow, failedhigh)
 end
 
 GetProfileDomainCube(DM::AbstractDataModel, Confnum::Real; MLE::AbstractVector=MLE(DM), kwargs...) = GetProfileDomainCube(DM, MLE, Confnum; kwargs...)
@@ -597,7 +598,7 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::Abstr
     end
 end
 
-function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
+function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=true, verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
                         MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
@@ -1005,7 +1006,7 @@ end
     ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), verbose::Bool=true, kwargs...)
 Takes given profile `P` and reoptimizes each point in the trajectories.
 """
-function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=(Multistart==0), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
+function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::AbstractVector{<:Int}=IndVec(IsPopulated(P)); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=true, pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
                         verbose::Bool=true, showprogress::Bool=verbose, SaveTrajectories::Bool=true, MLE::AbstractVector=MLE(P), dof::Int=DOF(P), IsCost::Bool=IsCost(P), Meta::Symbol=:ParameterProfiles, kwargs...)
     @assert HasTrajectories(P);     @assert Multistart == 0
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
