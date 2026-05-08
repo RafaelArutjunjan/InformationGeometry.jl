@@ -220,6 +220,7 @@ export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApp
 export LineSearch, MonteCarloArea
 export ParameterSavingCallback, BlockMatrix
 export TotalLeastSquares, Minimize, Refit, Prefit, Curve_fit, RobustFit, IncrementalTimeSeriesFit
+export AlternatingMinimization, PartialMinimization
 
 
 include("Likelihoods.jl")
