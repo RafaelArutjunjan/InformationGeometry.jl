@@ -466,6 +466,56 @@ end
 
 
 
+"""
+    AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, KeepIdxs::NTuple{<:Any, <:AbstractVector{<:Int}}, Domain::Union{Nothing,HyperCube}=nothing; redo::Bool=true, MaxAlternations::Int=10, 
+                MinimizeFunc::Function=InformationGeometry.minimize, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}, kwargs...)
+Minimizes the function `F` starting from `X` and iteratively minimizes only the components specified by `KeepIdxs` until convergence is reached or `MaxAlternations` of loops were run.
+E.g., if `KeepIdxs=(1:3, [1,5,6])`, the method will iteratively optimize only components `1:3` and `[1,5,6]` of `X`.
+
+Kwarg `redo=true` performs an additional joint optimization in the very end for all components of `X` together, irrespective of `KeepIdxs`.
+By specifying `SavedParams`, the intermediate results after each alternated minimization is saved into `SavedParams`.
+"""
+function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs::NTuple{<:Any,Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, redo::Bool=true, tol::Real=1e-9,
+                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.minimize, SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
+    @assert isnothing(Domain) || length(Domain) == length(X)
+    @assert all(x->allunique(x) && all(1 .≤ x .≤ length(X)), idxs)
+    SubDomains = !isnothing(Domain) ? [HyperCube((@view Domain.L[inds]), (@view Domain.U[inds])) for inds in idxs] : Fill(nothing, length(idxs))
+    LastX = copy(X);    SubXsOld = [X[inds] for inds in idxs];     SubXsNew = [X[inds] for inds in idxs]
+    DropInds = [Drop(1:length(LastX), inds) for inds in idxs]
+    i = 0;    @inline ConditionalPush!(Z::AbstractVector, x) = push!(Z, copy(x));    @inline ConditionalPush!(::Nothing, x) = nothing
+    ConditionalPush!(SavedParams, LastX)
+    while i < MaxAlternations
+        for j in eachindex(idxs)
+            LastX[idxs[j]] .= GetMinimizer(MinimizeFunc(F∘ValInserter(DropInds[j], (@view LastX[DropInds[j]]), X), LastX[idxs[j]]; Domain=SubDomains[j], tol, kwargs...))
+            SubXsNew[j] = LastX[idxs[j]]
+            ConditionalPush!(SavedParams, LastX)
+        end
+        all(j->isapprox(SubXsNew[j], SubXsOld[j]; atol=length(idxs)*tol, rtol=length(idxs)*tol), 1:length(idxs)) && break
+        for j in eachindex(idxs)
+            SubXsOld[j] .= SubXsNew[j]
+        end;     
+        i += 1
+    end
+    redo && (LastX .= GetMinimizer(MinimizeFunc(F, LastX, Domain; tol, kwargs...));  ConditionalPush!(SavedParams, LastX))
+    LastX
+end
+
+"""
+    PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, 
+                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Prefit, kwargs...)
+Performs partial optimization of `F` starting from `X` on the components specified by `idxs` while keeping the rest of `X` fixed.
+"""
+function PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, 
+                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Prefit, kwargs...)
+    @assert allunique(idxs) && all(1 .≤ idxs .≤ length(X))
+    @assert isnothing(SubDomain) || length(SubDomain) == length(idxs)
+    LastX = copy(X)
+    DropInds = Drop(1:length(X), idxs)
+    LastX[idxs] .= GetMinimizer(MinimizeFunc(F∘ValInserter(DropInds, (@view X[DropInds]), X), X[idxs]; Domain=SubDomain, kwargs...))
+    LastX
+end
+
+
 
 """
     LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, promote::Bool=(tol < 1e-15), maxiter::Int=10000) -> Number
