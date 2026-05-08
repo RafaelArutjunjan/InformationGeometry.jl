@@ -35,3 +35,12 @@ using OptimizationOptimisers
 # Check type stability of optimization
 using ComponentArrays
 @test minimize(X->X.A[1]^2 + 0.5X.B[1]^4, ComponentVector(A=[initial[1]], B=[initial[1]]); tol=1e-5, meth=Optim.Newton()) isa ComponentVector
+
+
+Res = Vector{Float64}[]
+@test AlternatingMinimization(x->10sum(sqrt∘abs, [1,2,3] .*x), [3,2,1.], (1:1, 2:3, 3:3); meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, SavedParams=Res, verbose=false) isa AbstractVector
+@test length(Res) > 0
+@test AlternatingMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3] .*x), ComponentVector(x=[3,2,1.]), (1:2, 2:3, [1,3]); meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false) isa AbstractVector
+
+@test PartialMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3.] .*x), ComponentVector(x=[3,2,1.]), [1,3]; meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false) isa AbstractVector
+
