@@ -103,6 +103,7 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
         end;    Converter(Res)
     end
     nonmutating && return NonMutValInsertionEmbedding
+    
     function ValInsertionEmbedding(P::AbstractVector)
         Res = SafeCopy(P)
         for i in eachindex(components)
