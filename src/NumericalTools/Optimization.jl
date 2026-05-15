@@ -467,7 +467,7 @@ end
 
 
 """
-    AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, KeepIdxs::NTuple{<:Any, <:AbstractVector{<:Int}}, Domain::Union{Nothing,HyperCube}=nothing; redo::Bool=true, MaxAlternations::Int=10, 
+    AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, KeepIdxs::NTuple{<:Any, <:AbstractVector{<:Int}}, Domain::Union{Nothing,HyperCube}=nothing; redo::Bool=false, MaxAlternations::Int=10, 
                 MinimizeFunc::Function=InformationGeometry.minimize, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}, kwargs...)
 Minimizes the function `F` starting from `X` and iteratively minimizes only the components specified by `KeepIdxs` until convergence is reached or `MaxAlternations` of loops were run.
 E.g., if `KeepIdxs=(1:3, [1,5,6])`, the method will iteratively optimize only components `1:3` and `[1,5,6]` of `X`.
@@ -475,8 +475,8 @@ E.g., if `KeepIdxs=(1:3, [1,5,6])`, the method will iteratively optimize only co
 Kwarg `redo=true` performs an additional joint optimization in the very end for all components of `X` together, irrespective of `KeepIdxs`.
 By specifying `SavedParams`, the intermediate results after each alternated minimization is saved into `SavedParams`.
 """
-function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs::NTuple{<:Any,Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, redo::Bool=true, tol::Real=1e-9,
-                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.minimize, SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
+function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs::NTuple{<:Any,Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, redo::Bool=false, tol::Real=1e-9,
+                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.Prefit, SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
     @assert isnothing(Domain) || length(Domain) == length(X)
     @assert all(x->allunique(x) && all(1 .≤ x .≤ length(X)), idxs)
     SubDomains = !isnothing(Domain) ? [HyperCube((@view Domain.L[inds]), (@view Domain.U[inds])) for inds in idxs] : Fill(nothing, length(idxs))
@@ -500,6 +500,8 @@ function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs:
     LastX
 end
 
+AlternatingMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args...; Domain::Union{Nothing,HyperCube}=Domain(DM), CostGradient::Function=NegScore(DM), kwargs...) = AlternatingMinimization(Negloglikelihood(DM), MLE, args...; Domain, CostGradient, kwargs...)
+
 """
     PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, 
                 SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Prefit, kwargs...)
@@ -514,6 +516,7 @@ function PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::Abs
     LastX[idxs] .= GetMinimizer(MinimizeFunc(F∘ValInserter(DropInds, (@view X[DropInds]), X), X[idxs]; Domain=SubDomain, kwargs...))
     LastX
 end
+PartialMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args...; Domain::Union{Nothing,HyperCube}=Domain(DM), CostGradient::Function=NegScore(DM), kwargs...) = PartialMinimization(Negloglikelihood(DM), MLE, args...; Domain, CostGradient, kwargs...)
 
 
 
