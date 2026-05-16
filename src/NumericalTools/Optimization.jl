@@ -442,7 +442,7 @@ For example:
     Because `Prefit` relies on callbacks to extract parameter configurations during optimization for `Safe=true`, it requires the optimizers to be routed through the `Optimization.jl` backend.
     Therefore, the corresponding `OptimizationOptimJL.jl` (or similar) must be loaded first, see also `ParameterSavingCallback`.
 """
-function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), Domain=nothing, 
+function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), Domain=nothing, Safe::Bool=false, 
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
                 SaveLoss::Bool=Safe, Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing,
