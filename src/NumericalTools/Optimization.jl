@@ -310,8 +310,9 @@ TracePlot(Pars)
 !!! note
     Does not work for optimizers from Optim.jl unless wrapped with OptimizationOptimJL.jl, i.e. when setting keyword `OptimJL=false`.
 """
-function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, PrintLossEvery::Int=0, 
-                    SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=typeof(X)[], Losses::Union{Nothing,AbstractVector{<:Number}}=T[],
+function ParameterSavingCallback(X::AbstractVector{T}; PrintLossEvery::Int=0, 
+                    SaveParams::Bool=true, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(X)[] : nothing, 
+                    SaveLoss::Bool=false, Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing,
                     TerminationCriterion::Real=0, TerminationLength::Int=50, Plotter::Function=(State,loss)->nothing,
                     Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                     ) where T<:Number
@@ -319,12 +320,12 @@ function ParameterSavingCallback(X::AbstractVector{T}; SaveLoss::Bool=false, Pri
     ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
     GetCurPar(State) = try  State.u  catch;   throw("Got $State instead of OptimizationState.");    fill(Inf, length(X))  end
-    ConditionalSafePush!(::Nothing, x) = nothing
-    ConditionalSafePush!(X::AbstractVector, x) = push!(X, copy(x))
+    ConditionalSafePush!(X::AbstractVector, x) = push!(X, copy(x));     ConditionalSafePush!(::Nothing, x) = nothing
+    ConditionalPrint(SavedParams::AbstractVector, loss) = PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss");     ConditionalPrint(::Nothing, x) = nothing
     function SaveOptimizationpathSaveLoss(State, loss)
         ConditionalSafePush!(SavedParams, GetCurPar(State));   ConditionalSafePush!(Losses, loss)
-        PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss")
-        Plotter(State,loss);    Terminate(State,loss)
+        ConditionalPrint(SavedParams, loss)
+        Plotter(State, loss);    Terminate(State, loss)
     end
     if SaveLoss
         (SavedParams, Losses), SaveOptimizationpathSaveLoss
@@ -424,7 +425,7 @@ end
 """
     Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PrintLossEvery=50, PlotEvery::Int=0, kwargs...)
 Performs pre-fit of `DM` at potentially lower precision specified by `T` (e.g. Float32) with stochastic optimizer and converts back to original precision in `DM` afterwards. Potential speed-up for models with neural network components.
-Kwarg `Safe` ensures that best configuration encountered during whole optimization is returned, instead of the final one of the last optimizer.
+Kwarg `Safe=true` ensures that best configuration encountered during whole optimization is returned, instead of the final one of the last optimizer.
 Kwargs can also be forwarded to `ParameterSavingCallback` and can thus be used for early termination.
 For instance `TerminationCriterion`, `TerminationLength`, `PrintLossEvery`, `Terminate` and so on.
 By default, `PrintLossEvery=50` results in the current value of the loss function being printed every 50 iterations.
@@ -437,23 +438,28 @@ For example:
     As optimizers, `OptimizationOptimisers.OAdam()`, `OptimizationOptimisers.Rprop()` or `OptimizationOptimisers.AdamW()` are strongly recommended for keyword `meth`!
     The optimizers provided by `OptimizationOptimisers.jl` only terminate on `maxiters`, not based on `tol`.
     `Domain=nothing` is passed by default, deactivating parameter boundaries.
+
+    Because `Prefit` relies on callbacks to extract parameter configurations during optimization for `Safe=true`, it requires the optimizers to be routed through the `Optimization.jl` backend.
+    Therefore, the corresponding `OptimizationOptimJL.jl` (or similar) must be loaded first, see also `ParameterSavingCallback`.
 """
 function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; originalT::Type{<:Number}=eltype(MLE(DM)), T::Type{<:Number}=eltype(mle), pstart::AbstractVector{<:Number}=T.(mle), Domain=nothing, 
                 ## Purely forwarded ParameterSavingCallback() kwargs:
-                SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[],
-                PlotEvery::Int=0, Plotter::Function=PlotEvery == 0 ? (State,loss)->nothing : (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))), 
+                SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
+                SaveLoss::Bool=Safe, Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing,
+                PlotEvery::Int=0, Plotter::Function=(isnothing(Losses) || PlotEvery == 0) ? (State,loss)->nothing : (State,loss)->(length(Losses) % PlotEvery == 0 && display(RecipesBase.plot(DM, SavedParams[end]; Confnum=0))), 
                 kwargs...)
     DM32 = (T === originalT) ? DM : T(DM)
-    Prefit(Negloglikelihood(DM32), mle, args...; originalT, T, pstart, Domain, SavedParams, Losses, Plotter, kwargs...)
+    Prefit(Negloglikelihood(DM32), mle, args...; originalT, T, pstart, Domain, SaveLoss, SaveParams, SavedParams, Losses, Plotter, kwargs...)
 end
-function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=true, pstart::AbstractVector{<:Number}=T.(mle), 
+function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=false, pstart::AbstractVector{<:Number}=T.(mle), 
                 MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=false, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
-                SaveLoss::Bool=true, PrintLossEvery::Int=50, SavedParams::AbstractVector{<:AbstractVector}=typeof(pstart)[], Losses::AbstractVector{<:Number}=T[], TerminationCriterion::Real=0, TerminationLength::Int=50, 
-                PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing, 
-                Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
+                SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
+                SaveLoss::Bool=Safe, Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing,
+                PrintLossEvery::Int=50, TerminationCriterion::Real=0, TerminationLength::Int=50, PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing,
+                Terminate::Function=(isnothing(Losses) || TerminationCriterion == 0) ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
-    CB = ParameterSavingCallback(pstart; SaveLoss=Safe, PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
+    CB = ParameterSavingCallback(pstart; PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
     TryCatchWrapper(F::Function) = (Args...;Kwargs...) -> try F(Args...;Kwargs...) catch E; verbose && println("Failed with $E");  Args[2]   end
     SafeMinimizeFunc = TryCatchOptimizer ? TryCatchWrapper(MinimizeFunc) : MinimizeFunc
 
@@ -476,7 +482,9 @@ Kwarg `redo=true` performs an additional joint optimization in the very end for 
 By specifying `SavedParams`, the intermediate results after each alternated minimization is saved into `SavedParams`.
 """
 function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs::NTuple{<:Any,Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, redo::Bool=false, tol::Real=1e-9,
-                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.Prefit, SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
+                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.minimize, 
+                # Save params manually here since all optimizations different parameter dimensionality
+                SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
     @assert isnothing(Domain) || length(Domain) == length(X)
     @assert all(x->allunique(x) && all(1 .≤ x .≤ length(X)), idxs)
     SubDomains = !isnothing(Domain) ? [HyperCube((@view Domain.L[inds]), (@view Domain.U[inds])) for inds in idxs] : Fill(nothing, length(idxs))
@@ -508,7 +516,7 @@ AlternatingMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args
 Performs partial optimization of `F` starting from `X` on the components specified by `idxs` while keeping the rest of `X` fixed.
 """
 function PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, 
-                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Prefit, kwargs...)
+                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
     @assert allunique(idxs) && all(1 .≤ idxs .≤ length(X))
     @assert isnothing(SubDomain) || length(SubDomain) == length(idxs)
     LastX = copy(X)
