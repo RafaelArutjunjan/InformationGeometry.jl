@@ -646,6 +646,10 @@ function VFRescale(ZeilenVecs::AbstractMatrix{<:Number}, C::HyperCube; scaling::
 end
 
 
+"""
+    Plot2DVF(V::Function, Cube::HyperCube; N::Int=25, scaling::Real=0.85, plot::Bool=true, kwargs...)
+Plots a 2D vector field `V` by evaluating the given `PlotPlane` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
+"""
 function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, Nx::Int=N, Ny::Int=N, scaling::Real=0.85, OverWrite::Bool=false, plot::Bool=true, kwargs...)
     @assert length(Lims) == length(V(Center(Lims))) == 2
     AV, BV = meshgrid(range(Lims.L[1], Lims.U[1]; length=Nx), range(Lims.L[2], Lims.U[2]; length=Ny))
@@ -656,6 +660,32 @@ function Plot2DVF(V::Function, Lims::HyperCube; N::Int=25, Nx::Int=N, Ny::Int=N,
     end
     [AV BV u v]
 end
+
+
+"""
+    PlotScalarSlices(F::Function, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:length(Cube); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), Center::AbstractVector=Center(Cube), Plotter::Function=PlotScalar, N::Int=100, kwargs...)
+Plots a scalar function `F` over the domain `Cube` in 2D slices given by `idxs`.
+"""
+function PlotScalarSlices(F::Function, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:length(Cube); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), 
+                Center::AbstractVector=Center(Cube), Plotter::Function=PlotScalar, 
+                pnames::AbstractVector{<:AbstractString}=InformationGeometry.CreateSymbolNames(length(Cube)), size=PlotSizer(length(idxs)), kwargs...)
+    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ length(Cube)) && all(1 .≤ getindex.(idxs,2) .≤ length(Cube))
+    @assert length(Center) == length(Cube)
+    widths = CubeWidths(Cube)
+    Planes = [Plane(Center, 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))) for (i,j) in idxs]
+
+    Plts = [(RecipesBase.plot();   Plotter(F∘PlaneCoordinates(Planes[k]), HyperCube(-Ones(2), Ones(2)); xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], kwargs...);   deepcopy(RecipesBase.plot!())) for (k,inds) in enumerate(idxs)]
+    RecipesBase.plot(Plts...; layout=length(Plts), size)
+end
+
+
+"""
+    PlotVFSlices(F::Function, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:length(Cube); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), Center::AbstractVector=Center(Cube), Plotter::Function=PlotScalar, N::Int=100, kwargs...)
+Plots a vector field `F` with two outputs over the domain `Cube` in 2D slices given by `idxs`.
+Should use `F = ViewElements([i,j])∘V` for some higher-dimensional vector field `V`.
+"""
+PlotVFSlices(args...; kwargs...) = PlotScalarSlices(args...; Plotter=Plot2DVF, kwargs...)
+
 
 
 
