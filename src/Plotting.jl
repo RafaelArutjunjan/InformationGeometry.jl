@@ -671,10 +671,9 @@ function PlotScalarSlices(F::Function, Cube::HyperCube, paridxs::AbstractVector{
                 pnames::AbstractVector{<:AbstractString}=InformationGeometry.CreateSymbolNames(length(Cube)), size=PlotSizer(length(idxs)), kwargs...)
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ length(Cube)) && all(1 .≤ getindex.(idxs,2) .≤ length(Cube))
     @assert length(Center) == length(Cube)
-    widths = CubeWidths(Cube)
-    Planes = [Plane(Center, 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))) for (i,j) in idxs]
+    Planes = [Plane((Z=convert(Vector,copy(Center)); Z[[i,j]] .= 0; Z), BasisVector(paridxs[i], length(Cube)), BasisVector(paridxs[j], length(Cube))) for (i,j) in idxs]
 
-    Plts = [(RecipesBase.plot();   Plotter(F∘PlaneCoordinates(Planes[k]), HyperCube(-Ones(2), Ones(2)); xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], kwargs...);   deepcopy(RecipesBase.plot!())) for (k,inds) in enumerate(idxs)]
+    Plts = [(RecipesBase.plot();   Plotter(F∘PlaneCoordinates(Planes[k]), SubHyperCube(Cube, inds); xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], kwargs...);   deepcopy(RecipesBase.plot!())) for (k,inds) in enumerate(idxs)]
     RecipesBase.plot(Plts...; layout=length(Plts), size)
 end
 
