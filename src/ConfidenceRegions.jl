@@ -1166,7 +1166,7 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::Abstrac
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
     Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
-    Planes = [Plane(MLE(DM), 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube)), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube))) for (i,j) in idxs]
+    Planes = [Plane(MLE(DM), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube)), 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube))) for (i,j) in idxs]
 
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(idxs)]

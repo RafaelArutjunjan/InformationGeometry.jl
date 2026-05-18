@@ -51,8 +51,8 @@ function ValInserter(Component::Int, Value::AbstractFloat, Z::T) where T <: Comp
     (x::Vector->convert(T,x))∘ValInserter(Component, Value, eltype(Z)[])∘(z::AbstractVector->convert(Vector,z))
 end
 
-## Allow for use of `insert` method for non-static array types
-StaticArrays.insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]), V, (@view X[I:end]))
+## Already a method in StaticArrays.jl for this now
+# StaticArrays.insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]), V, (@view X[I:end]))
 
 """
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
