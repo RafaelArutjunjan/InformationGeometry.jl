@@ -482,7 +482,7 @@ Kwarg `redo=true` performs an additional joint optimization in the very end for 
 By specifying `SavedParams`, the intermediate results after each alternated minimization is saved into `SavedParams`.
 """
 function AlternatingMinimization(F::Function, X::AbstractVector{<:Number}, idxs::NTuple{<:Any,Union{<:AbstractVector{<:Int},<:AbstractRange{<:Int}}}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, redo::Bool=false, tol::Real=1e-9,
-                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.minimize, 
+                MaxAlternations::Int=10, MinimizeFunc::Function=InformationGeometry.minimize, ValInserter::Function=InformationGeometry.ValInserter!, 
                 # Save params manually here since all optimizations different parameter dimensionality
                 SavedParams::Union{Nothing,AbstractVector}=nothing, kwargs...)
     @assert isnothing(Domain) || length(Domain) == length(X)
@@ -516,7 +516,7 @@ AlternatingMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args
 Performs partial optimization of `F` starting from `X` on the components specified by `idxs` while keeping the rest of `X` fixed.
 """
 function PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::AbstractVector{<:Int}, Dom::Union{Nothing,HyperCube}=nothing; Domain::Union{Nothing,HyperCube}=Dom, 
-                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+                SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Minimize, ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
     @assert allunique(idxs) && all(1 .≤ idxs .≤ length(X))
     @assert isnothing(SubDomain) || length(SubDomain) == length(idxs)
     LastX = copy(X)

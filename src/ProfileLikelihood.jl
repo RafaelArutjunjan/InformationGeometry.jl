@@ -40,7 +40,7 @@ end
 
 
 ## Cached value insertion
-mutable struct ValInserterCache{I,V,C}
+mutable struct ValInserterCache{I,V,C} <: Function
     comps::I
     vals::V
     cache::C
@@ -111,7 +111,7 @@ end
 
 
 ## Provides correct insertion embedding for in-place functions
-function ValInserterTransform(Inds, Vals, mle::AbstractVector; kwargs...)
+function ValInserterTransform(Inds, Vals, mle::AbstractVector; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
     Ins = ValInserter(Inds, Vals, mle; kwargs...)
     KeepInds = [i for i in eachindex(mle) if i ∉ Inds]
     ReductionTransform(x::Number) = x # Pass through if the function that is wrapped is scalar, like cost function itself
@@ -169,20 +169,35 @@ InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVecto
 
 
 ProfilePredictor(DM::AbstractDataModel, args...; kwargs...) = ProfilePredictor(Predictor(DM), args...; kwargs...)
-ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
-ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
+function ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
+end
+function ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
+end
 
-ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
-ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
+function ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
+end
+function ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
+end
 
 
 ProfileDPredictor(DM::AbstractDataModel, args...; kwargs...) = ProfileDPredictor(dPredictor(DM), args...; kwargs...)
-ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
-ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+function ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
+end
+function ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+end
 
-ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
-ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; kwargs...) = EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
-
+function ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
+end
+function ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
+end
 
 """
     FixParameters(DM::AbstractDataModel, Component::Int, Value::AbstractFloat=MLE(DM)[Component])
@@ -191,7 +206,8 @@ ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::Abst
     FixParameters(DM::AbstractDataModel, ParamDict::Dict{Union{String,Symbol}, Number})
 Returns `DataModel` where one or more parameters have been pinned to specified values.
 """
-function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=true, TrySymbolic::Bool=true, kwargs...)
+function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(DM)[Components]; 
+                ValInserter::Function=InformationGeometry.ValInserter!, MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=true, TrySymbolic::Bool=true, kwargs...)
     @assert DM isa DataModel # Not implemented for ConditionGrids yet
     @assert length(Components) == length(Values) && length(Components) < pdim(DM)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return DM)
@@ -199,7 +215,8 @@ function FixParameters(DM::AbstractDataModel, Components::Union{Int,AbstractVect
     ## Add SymbolicCache kwarg
     DataModel(Data(DM), ProfilePredictor(DM, Components, Values, MLE; TrySymbolic, pnames=PNames), ProfileDPredictor(DM, Components, Values, MLE; pnames=PNames), Drop(MLE, Components), EmbedLogPrior(DM, ValInserter(Components, Values, MLE)); SkipOptim, SkipTests, name=name(DM), kwargs...)
 end
-function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
+function FixParameters(CG::AbstractConditionGrid, Components::Union{Int,AbstractVector{<:Int}}, Values::Union{AbstractFloat,AbstractVector{<:AbstractFloat}}=MLE(CG)[Components]; 
+                ValInserter::Function=InformationGeometry.ValInserter!, MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=true, kwargs...)
     @assert length(Components) == length(Values) && length(Components) < pdim(CG)
     length(Components) == 0 && (@warn "Got no parameters to pin.";  return CG)
     Emb = ValInserter(Components, Values, MLE);      PNames = [Pnames(CG)[i] for i in eachindex(Pnames(CG)) if i ∉ Components]
@@ -236,7 +253,7 @@ end
 
 
 _WithoutInd(X::AbstractVector{<:Bool}, ind::Int=findfirst(X)) = (Z=copy(X);  Z[ind]=false;  Z)
-function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked))
+function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!)
     @assert 1 ≤ MainIndBefore ≤ length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainIndBefore=$MainIndBefore."
     LinkedInds = [i for i in eachindex(Linked) if Linked[i] && i != MainIndBefore]
     LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainIndBefore], θ)(θ)
@@ -246,11 +263,13 @@ end
 Embeds the model such that all components `i` for which `Linked[i] == true` are linked to the parameter corresponding to component `MainIndBefore`.
 `Linked` can also be a `String`: this creates a `BitVector` whose components are `true` whenever the corresponding parameter name contains `Linked`.
 """
-function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(DM), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
-    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; kwargs...), Drop(MLE, _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore)); SkipOptim, SkipTests)
+function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(DM), 
+        ValInserter::Function=InformationGeometry.ValInserter!, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+    DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; ValInserter, kwargs...), Drop(MLE, _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore;ValInserter)); SkipOptim, SkipTests)
 end
-function LinkParameters(CG::AbstractConditionGrid, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(CG), SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
-    Emb = GetLinkEmbedding(Linked, MainIndBefore);    WoFirst = _WithoutInd(Linked, MainIndBefore);    PNames = _GetLinkedPnames(pnames(CG), Linked, MainIndBefore; WoFirst)
+function LinkParameters(CG::AbstractConditionGrid, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(CG), 
+        ValInserter::Function=InformationGeometry.ValInserter!, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+    Emb = GetLinkEmbedding(Linked, MainIndBefore; ValInserter);    WoFirst = _WithoutInd(Linked, MainIndBefore);    PNames = _GetLinkedPnames(pnames(CG), Linked, MainIndBefore; WoFirst)
     # remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, Emb), MLE=Drop(MLE, WoFirst), pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...) ## Does not rewrite likelihood and score
     ConditionGrid(Conditions(CG), Trafos(CG)∘Emb, EmbedLogPrior(CG, Emb), Drop(MLE, WoFirst); pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...)
 end
@@ -261,13 +280,13 @@ function _GetLinkedPnames(pnames::AbstractVector{<:StringOrSymb}, Linked::Abstra
     PNames[MainIndBefore] *= " =: " * join(string.(pnames[WoFirst]), " ≡ ")
     Symbol.(PNames[.!WoFirst])
 end
-function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
+function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
     WoFirst = _WithoutInd(Linked, MainIndBefore)
     PNames = _GetLinkedPnames(pnames(M), Linked, MainIndBefore; WoFirst)
-    EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore); Domain=DropCubeDims(Domain(M), WoFirst), pnames=PNames, kwargs...)
+    EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore; ValInserter); Domain=DropCubeDims(Domain(M), WoFirst), pnames=PNames, kwargs...)
 end
-function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); kwargs...)
-    EmbedModelVia(F, GetLinkEmbedding(Linked, MainIndBefore); kwargs...)
+function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(F, GetLinkEmbedding(Linked, MainIndBefore; ValInserter); kwargs...)
 end
 LinkParameters(DM::Union{ModelOrFunction, AbstractDataModel}, Linked::AbstractVector{<:Int}, args...; kwargs...) = (@assert all(1 .≤ Linked .≤ pdim(DM)) && allunique(Linked);   LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...))
 LinkParameters(DM::Union{ModelOrFunction, AbstractDataModel}, S::AbstractString, args...; kwargs...) = LinkParameters(DM, occursin.(S, pnames(DM)), args...; kwargs...)
@@ -354,7 +373,7 @@ end
 
 
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
-                        AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, 
+                        AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, ValInserter::Function=InformationGeometry.ValInserter!, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), GenerateNewDerivatives::Bool=false, ADmode::Val=Val(:ForwardDiff), 
                         SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing, FisherMetricFn::Function=FisherMetric(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), 
                         UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(!UseGrad ? nothing : (GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM))),
@@ -452,7 +471,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             @inline function PerformStepGeneral!(Res, MLEstash, Converged, visitedps, path, priors, p, i=nothing)
                 Ins = ValInserter(Comp, p, MLE)
                 L = CostFunction∘Ins
-                F = isnothing(CostGradient) ? L : (Transform=ValInserterTransform(Comp, p, MLE);   isnothing(CostHessian) ? (L, Transform(CostGradient)) : (L, Transform(CostGradient), Transform(CostHessian)))
+                F = isnothing(CostGradient) ? L : (Transform=ValInserterTransform(Comp, p, MLE; ValInserter);   isnothing(CostHessian) ? (L, Transform(CostGradient)) : (L, Transform(CostGradient), Transform(CostHessian)))
                 R = FitFunc(F, UseStashOrSaved(MLEstash,i); kwargs...)
                 
                 push!(Res, -GetMinimum(R,L))
