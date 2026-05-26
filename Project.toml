@@ -138,6 +138,7 @@ julia = "1.10"
 BoundaryValueDiffEq = "764a87c0-6b3e-53db-9096-fe964310641d"
 DelayDiffEq = "bcd4f6db-9728-5f36-b5f7-82caef46ccdb"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
@@ -152,4 +153,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["BoundaryValueDiffEq", "DelayDiffEq", "FiniteDifferences", "LsqFit", "ModelingToolkit", "OrdinaryDiffEq", "Optimization", "OptimizationNLopt", "OptimizationOptimisers", "Plots", "SafeTestsets", "SciMLSensitivity", "StochasticDiffEq", "Test", "Zygote"]
+test = ["BoundaryValueDiffEq", "DelayDiffEq", "FiniteDifferences", "ForwardDiff", "LsqFit", "ModelingToolkit", "OrdinaryDiffEq", "Optimization", "OptimizationNLopt", "OptimizationOptimisers", "Plots", "SafeTestsets", "SciMLSensitivity", "StochasticDiffEq", "Test", "Zygote"]

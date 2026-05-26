@@ -51,9 +51,9 @@ function (vi::ValInserterCache)(x::AbstractVector)
     y
 end
 
-@inline function _insert_vals!(dest::AbstractVector, src::AbstractVector, comps::AbstractVector{<:Integer}, vals::AbstractVector)
+@inline function _insert_vals!(dest::AbstractVector{<:Number}, src::AbstractVector{<:Number}, comps::AbstractVector{<:Int}, vals::AbstractVector{<:Number})
     n = length(src);    m = length(comps)
-    @boundscheck @assert length(dest) == n + m && issorted(comps)
+    @boundscheck @assert length(dest) == n + m
     @inbounds begin
         i = 1;   j = 1
         for k in eachindex(dest)
@@ -92,7 +92,9 @@ function ValInserter(Component::Int, Value::AbstractFloat, Z::T; cached::Bool=fa
 end
 
 ## Already a method in StaticArrays.jl for this now
-# StaticArrays.insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]), V, (@view X[I:end]))
+Insert(X::StaticVector, I::Int, V::Number) = insert(X, I, V)
+Insert(X::AbstractVector, I::Int, V::Number) = vcat((@view X[1:I-1]), V, (@view X[I:end]))
+
 
 """
     ValInserter(Component::Int, Value::AbstractFloat) -> Function
@@ -101,9 +103,9 @@ In effect, this allows one to pin an input component at a specific value.
 """
 function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]; cached::Bool=false, nonmutating::Bool=false) where T <: AbstractVector{<:Number}
     cached && return ValInserter!(Component, Value, Z; kwargs...)
-    nonmutating && return NonMutValInsertionEmbedding(P::AbstractVector) = insert(P, Component, Value)
+    nonmutating && return NonMutValInsertionEmbedding(P::AbstractVector) = Insert(P, Component, Value)
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
-    ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
+    ValInsertionEmbedding(P::Union{SVector,MVector}) = Insert(P, Component, Value)
     ValInsertionEmbedding(P::AbstractVector{<:Num}) = @views [P[1:Component-1]; Value; P[Component:end]]
 end
 
@@ -139,9 +141,9 @@ function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<
 
     components, values = _SortTogether(Components, Values)
     function NonMutValInsertionEmbedding(P::AbstractVector{<:Number})
-        Res = insert(P, components[1], values[1])
+        Res = Insert(P, components[1], values[1])
         for i in 2:length(components)
-            Res = insert(Res, components[i], values[i])
+            Res = Insert(Res, components[i], values[i])
         end;    Converter(Res)
     end
     nonmutating && return NonMutValInsertionEmbedding
