@@ -503,13 +503,13 @@ BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = reduce(BlockMatrix, As)
 # BlockMatrix(As::AbstractVector{<:AbstractMatrix}) = BlockDiagonals(As)
 
 ### Overload view for BlockDiagonals to propagate view() to blocks so that specialized methods for BlockDiagonals such as multiplication still apply
-# function Base.view(B::BlockDiagonal, I, J)
-#     if size(B, 1) > 35
-#         CustomView(B, I, J)
-#     else # Fallback to generic view method
-#         invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
-#     end
-# end
+function Base.view(B::BlockDiagonal, I, J)
+    if size(B, 1) > 30
+        CustomView(B, I, J)
+    else # Fallback to generic view method
+        invoke(view, Tuple{AbstractMatrix,Any,Any}, B, I, J)
+    end
+end
 
 ## Has allocations in view construction, so only results in overall faster multiplication of masked arrays beyond a certain size
 function CustomView(B::BlockDiagonal, I::Union{AbstractUnitRange,AbstractVector{<:Integer},AbstractVector{Bool}}, J::Union{AbstractUnitRange,AbstractVector{<:Integer},AbstractVector{Bool}})
