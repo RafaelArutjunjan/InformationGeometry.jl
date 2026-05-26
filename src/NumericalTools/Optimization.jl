@@ -457,7 +457,7 @@ function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT:
                 SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
                 SaveLoss::Bool=Safe, Losses::Union{Nothing,AbstractVector{<:Number}}=SaveLoss ? T[] : nothing,
                 PrintLossEvery::Int=50, TerminationCriterion::Real=0, TerminationLength::Int=50, PlotEvery::Int=0, Plotter::Function=(State,loss)->nothing,
-                Terminate::Function=(isnothing(Losses) || TerminationCriterion == 0) ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
+                Terminate::Function=(isnothing(Losses) || TerminationCriterion == 0) ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[2+end-TerminationLength] - Losses[end]) < TerminationCriterion && abs(Losses[2+end-2TerminationLength] - Losses[end]) < 2TerminationCriterion),
                 kwargs...)
     CB = ParameterSavingCallback(pstart; PrintLossEvery, Terminate, SavedParams, Losses, Plotter)[2]
     TryCatchWrapper(F::Function) = (Args...;Kwargs...) -> try F(Args...;Kwargs...) catch E; verbose && println("Failed with $E");  Args[2]   end
