@@ -83,6 +83,9 @@ end
 function ValInserter!(Component::Int, Value::AbstractFloat, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
     ValInserter!(Component:Component, [Value], Z; kwargs...)
 end
+function ValInserter!(Components::AbstractVector{<:Int}, Value::Number, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    ValInserter!(Components, Fill(Value, length(Components)), Z; kwargs...)
+end
 
 
 # Insert value and convert to ComponentVector of prescribed type after
@@ -252,8 +255,9 @@ function FixNonIdentifiable(DM::AbstractDataModel, mle::AbstractVector{<:Abstrac
 end
 
 
+## Always use mutating version for LinkEmbedding since maps many to one
 _WithoutInd(X::AbstractVector{<:Bool}, ind::Int=findfirst(X)) = (Z=copy(X);  Z[ind]=false;  Z)
-function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!)
+function GetLinkEmbedding(Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter)
     @assert 1 ≤ MainIndBefore ≤ length(Linked) && sum(Linked) ≥ 2 "Got Linked=$Linked and MainIndBefore=$MainIndBefore."
     LinkedInds = [i for i in eachindex(Linked) if Linked[i] && i != MainIndBefore]
     LinkEmbedding(θ::AbstractVector{<:Number}) = ValInserter(LinkedInds, θ[MainIndBefore], θ)(θ)
@@ -264,11 +268,11 @@ Embeds the model such that all components `i` for which `Linked[i] == true` are 
 `Linked` can also be a `String`: this creates a `BitVector` whose components are `true` whenever the corresponding parameter name contains `Linked`.
 """
 function LinkParameters(DM::AbstractDataModel, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(DM), 
-        ValInserter::Function=InformationGeometry.ValInserter!, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+        ValInserter::Function=InformationGeometry.ValInserter, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
     DataModel(Data(DM), LinkParameters(Predictor(DM), Linked, MainIndBefore, args...; ValInserter, kwargs...), Drop(MLE, _WithoutInd(Linked, MainIndBefore)), EmbedLogPrior(DM, GetLinkEmbedding(Linked,MainIndBefore;ValInserter)); SkipOptim, SkipTests)
 end
 function LinkParameters(CG::AbstractConditionGrid, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked), args...; MLE::AbstractVector{<:Number}=MLE(CG), 
-        ValInserter::Function=InformationGeometry.ValInserter!, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
+        ValInserter::Function=InformationGeometry.ValInserter, SkipOptim::Bool=false, SkipTests::Bool=false, kwargs...)
     Emb = GetLinkEmbedding(Linked, MainIndBefore; ValInserter);    WoFirst = _WithoutInd(Linked, MainIndBefore);    PNames = _GetLinkedPnames(pnames(CG), Linked, MainIndBefore; WoFirst)
     # remake(CG; Trafos=Trafos(CG)∘Emb, LogPriorFn=EmbedLogPrior(CG, Emb), MLE=Drop(MLE, WoFirst), pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...) ## Does not rewrite likelihood and score
     ConditionGrid(Conditions(CG), Trafos(CG)∘Emb, EmbedLogPrior(CG, Emb), Drop(MLE, WoFirst); pnames=PNames, Domain=Drop(Domain(CG), WoFirst), SkipOptim, SkipTests, kwargs...)
@@ -280,12 +284,12 @@ function _GetLinkedPnames(pnames::AbstractVector{<:StringOrSymb}, Linked::Abstra
     PNames[MainIndBefore] *= " =: " * join(string.(pnames[WoFirst]), " ≡ ")
     Symbol.(PNames[.!WoFirst])
 end
-function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+function LinkParameters(M::ModelMap, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     WoFirst = _WithoutInd(Linked, MainIndBefore)
     PNames = _GetLinkedPnames(pnames(M), Linked, MainIndBefore; WoFirst)
     EmbedModelVia(M, GetLinkEmbedding(Linked, MainIndBefore; ValInserter); Domain=DropCubeDims(Domain(M), WoFirst), pnames=PNames, kwargs...)
 end
-function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+function LinkParameters(F::Function, Linked::AbstractVector{<:Bool}, MainIndBefore::Int=findfirst(Linked); ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     EmbedModelVia(F, GetLinkEmbedding(Linked, MainIndBefore; ValInserter); kwargs...)
 end
 LinkParameters(DM::Union{ModelOrFunction, AbstractDataModel}, Linked::AbstractVector{<:Int}, args...; kwargs...) = (@assert all(1 .≤ Linked .≤ pdim(DM)) && allunique(Linked);   LinkParameters(DM, [i ∈ Linked for i in 1:pdim(DM)], args...; kwargs...))
