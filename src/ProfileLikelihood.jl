@@ -38,17 +38,57 @@ function _SortTogether(A::AbstractVector, B::AbstractVector, args...; rev::Bool=
     issorted(A; rev=rev) ? (A, B, args...) : getindex.((A, B, args...), (sortperm(A; rev=rev, kwargs...),))
 end
 
-# Use PreallocationTools for ValInserter and mutate same object?
+
+## Cached value insertion
+mutable struct ValInserterCache{I,V,C}
+    comps::I
+    vals::V
+    cache::C
+end
+function (vi::ValInserterCache)(x::AbstractVector)
+    y = get_tmp(vi.cache, x)
+    _insert_vals!(y, x, vi.comps, vi.vals)
+    y
+end
+
+@inline function _insert_vals!(dest::AbstractVector, src::AbstractVector, comps::AbstractVector{<:Integer}, vals::AbstractVector)
+    n = length(src);    m = length(comps)
+    @boundscheck @assert length(dest) == n + m && issorted(comps)
+    @inbounds begin
+        i = 1;   j = 1
+        for k in eachindex(dest)
+            if j <= m && k == comps[j]
+                dest[k] = vals[j];    j += 1
+            else
+                dest[k] = src[i];    i += 1
+            end
+        end
+    end;    dest
+end
+
+"""
+    ValInserter!(Components, Values, OutputPrototype::AbstractVector; levels::Int=1, kwargs...)
+Cached / in-place version of `ValInserter`.
+"""
+function ValInserter!(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    @assert length(Components) == length(Values)
+    @assert !isempty(Z) "Need prototype output as third argument."
+    @assert length(Z) > length(Components)
+    comps, vals = _SortTogether(collect(Components), collect(Values))
+    ValInserterCache(comps, vals, DiffCache(copy(Z); kwargs...))
+end
+function ValInserter!(Components::AbstractVector{<:Bool}, Values::AbstractVector{<:Number}, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    ValInserter!(IndVec(Components), (@view Values[Components]), Z; kwargs...)
+end
+function ValInserter!(Component::Int, Value::AbstractFloat, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
+    ValInserter!(Component:Component, [Value], Z; kwargs...)
+end
+
 
 # Insert value and convert to ComponentVector of prescribed type after
-function ValInserter(Component::Int, Value::AbstractFloat, Z::T) where T <: ComponentVector{<:Number}
-    # GetRanges(X::ComponentVector) = (A = only(getaxes(X)); [A[p].idx for p in propertynames(X)])
-    # Ranges = GetRanges(X)
-    # DropInd = (1:length(X))[BasisVector(Component, length(X))]
-    
-    # Inserter = ValInserter(Component, Value)
-    # ValInsertionComponentVector(X::AbstractVector{<:Number}) = convert(T, Inserter(convert(Vector,X)))
-    (x::Vector->convert(T,x))∘ValInserter(Component, Value, eltype(Z)[])∘(z::AbstractVector->convert(Vector,z))
+function ValInserter(Component::Int, Value::AbstractFloat, Z::T; cached::Bool=false, kwargs...) where T <: ComponentVector{<:Number}
+    cached && return ValInserter!(Component, Value, Z; kwargs...)
+    (x::Vector->convert(T,x))∘ValInserter(Component, Value, eltype(Z)[])
 end
 
 ## Already a method in StaticArrays.jl for this now
@@ -59,7 +99,8 @@ end
 Returns an embedding function ``\\mathbb{R}^N \\longrightarrow \\mathbb{R}^{N+1}`` which inserts `Value` in the specified `Component`.
 In effect, this allows one to pin an input component at a specific value.
 """
-function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]; nonmutating::Bool=false) where T <: AbstractVector{<:Number}
+function ValInserter(Component::Int, Value::AbstractFloat, Z::T=Float64[]; cached::Bool=false, nonmutating::Bool=false) where T <: AbstractVector{<:Number}
+    cached && return ValInserter!(Component, Value, Z; kwargs...)
     nonmutating && return NonMutValInsertionEmbedding(P::AbstractVector) = insert(P, Component, Value)
     ValInsertionEmbedding(P::AbstractVector) = insert!(SafeCopy(P), Component, Value)
     ValInsertionEmbedding(P::Union{SVector,MVector}) = insert(P, Component, Value)
@@ -68,8 +109,8 @@ end
 
 
 ## Provides correct insertion embedding for in-place functions
-function ValInserterTransform(Inds, Vals, mle::AbstractVector)
-    Ins = ValInserter(Inds, Vals, mle)
+function ValInserterTransform(Inds, Vals, mle::AbstractVector; kwargs...)
+    Ins = ValInserter(Inds, Vals, mle; kwargs...)
     KeepInds = [i for i in eachindex(mle) if i ∉ Inds]
     ReductionTransform(x::Number) = x # Pass through if the function that is wrapped is scalar, like cost function itself
     ReductionTransform(x::AbstractVector) = view(x, KeepInds)
@@ -87,7 +128,8 @@ end
 Returns an embedding function which inserts `Values` in the specified `Components`.
 In effect, this allows one to pin multiple input components at a specific values.
 """
-function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]; nonmutating::Bool=false) where T <: AbstractVector{<:Number}
+function ValInserter(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::T=Float64[]; cached::Bool=false, nonmutating::Bool=false, kwargs...) where T <: AbstractVector{<:Number}
+    cached && return ValInserter!(Components, Values, Z; kwargs...)
     @assert length(Components) == length(Values)
     Converter = Z isa Vector ? identity : x->convert(T,x)
     length(Components) == 0 && return Converter
