@@ -453,6 +453,7 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
         _, xobservable, xnoise, xnondynamic_mech, x_ml_models = PEtab.split_x(x, model_info.xindices, probinfo.cache)
         xnondynamic_mech_ps = PEtab.transform_x(xnondynamic_mech, model_info.xindices, :xnondynamic_mech, probinfo.cache)
         @unpack x_ml_models_constant = probinfo.cache
+        p_vec = PEtab._get_tunables(sol.prob.p, model_info.xindices.get_ps_mtk_parameters)
 
         if !Error
             verbose && !CanInterpolateObservables && @warn "Cannot interpolate observables!"
@@ -461,7 +462,7 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxobservables = model_info.xindices.xobservable_maps[imeasurement]
                 for (j,t) in enumerate(ts)
-                    Res[i,j] = PEtab._h(sol(t), t, sol.prob.p, xobservable_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant, 
+                    Res[i,j] = PEtab._h(sol(t), t, p_vec, xobservable_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant, 
                             model_info.model, mapxobservables, obsid, Xnom)
                 end
             end
@@ -472,7 +473,7 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
                 imeasurement = ObsidToRepresentativeMeasurementIndDict[obsid]
                 mapxnoise = model_info.xindices.xnoise_maps[imeasurement]
                 for (j,t) in enumerate(ts)
-                    Res[i,j] = PEtab._sd(sol(t), t, sol.prob.p, xnoise_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant,
+                    Res[i,j] = PEtab._sd(sol(t), t, p_vec, xnoise_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant,
                             model_info.model, mapxnoise, obsid, Xnom)
                 end
             end
