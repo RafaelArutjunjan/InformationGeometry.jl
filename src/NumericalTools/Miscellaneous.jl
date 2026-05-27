@@ -57,6 +57,28 @@ Negate(F::Function) = negate∘F
 Negate!!(F!::Function) = (x, args...; kwargs...) -> (F!(x, args...; kwargs...);     negate!(x))
 NegateBoth(F::Function) = MergeOneArgMethods(Negate(F), Negate!!(F))
 
+
+
+for (operator, Func, NameString) in [
+        (:⊕, :(Base.:+), "plus"),
+        (:⊖, :(Base.:-), "minus"),
+        (:⊗, :(Base.:*), "multiplication"),
+        (:⨸, :(Base.:/), "division"),
+    ]
+    @eval begin
+        """
+            $($operator)(F::Function, G::Function) = (args...; kwargs...) -> F(args...; kwargs...) .$($Func) G(args...; kwargs...)
+            $($operator)(F::Function, N::Nothing) = F
+        Pointwise $($NameString) for functions.
+        """
+        $operator(F::Function, G::Function) = (args...; kwargs...) -> broadcast($Func, F(args...; kwargs...), G(args...; kwargs...))
+        $operator(F::Function, ::Nothing) = F
+        $operator(::Nothing, F::Function) = F
+    end
+end
+
+
+
 function GetMethod(tol::Real, useimplicit::Bool=true; autodiff=ADTypes.AutoFiniteDiff(), kwargs...)
     @assert tol > 0
     if useimplicit
