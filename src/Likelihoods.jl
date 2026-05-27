@@ -14,8 +14,8 @@ likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 loglikelihood(DM::AbstractDataModel; kwargs...) = LogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = loglikelihood(DM, θ; kwargs..., Kwargs...)
 Negloglikelihood(DM::AbstractDataModel; kwargs...) = Negate(loglikelihood(DM; kwargs...))
 
-loglikelihoodWithoutPrior(DM::AbstractDataModel) = InformationGeometry.loglikelihood(DM) ⊖ InformationGeometry.LogPrior(DM)
-NegloglikelihoodWithoutPrior(DM::AbstractDataModel) = InformationGeometry.Negate(InformationGeometry.loglikelihood(DM) ⊖ InformationGeometry.LogPrior(DM))
+loglikelihoodWithoutPrior(DM::AbstractDataModel) = loglikelihood(DM) ⊖ LogPrior(DM)
+NegloglikelihoodWithoutPrior(DM::AbstractDataModel) = Negate(loglikelihood(DM) ⊖ LogPrior(DM))
 
 
 # import Distributions.loglikelihood

@@ -38,7 +38,11 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
             "Fit" * (isnothing(RSEs) ? "" : " with RSE≈$(RSEs[1])")
         elseif ydim(DM) ≤ Npoints(DM)
             # reshape([ynames(DM)[i] * " Fit with RSE≈$(RSEs[i])" for i in 1:ydim(DM)], 1, ydim(DM))
-            reshape([ynames(DM)[i] * " Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(RSEs[i])")  for i in 1:ydim(DM)], 1, ydim(DM))
+            if isnothing(RSEs)
+                reshape("Fit: " .* ynames(DM), 1, :)
+            else
+                reshape(ynames(DM) .* " Fit with RSE≈" .* string.(RSEs), 1, ydim(DM))
+            end
         else
             reshape("Fit for $(xnames(DM)[1])=" .* string.(round.(xdata(DM); sigdigits=3)), 1, length(xdata(DM)))
         end
@@ -94,7 +98,7 @@ end
 
 function PlotFit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), X::Union{AbstractVector,Nothing}=nothing; N::Int=500, kwargs...)
     isnothing(X) && (X = ydim(DM) ≤ Npoints(DM) ? DomainSamples(extrema(xdata(DM)); N=N) : xdata(DM))
-    RecipesBase.plot!(X, predictedY(DM, mle, X); label="Fit", lw=2, kwargs...)
+    RecipesBase.plot!(X, predictedY(DM, mle, X); label=reshape("Fit: " .* ynames(DM), 1, :), c=reshape(1:ydim(DM),1,:), lw=2, kwargs...)
 end
 
 
