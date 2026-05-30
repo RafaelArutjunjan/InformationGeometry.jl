@@ -58,7 +58,6 @@ Negate!!(F!::Function) = (x, args...; kwargs...) -> (F!(x, args...; kwargs...); 
 NegateBoth(F::Function) = MergeOneArgMethods(Negate(F), Negate!!(F))
 
 
-
 for (operator, Func, NameString) in [
         (:⊕, :(Base.:+), "plus"),
         (:⊖, :(Base.:-), "minus"),
@@ -76,7 +75,6 @@ for (operator, Func, NameString) in [
         $operator(::Nothing, F::Function) = F
     end
 end
-
 
 
 function GetMethod(tol::Real, useimplicit::Bool=true; autodiff=ADTypes.AutoFiniteDiff(), kwargs...)

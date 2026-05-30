@@ -144,6 +144,7 @@ cpdmu = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]), LinearModel, ComponentVect
 @test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdmu, 1, 1:1; plot=false, Confnum=2), 2))[1])
 @test all(isfinite∘sum, Tuple(ProfileBox(PredictionProfiles(cpdmu, 1; Confnum=2), 2)))
 
+@test all(isfinite∘sum, Tuple(ProfileBox(ReoptimizeProfile(cpdmu, ParameterProfiles(cpdmu; maxiters=100, plot=false, Confnum=2)), 2)))
 
 using Plots
 @test Plots.plot(PU) isa Plots.Plot

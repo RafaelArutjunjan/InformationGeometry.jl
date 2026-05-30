@@ -429,7 +429,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     # InBounds = θ::AbstractVector{<:Number} -> _IsInDomain(InDomain, Domain, θ)
 
     ConditionalPush!(N::Nothing, args...) = N
-    ConditionalPush!(X::AbstractArray, args...) = push!(X, args...)
+    ConditionalPush!(X::AbstractArray, args...) = (push!(X, args...);   nothing)
 
     Res = eltype(MLE)[];    visitedps = eltype(MLE)[]
     Converged = BitVector()
@@ -1085,7 +1085,7 @@ function ReoptimizeProfile(DM::AbstractDataModel, P::ParameterProfiles, inds::Ab
     Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
     if !(inds == 1:length(MLE))
         EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
-        EmptyTraj = [Fill(NaN, length(MLE))]
+        EmptyTraj = [convert(typeof(MLE), Fill(NaN, length(MLE)))]
         for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
             if i ∉ inds
                 insert!(Profs, i, EmptyProf)
@@ -1129,7 +1129,7 @@ function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, in
     Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
     if !(inds == 1:length(MLE))
         EmptyProf = VectorOfArray([Profs[1][1,i] isa Bool ? falses(1) : typeof(Profs[1][1,i])[NaN] for i in axes(Profs[1],2)])
-        EmptyTraj = [Fill(NaN, length(MLE))]
+        EmptyTraj = [convert(typeof(MLE), Fill(NaN, length(MLE)))]
         for i in 1:length(MLE) # Profs and Trajs already sorted by sorting inds
             if i ∉ inds
                 insert!(Profs, i, EmptyProf)
