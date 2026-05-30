@@ -451,7 +451,7 @@ function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; ori
     DM32 = (T === originalT) ? DM : T(DM)
     Prefit(Negloglikelihood(DM32), mle, args...; originalT, T, pstart, Domain, SaveLoss, SaveParams, SavedParams, Losses, Plotter, kwargs...)
 end
-function Prefit(CostFunction::Function, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=false, pstart::AbstractVector{<:Number}=T.(mle), 
+function Prefit(CostFunction::Union{Tuple,Function}, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=false, pstart::AbstractVector{<:Number}=T.(mle), 
                 MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=false, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
