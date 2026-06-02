@@ -1232,9 +1232,9 @@ function CastShadow(DM::DataModel, Planes::AbstractVector{<:Plane}, sols::Abstra
 
     Project(p::AbstractVector{<:Number}, dir1::Int, dir2::Int) = SA[p[dir1], p[dir2]]
 
-    poly = map(x->Project(PlaneCoordinates(Planes[1],x), dir1, dir2), sols[1])
+    poly = map(x->Project(PlaneCoordinates(Planes[1],x), dir1, dir2), sols[1].u)
     for i in 2:length(Planes)
-        poly = UnionPolygons(poly, map(x->Project(PlaneCoordinates(Planes[i],x), dir1, dir2), sols[i]))
+        poly = UnionPolygons(poly, map(x->Project(PlaneCoordinates(Planes[i],x), dir1, dir2), sols[i].u))
     end;    Thinner(poly; threshold=threshold)
 end
 

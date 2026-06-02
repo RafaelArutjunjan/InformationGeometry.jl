@@ -109,6 +109,15 @@ end
 minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth::Optim.AbstractOptimizer; OptimJL::Bool=true, kwargs...) = (OptimJL ? minimizeOptimJL : minimizeOptimizationJL)(Fs, Start, meth; kwargs...)
 minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth; kwargs...) = minimizeOptimizationJL(Fs, Start, meth; kwargs...)
 
+### Change thresh function z.value! Look into NelderMeadState which fields it has
+
+MakeThresholdCallback(N::Nothing) = N
+function MakeThresholdCallback(Fthresh::Real)
+    ThresholdCallback(S::Optim.AbstractOptimizerState) = S.f_x < Fthresh
+    ThresholdCallback(S) = try  State.objective < Fthresh  catch;   throw("Got $State instead of OptimizationState.")  end
+end
+
+
 # Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
 function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
                 Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, reltol::Real=tol, abstol::Real=tol, ForceClamp::Bool=true,
@@ -128,7 +137,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
     !(Fs[1](start) isa Number) && throw("Given function must return scalar values, got $(typeof(Fs[1](start))) instead.")
     
     # Construct callback for early stopping if objective function below Fthresh unless any other callback is given
-    cb = isnothing(callback) ? (!isnothing(Fthresh) ? (z->z.value<Fthresh) : nothing) : callback
+    cb = isnothing(callback) ? MakeThresholdCallback(Fthresh) : callback
     options = Optim.Options(; x_tol, f_tol, g_tol, x_abstol, x_reltol, f_abstol, f_reltol, g_abstol, f_calls_limit, show_every, show_trace,
                             allow_f_increases, iterations, store_trace, extended_trace, time_limit, callback=cb)
     
@@ -210,7 +219,7 @@ end
 function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVector{<:Number}, meth; Domain::Union{HyperCube,Nothing}=nothing, Full::Bool=false, verbose::Bool=true, 
                     tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, ForceClamp::Bool=true,
                     lb=(!isnothing(Domain) ? convert(typeof(Start),Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(typeof(Start),Domain.U) : nothing), lcons=nothing, ucons=nothing, # cons already captured in optf
-                    Fthresh::Union{Nothing,Real}=nothing, callback=(!isnothing(Fthresh) ? (z->z.objective<Fthresh) : nothing), 
+                    Fthresh::Union{Nothing,Real}=nothing, callback=MakeThresholdCallback(Fthresh), 
                     retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...)
     
     @assert !retry || !isnothing(retrymeth)

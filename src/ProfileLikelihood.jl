@@ -651,8 +651,9 @@ GetLocalProfileDir(DM::AbstractDataModel, Comp::Int, p::AbstractVector{<:Number}
 function GetLocalProfileDir!(F::AbstractMatrix, Comp::Int; verbose::Bool=false)
     # @boundscheck @assert size(F,1) == size(F,2) && 1 ≤ Comp ≤ size(F,1)
     verbose && NotPosDef(F) && @warn "Using pseudo-inverse to determine profile direction for parameter $Comp due to local non-identifiability."
-    F[Comp, :] .= [(j == Comp) for j in axes(F,1)]
-    dir = pinv(F)[:, Comp];    dir ./= dir[Comp];   dir
+    Fc = collect(F)
+    Fc[Comp, :] .= [(j == Comp) for j in axes(Fc,1)]
+    dir = pinv(Fc)[:, Comp];    dir ./= dir[Comp];   dir
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::AbstractVector{<:Int}=1:pdim(DM); dof::Int=DOF(DM), ForcePositive::Bool=false, 
