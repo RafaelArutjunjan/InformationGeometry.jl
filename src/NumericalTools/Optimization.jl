@@ -113,8 +113,11 @@ minimize(Fs::Tuple, Start::AbstractVector{<:Number}, meth; kwargs...) = minimize
 
 MakeThresholdCallback(N::Nothing) = N
 function MakeThresholdCallback(Fthresh::Real)
+    # Not the same as OptimizationBase.OptimizationState
+    ThresholdCallback(S::Optim.OptimizationState) = S.value < Fthresh
     ThresholdCallback(S::Optim.AbstractOptimizerState) = S.f_x < Fthresh
-    ThresholdCallback(S) = try  State.objective < Fthresh  catch;   throw("Got $State instead of OptimizationState.")  end
+    ## Definition of type OptimizationBase.OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
+    ThresholdCallback(S) = try  State.objective < Fthresh  catch;   throw("Got $State instead of OptimizationBase.OptimizationState.")  end
 end
 
 
@@ -330,10 +333,11 @@ function ParameterSavingCallback(X::AbstractVector{T}; PrintLossEvery::Int=0,
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
     GetCurPar(State) = try  State.u  catch;   throw("Got $State instead of OptimizationState.");    fill(Inf, length(X))  end
     ConditionalSafePush!(X::AbstractVector, x) = push!(X, copy(x));     ConditionalSafePush!(::Nothing, x) = nothing
-    ConditionalPrint(SavedParams::AbstractVector, loss) = PrintLossEvery > 0 && length(SavedParams) % PrintLossEvery == 0 && println("Loss at iteration $(length(SavedParams)): $loss");     ConditionalPrint(::Nothing, x) = nothing
+    Counter = 0
+    ConditionalPrint(SavedParams, loss) = PrintLossEvery > 0 && Counter % PrintLossEvery == 0 && println("Loss at iteration $(Counter): $loss") #;     ConditionalPrint(::Nothing, x) = nothing
     function SaveOptimizationpathSaveLoss(State, loss)
         ConditionalSafePush!(SavedParams, GetCurPar(State));   ConditionalSafePush!(Losses, loss)
-        ConditionalPrint(SavedParams, loss)
+        Counter += 1;   ConditionalPrint(SavedParams, loss)
         Plotter(State, loss);    Terminate(State, loss)
     end
     if SaveLoss
