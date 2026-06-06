@@ -27,12 +27,12 @@ DataSetExact(X, Y, (2,1,1))
     ```
     where `DS1 == DS2 == DS3` will evaluate to `true`.
 """
-struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: AbstractFixedUncertaintyDataSet
+struct DataSetExact{XdistType<:Distribution,YdistType<:Distribution,InvC<:AbstractMatrix,WX<:Union{AbstractVector,Nothing}} <: AbstractFixedUncertaintyDataSet
     xdist::XdistType
     ydist::YdistType
     dims::Tuple{Int,Int,Int}
-    InvCov::AbstractMatrix{<:Number}
-    WoundX::Union{AbstractVector,Nothing}
+    InvCov::InvC
+    WoundX::WX
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -81,7 +81,7 @@ struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: Abstrac
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
                             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, Name::StringOrSymb=Symbol())
-        new{typeof(xd), typeof(yd)}(xd, yd, dims, InvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(Name))
+        new{typeof(xd), typeof(yd), typeof(InvCov), typeof(WoundX)}(xd, yd, dims, InvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(Name))
     end
 end
 
