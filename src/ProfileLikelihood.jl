@@ -379,7 +379,7 @@ end
 function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}; adaptive::Bool=true, Confnum::Real=2.0, N::Int=(adaptive ? 31 : length(ps)), min_steps::Int=Int(round(2N/5)), 
                         AllowNewMLE::Bool=true, general::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), SaveTrajectories::Bool=true, ApproximatePaths::Bool=false, ValInserter::Function=InformationGeometry.ValInserter!, 
                         LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), GenerateNewDerivatives::Bool=false, ADmode::Val=Val(:ForwardDiff), 
-                        SavedPs::Union{AbstractVector{<:AbstractVector},Nothing}=nothing, FisherMetricFn::Function=FisherMetric(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), 
+                        SavedPs::Union{AbstractVector{<:AbstractVector{<:Number}},Nothing}=nothing, FisherMetricFn::Function=FisherMetric(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), 
                         UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(!UseGrad ? nothing : (GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM))),
                         UseHess::Bool=false, CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
                         LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,

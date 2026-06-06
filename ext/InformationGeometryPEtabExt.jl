@@ -13,12 +13,12 @@ InformationGeometry.pdim(P::PEtabODEProblem) = InformationGeometry.pdim(P.model_
 
 import InformationGeometry: AbstractPEtabBasedConditionGrid
 ## Wrap DataModel or ConditionGrid together with its contituent PEtabODEProblem for later reference or modification
-struct PEtabConditionGrid <: AbstractPEtabBasedConditionGrid
-    DM::AbstractDataModel
+struct PEtabConditionGrid{DMtype<:AbstractDataModel} <: AbstractPEtabBasedConditionGrid
+    DM::DMtype
     P::PEtabODEProblem
     PEtabConditionGrid(P::PEtabModel; kwargs...) = PEtabConditionGrid(PEtabODEProblem(P); kwargs...) 
     PEtabConditionGrid(P::PEtabODEProblem; kwargs...) = PEtabConditionGrid(ConditionGrid(P; kwargs...), P)
-    PEtabConditionGrid(DM::AbstractDataModel, P::PEtabODEProblem) = new(DM, P)
+    PEtabConditionGrid(DM::AbstractDataModel, P::PEtabODEProblem) = new{typeof(DM)}(DM, P)
 end
 const PEtabDataModel = PEtabConditionGrid
 
