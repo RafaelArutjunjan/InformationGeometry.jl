@@ -28,8 +28,8 @@ DataSetExact(X, Y, (2,1,1))
     where `DS1 == DS2 == DS3` will evaluate to `true`.
 """
 struct DataSetExact{XdistType<:Distribution, YdistType<:Distribution} <: AbstractFixedUncertaintyDataSet
-    xdist::Distribution
-    ydist::Distribution
+    xdist::XdistType
+    ydist::YdistType
     dims::Tuple{Int,Int,Int}
     InvCov::AbstractMatrix{<:Number}
     WoundX::Union{AbstractVector,Nothing}

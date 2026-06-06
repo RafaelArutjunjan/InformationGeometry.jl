@@ -54,8 +54,8 @@ Alternatively, `InDomain` may also be a bool-valued function, evaluating to `tru
 !!! note
     A suitable starting parameter configuration can be passed to the ModelMap via the `startp` kwarg.
 """
-struct ModelMap{Inplace, Custom}
-    Map::Function
+struct ModelMap{Inplace, Custom, FuncType}
+    Map::FuncType
     InDomain::Union{Nothing,Function}
     Domain::Cuboid
     xyp::Tuple{Int,Int,Int}
@@ -103,7 +103,7 @@ struct ModelMap{Inplace, Custom}
             isnothing(Domain) ? (Domain = FullDomain(xyp[3], Inf)) : (@assert length(Domain) == xyp[3] "Given Domain Hypercube $Domain does not fit inferred number of parameters $(xyp[3]).")
             InDomain isa Function && (@assert InDomain(Center(Domain)) isa Number "InDomain function must yield a scalar value, got $(typeof(InDomain(Center(Domain)))) at $(Center(Domain)).")
         end
-        new{ValToBool(inplace), ValToBool(CustomEmbedding)}(Map, InDomain, Domain, xyp, Symbol.(pnames), inplace, CustomEmbedding, Symbol(name), Meta, SymbolicCache)
+        new{ValToBool(inplace), ValToBool(CustomEmbedding), typeof(Map)}(Map, InDomain, Domain, xyp, Symbol.(pnames), inplace, CustomEmbedding, Symbol(name), Meta, SymbolicCache)
     end
 end
 (M::ModelMap{false})(x, θ::AbstractVector{<:Number}; kwargs...) = M.Map(x, θ; kwargs...)
