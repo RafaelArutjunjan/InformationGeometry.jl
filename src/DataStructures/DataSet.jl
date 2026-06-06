@@ -35,13 +35,13 @@ DS = DataSet(X, Y, Cov, dims)
 In this case, `X` is a vector consisting of the concatenated x-values (with 3 components each) for 4 different data points.
 The values of `Y` are the corresponding concatenated y-values (with 2 components each) of said 4 data points. Clearly, the covariance matrix must therefore be a positive-definite ``(m \\cdot N) \\times (m \\cdot N)`` matrix.
 """
-struct DataSet <: AbstractFixedUncertaintyDataSet
-    x::AbstractVector
-    y::AbstractVector
-    InvCov::AbstractMatrix
+struct DataSet{X<:AbstractVector,Y<:AbstractVector,InvC<:AbstractMatrix,WX<:Union{AbstractVector,Nothing}} <: AbstractFixedUncertaintyDataSet
+    x::X
+    y::Y
+    InvCov::InvC
     dims::Tuple{Int,Int,Int}
     logdetInvCov::Real
-    WoundX::Union{AbstractVector,Nothing}
+    WoundX::WX
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -91,7 +91,7 @@ struct DataSet <: AbstractFixedUncertaintyDataSet
     end
     function DataSet(x::AbstractVector, y::AbstractVector, InvCov::AbstractMatrix, dims::Tuple{Int,Int,Int},
                             logdetInvCov::Real, WoundX::Union{AbstractVector,Nothing}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol())
-        new(x, y, InvCov, dims, logdetInvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{typeof(x), typeof(y), typeof(InvCov), typeof(WoundX)}(x, y, InvCov, dims, logdetInvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
