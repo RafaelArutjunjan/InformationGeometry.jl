@@ -120,18 +120,18 @@ DS = DataSetUncertain([1,2,3,4], [4,5,6.5,7.8], (x,y,c)->1/exp10(c[1]), [0.5])
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
     A Bessel correction `sqrt((length(ydata(DS))-length(params))/length(ydata(DS)))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDataSet
-    x::AbstractVector{<:Number}
-    y::AbstractVector{<:Number}
+struct DataSetUncertain{BesselCorrection, Keep, X<:AbstractVector, Y<:AbstractVector, ER<:Function, SP<:Function, WXpred<:Union{Nothing, AbstractVector}} <: AbstractUnknownUncertaintyDataSet
+    x::X
+    y::Y
     dims::Tuple{Int,Int,Int} # Nxy
-    inverrormodelraw::Function # 1/errormodel as Number, Vector or Matrix
+    inverrormodelraw::ER # 1/errormodel as Number, Vector or Matrix
     testout::Union{Number,<:AbstractVector,<:AbstractMatrix}
     inverrormodel::Function # 1./errormodel wrapped as AbstractMatrix, e.g. Diagonal
     testpy::AbstractVector{<:Number}
-    errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
+    errorparamsplitter::SP # θ -> (view(θ, MODEL), view(θ, ERRORMODEL))
     datakeep::Union{Nothing, AbstractVector{<:Bool}} ## falses correspond to locations of missing values
     predkeep::Union{Nothing, AbstractVector{<:Int}} ## Which ys to keep from EmbeddingMap evaluated at sparsified woundXpred to reconstruct ydata
-    woundXpred::Union{Nothing, AbstractVector} # sorted woundX with duplicates removed
+    woundXpred::WXpred # sorted woundX with duplicates removed
     nerrorparameters::Int
     ErrorModelDependencies::Tuple{Bool,Bool,Bool}
     xnames::AbstractVector{Symbol}
@@ -187,8 +187,8 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
                             nerrorparameters, ErrorModelDependencies, xnames, ynames, name; kwargs...)
     end
     ## Assume missings already removed and accounted for in keep and WoundX
-    function DataSetUncertain(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, testpy::AbstractVector, 
-                errorparamsplitter::Function, datakeep::Union{Nothing,AbstractVector{<:Bool}}, predkeep::Union{Nothing,AbstractVector{<:Int}}, woundXpred::Union{Nothing,AbstractVector}, 
+    function DataSetUncertain(x::AbstractVector{<:Number}, y::AbstractVector{<:Number}, dims::Tuple{Int,Int,Int}, inverrormodelraw::Function, testout::Union{Number,<:AbstractVector,<:AbstractMatrix}, inverrormodel::Function, 
+                testpy::AbstractVector, errorparamsplitter::Function, datakeep::Union{Nothing,AbstractVector{<:Bool}}, predkeep::Union{Nothing,AbstractVector{<:Int}}, woundXpred::Union{Nothing,AbstractVector}, 
                 nerrorparameters::Int, ErrorModelDependencies::Tuple{Bool,Bool,Bool}, xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
         @assert Npoints(dims) == Int(length(x)/xdim(dims)) "Inconsistent input dimensions. Specify a tuple (Npoints, xdim, ydim) in the constructor."
@@ -200,7 +200,8 @@ struct DataSetUncertain{BesselCorrection, Keep} <: AbstractUnknownUncertaintyDat
         ydim(dims) == 1 && (@assert testout isa Number && testout > 0)
         ydim(dims) > 1 && @assert (testout isa AbstractVector && length(testout) == ydim(dims) && all(testout .> 0)) || (testout isa AbstractMatrix && size(testout,1) == size(testout,2) == ydim(dims) && det(testout) > 0)
         
-        new{BesselCorrection, typeof(predkeep)}(x, y, dims, inverrormodelraw, testout, inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, nerrorparameters, ErrorModelDependencies, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection, typeof(predkeep), typeof(x), typeof(y), typeof(inverrormodelraw), typeof(errorparamsplitter), typeof(woundXpred)}(x, y, dims, inverrormodelraw, testout, 
+                        inverrormodel, testpy, errorparamsplitter, datakeep, predkeep, woundXpred, nerrorparameters, ErrorModelDependencies, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 
