@@ -26,20 +26,20 @@ DS = UnknownVarianceDataSet([1,2,3,4], [4,5,6.5,7.8], (x,y,cx)->1/exp10(cx[1]), 
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
     A Bessel correction `sqrt((length(xdata(DS))+length(ydata(DS))-length(params))/(length(xdata(DS))+length(ydata(DS))))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDataSet
-    x::AbstractVector{<:Number}
-    y::AbstractVector{<:Number}
+struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVector, XER<:Function, YER<:Function, SP<:Function, SX<:Function} <: AbstractUnknownUncertaintyDataSet
+    x::X
+    y::Y
     dims::Tuple{Int,Int,Int}
-    invxerrormodelraw::Function # σ_x⁻¹ as Number, Vector or Matrix
-    invyerrormodelraw::Function # σ_y⁻¹ as Number, Vector or Matrix
+    invxerrormodelraw::XER # σ_x⁻¹ as Number, Vector or Matrix
+    invyerrormodelraw::YER # σ_y⁻¹ as Number, Vector or Matrix
     testoutx::Union{Number,<:AbstractVector,<:AbstractMatrix}
     testouty::Union{Number,<:AbstractVector,<:AbstractMatrix}
     invxerrormodel::Function # σ_x⁻¹ wrapped as AbstractMatrix, e.g. Diagonal
     invyerrormodel::Function # σ_y⁻¹ wrapped as AbstractMatrix, e.g. Diagonal
     testpx::AbstractVector{<:Number}
     testpy::AbstractVector{<:Number}
-    errorparamsplitter::Function # θ -> (view(θ, MODEL), view(θ, xERRORMODEL), view(θ, yERRORMODEL))
-    SkipXs::Function
+    errorparamsplitter::SP # θ -> (view(θ, MODEL), view(θ, xERRORMODEL), view(θ, yERRORMODEL))
+    SkipXs::SX
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -75,7 +75,7 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         
         UnknownVarianceDataSet(x, y, dims, Invxerrormodelraw, Invyerrormodelraw, Q, M, Invxerrormodel, Invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, xnames, ynames, name; kwargs...)
     end
-    function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
+    function UnknownVarianceDataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Number}, dims::Tuple{Int,Int,Int}, 
             invxerrormodelraw::Function, invyerrormodelraw::Function, testoutx::Union{Number,<:AbstractVector,<:AbstractMatrix}, testouty::Union{Number,<:AbstractVector,<:AbstractMatrix},
             invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function, SkipXs::Function,
             xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
@@ -88,7 +88,8 @@ struct UnknownVarianceDataSet{BesselCorrection} <: AbstractUnknownUncertaintyDat
         ydim(dims) == 1 && (@assert testouty isa Number && testouty > 0)
         ydim(dims) > 1 && @assert (testouty isa AbstractVector && length(testouty) == ydim(dims) && all(testouty .> 0)) || (testouty isa AbstractMatrix && size(testouty,1) == size(testouty,2) == ydim(dims) && det(testouty) > 0)
         
-        new{BesselCorrection}(x, y, dims, invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+        new{BesselCorrection, typeof(x), typeof(y), typeof(invxerrormodelraw), typeof(invyerrormodelraw), typeof(errorparamsplitter), typeof(SkipXs)}(x, y, dims, 
+                    invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(name))
     end
 end
 

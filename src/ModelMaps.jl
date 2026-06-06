@@ -54,7 +54,7 @@ Alternatively, `InDomain` may also be a bool-valued function, evaluating to `tru
 !!! note
     A suitable starting parameter configuration can be passed to the ModelMap via the `startp` kwarg.
 """
-struct ModelMap{Inplace, Custom, FuncType}
+struct ModelMap{Inplace, Custom, FuncType<:Function}
     Map::FuncType
     InDomain::Union{Nothing,Function}
     Domain::Cuboid
