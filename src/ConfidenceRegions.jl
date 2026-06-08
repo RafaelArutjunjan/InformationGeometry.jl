@@ -752,9 +752,9 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim), X))
     xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), F::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
-    verbose && NotPosDef(F) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
-    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(F)); Confnum, dof, kwargs...)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
+    verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
+    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)); Confnum, dof, kwargs...)
 end
 
 
