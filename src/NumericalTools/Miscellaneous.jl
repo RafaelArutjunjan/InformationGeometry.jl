@@ -462,10 +462,10 @@ function WeightedAverage(x::AbstractVector{<:Union{Number,AbstractVector{<:Numbe
 end
 
 """
-    WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights))
+    WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights); BiasCorrection::Bool=true)
 Computes weighted covariance associated with weighted average `x̄` of `x`.
 """
-function WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights)) where XT <: Union{Number, AbstractVector{<:Number}}
+function WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights); BiasCorrection::Bool=true) where XT <: Union{Number, AbstractVector{<:Number}}
     @boundscheck @assert length(x) == length(weights)
     W = sum(abs, weights);    R = zeros(eltype(x̄), length(x̄), length(x̄));    Rcache = similar(R);     xcache = zeros(eltype(x̄), length(x̄))
     @inbounds for i in eachindex(x)
@@ -473,16 +473,45 @@ function WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Num
         mul!(Rcache, xcache, xcache')
         R .+= abs(weights[i]) .* Rcache
     end
-    R .*= W / (W^2 - dot(weights,weights));     R
+    if BiasCorrection
+        R .*= W / (W^2 - dot(weights,weights))
+    else
+        R ./ W
+    end;    R
 end
+
 
 """
     WeightedStandardError(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights))
 Computes standard error of weighted average `x̄` of `x`.
 """
-function WeightedStandardError(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number}, args...; kwargs...)
+function WeightedStandardError(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number}, args...; BiasCorrection::Bool=true, kwargs...)
+    @assert BiasCorrection
     @boundscheck @assert length(x) == length(weights)
     dot(weights, weights) / sum(abs, weights) .* WeightedCovariance(x, weights, args...; kwargs...)
+end
+
+
+"""
+    WeightedThirdCentralMoment(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights); BiasCorrection::Bool=true)
+Computes the weighted third central moment.
+"""
+function WeightedThirdCentralMoment(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights); BiasCorrection::Bool=true) where XT <: Union{Number, AbstractVector{<:Number}}
+    @boundscheck @assert length(x) == length(weights)
+    W = sum(abs, weights);    R = zeros(eltype(x̄), length(x̄), length(x̄), length(x̄));    xcache = zeros(eltype(x̄), length(x̄))
+    @inbounds for n in eachindex(x)
+        xcache .= x[n] .- x̄;    wn = abs(weights[n])
+        @inbounds for i in eachindex(x̄), j in eachindex(x̄), k in eachindex(x̄)
+            R[i, j, k] += wn * xcache[i] * xcache[j] * xcache[k]
+        end
+    end
+    if BiasCorrection
+        W2 = dot(weights, weights)
+        W3 = sum(w->abs(w)^3, weights)
+        R .*= W^2 / (W^3 - 3W*W2 + 2W3)
+    else
+        R ./ W
+    end;    R
 end
 
 

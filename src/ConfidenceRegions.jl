@@ -983,7 +983,7 @@ CAICF(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); k::Real=lengt
 Penalize mean curvature of model prediction to obtain smooth solution in maximum likelihood estimation.
 """
 GetSmoothnessLogPrior(DM::AbstractDataModel, args...; kwargs...) = GetSmoothnessLogPrior(Data(DM), Predictor(DM), args...; kwargs...)
-function GetSmoothnessLogPrior(DS::AbstractDataSet, Model::ModelOrFunction, λ=5e-2; N::Int=100, Ran::AbstractVector=range(XCube(DS)[1]...; length=N)[2:end-1])
+function GetSmoothnessLogPrior(DS::AbstractDataSet, Model::ModelOrFunction, lambda=5e-2; λ=lambda, N::Int=100, Ran::AbstractVector=range(XCube(DS)[1]...; length=N)[2:end-1])
     @assert xdim(DS) == 1 && all(x->x>0, λ)
     @assert λ isa Real || length(λ) == ydim(DS) # Allow different lambda in each y-component
     sqrt_λ = sqrt.(λ)
