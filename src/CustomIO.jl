@@ -232,3 +232,16 @@ function Base.show(io::IO, ::MIME"text/plain", P::ParamTrafo)
 end
 # Single line display
 Base.show(io::IO, P::ParamTrafo) = print(io, Base.summary(P))
+
+
+function Base.summary(C::ConfidenceIntervals)
+    PercentageString = IsCost(C) ? string(string(round(100 * ConfVol(C.Confnum); sigdigits=3)), "% ") : string(string(round(C.Confnum; sigdigits=3)), "σ ")
+    string(PercentageString, TYPE_COLOR, "ConfidenceIntervals", NO_COLOR, " with dof=", string(DOF(C)))
+end
+
+Base.show(io::IO, C::ConfidenceIntervals) = print(io, Base.summary(C))
+
+function Base.show(io::IO, ::MIME"text/plain", C::ConfidenceIntervals)
+    print(io, Base.summary(C))
+    show(io, PrettyTable([pnames(C) Tuple(C) MLE(C)]; column_labels=["Parameter", "Confidence Interval", "MLE"], alignment=[:l, :c, :c], table_format=TextTableFormat(borders = text_table_borders__borderless)))
+end

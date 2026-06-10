@@ -1402,7 +1402,7 @@ struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
     IsCost::Bool
     Pnames::AbstractVector{<:Symbol}
     function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=length(P), dof2::Union{<:Real,Nothing}=nothing, 
-                    IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Pnames(P), kwargs...)
+                    IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=Pnames(P), kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
         ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames)
     end
@@ -1410,24 +1410,27 @@ struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
                 IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))))
         @assert Confnum ≥ 0
         @assert length(Cube) == length(MLE) == length(pnames)
-        new{typeof(Cube)}(Cube, Confnum, mle, dof, dof2, IsCost, Symbol.(pnames))
+        new{typeof(Cube)}(Cube, Confnum, MLE, dof, dof2, IsCost, Symbol.(pnames))
     end
 end
 
-# AbstractVector to outside
-Base.length(C::ConfidenceIntervals) = C.Cube |> length
-Base.keys(C::ConfidenceIntervals) = Base.OneTo(length(C.Cube))
-Base.size(C::ConfidenceIntervals) = (length(C), 1)
-Base.firstindex(C::ConfidenceIntervals) = firstindex(C.Cube)
-Base.lastindex(C::ConfidenceIntervals) = lastindex(C.Cube)
-Base.getindex(C::ConfidenceIntervals, args...) = getindex(C.Cube, args...)
-
-Base.Tuple(C::ConfidenceIntervals) = Tuple(C.Cube)
+HyperCube(C::ConfidenceIntervals) = C.Cube
+Base.Tuple(C::ConfidenceIntervals) = Tuple(HyperCube(C))
 MLE(C::ConfidenceIntervals) = C.MLE
 DOF(C::ConfidenceIntervals) = C.dof
 IsCost(C::ConfidenceIntervals) = C.IsCost
 Pnames(C::ConfidenceIntervals) = C.Pnames
 pnames(C::ConfidenceIntervals) = C.Pnames .|> string
+pdim(C::ConfidenceIntervals) = length(MLE(C))
+
+# AbstractVector to outside
+Base.length(C::ConfidenceIntervals) = HyperCube(C) |> length
+Base.keys(C::ConfidenceIntervals) = Base.OneTo(length(HyperCube(C)))
+Base.size(C::ConfidenceIntervals) = (length(C),)
+Base.firstindex(C::ConfidenceIntervals) = firstindex(HyperCube(C))
+Base.lastindex(C::ConfidenceIntervals) = lastindex(HyperCube(C))
+Base.getindex(C::ConfidenceIntervals, inds) = getindex(HyperCube(C), inds)
+
 
 
 
