@@ -1145,20 +1145,24 @@ function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, in
 end
 
 
-function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; ADmode::Val=Val(:ForwardDiff), N::Union{Nothing,Int}=51, tol::Real=1e-4,
-                LogLikelihoodFn::Function=loglikelihood(DM), MLE::AbstractVector{<:Number}=MLE(DM), dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false,
+function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; N::Union{Nothing,Int}=51, GenerateNewDerivatives::Bool=false, 
+                LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), MLE::AbstractVector{<:Number}=MLE(DM), 
+                CostGradient::Union{Function,Nothing}=(GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM)),
+                CostHessian::Union{Function,Nothing}=(GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM)),
+                dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false, verbose::Bool=true, 
                 IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
-                LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), verbose::Bool=true, 
-                CostHessian::Function=CostHessian(DM),
+                LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), 
                 ### Pure PostProcessing:
                 AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(LogPriorFn), OffsetResults::Bool=true, SaveTrajectories::Bool=true, # Catch last
+                ### Catch from GetProfile Interface:
+                Fisher::AbstractMatrix=Array{Float64}(undef, 0, 0), InDomain::Union{Nothing,Function}=nothing, general::Bool=true, 
                 kwargs...)
-    LeftSol = IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=true,  ADmode, CostHessian, logLikeMLE, Confnum, IC, Domain, tol, verbose, kwargs...)
-    RightSol= IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=false, ADmode, CostHessian, logLikeMLE, Confnum, IC, Domain, tol, verbose, kwargs...)
+    LeftSol = IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=true,  CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
+    RightSol= IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=false, CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
 
     # Need to make sure all elements unique for interpolation
     path = Vector{eltype(MLE)}[]
-    if isnothing(N)
+    if isnothing(N) # Keep steps taken by integrator
         sizehint!(path, length(LeftSol.t)+length(RightSol.t))
         for i in 2:length(LeftSol.t)-1
             push!(path, insert!(LeftSol.u[end+1-i], Comp, LeftSol.t[end+1-i]))
@@ -1185,13 +1189,15 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVec
 end
 
 function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:Number}, Comp::Int; ADmode::Val=Val(:ForwardDiff), Left::Bool=false,
-                CostHessian::Function=GetHess!(ADmode, Negate(LogLikelihoodFn)),
-                γ::Union{Nothing,Real}=nothing, CostGradient::Union{Nothing,Function}=isnothing(γ) ? nothing : GetGrad!(ADmode, LogLikelihoodFn),
+                CostFunction::Function=Negate(LogLikelihoodFn), CostHessian::Function=GetHess!(ADmode, CostFunction), γ::Union{Nothing,Real}=nothing, 
+                CostGradient::Union{Nothing,Function}=isnothing(γ) ? nothing : GetGrad!(ADmode, CostFunction),
+                DiagonalRegularization::Real=1e-9, γAdaptive::Bool=false, #!isnothing(γ), 
+                AdaptiveGammaCallback=nothing, # γAdaptive ? DiscreteCallback((u,t,int)->true, int->(int.p = (; int.p..., γ=UpdateFunction(int, int.p.γ)); nothing)) : nothing,
                 logLikeMLE::Real=LogLikelihoodFn(MLE), Confnum::Number=2, dof::Real=length(MLE), verbose::Bool=true, 
                 IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)), MinSafetyFactor::Real=1.05,
                 Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
                 Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
-                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, reltol::Real=tol, abstol::Real=tol, kwargs...)
+                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, kwargs...)
 
     @inline AddGradient!(Hλψ, γ::Nothing, CostGradient, G, θ, λ_indices) = nothing
     @inline function AddGradient!(Hλψ::AbstractVector, γ::Number, CostGradient::Function, G::AbstractVector, θ::AbstractVector, λ_indices)
@@ -1233,7 +1239,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:
             isfinite(ProfileDomain.U[Comp]) ? ContinuousCallback((λ,ψ,int)->(ProfileDomain.U[Comp]-ψ), terminate!) : nothing
         end
     else nothing end
-    solve(prob, meth; callback=CallbackSet(ContinuousCallback(EarlyTermination, terminate!), DomainTermination), reltol, abstol, kwargs...)
+    solve(prob, meth; callback=CallbackSet(ContinuousCallback(EarlyTermination, terminate!), DomainTermination, AdaptiveGammaCallback), reltol=tol, abstol=tol, kwargs...)
 end
 
 
@@ -1330,6 +1336,7 @@ end
     end
 end
 
+PlotProfileTrajectories!(P::ParameterProfiles, args...; kwargs...) = RecipesBase.plot!(P, args..., Val(:PlotParameterTrajectories); kwargs...)
 PlotProfileTrajectories(P::ParameterProfiles, args...; kwargs...) = RecipesBase.plot(P, args..., Val(:PlotParameterTrajectories); kwargs...)
 
 
@@ -1728,6 +1735,7 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
     end
 end
 
+PlotProfilePathDiffs!(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot!(PV, Val(:ProfilePathDiffs); kwargs...)
 PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathDiffs); kwargs...)
 
 @recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathNormDiffs},Val{:PathNormDiffs}})
@@ -1777,9 +1785,11 @@ PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs.
     end
 end
 
+PlotProfilePathNormDiffs!(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot!(PV, Val(:ProfilePathNormDiffs); kwargs...)
 PlotProfilePathNormDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) = RecipesBase.plot(PV, Val(:ProfilePathNormDiffs); kwargs...)
 
-for F in [:PlotProfilePaths, :PlotProfileTrajectories, :PlotProfilePathDiffs, :PlotProfilePathNormDiffs]
+for F in [:PlotProfilePaths, :PlotProfileTrajectories, :PlotProfilePathDiffs, :PlotProfilePathNormDiffs,
+        :PlotProfilePaths!, :PlotProfileTrajectories!, :PlotProfilePathDiffs!, :PlotProfilePathNormDiffs!]
     @eval InformationGeometry.$F(DM::AbstractDataModel, args...; plot::Bool=false, kwargs...) = InformationGeometry.$F(ParameterProfiles(DM, args...; plot); kwargs...)
 end
 
@@ -1798,7 +1808,7 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
                                 MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
                                 dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), 
                                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
-                                DivideBy::Real=6, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+                                DivideBy::Real=6, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0
     FicticiousPoint = Normal(0, σv)
 
@@ -1810,7 +1820,7 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
     MakeNewMLE(MLE::ComponentVector{T}) where T<:Number = ComponentVector{T}(original=MLE; new=T(ypred-yoffset))
     mleNew = MakeNewMLE(MLE);    NewFisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
-    GetProfile(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
+    ProfileGetter(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
                 Fisher=NewFisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
