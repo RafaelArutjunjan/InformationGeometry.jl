@@ -1393,6 +1393,45 @@ abstract type AbstractConfidenceBoundary end
 
 
 
+struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
+    Cube::C
+    Confnum::Real
+    MLE::AbstractVector{<:Number}
+    dof::Real
+    dof2::Union{<:Real,Nothing} # Ndata - dof
+    IsCost::Bool
+    Pnames::AbstractVector{<:Symbol}
+    function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=length(P), dof2::Union{<:Real,Nothing}=nothing, 
+                    IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Pnames(P), kwargs...)
+        Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
+        ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames)
+    end
+    function ConfidenceIntervals(Cube::HyperCube, Confnum::Real, MLE::AbstractVector{<:Number}, dof::Real=length(MLE), dof2::Union{<:Real,Nothing}=nothing,
+                IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))))
+        @assert Confnum ≥ 0
+        @assert length(Cube) == length(MLE) == length(pnames)
+        new{typeof(Cube)}(Cube, Confnum, mle, dof, dof2, IsCost, Symbol.(pnames))
+    end
+end
+
+# AbstractVector to outside
+Base.length(C::ConfidenceIntervals) = C.Cube |> length
+Base.keys(C::ConfidenceIntervals) = Base.OneTo(length(C.Cube))
+Base.size(C::ConfidenceIntervals) = (length(C), 1)
+Base.firstindex(C::ConfidenceIntervals) = firstindex(C.Cube)
+Base.lastindex(C::ConfidenceIntervals) = lastindex(C.Cube)
+Base.getindex(C::ConfidenceIntervals, args...) = getindex(C.Cube, args...)
+
+Base.Tuple(C::ConfidenceIntervals) = Tuple(C.Cube)
+MLE(C::ConfidenceIntervals) = C.MLE
+DOF(C::ConfidenceIntervals) = C.dof
+IsCost(C::ConfidenceIntervals) = C.IsCost
+Pnames(C::ConfidenceIntervals) = C.Pnames
+pnames(C::ConfidenceIntervals) = C.Pnames .|> string
+
+
+
+
 # struct ConfidenceBoundarySlice <: AbstractBoundarySlice
 #     sols::AbstractVector{<:AbstractODESolution}
 #     Dirs::Tuple{Int,Int,Int}
