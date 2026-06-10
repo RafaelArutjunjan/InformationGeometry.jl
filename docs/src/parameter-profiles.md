@@ -72,17 +72,17 @@ IntegrationParameterProfiles
 
 Finally, the precise values where the profile likelihood of a given parameter intersects the threshold corresponding to some confidence level ``1-\alpha = q \in (0,1)`` can be extracted from a `ParameterProfiles` object via
 ```@example Profiles
-ProfileBox(P3, 1)
+CI = ConfidenceIntervals(P3, 1)
 ```
 which computes the ``1\sigma`` confidence intervals as a `HyperCube` where the confidence level is again provided in units of ``\sigma``.
 The desired confidence level can also be provided in ``\%`` via `InvConfVol`. For instance, to compute precisely the intervals associated with the ``95\% \approx 1.959\sigma`` thresholds:
 ```@example Profiles
-Tuple(ProfileBox(P3, InvConfVol(0.95)))
+Tuple(ConfidenceIntervals(P3, InvConfVol(0.95)))
 ```
 and the confidence intervals can be extracted from the returned `HyperCube` by indexing into the result or applying `Tuple`.
 When the confidence interval of associated with a given level is not bounded to one or both sides, `-Inf` or `+Inf` respectively is returned. For instance, the half-open ``3\sigma`` interval for ``\theta_2``:
 ```@example Profiles
-ProfileBox(P3[2], 3)[1]
+ConfidenceIntervals(P3[2], 3)[1]
 ```
 
 The final confidence level up to which a parameter was identified by the available data, i.e. where the confidence interval is still bounded in both directions, can be computed more precisely from a given profile by
@@ -92,7 +92,7 @@ PracticallyIdentifiable(P3[2])
 which can either be computed for all profiles together or a single profile of interest.
 
 ```@docs
-ProfileBox(::ParameterProfiles)
+ConfidenceIntervals(::ParameterProfiles, ::Int)
 PracticallyIdentifiable(::ParameterProfiles)
 ```
 

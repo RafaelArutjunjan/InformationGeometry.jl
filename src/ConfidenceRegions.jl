@@ -1392,7 +1392,15 @@ abstract type AbstractBoundarySlice end
 abstract type AbstractConfidenceBoundary end
 
 
+"""
+    ConfidenceIntervals(P::ParameterProfiles, Confnum::Real; dof=DOF(P))
+Computes confidence intervals from the given `ParameterProfiles` object as the intersection of the computed profiles with the desired confidence threshold `Confnum` specified in units of `σ` via the `ProfileBox` method.
+That is, `Confnum=1` corresponds to approximately `68.3%`, `Confnum=2` corresponds to `95.4%` and so on.
+Alternatively, the desired confidence threshold can be specified in percent `%` directly via `CI = ConfidenceIntervals(P, InvConfVol(0.95))`, which generates the exact `95.0%` confidence intervals.
 
+The `Tuple`s constituting the numerical intervals can be accessed via `Tuple(CI)`.
+The stored `MLE` can be accessed via `MLE(CI)`.
+"""
 struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
     Cube::C
     Confnum::Real
@@ -1422,6 +1430,7 @@ IsCost(C::ConfidenceIntervals) = C.IsCost
 Pnames(C::ConfidenceIntervals) = C.Pnames
 pnames(C::ConfidenceIntervals) = C.Pnames .|> string
 pdim(C::ConfidenceIntervals) = length(MLE(C))
+Base.isfinite(C::ConfidenceIntervals) = isfinite(HyperCube(C))
 
 # AbstractVector to outside
 Base.length(C::ConfidenceIntervals) = HyperCube(C) |> length
