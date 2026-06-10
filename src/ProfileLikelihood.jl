@@ -1148,7 +1148,7 @@ end
 
 
 function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; N::Union{Nothing,Int}=51, GenerateNewDerivatives::Bool=false, 
-                LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), MLE::AbstractVector{<:Number}=MLE(DM), 
+                LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), MLE::AbstractVector{<:Number}=MLE(DM), ADmode::Val=Val(:ForwardDiff), 
                 CostGradient::Union{Function,Nothing}=(GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM)),
                 CostHessian::Union{Function,Nothing}=(GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM)),
                 dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false, verbose::Bool=true, 
@@ -1159,8 +1159,8 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVec
                 ### Catch from GetProfile Interface:
                 Fisher::AbstractMatrix=Array{Float64}(undef, 0, 0), InDomain::Union{Nothing,Function}=nothing, general::Bool=true, 
                 kwargs...)
-    LeftSol = IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=true,  CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
-    RightSol= IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; Left=false, CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
+    LeftSol = IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; ADmode, Left=true,  CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
+    RightSol= IntegrationProfileArm(LogLikelihoodFn, MLE, Comp; ADmode, Left=false, CostFunction, CostGradient, CostHessian, logLikeMLE, Confnum, IC, Domain, verbose, kwargs...)
 
     # Need to make sure all elements unique for interpolation
     path = Vector{eltype(MLE)}[]

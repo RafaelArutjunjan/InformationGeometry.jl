@@ -1409,16 +1409,17 @@ struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
     dof2::Union{<:Real,Nothing} # Ndata - dof
     IsCost::Bool
     Pnames::AbstractVector{<:Symbol}
+    Meta
     function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=length(P), dof2::Union{<:Real,Nothing}=nothing, 
-                    IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=Pnames(P), kwargs...)
+                    IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=Pnames(P), Meta=P.Meta, kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
-        ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames)
+        ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames, Meta)
     end
     function ConfidenceIntervals(Cube::HyperCube, Confnum::Real, MLE::AbstractVector{<:Number}, dof::Real=length(MLE), dof2::Union{<:Real,Nothing}=nothing,
-                IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))))
+                IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))), Meta=nothing)
         @assert Confnum ≥ 0
         @assert length(Cube) == length(MLE) == length(pnames)
-        new{typeof(Cube)}(Cube, Confnum, MLE, dof, dof2, IsCost, Symbol.(pnames))
+        new{typeof(Cube)}(Cube, Confnum, MLE, dof, dof2, IsCost, Symbol.(pnames), Meta)
     end
 end
 
@@ -1438,7 +1439,8 @@ Base.keys(C::ConfidenceIntervals) = Base.OneTo(length(HyperCube(C)))
 Base.size(C::ConfidenceIntervals) = (length(C),)
 Base.firstindex(C::ConfidenceIntervals) = firstindex(HyperCube(C))
 Base.lastindex(C::ConfidenceIntervals) = lastindex(HyperCube(C))
-Base.getindex(C::ConfidenceIntervals, inds) = getindex(HyperCube(C), inds)
+Base.getindex(C::ConfidenceIntervals, ind::Int) = getindex(HyperCube(C), ind)
+Base.getindex(C::ConfidenceIntervals, inds) = getindex(Tuple(C), inds)
 
 
 
