@@ -782,7 +782,7 @@ FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.
 _ProfileBox(F::Nothing, Confnum::Real=1.0; kwargs...) = HyperCube([-Inf], [Inf])
 
 function _ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, mleval::Real=F.t[findmin(F.u)[2]], 
-                            CostThreshold::Union{<:Real, Nothing}=nothing, maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
+                            IC::Union{<:Real,Nothing}=nothing, CostThreshold::Union{<:Real,Nothing}=IC, maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
     Crossings = if !IsCost
         FindZerosWrapper(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
     else
@@ -951,10 +951,12 @@ PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles
     ParameterProfilesView(P::ParameterProfiles, i::Int)
 Views `ParameterProfiles` object for the `i`th parameter.
 """
-mutable struct ParameterProfilesView
-    P::ParameterProfiles
+struct ParameterProfilesView{Ptype<:AbstractProfiles}
+    P::Ptype
     i::Int
-    ParameterProfilesView(P::ParameterProfiles, i::Int) = (@assert 1 ≤ i ≤ pdim(P);     new(P,i))
+    function ParameterProfilesView(P::Ptype, i::Int) where Ptype <: AbstractProfiles
+        @assert 1 ≤ i ≤ pdim(P);     new{Ptype}(P,i)
+    end
 end
 (PV::ParameterProfilesView)(t::Real, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = PV.P(t, PV.i, Interp; kwargs...)
 InterpolatedProfiles(PV::ParameterProfilesView, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation; kwargs...) = InterpolatedProfiles(PV.P, PV.i, Interp; kwargs...)
