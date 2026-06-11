@@ -92,7 +92,7 @@ PracticallyIdentifiable(P3[2])
 which can either be computed for all profiles together or a single profile of interest.
 
 ```@docs
-ConfidenceIntervals(::ParameterProfiles, ::Int)
+ConfidenceIntervals
 PracticallyIdentifiable(::ParameterProfiles)
 ```
 
