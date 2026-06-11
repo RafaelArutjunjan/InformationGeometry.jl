@@ -1401,25 +1401,33 @@ Alternatively, the desired confidence threshold can be specified in percent `%` 
 The `Tuple`s constituting the numerical intervals can be accessed via `Tuple(CI)`.
 The stored `MLE` can be accessed via `MLE(CI)`.
 """
-struct ConfidenceIntervals{C<:HyperCube} <: AbstractVector{Tuple{<:Real,<:Real}}
+struct ConfidenceIntervals{C<:HyperCube, CT<:Number} <: AbstractVector{Tuple{CT,CT}}
     Cube::C
     Confnum::Real
-    MLE::AbstractVector{<:Number}
+    MLE::AbstractVector{CT}
     dof::Real
     dof2::Union{<:Real,Nothing} # Ndata - dof
     IsCost::Bool
-    Pnames::AbstractVector{<:Symbol}
+    Pnames::AbstractVector{Symbol}
     Meta
-    function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=length(P), dof2::Union{<:Real,Nothing}=nothing, 
+    function ConfidenceIntervals(P::AbstractSingleProfile, Confnum::Real; MLE::AbstractVector{<:Number}=(@view MLE(P)[P.i:P.i]), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
+                    IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=(@view Pnames(P)[P.i:P.i]), Meta=P.P.Meta, kwargs...)
+        Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
+        ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames, Meta)
+    end
+    function ConfidenceIntervals(P::AbstractVector{<:AbstractSingleProfile}, Confnum::Real; kwargs...)
+        reduce(vcat, ConfidenceIntervals(p, Confnum; kwargs...) for p in P)
+    end
+    function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
                     IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=Pnames(P), Meta=P.Meta, kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
         ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames, Meta)
     end
-    function ConfidenceIntervals(Cube::HyperCube, Confnum::Real, MLE::AbstractVector{<:Number}, dof::Real=length(MLE), dof2::Union{<:Real,Nothing}=nothing,
-                IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))), Meta=nothing)
+    function ConfidenceIntervals(Cube::C, Confnum::Real, MLE::AbstractVector{CT}, dof::Real=length(MLE), dof2::Union{<:Real,Nothing}=nothing,
+                IsCost::Bool=true, pnames::AbstractVector{<:StringOrSymb}=Symbol.(CreateSymbolNames(length(MLE))), Meta=nothing) where {C<:HyperCube, CT<:Number}
         @assert Confnum ≥ 0
         @assert length(Cube) == length(MLE) == length(pnames)
-        new{typeof(Cube)}(Cube, Confnum, MLE, dof, dof2, IsCost, Symbol.(pnames), Meta)
+        new{C, CT}(Cube, Confnum, MLE, dof, dof2, IsCost, Symbol.(pnames), Meta)
     end
 end
 
@@ -1443,6 +1451,13 @@ Base.getindex(C::ConfidenceIntervals, ind::Int) = getindex(HyperCube(C), ind)
 Base.getindex(C::ConfidenceIntervals, inds) = getindex(Tuple(C), inds)
 
 
+# Preferentially take Meta property of first object
+function Base.vcat(C1::ConfidenceIntervals, C2::ConfidenceIntervals)
+    @assert C1.Confnum == C2.Confnum && DOF(C1) == DOF(C2) && C1.dof2 == C2.dof2 && IsCost(C1) == IsCost(C2)
+    # @assert C1.Meta == C2.Meta
+    ConfidenceIntervals(vcat(HyperCube(C1),HyperCube(C2)), C1.Confnum, vcat(MLE(C1),MLE(C2)), DOF(C1), C1.dof2, IsCost(C1), vcat(Pnames(C1), Pnames(C2)), C1.Meta)
+end
+Base.vcat(C1::ConfidenceIntervals, C2::ConfidenceIntervals, args::ConfidenceIntervals...) = vcat(vcat(C1,C2), args...)
 
 
 

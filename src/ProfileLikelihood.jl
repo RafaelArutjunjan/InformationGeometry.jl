@@ -951,7 +951,7 @@ PracticallyIdentifiable(P::ParameterProfiles) = PracticallyIdentifiable(Profiles
     ParameterProfilesView(P::ParameterProfiles, i::Int)
 Views `ParameterProfiles` object for the `i`th parameter.
 """
-struct ParameterProfilesView{Ptype<:AbstractProfiles}
+struct ParameterProfilesView{Ptype<:AbstractProfiles} <: AbstractSingleProfile
     P::Ptype
     i::Int
     function ParameterProfilesView(P::Ptype, i::Int) where Ptype <: AbstractProfiles

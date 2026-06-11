@@ -110,6 +110,7 @@ abstract type AbstractConditionGrid <: AbstractDataModel end
 abstract type AbstractPEtabBasedConditionGrid <: AbstractConditionGrid end
 abstract type Cuboid end
 abstract type AbstractProfiles end
+abstract type AbstractSingleProfile end
 abstract type AbstractMultistartResults end
 export AbstractDataSet, AbstractDataModel, Cuboid
 
