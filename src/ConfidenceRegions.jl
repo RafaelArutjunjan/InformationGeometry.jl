@@ -1410,15 +1410,15 @@ struct ConfidenceIntervals{C<:HyperCube, CT<:Number} <: AbstractVector{Tuple{CT,
     IsCost::Bool
     Pnames::AbstractVector{Symbol}
     Meta
-    function ConfidenceIntervals(P::AbstractSingleProfile, Confnum::Real; MLE::AbstractVector{<:Number}=(@view MLE(P)[P.i:P.i]), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
+    function ConfidenceIntervals(P::AbstractSingleProfile, Confnum::Real=2; MLE::AbstractVector{<:Number}=(@view MLE(P)[P.i:P.i]), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
                     IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=(@view Pnames(P)[P.i:P.i]), Meta=P.P.Meta, kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
         ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames, Meta)
     end
-    function ConfidenceIntervals(P::AbstractVector{<:AbstractSingleProfile}, Confnum::Real; kwargs...)
+    function ConfidenceIntervals(P::AbstractVector{<:AbstractSingleProfile}, Confnum::Real=2; kwargs...)
         reduce(vcat, ConfidenceIntervals(p, Confnum; kwargs...) for p in P)
     end
-    function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
+    function ConfidenceIntervals(P::AbstractProfiles, Confnum::Real=2; MLE::AbstractVector{<:Number}=MLE(P), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
                     IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=Pnames(P), Meta=P.Meta, kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)
         ConfidenceIntervals(Cube, Confnum, MLE, dof, dof2, IsCost, pnames, Meta)

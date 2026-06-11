@@ -39,16 +39,16 @@ DM = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x
 DMp = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2], x->logpdf(Laplace(0,0.5),x[1]); name=:DMp)
 
 P1 = ParameterProfiles(DM, 2; IsCost=false, N=50, maxval=10, plot=false)
-B1 = ProfileBox(P1, 2)
+B1 = ConfidenceIntervals(P1, 2)
 
 P1p = ParameterProfiles(DMp, 2; IsCost=false, N=50, maxval=10, plot=false)
-B1p = ProfileBox(P1p, 2)
+B1p = ConfidenceIntervals(P1p, 2)
 
 P2 = ParameterProfiles(DM, 2; IsCost=false, N=50, Multistart=20, maxval=10, plot=false, verbose=false)
-B2 = ProfileBox(P2, 2)
+B2 = ConfidenceIntervals(P2, 2)
 
 P2p = ParameterProfiles(DMp, 2; IsCost=false, N=50, Multistart=20, maxval=10, plot=false, verbose=false)
-B2p = ProfileBox(P2p, 2)
+B2p = ConfidenceIntervals(P2p, 2)
 
 # Try Multistart reoptimization with general=true for pure cost function and general=false for manual step
 P3 = ParameterProfiles(DM, 2; general=true, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
@@ -57,21 +57,23 @@ P4 = ParameterProfiles(DM, 2; general=false, N=30, maxval=15, Multistart=15, plo
 P3p = ParameterProfiles(DMp, 2; general=true, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
 P4p = ParameterProfiles(DMp, 2; general=false, N=30, maxval=15, Multistart=15, plot=false, verbose=false)
 
-B3 = ProfileBox(P3, 2)
-B4 = ProfileBox(P4, 2)
-B3p = ProfileBox(P3p, 2)
-B4p = ProfileBox(P4p, 2)
+B3 = ConfidenceIntervals(P3, 2)
+B4 = ConfidenceIntervals(P4, 2)
+B3p = ConfidenceIntervals(P3p, 2)
+B4p = ConfidenceIntervals(P4p, 2)
 
 # Check that all go above threshold
-@test all(isfinite∘sum, Tuple(B1))
-@test all(isfinite∘sum, Tuple(B2))
-@test all(isfinite∘sum, Tuple(B3))
-@test all(isfinite∘sum, Tuple(B4))
-@test all(isfinite∘sum, Tuple(B1p))
-@test all(isfinite∘sum, Tuple(B2p))
-@test all(isfinite∘sum, Tuple(B3p))
-@test all(isfinite∘sum, Tuple(B4p))
+@test isfinite(B1)
+@test isfinite(B2)
+@test isfinite(B3)
+@test isfinite(B4)
+@test isfinite(B1p)
+@test isfinite(B2p)
+@test isfinite(B3p)
+@test isfinite(B4p)
 @test all(isfinite, ProfileBox(P3[1],2)[1])
+@test all(isfinite, ConfidenceIntervals(P3[1],2)[1])
+
 
 
 DMU = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]; verbose=false), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2, -0.5])
@@ -85,25 +87,25 @@ PU = ParameterProfiles(DMU, 2; N=30, plot=false, verbose=false)
 PU2 = ParameterProfiles(DMU, 2; N=30, maxval=15, Multistart=15, plot=false)
 # PU2 = ParameterProfiles(DMU, 2; N=30, meth=NewtonTrustRegion(), maxval=15, Multistart=15, plot=false, TryCatchCostFunc=false, verbose=true)
 
-BU = ProfileBox(PU, 2)
-BU2 = ProfileBox(PU2, 2)
+BU = ConfidenceIntervals(PU, 2)
+BU2 = ConfidenceIntervals(PU2, 2)
 
 # Check that all go above threshold
-@test all(isfinite∘sum, Tuple(BU))
-@test all(isfinite∘sum, Tuple(BU2))
+@test isfinite(BU)
+@test isfinite(BU2)
 
 
 ### Test other ParameterProfile computation methods
 APU = ParameterProfiles(DMU, 3; ApproximatePaths=true, N=31, plot=false, verbose=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(APU, 2)))
+@test isfinite(ConfidenceIntervals(APU, 2))
 
 PbPU = InformationGeometry.PreapproximatedParameterProfiles(DMU, 2; N=31, plot=false, verbose=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(PbPU, 1)))
+@test isfinite(ConfidenceIntervals(PbPU, 1))
 
 IPU = IntegrationParameterProfiles(DMU, 2.2; N=31, plot=false, verbose=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(IPU, 2)))
+@test isfinite(ConfidenceIntervals(IPU, 2))
 IPU2 = IntegrationParameterProfiles(DMU, 2.2; N=31, γ=0.5, plot=false, verbose=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(IPU2, 2)))
+@test isfinite(ConfidenceIntervals(IPU2, 2))
 
 S = StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false)
 @test S isa InformationGeometry.MultistartResults
@@ -112,19 +114,19 @@ S = StochasticProfileLikelihood(DMU; maxval=10, Nsingle=2, plot=false)
 ## Test FullParameterProfiles
 DME = DataModel(DataSetExact(Data(DM), 0.25), (x,p)->(p[1]+p[2])*x + exp(p[1]-p[2]), [1.3, 0.2]; name=:DME)
 FP = FullParameterProfiles(DME,1; pDomain=FullDomain(2,10), plot=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(FP, 1))[end-1:end])
+@test all(isfinite∘sum, ConfidenceIntervals(FP, 1)[end-1:end])
 
 
 # Test PredictionProfiles
 PP = PredictionProfiles(DM, 1)
-@test all(isfinite∘sum, Tuple(ProfileBox(PP,1)))
+@test isfinite(ConfidenceIntervals(PP,1))
 
 
 CG = ConditionGrid([DM, DMp])
 PCG1 = ParameterProfiles(CG; general=true, plot=false, verbose=false)
 PCG2 = ParameterProfiles(CG; maxval=20, Multistart=10, plot=false, verbose=false)
-@test all(isfinite∘sum, Tuple(ProfileBox(PCG1)))
-@test all(isfinite∘sum, Tuple(ProfileBox(PCG2)))
+@test isfinite(ConfidenceIntervals(PCG1, 2))
+@test isfinite(ConfidenceIntervals(PCG2, 2))
 
 using FiniteDifferences
 @test abs(pdim(DM) - GeneralizedDOF(DM)) < 1e-5
@@ -134,17 +136,17 @@ using FiniteDifferences
 using ComponentArrays, InformationGeometry
 Model(x, p::ComponentVector) = p.A .* x .+ p.B
 cpdm = DataModel(DataSet(1:4, [4,5,6.5,9], [0.5,0.45,0.6,1]), Model, ComponentVector(A=5.0, B=3.0))
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm; plot=false, Confnum=2), 2)))
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdm, 1, 1:1; plot=false, Confnum=2), 2))[1])
-@test all(isfinite∘sum, Tuple(ProfileBox(PredictionProfiles(cpdm, 1; Confnum=2), 2)))
+@test isfinite(ConfidenceIntervals(ParameterProfiles(cpdm; plot=false, Confnum=2), 2))
+@test isfinite(ConfidenceIntervals(ParameterProfiles(cpdm, 1, 1:1; plot=false, Confnum=2)[1], 2))
+@test isfinite(ConfidenceIntervals(PredictionProfiles(cpdm, 1; Confnum=2), 2))
 
 # LinearModel ensures correct use of GetOnlyModelParams in PredictionProfiles
 cpdmu = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]), LinearModel, ComponentVector(A=5.0, B=3.0, σ=0.1))
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdmu; plot=false, Confnum=2), 2)))
-@test all(isfinite∘sum, Tuple(ProfileBox(ParameterProfiles(cpdmu, 1, 1:1; plot=false, Confnum=2), 2))[1])
-@test all(isfinite∘sum, Tuple(ProfileBox(PredictionProfiles(cpdmu, 1; Confnum=2), 2)))
+@test isfinite(ConfidenceIntervals(ParameterProfiles(cpdmu; plot=false, Confnum=2), 2))
+@test isfinite(ConfidenceIntervals(ParameterProfiles(cpdmu, 1, 1:1; plot=false, Confnum=2)[1], 2))
+@test isfinite(ConfidenceIntervals(PredictionProfiles(cpdmu, 1; Confnum=2), 2))
 
-@test all(isfinite∘sum, Tuple(ProfileBox(ReoptimizeProfile(cpdmu, ParameterProfiles(cpdmu; maxiters=100, plot=false, Confnum=2)), 2)))
+@test isfinite(ConfidenceIntervals(ReoptimizeProfile(cpdmu, ParameterProfiles(cpdmu; maxiters=100, plot=false, Confnum=2)), 2))
 
 using Plots
 @test Plots.plot(PU) isa Plots.Plot
