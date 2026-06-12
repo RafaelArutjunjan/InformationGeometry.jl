@@ -273,7 +273,7 @@ Christen(F::Function, name::StringOrSymb) = (@warn "Cannot add name to function,
 Christen(DM::AbstractDataModel, name::StringOrSymb) = remake(DM; name=Symbol(name))
 
 
-function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), makeinplace::Bool=inplace, Kwargs...)
+function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), makeinplace::Bool=false, Kwargs...)
     ADmode isa Symbol && (ADmode = Val(ADmode))
     Grad, Jac = DerivableFunctionsBase._GetGrad(ADmode; Kwargs...), DerivableFunctionsBase._GetJac(ADmode; Kwargs...)
     GradPass, JacPass = DerivableFunctionsBase._GetGradPass, DerivableFunctionsBase._GetJacPass
@@ -290,13 +290,19 @@ function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false
     # CustomAutodmodel(x::Union{Number,AbstractVector{<:Number}},θ::AbstractVector{<:Number}) = transpose(Grad(p->model(x,p),θ))
     CustomAutodmodelN(x,θ::AbstractVector{<:Number}; kwargs...) = try Jac(p->model(x,p; kwargs...),θ) catch; transpose(Grad(p->model(x,p; kwargs...),θ)) end
     CustomAutodmodelN(x,θ::AbstractVector{<:Num}; kwargs...) = JacPass(p->model(x,p; kwargs...),θ)
-    if ydim(DS) == 1
+    # Add option for overloading model with inplace version
+    function FakeInplaceWrapper(F::Function; verbose::Bool=true)
+        FakeInplaceWrap(y, x, θ::AbstractVector; kwargs...) = (verbose && @warn "Using fake in-place method generated in AutoDiffDmodel";   copyto!(y, F(x, θ; kwargs...)))
+        FakeInplaceWrap(x, θ::AbstractVector; kwargs...) = F(x, θ; kwargs...)
+    end
+    dM = if ydim(DS) == 1
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? Autodmodel : NAutodmodel
     else
         custom && return CustomAutodmodelN
         return xdim(DS) == 1 ? AutodmodelN : NAutodmodelN
     end
+    (!inplace && makeinplace) ? FakeInplaceWrapper(DM) : dM
 end
 
 
@@ -315,26 +321,26 @@ function AutoDiffDmodelInplace(DS::AbstractDataSet, model::Function; custom::Boo
     end
     OutputLength(x) = _OutputLengthInplace(IsCustomVal, x, Xd, Yd)
 
-    function _ModelOut(x, θ::AbstractVector; NeedLen::Int=OutputLength(x), kwargs...)
+    function _ModelOut(x, θ::AbstractVector; NeedLength::Int=OutputLength(x), kwargs...)
         Yraw = UnrollCache(Ycache, θ, x)
-        Y = length(Yraw) == NeedLen ? Yraw : Vector{suff(θ)}(undef, NeedLen)
+        Y = length(Yraw) == NeedLength ? Yraw : Vector{suff(θ)}(undef, NeedLength)
         model(Y, x, θ; kwargs...);    Y
     end
-    function AutoDmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLen::Int=OutputLength(x), kwargs...)
-        Jac!(J, p->_ModelOut(x, p; NeedLen, kwargs...), θ)
+    function AutoDmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
+        Jac!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
     end
-    function AutoDmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLen::Int=OutputLength(x), kwargs...)
-        JacPass!(J, p->_ModelOut(x, p; NeedLen, kwargs...), θ)
+    function AutoDmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLength::Int=OutputLength(x), kwargs...)
+        JacPass!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
     end
     function AutoDmodelInplace(x, θ::AbstractVector{<:Number}; kwargs...)
-        NeedLen = OutputLength(x)
-        J = Matrix{suff(θ)}(undef, NeedLen, length(θ))
-        AutoDmodelInplace(J, x, θ; NeedLen, kwargs...);    J
+        NeedLength = OutputLength(x)
+        J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
+        AutoDmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
     function AutoDmodelInplace(x, θ::AbstractVector{<:Num}; kwargs...)
-        NeedLen = OutputLength(x)
-        J = Matrix{suff(θ)}(undef, NeedLen, length(θ))
-        AutoDmodelInplace(J, x, θ; NeedLen, kwargs...);    J
+        NeedLength = OutputLength(x)
+        J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
+        AutoDmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
     AutoDmodelInplace
 end
