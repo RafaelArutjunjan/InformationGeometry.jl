@@ -9,6 +9,18 @@ Calculates the likelihood ``L(\\mathrm{data} \\, | \\, \\theta)`` a `DataModel` 
 likelihood(args...; kwargs...) = exp(loglikelihood(args...; kwargs...))
 
 
+## Defining function with optional kwargs... produces slight overhead.
+# So define dedicated method for when no kwargs are passed for faster execution.
+# To avoid redefining existing function, use custom wrapper type
+struct KwargCallWrapper{Ffast,Fkw} <: Function
+    fast::Ffast
+    kw::Fkw
+end
+(S::KwargCallWrapper)(θ::AbstractVector{<:Number}) = S.fast(θ)
+(S::KwargCallWrapper)(D::AbstractArray{<:Number}, θ::AbstractVector{<:Number}) = S.fast(D, θ)
+Core.kwcall(kwargs::NamedTuple, S::KwargCallWrapper, θ::AbstractVector{<:Number}) = S.kw(θ; kwargs...)
+Core.kwcall(kwargs::NamedTuple, S::KwargCallWrapper, D::AbstractArray{<:Number}, θ::AbstractVector{<:Number}) = S.kw(D, θ; kwargs...)
+
 
 ## Prefix underscore for likelihood, Score and FisherMetric indicates that Prior has already been accounted for upstream
 loglikelihood(DM::AbstractDataModel; kwargs...) = LogLikelihood(θ::AbstractVector{<:Number}; Kwargs...) = loglikelihood(DM, θ; kwargs..., Kwargs...)
@@ -245,9 +257,25 @@ UnsafeScore(B::Bool) = !B
 UnsafeScore(V::Val{T}) where T = UnsafeScore(T)
 
 function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), SafeScore::Bool=UnsafeScore(ADmode), Kwargs...)
+    ADmode isa Symbol && (ADmode = Val(ADmode))
     if !SafeScore
-        # In this case, performance gain from in-place score is usually marginal since it uses out-of-place EmbeddingMap
-        ADS, ADS! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
+        ADkwargs, ADkwargs! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
+        ADS, ADS! = if ADmode isa Val{:ForwardDiff}
+            BaseLikelihood(θ::AbstractVector{<:Number}) = LogLikelihoodFn(θ; Kwargs...)
+            ForwardCfg = Ref{Union{Nothing,ForwardDiff.GradientConfig}}(nothing)
+
+            function _ForwardDiffScore(θ::AbstractVector{<:Number})
+                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ))
+                ForwardDiff.gradient(BaseLikelihood, θ, ForwardCfg[])
+            end
+            function _ForwardDiffScore!(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number})
+                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ))
+                ForwardDiff.gradient!(dl, BaseLikelihood, θ, ForwardCfg[])
+            end
+            _ForwardDiffScore, _ForwardDiffScore!
+        else
+            ADkwargs, ADkwargs!
+        end
         """
             LogLikelihoodGradient(θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
             LogLikelihoodGradient(dl::AbstractVector, θ::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...) -> Vector
@@ -256,8 +284,11 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
         !!! note
             The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
         """
-        LogLikelihoodGradient(θ::AbstractVector{<:Number}; kwargs...) = ADS(θ; Kwargs..., kwargs...)
-        LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADS!(dl, θ; Kwargs..., kwargs...)
+        LogLikelihoodGradient(θ::AbstractVector{<:Number}) = ADS(θ)
+        LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}) = ADS!(dl, θ)
+        LogLikelihoodGradientWithKw(θ::AbstractVector{<:Number}; kwargs...) = ADkwargs(θ; Kwargs..., kwargs...)
+        LogLikelihoodGradientWithKw(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADkwargs!(dl, θ; Kwargs..., kwargs...)
+        KwargCallWrapper(LogLikelihoodGradient, LogLikelihoodGradientWithKw)
     else
         @warn "The currently provided in-place method for Score is fake since fallback SafeScore=true was chosen."
         V = Val(false)
@@ -295,12 +326,32 @@ end
 
 function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Union{Function,Nothing}=nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
                                     UseHess::Bool=false, IncludePrior::Bool=true, Kwargs...)
-    ## Pure autodiff typically slow since must be recompiled!
+    ADmode isa Symbol && (ADmode = Val(ADmode))
     if UseHess
         @assert !isnothing(LogLikelihoodFn)
-        NL = Negate(LogLikelihoodFn);    F, F! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
-        FisherInformation(θ::AbstractVector{<:Number}; kwargs...) = F(θ; Kwargs..., kwargs...)
-        FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = F!(M, θ; Kwargs..., kwargs...)
+        NL = Negate(LogLikelihoodFn)
+        Fkw, Fkw! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
+        F, F! = if ADmode isa Val{:ForwardDiff}
+            BaseNegLikelihood(θ::AbstractVector{<:Number}) = NL(θ; Kwargs...)
+            ForwardCfg = Ref{Union{Nothing,ForwardDiff.HessianConfig}}(nothing)
+
+            function _ForwardDiffFisher(θ::AbstractVector{<:Number})
+                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ))
+                ForwardDiff.hessian(BaseNegLikelihood, θ, ForwardCfg[])
+            end
+            function _ForwardDiffFisher!(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number})
+                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ))
+                ForwardDiff.hessian!(M, BaseNegLikelihood, θ, ForwardCfg[])
+            end
+            _ForwardDiffFisher, _ForwardDiffFisher!
+        else
+            Fkw, Fkw!
+        end
+        FisherInformation(θ::AbstractVector{<:Number}) = F(θ)
+        FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}) = F!(M, θ)
+        FisherInformationWithKw(θ::AbstractVector{<:Number}; kwargs...) = Fkw(θ; Kwargs..., kwargs...)
+        FisherInformationWithKw(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = Fkw!(M, θ; Kwargs..., kwargs...)
+        KwargCallWrapper(FisherInformation, FisherInformationWithKw)
     else
         FisherMetricFn(θ::AbstractVector{<:Number}; kwargs...) = _FisherMetric(DS, model, dmodel, θ; Kwargs..., kwargs...)
         FisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = copyto!(M, FisherMetricFn(θ; Kwargs..., kwargs...))
