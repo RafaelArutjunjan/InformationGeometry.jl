@@ -326,19 +326,38 @@ function AutoDiffDmodelInplace(DS::AbstractDataSet, model::Function; custom::Boo
         Y = length(Yraw) == NeedLength ? Yraw : Vector{suff(θ)}(undef, NeedLength)
         model(Y, x, θ; kwargs...);    Y
     end
-    function AutodmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
+
+
+    function _GenericJacobianStep!(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
         Jac!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
+    end
+    JacobianStep! = if ADmode isa Val{:ForwardDiff}
+        # Keep Jacobian config to reduce allocations on new calls.
+        ForwardCfg = Ref{Any}(nothing)
+        CachedLen = Ref(-1)
+        function _ForwardDiffJacobianStep!(J::AbstractMatrix{<:Number}, x::X, θ::Θ; NeedLength::Int, kwargs...) where {X,Θ<:AbstractVector{<:Number}}
+            F = p->_ModelOut(x, p; NeedLength, kwargs...)
+            if NeedLength != CachedLen[]
+                ForwardCfg[] = ForwardDiff.JacobianConfig(F, θ)
+                CachedLen[] = NeedLength
+            end
+            ForwardDiff.jacobian!(J, F, θ, ForwardCfg[])
+        end
+    else
+        _GenericJacobianStep!
+    end
+
+    function AutodmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
+        JacobianStep!(J, x, θ; NeedLength, kwargs...)
     end
     function AutodmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLength::Int=OutputLength(x), kwargs...)
         JacPass!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
     end
-    function AutodmodelInplace(x, θ::AbstractVector{<:Number}; kwargs...)
-        NeedLength = OutputLength(x)
+    function AutodmodelInplace(x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
         J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
         AutodmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
-    function AutodmodelInplace(x, θ::AbstractVector{<:Num}; kwargs...)
-        NeedLength = OutputLength(x)
+    function AutodmodelInplace(x, θ::AbstractVector{<:Num}; NeedLength::Int=OutputLength(x), kwargs...)
         J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
         AutodmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
@@ -559,4 +578,3 @@ Base.sort(DS::AbstractDataSet; rev::Bool=false, kwargs...) = (@assert xdim(DS)==
 
 Sparsify(DS::AbstractDataSet) = SubDataSet(DS, rand(Bool,Npoints(DS)))
 Sparsify(DM::AbstractDataModel) = SubDataSet(DM, rand(Bool,Npoints(DM)))
-
