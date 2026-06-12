@@ -409,8 +409,11 @@ function MeasureAutoDiffPerformance(DS::AbstractDataSet, model::ModelOrFunction,
 end
 
 function CheckModelHealth(DS::AbstractDataSet, model::ModelOrFunction, P::AbstractVector=GetStartP(DS, model); verbose::Bool=true)
-    out = try  model(WoundX(DS)[1],GetOnlyModelParams(DS)(P))   catch Err
-        throw("Model evaluation failed for x=$(WoundX(DS)[1]) and θ=$P.")
+    X0 = WoundX(DS)[1];    Pmodel = GetOnlyModelParams(DS)(P)
+    out = try   model(X0, Pmodel)   catch Err
+        if xdim(DS) == 1 && X0 isa Number
+            try  model([X0], Pmodel) catch;  throw("Model evaluation failed for x=$X0 and θ=$P and also x=$([X0]).")  end
+        else  throw("Model evaluation failed for x=$X0 and θ=$P.")  end
     end
     size(out,1) != ydim(DS) && @warn "Got ydim=$(ydim(DS)) but output of model does not have this size."
     # if verbose && !isinplacemodel(model) && !(out isa SVector || out isa MVector) && (1 < ydim(DS) < 90)
