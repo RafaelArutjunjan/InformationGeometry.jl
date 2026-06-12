@@ -69,7 +69,7 @@ end
 # in-place does not really make sense for 1D output
 function _EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{1}; kwargs...)
     @inbounds for i in Base.OneTo(length(Y))
-        model!(Y[i], woundX[i], θ; kwargs...)
+        model!(view(Y, i:i), woundX[i], θ; kwargs...)
     end
 end
 function _EmbeddingMap!(Y::AbstractVector{<:Number}, model!::ModelOrFunction, θ::AbstractVector{<:Number}, woundX::AbstractVector, Ydim::Val{T}; kwargs...) where T
