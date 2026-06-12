@@ -44,10 +44,10 @@ DM = DataModel(DS, model, [1.0,2.5], LogPriorFn)
 
 The `DataSet` contained in a `DataModel` named `DM` can be accessed via `Data(DM)`, whereas the model and its Jacobian can be used via `Predictor(DM)` and `dPredictor(DM)` respectively. The MLE and the value of the log-likelihood at the MLE are accessible via `MLE(DM)` and `LogLikeMLE(DM)`. The logarithmized prior can be accessed via `LogPrior(DM)`.
 """
-struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector} <: AbstractDataModel
+struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector,M<:ModelOrFunction,dM<:ModelOrFunction} <: AbstractDataModel
     Data::DS
-    model::ModelOrFunction
-    dmodel::ModelOrFunction
+    model::M
+    dmodel::dM
     MLE::PVec
     LogLikeMLE::Real
     LogPrior::Union{Function,Nothing}
@@ -128,7 +128,7 @@ struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector} <: AbstractDataModel
         
         SkipTests || TestDataModel(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn; ADmode)
         
-        new{typeof(DS), typeof(MLE)}(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, Symbol.(name))
+        new{typeof(DS), typeof(MLE), typeof(model), typeof(dmodel)}(DS, model, dmodel, MLE, LogLikeMLE, LogPriorFn, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, Symbol.(name))
     end
 end
 
