@@ -243,5 +243,5 @@ Base.show(io::IO, C::ConfidenceIntervals) = print(io, Base.summary(C))
 
 function Base.show(io::IO, ::MIME"text/plain", C::ConfidenceIntervals)
     print(io, Base.summary(C))
-    show(io, PrettyTable([pnames(C) Tuple(C) MLE(C)]; column_labels=["Parameter", "Confidence Interval", "MLE"], alignment=[:l, :c, :c], table_format=TextTableFormat(borders = text_table_borders__borderless)))
+    show(io, PrettyTable([pnames(C) Tuple(C) MLE(C)]; column_labels=["Parameter", "Confidence Interval", "MLE"], alignment=[:l, :c, :c], table_format=TextTableFormat(borders=text_table_borders__borderless, horizontal_line_after_column_labels=false)))
 end
