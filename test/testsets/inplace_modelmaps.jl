@@ -74,9 +74,11 @@ TestDataModelQuantities(dm)
 
 ## inplace model
 iM = ModelMap((y, x, p)->y .= p[1] .*x .+ p[2], (1,1,2); IsCustom=true)
-## Test generation of in-place model jacobian from in-place model (does not work yet)
-diM = ModelMap((y, x, p)->(y[:,1] .= x; y[:,2] .= 1;    y), (1,1,2); IsCustom=true)
+diM = DetermineDmodel(DS, iM)
 idm = DataModel(DS, iM, diM, ones(2))
+
+Jtest = EmbeddingMatrix(DS, diM, ones(2))
+@test Jtest ≈ [1.0 1.0; 2.0 1.0; 3.0 1.0; 4.0 1.0]
 
 TestDataModelQuantities(idm)
 CompareTimings(dm, idm)
