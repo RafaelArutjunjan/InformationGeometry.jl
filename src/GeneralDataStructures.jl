@@ -326,23 +326,23 @@ function AutoDiffDmodelInplace(DS::AbstractDataSet, model::Function; custom::Boo
         Y = length(Yraw) == NeedLength ? Yraw : Vector{suff(θ)}(undef, NeedLength)
         model(Y, x, θ; kwargs...);    Y
     end
-    function AutoDmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
+    function AutodmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLength::Int=OutputLength(x), kwargs...)
         Jac!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
     end
-    function AutoDmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLength::Int=OutputLength(x), kwargs...)
+    function AutodmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLength::Int=OutputLength(x), kwargs...)
         JacPass!(J, p->_ModelOut(x, p; NeedLength, kwargs...), θ)
     end
-    function AutoDmodelInplace(x, θ::AbstractVector{<:Number}; kwargs...)
+    function AutodmodelInplace(x, θ::AbstractVector{<:Number}; kwargs...)
         NeedLength = OutputLength(x)
         J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
-        AutoDmodelInplace(J, x, θ; NeedLength, kwargs...);    J
+        AutodmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
-    function AutoDmodelInplace(x, θ::AbstractVector{<:Num}; kwargs...)
+    function AutodmodelInplace(x, θ::AbstractVector{<:Num}; kwargs...)
         NeedLength = OutputLength(x)
         J = Matrix{suff(θ)}(undef, NeedLength, length(θ))
-        AutoDmodelInplace(J, x, θ; NeedLength, kwargs...);    J
+        AutodmodelInplace(J, x, θ; NeedLength, kwargs...);    J
     end
-    AutoDmodelInplace
+    AutodmodelInplace
 end
 
 """
