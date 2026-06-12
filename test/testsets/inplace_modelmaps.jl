@@ -73,7 +73,17 @@ dm = DataModel(DS, M, dM)
 TestDataModelQuantities(dm)
 
 ## inplace model
-iM = ModelMap((y, x, p)->y .= p[1] .*x .+ p[2], (1,1,2); IsCustom=true)
+Mreal_only = ModelMap((y, x::Real, p)->y .= p[1] * x .+ p[2])
+@test Mreal_only.xyp == (1,1,2)
+@test DataModel(DS, Mreal_only) isa AbstractDataModel
+
+Mvec_only = ModelMap((y, x::AbstractVector, p)->y .= p[1] .* x .+ p[2])
+@test Mvec_only.xyp == (1,1,2)
+@test DataModel(DS, Mvec_only) isa AbstractDataModel
+
+
+iM = ModelMap((y, x, p)->y .= p[1] .*x .+ p[2])
+@test iM.xyp == (1,1,2)
 diM = DetermineDmodel(DS, iM)
 idm = DataModel(DS, iM, diM, ones(2))
 

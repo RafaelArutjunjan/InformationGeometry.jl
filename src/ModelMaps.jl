@@ -4,24 +4,38 @@ function _TestOut(model::Function, startp::AbstractVector, xlen::Int; inplace::B
     if !inplace
         model((xlen < 2 ? rand() : rand(xlen)), startp)
     else
-        Res = Fill(-Inf, max)
+        Res = fill(-Inf, max);    xvec = rand(xlen);    xscalar = xlen == 1 ? rand() : xvec;    ind = nothing
+        ExpectedFallback = "_TestOut: Could not infer unique output length. Maybe model broadcasts to always fill entire output?"
         ind = try
-            model(Res, (xlen < 2 ? rand() : rand(xlen)), startp)
-            findfirst(isinf, Res)
+            fill!(Res, -Inf);    model(Res, xvec, startp);    ind = findfirst(isinf, Res)
+            if isnothing(ind) && xlen == 1
+                fill!(Res, -Inf)
+                model(Res, xscalar, startp)
+                ind = findfirst(isinf, Res)
+            end
+            isnothing(ind) && error(ExpectedFallback)
+            ind
         catch E;
-            @warn "Got error $E during attempted evaluation of model."
+            IsExpectedFallback = E isa ErrorException && E.msg == ExpectedFallback
+            !IsExpectedFallback && @warn "Got error $E during attempted evaluation of model."
             ResInd = nothing
             for i in 1:max
-                try (model(Res[1:i], (xlen < 2 ? rand() : rand(xlen)), startp);  ResInd=i) catch; end
+                try (model(Res[1:i], xvec, startp);  ResInd=i+1) catch; end
+                isnothing(ResInd) && xlen == 1 && (try (model(Res[1:i], xscalar, startp);  ResInd=i+1) catch; end)
+                !isnothing(ResInd) && break
             end
             if isnothing(ResInd)
                 # model output scalar?
                 try
-                    res = zero(eltype(startp))
-                    model(res, (xlen < 2 ? rand() : rand(xlen)), startp)
-                    return res
-                catch E2; @warn "Got error $E2 in attempt to get scalar output." end
-            end; ResInd
+                    res = zero(eltype(startp));    model(res, xvec, startp);    return res
+                catch E2;
+                    if xlen == 1
+                        try
+                            res = zero(eltype(startp));    model(res, xscalar, startp);    return res
+                        catch E3; @warn "Got error $E3 in attempt to get scalar output." end
+                    else @warn "Got error $E2 in attempt to get scalar output." end
+                end
+            end;    ResInd
         end
         isnothing(ind) && throw("Could not determine model output size. Consider providing tuple (xdim, ydim, pdim).")
         Res[1:(ind-1)]
@@ -32,7 +46,7 @@ function CheckIfIsCustom(model::Function, startp::AbstractVector, xyp::Tuple, Is
     if !IsInplace
         try   length(model(woundX, startp)) == 2xyp[2]   catch;  false   end
     else
-        Res = Fill(-Inf, 2xyp[2])
+        Res = fill(-Inf, 2xyp[2])
         try   model(Res, woundX, startp);   !any(isinf, Res)    catch; false  end
     end
 end
