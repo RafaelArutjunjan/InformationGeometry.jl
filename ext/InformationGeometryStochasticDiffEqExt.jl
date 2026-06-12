@@ -59,7 +59,10 @@ function InformationGeometry._GetModelFast(func::SciMLBase.AbstractSDEFunction{T
             end
         end
         length(points) != length(ts) && throw("SDE integration failed, maybe try using a lower tolerance value.")
-        [ObservationFunction(points[i], ts[i], θ) for i in eachindex(ts)] |> Reduction
+        # Avoid indexing into ensemble solutions wrong
+        @inline GetPoint(points::SciMLBase.AbstractDiffEqArray, i) = points.u[i]
+        @inline GetPoint(points, i) = points[i]
+        [ObservationFunction(GetPoint(points, i), ts[i], θ) for i in eachindex(ts)] |> Reduction
     end
     # MakeCustom(SDEModel, Domain; Meta=(func, SplitterFunction, ObservationFunction, callback), verbose=false)
     Meta = (func, SplitterFunction, ObservationFunction, callback)

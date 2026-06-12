@@ -1393,7 +1393,7 @@ abstract type AbstractConfidenceBoundary end
 
 
 """
-    ConfidenceIntervals(P::ParameterProfiles, Confnum::Real; dof=DOF(P))
+    ConfidenceIntervals(P::ParameterProfiles, Confnum::Real=2; dof=DOF(P))
 Computes confidence intervals from the given `ParameterProfiles` object as the intersection of the computed profiles with the desired confidence threshold `Confnum` specified in units of `σ` via the `ProfileBox` method.
 That is, `Confnum=1` corresponds to approximately `68.3%`, `Confnum=2` corresponds to `95.4%` and so on.
 Alternatively, the desired confidence threshold can be specified in percent `%` directly via `CI = ConfidenceIntervals(P, InvConfVol(0.95))`, which generates the exact `95.0%` confidence intervals.
