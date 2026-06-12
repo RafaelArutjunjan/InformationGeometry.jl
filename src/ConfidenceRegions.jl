@@ -1393,12 +1393,13 @@ abstract type AbstractConfidenceBoundary end
 
 
 """
-    ConfidenceIntervals(P::ParameterProfiles, Confnum::Real=2; dof=DOF(P))
+    ConfidenceIntervals(P::Union{ParameterProfiles, AbstractDataModel}, Confnum::Real=2; dof=DOF(P))
 Computes confidence intervals from the given `ParameterProfiles` object as the intersection of the computed profiles with the desired confidence threshold `Confnum` specified in units of `σ` via the `ProfileBox` method.
 That is, `Confnum=1` corresponds to approximately `68.3%`, `Confnum=2` corresponds to `95.4%` and so on.
 Alternatively, the desired confidence threshold can be specified in percent `%` directly via `CI = ConfidenceIntervals(P, InvConfVol(0.95))`, which generates the exact `95.0%` confidence intervals.
 
 The `Tuple`s constituting the numerical intervals can be accessed via `Tuple(CI)`.
+Alternatively, the `CI` object can be converted to `C=HyperCube(CI)`, after which the vectors of lower and upper bounds can be respectively accessed via `C.L` and `C.U`.
 The stored `MLE` can be accessed via `MLE(CI)`.
 """
 struct ConfidenceIntervals{C<:HyperCube, CT<:Number} <: AbstractVector{Tuple{CT,CT}}
@@ -1410,6 +1411,9 @@ struct ConfidenceIntervals{C<:HyperCube, CT<:Number} <: AbstractVector{Tuple{CT,
     IsCost::Bool
     Pnames::AbstractVector{Symbol}
     Meta
+    function ConfidenceIntervals(DM::AbstractDataModel, Confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector{<:Number}=MLE(DM), dof::Int=DOF(DM), kwargs...)
+        ConfidenceIntervals(ParameterProfiles(DM, Confnum, inds; MLE, dof, kwargs...), Confnum; MLE, dof)
+    end
     function ConfidenceIntervals(P::AbstractSingleProfile, Confnum::Real=2; MLE::AbstractVector{<:Number}=(@view MLE(P)[P.i:P.i]), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
                     IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=(@view Pnames(P)[P.i:P.i]), Meta=P.P.Meta, kwargs...)
         Cube = ProfileBox(P, Confnum; MLE, dof, IsCost, kwargs...)

@@ -300,11 +300,50 @@ function AutoDiffDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false
 end
 
 
+function AutoDiffDmodelInplace(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), levels::Int=3, Kwargs...)
+    ADmode isa Symbol && (ADmode = Val(ADmode))
+    !inplace && throw("AutoDiffDmodelInplace requires an in-place model of signature (y,x,p).")
+    Jac! = DerivableFunctionsBase._GetJac!(ADmode; Kwargs...);    JacPass! = DerivableFunctionsBase._GetJacPass!
+    Yd, Xd = ydim(DS), xdim(DS);    BaseOutLen = custom ? Npoints(DS) * Yd : Yd;    IsCustomVal = Val(custom)
+    Ycache = DiffCache(Vector{eltype(ydata(DS))}(undef, BaseOutLen); levels)
+
+    _OutputLengthInplace(::Val, x, Xd::Int, Yd::Int) = Yd
+    function _OutputLengthInplace(::Val{true}, x::AbstractVector, Xd::Int, Yd::Int)
+        Xlen = length(x)
+        @boundscheck @assert Xlen % Xd == 0 "Custom in-place model received x of length $Xlen, which is incompatible with xdim=$Xd."
+        (Xlen * Yd) ÷ Xd
+    end
+    OutputLength(x) = _OutputLengthInplace(IsCustomVal, x, Xd, Yd)
+
+    function _ModelOut(x, θ::AbstractVector; NeedLen::Int=OutputLength(x), kwargs...)
+        Yraw = UnrollCache(Ycache, θ, x)
+        Y = length(Yraw) == NeedLen ? Yraw : Vector{suff(θ)}(undef, NeedLen)
+        model(Y, x, θ; kwargs...);    Y
+    end
+    function AutoDmodelInplace(J::AbstractMatrix{<:Number}, x, θ::AbstractVector{<:Number}; NeedLen::Int=OutputLength(x), kwargs...)
+        Jac!(J, p->_ModelOut(x, p; NeedLen, kwargs...), θ)
+    end
+    function AutoDmodelInplace(J::AbstractMatrix{<:Num}, x, θ::AbstractVector{<:Num}; NeedLen::Int=OutputLength(x), kwargs...)
+        JacPass!(J, p->_ModelOut(x, p; NeedLen, kwargs...), θ)
+    end
+    function AutoDmodelInplace(x, θ::AbstractVector{<:Number}; kwargs...)
+        NeedLen = OutputLength(x)
+        J = Matrix{suff(θ)}(undef, NeedLen, length(θ))
+        AutoDmodelInplace(J, x, θ; NeedLen, kwargs...);    J
+    end
+    function AutoDmodelInplace(x, θ::AbstractVector{<:Num}; kwargs...)
+        NeedLen = OutputLength(x)
+        J = Matrix{suff(θ)}(undef, NeedLen, length(θ))
+        AutoDmodelInplace(J, x, θ; NeedLen, kwargs...);    J
+    end
+    AutoDmodelInplace
+end
+
 """
     DetermineDmodel(DS::AbstractDataSet, model::Function; ADmode::Union{Symbol,Val}=:ForwardDiff)::Function
 Returns appropriate function which constitutes the automatic derivative of the `model(x,θ)` with respect to the parameters `θ` depending on the format of the x-values and y-values of the DataSet.
 """
-function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
+function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=false, ADmode::Union{Symbol,Val}=Val(:ForwardDiff), inplace::Bool=isinplacemodel(model), kwargs...)
     # For the symbolically generated jacobians to work with MArrays, it requires ≥ v0.11.3 of SymbolicUtils.jl:  https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/286
     if ADmode === :Symbolic || ADmode isa Val{:Symbolic}
         Symbolic_dmodel = OptimizeModel(DS, model)[2]
@@ -313,7 +352,7 @@ function DetermineDmodel(DS::AbstractDataSet, model::Function; custom::Bool=fals
         @info "Falling back to ForwardDiff for model jacobian."
         ADmode = Val(:ForwardDiff)
     end
-    AutoDiffDmodel(DS, model; custom, ADmode, kwargs...)
+    (inplace ? AutoDiffDmodelInplace : AutoDiffDmodel)(DS, model; custom, ADmode, kwargs...)
 end
 function DetermineDmodel(DS::AbstractDataSet, M::ModelMap; custom::Bool=iscustommodel(M), inplace::Bool=isinplacemodel(M), makeinplace::Bool=inplace, kwargs...)
     ModelMap(DetermineDmodel(DS, M.Map; custom, inplace, makeinplace, kwargs...), M; inplace=makeinplace)
