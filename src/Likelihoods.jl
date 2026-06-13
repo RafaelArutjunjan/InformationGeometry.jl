@@ -256,20 +256,28 @@ UnsafeScore(S::Symbol) = S ∉ SafeScores
 UnsafeScore(B::Bool) = !B
 UnsafeScore(V::Val{T}) where T = UnsafeScore(T)
 
-function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), SafeScore::Bool=UnsafeScore(ADmode), Kwargs...)
+function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
+                        SafeScore::Bool=UnsafeScore(ADmode), UseCachedConfig::Bool=false, Kwargs...)
     ADmode isa Symbol && (ADmode = Val(ADmode))
     if !SafeScore
         ADkwargs, ADkwargs! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
-        ADS, ADS! = if ADmode isa Val{:ForwardDiff}
+        ADS, ADS! = if UseCachedConfig && ADmode isa Val{:ForwardDiff}
             BaseLikelihood(θ::AbstractVector{<:Number}) = LogLikelihoodFn(θ; Kwargs...)
             ForwardCfg = Ref{Union{Nothing,ForwardDiff.GradientConfig}}(nothing)
+            ForwardCfgLen = Ref(0)
 
             function _ForwardDiffScore(θ::AbstractVector{<:Number})
-                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ))
+                if isnothing(ForwardCfg[]) || ForwardCfgLen[] != length(θ)
+                    ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ)
+                    ForwardCfgLen[] = length(θ)
+                end
                 ForwardDiff.gradient(BaseLikelihood, θ, ForwardCfg[])
             end
             function _ForwardDiffScore!(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number})
-                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ))
+                if isnothing(ForwardCfg[]) || ForwardCfgLen[] != length(θ)
+                    ForwardCfg[] = ForwardDiff.GradientConfig(BaseLikelihood, θ)
+                    ForwardCfgLen[] = length(θ)
+                end
                 ForwardDiff.gradient!(dl, BaseLikelihood, θ, ForwardCfg[])
             end
             _ForwardDiffScore, _ForwardDiffScore!
@@ -325,22 +333,29 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
 end
 
 function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Union{Function,Nothing}=nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
-                                    UseHess::Bool=false, IncludePrior::Bool=true, Kwargs...)
+                                    UseHess::Bool=false, IncludePrior::Bool=true, UseCachedConfig::Bool=false, Kwargs...)
     ADmode isa Symbol && (ADmode = Val(ADmode))
     if UseHess
         @assert !isnothing(LogLikelihoodFn)
         NL = Negate(LogLikelihoodFn)
         Fkw, Fkw! = GetHess(ADmode, NL), GetHess!(ADmode, NL)
-        F, F! = if ADmode isa Val{:ForwardDiff}
+        F, F! = if UseCachedConfig && ADmode isa Val{:ForwardDiff}
             BaseNegLikelihood(θ::AbstractVector{<:Number}) = NL(θ; Kwargs...)
             ForwardCfg = Ref{Union{Nothing,ForwardDiff.HessianConfig}}(nothing)
+            ForwardCfgLen = Ref(0)
 
             function _ForwardDiffFisher(θ::AbstractVector{<:Number})
-                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ))
+                if isnothing(ForwardCfg[]) || ForwardCfgLen[] != length(θ)
+                    ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ)
+                    ForwardCfgLen[] = length(θ)
+                end
                 ForwardDiff.hessian(BaseNegLikelihood, θ, ForwardCfg[])
             end
             function _ForwardDiffFisher!(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number})
-                isnothing(ForwardCfg[]) && (ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ))
+                if isnothing(ForwardCfg[]) || ForwardCfgLen[] != length(θ)
+                    ForwardCfg[] = ForwardDiff.HessianConfig(BaseNegLikelihood, θ)
+                    ForwardCfgLen[] = length(θ)
+                end
                 ForwardDiff.hessian!(M, BaseNegLikelihood, θ, ForwardCfg[])
             end
             _ForwardDiffFisher, _ForwardDiffFisher!
