@@ -1464,6 +1464,11 @@ end
 Base.vcat(C1::ConfidenceIntervals, C2::ConfidenceIntervals, args::ConfidenceIntervals...) = vcat(vcat(C1,C2), args...)
 
 
+function SubConfidenceIntervals(CI::ConfidenceIntervals, inds::AbstractVector{<:Int})
+    @assert all(1 .≤ inds .≤ length(CI))
+    ConfidenceIntervals(SubHyperCube(HyperCube(CI), inds), CI.Confnum, getindex(MLE(CI), inds), DOF(CI), CI.dof2, IsCost(CI), getindex(pnames(CI), inds), CI.Meta)
+end
+
 
 # struct ConfidenceBoundarySlice <: AbstractBoundarySlice
 #     sols::AbstractVector{<:AbstractODESolution}

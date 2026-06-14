@@ -266,7 +266,7 @@ export IntegrationParameterProfiles
 export PlotProfilePaths, PlotProfilePaths!, PlotProfilePathDiffs, PlotProfilePathDiffs!
 export PlotProfileTrajectories, PlotProfileTrajectories!, PlotProfilePathNormDiffs, PlotProfilePathNormDiffs!
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
-export ConfidenceIntervals
+export ConfidenceIntervals, SubConfidenceIntervals
 
 
 include("NumericalTools/Multistart.jl")
