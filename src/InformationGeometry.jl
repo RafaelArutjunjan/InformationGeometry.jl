@@ -135,6 +135,11 @@ function BiExp end
 function BiRoot end
 function BiPower end
 
+
+const DefaultFirstOrderOptimizer = Optim.LBFGS(;linesearch=LineSearches.BackTracking())
+const DefaultSecondOrderOptimizer = Optim.NewtonTrustRegion()
+
+
 include("Subspaces.jl")
 export Plane
 export BasisVector, PlaneCoordinates, IsOnPlane, TranslatePlane, RotatePlane, DecomposeWRTPlane
