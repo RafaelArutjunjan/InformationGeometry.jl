@@ -386,7 +386,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM), MinimizeFunc::Function=InformationGeometry.minimize,
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
-                        meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : LBFGS(;linesearch=LineSearches.BackTracking())), OptimMeth=meth, OffsetResults::Bool=true,
+                        meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : DefaultFirstOrderOptimizer), OptimMeth=meth, OffsetResults::Bool=true,
                         IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but model does not have prior."
@@ -415,12 +415,12 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
     FitFunc = if !general && isnothing(OptimMeth) && !isnothing(LogPriorFn) && KnownVariance
         ((args...; Kwargs...)->Curve_fit(args...; tol, Domain=OptimDomain, verbose, Kwargs...))
     elseif Multistart > 0
-        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
+        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? DefaultFirstOrderOptimizer : OptimMeth
         verbose && @info "Using Multistart fitting with N=$Multistart in profile $Comp"
         # Set parallel=false to avoid nesting of pmap over individual profiles with pmap over multistarts of the profiles
         ((args...; Kwargs...)->MultistartFit(args...; MultistartDomain=OptimDomain, N=Multistart, meth=Meth, showprogress=false, resampling=true, parallel=false, MinimizeFunc, maxval, verbose, tol, Kwargs..., plot=false, Full=true))
     else
-        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? LBFGS(;linesearch=LineSearches.BackTracking()) : OptimMeth
+        Meth = (isnothing(OptimMeth) && !isnothing(LogPriorFn)) ? DefaultFirstOrderOptimizer : OptimMeth
         ((args...; Kwargs...)->MinimizeFunc(args...; tol, meth=Meth, Domain=OptimDomain, verbose, Kwargs..., Full=true))
     end
     

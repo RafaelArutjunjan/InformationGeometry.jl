@@ -69,7 +69,7 @@ struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector,M<:ModelOrFunction,dM<
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, mle::AbstractVector, LogPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; custom::Bool=iscustommodel(model), ADmode::Union{Symbol,Val}=Val(:ForwardDiff), kwargs...)
         DataModel(DS, model, DetermineDmodel(DS, model; custom, ADmode), mle, LogPriorFn, SkipOptimAndTests; ADmode, kwargs...)
     end
-    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
+    function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, SkipOptimAndTests::Bool=false; tol::Real=1e-12, OptimTol::Real=tol, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, startp::AbstractVector{<:Number}=GetStartP(DS,model), 
                                     ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests, ModifyModelMap::Bool=true, verbose::Bool=true, kwargs...)
         if model isa ModelMap && length(Domain(model)) < length(startp) && ModifyModelMap && DS isa AbstractUnknownUncertaintyDataSet
             if xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(startp)
@@ -89,7 +89,7 @@ struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector,M<:ModelOrFunction,dM<
         DataModel(DS, model, dmodel, mle, SkipOptimAndTests; SkipTests, SkipOptim=true, ADmode, kwargs...)
     end
     function DataModel(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, mle::AbstractVector{<:Number}, logPriorFn::Union{Function,Nothing}, SkipOptimAndTests::Bool=false; SkipOptim::Bool=SkipOptimAndTests, SkipTests::Bool=SkipOptimAndTests,
-                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=LBFGS(;linesearch=LineSearches.BackTracking()), OptimMeth=meth, ModifyModelMap::Bool=true, verbose::Bool=true, kwargs...)
+                        ADmode::Union{Symbol,Val}=Val(:ForwardDiff), ADmodeOptim::Union{Symbol,Val}=ADmode, LogLikelihoodFn::Union{Nothing,Function}=nothing, tol::Real=1e-12, OptimTol::Real=tol, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, ModifyModelMap::Bool=true, verbose::Bool=true, kwargs...)
         LogPriorFn = logPriorFn # Prior(logPriorFn, mle, (-1,length(mle)))
         if model isa ModelMap && length(Domain(model)) < length(mle) && ModifyModelMap && DS isa AbstractUnknownUncertaintyDataSet
             if xpars(DS) + length(Domain(model)) + errormoddim(DS) == length(mle)
