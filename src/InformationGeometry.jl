@@ -136,8 +136,10 @@ function BiRoot end
 function BiPower end
 
 
+const DefaultZerothOrderOptimizer = Optim.NelderMead()
 const DefaultFirstOrderOptimizer = Optim.LBFGS(;linesearch=LineSearches.BackTracking())
 const DefaultSecondOrderOptimizer = Optim.NewtonTrustRegion()
+const DefaultStochasticOptimizer = isdefined(Optim, :AdaMax) ? Optim.AdaMax() : DefaultZerothOrderOptimizer
 
 
 include("Subspaces.jl")

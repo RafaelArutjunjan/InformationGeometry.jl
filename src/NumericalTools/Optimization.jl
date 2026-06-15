@@ -87,9 +87,9 @@ ConstrainStart(start::AbstractVector{T}, Dom::Nothing; kwargs...) where T<:Numbe
 
 
 """
-    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NelderMead(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
+    minimize(F::Function, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=DefaultZerothOrderOptimizer, Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
     minimize(F, dF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=DefaultFirstOrderOptimizer, Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
-    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=NewtonTrustRegion(), Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
+    minimize(F, dF, ddF, start::AbstractVector{<:Number}; tol::Real=1e-10, meth=DefaultSecondOrderOptimizer, Full::Bool=false, maxtime::Real=600, kwargs...) -> Vector
 Minimizes the scalar input function using the given `start` using any algorithms from the `Optimation.jl` ecosystem specified via the keyword `meth`.
 `Full=true` returns the full solution object instead of only the minimizing result.
 Optionally, the search domain can be bounded by passing a suitable `HyperCube` object as the third argument (ignoring derivatives).
@@ -100,7 +100,7 @@ minimize(F::Function, dF::Function, ddF::Function, start::AbstractVector, args..
 
 
 function minimize(Fs::Tuple, Start::AbstractVector{<:Number}, domain::Union{HyperCube,Nothing}=nothing; Domain::Union{HyperCube,Nothing}=domain,
-                meth=(length(Fs) == 1 ? Optim.NelderMead() : (length(Fs) == 2 ? DefaultFirstOrderOptimizer : DefaultSecondOrderOptimizer)), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
+                meth=(length(Fs) == 1 ? DefaultZerothOrderOptimizer : (length(Fs) == 2 ? DefaultFirstOrderOptimizer : DefaultSecondOrderOptimizer)), timeout::Real=600.0, maxtime::Real=timeout, kwargs...)
     minimize(Fs, Start, meth; Domain, maxtime, kwargs...)
 end
 
@@ -132,7 +132,7 @@ function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.Abstra
                 g_tol::Real=reltol, g_abstol::Real=abstol, x_tol=nothing, f_tol=nothing, x_abstol::Real=0.0, x_reltol::Real=0.0, f_abstol::Real=0.0, f_reltol::Real=0.0, 
                 maxiters::Int=10000, iterations::Int=maxiters, callback=nothing, f_calls_limit::Int=0, allow_f_increases::Bool=true, 
                 store_trace::Bool=false, show_trace::Bool=false, extended_trace::Bool=false, show_every::Int=1, 
-                retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...) where T <: Number
+                retry::Bool=false, retrymeth=(retry ? DefaultZerothOrderOptimizer : nothing), kwargs...) where T <: Number
     @assert !retry || !isnothing(retrymeth)
     @assert 1 ≤ length(Fs) ≤ 3
     start = ConstrainStart(Start, Domain; verbose, ForceClamp)
@@ -223,7 +223,7 @@ function minimizeOptimizationJL(optf::OptimizationFunction, Start::AbstractVecto
                     tol::Real=1e-10, maxiters::Int=10000, maxtime::Real=600.0, abstol::Real=tol, reltol::Real=tol, ForceClamp::Bool=true,
                     lb=(!isnothing(Domain) ? convert(typeof(Start),Domain.L) : nothing), ub=(!isnothing(Domain) ? convert(typeof(Start),Domain.U) : nothing), lcons=nothing, ucons=nothing, # cons already captured in optf
                     Fthresh::Union{Nothing,Real}=nothing, callback=MakeThresholdCallback(Fthresh), 
-                    retry::Bool=false, retrymeth=(retry ? Optim.NelderMead() : nothing), kwargs...)
+                    retry::Bool=false, retrymeth=(retry ? DefaultZerothOrderOptimizer : nothing), kwargs...)
     
     @assert !retry || !isnothing(retrymeth)
     if SciMLBase.requiresbounds(meth)
@@ -436,7 +436,7 @@ end
 
 
 """
-    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PrintLossEvery=50, PlotEvery::Int=0, kwargs...)
+    Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); T::Type{<:Number}=eltype(mle), meth=DefaultStochasticOptimizer, maxiters::Int=10000, Safe::Bool=false, Domain=nothing, TryCatchOptimizer::Bool=true, tol=1e-8, PrintLossEvery=50, PlotEvery::Int=0, kwargs...)
 Performs pre-fit of `DM` at potentially lower precision specified by `T` (e.g. Float32) with stochastic optimizer and converts back to original precision in `DM` afterwards. Potential speed-up for models with neural network components.
 Kwarg `Safe=true` ensures that best configuration encountered during whole optimization is returned, instead of the final one of the last optimizer.
 Kwargs can also be forwarded to `ParameterSavingCallback` and can thus be used for early termination.
@@ -464,7 +464,7 @@ function Prefit(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), args...; ori
     DM32 = (T === originalT) ? DM : T(DM)
     Prefit(Negloglikelihood(DM32), mle, args...; originalT, T, pstart, Domain, SaveLoss, SaveParams, SavedParams, Losses, Plotter, kwargs...)
 end
-function Prefit(CostFunction::Union{Tuple,Function}, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=Optim.Adam(), maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=false, pstart::AbstractVector{<:Number}=T.(mle), 
+function Prefit(CostFunction::Union{Tuple,Function}, mle::AbstractVector, args...; originalT::Type{<:Number}=Float64, T::Type{<:Number}=eltype(mle), meth=DefaultStochasticOptimizer, maxiters::Union{Int,AbstractVector{<:Int}}=10000, tol=1e-9, Safe::Bool=false, pstart::AbstractVector{<:Number}=T.(mle), 
                 MinimizeFunc::Function=InformationGeometry.minimize, TryCatchOptimizer::Bool=false, verbose::Bool=true,
                 ## Purely forwarded ParameterSavingCallback() kwargs:
                 SaveParams::Bool=Safe, SavedParams::Union{Nothing,AbstractVector{<:AbstractVector}}=SaveParams ? typeof(pstart)[] : nothing, 
