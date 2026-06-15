@@ -1804,6 +1804,7 @@ function RecipesBase.plot(Ps::AbstractArray{<:Union{ParameterProfiles, Parameter
 end
 
 
+### Last index in Trajectories is auxiliary ypred point
 # Generate validation profile centered on prediction at a single independent variable t
 # Ficticious point contribution accounted for via prior field, if a prior already exists then it is not saved separately in the profile object but still accounted for
 function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
@@ -1876,3 +1877,12 @@ Most other kwargs are passed on to the `ParameterProfiles` function and thereby 
 PredictionProfiles(args...; DivideBy::Real=10, kwargs...) = ValidationProfiles(args...; DivideBy, kwargs...) |> ConvertValidationToPredictionProfiles
 
 
+function GetProfileTimes(P::ParameterProfiles)
+    @assert P.Meta === :PredictionProfiles || P.Meta === :ValidationProfiles
+    function ExtractBracketedString(S::AbstractString, OpenBracket='(', CloseBracket=')')
+        Start = findfirst(OpenBracket, S);  @assert !isnothing(Start)
+        End = findlast(CloseBracket, S);  @assert !isnothing(End)
+        @view S[Start+1:End-1]
+    end
+    Meta.parse.(ExtractBracketedString.(pnames(P)))
+end
