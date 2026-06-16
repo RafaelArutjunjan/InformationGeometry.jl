@@ -798,7 +798,7 @@ function PlotConfidenceBands(M::AbstractMatrix{<:Number}, InOut::Tuple{Int,Int},
     end
 end
 
-function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::HyperCube=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), samples::Int=200, dof::Int=DOF(DM), kwargs...)
+function ConfidenceBands(DM::AbstractDataModel, Confnum::Real, Xdomain::Union{AbstractVector,HyperCube}=XCube(DM); N::Int=300, plot::Bool=isloaded(:Plots), samples::Int=200, dof::Int=DOF(DM), kwargs...)
     ConfidenceBands(DM, ConfidenceRegion(DM, Confnum; dof, kwargs...), Xdomain; N, dof, plot, samples)
 end
 
@@ -828,7 +828,7 @@ function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
     M, Res, Yt
 end
 
-function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM),
+function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM), N::Int=0, # catch last
                             plot::Bool=isloaded(:Plots), samples::Int=100, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)

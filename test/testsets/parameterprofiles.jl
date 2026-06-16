@@ -148,6 +148,29 @@ cpdmu = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]), LinearModel, ComponentVect
 
 @test isfinite(ConfidenceIntervals(ReoptimizeProfile(cpdmu, ParameterProfiles(cpdmu; maxiters=100, plot=false, Confnum=2); plot=false), 2))
 
+
+# Check that OffsetToZero correctly mutates profile range
+DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->exp(p[1])*x + p[2])
+VP1 = ValidationProfiles(DM, 1, -2:10; Confnum=7, OffsetToZero=false)
+VP2 = ValidationProfiles(DM, 1, -2:10; Confnum=7, OffsetToZero=true)
+CI1 = ConfidenceIntervals(VP1, 2)
+CI2 = ConfidenceIntervals(VP2, 2)
+@test isfinite(CI1)
+@test isfinite(CI2)
+
+# Check that prediction bands based respectively on variance propagation, confidence boundary propagation and prediction profiles coincide exactly. 
+xran = -1:0.5:10
+Y = EmbeddingMap(DM, MLE(DM), xran)
+F = VariancePropagation(DM; Confnum=2)
+VarianceSqrt = map(F, xran)
+VariancePropMat = [xran Y-VarianceSqrt Y+VarianceSqrt]
+Bmat = ConfidenceBands(DM, 2, xran)
+PCI = ConfidenceIntervals(PredictionProfiles(DM, 1, xran; Confnum=2.5), 2)
+PCImat = [InformationGeometry.GetProfileTimes(PCI) HyperCube(PCI).L HyperCube(PCI).U]
+@test norm(VariancePropMat - Bmat) < 1e-2
+@test norm(VariancePropMat - PCImat) < 1e-2
+
+
 using Plots
 @test Plots.plot(PU) isa Plots.Plot
 @test PlotProfilePaths(PU) isa Plots.Plot
