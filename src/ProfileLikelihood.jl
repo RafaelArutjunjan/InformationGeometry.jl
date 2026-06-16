@@ -1812,16 +1812,14 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
                                 dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), 
                                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
                                 DivideBy::Real=6, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
-    @assert IC > 0 && dof > 0
-    FicticiousPoint = Normal(0, σv)
-
+    @assert IC > 0 && dof > 0;    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - Model(t, ModelParExtractor(θ))[yComp] + yoffset))
     FictDataPointPrior(θnew::ComponentVector) = logpdf(FicticiousPoint, θnew.new[1] - Model(t, ModelParExtractor(θnew.original))[yComp] + yoffset)
     VPL(θnew::AbstractVector) = LogLikelihoodFn(view(θnew, 1:lastindex(θnew)-1)) + FictDataPointPrior(θnew)
     VPL(θnew::ComponentVector) = LogLikelihoodFn(θnew.original) + FictDataPointPrior(θnew)
     MakeNewMLE(MLE::AbstractVector{T}) where T<:Number = [MLE; T(ypred-yoffset)]
     MakeNewMLE(MLE::ComponentVector{T}) where T<:Number = ComponentVector{T}(original=MLE; new=T(ypred-yoffset))
-    mleNew = MakeNewMLE(MLE);    NewFisher = Diagonal(Fill(σv^-2,pdim(DM)+1))
+    mleNew = MakeNewMLE(MLE);    NewFisher = Diagonal(Fill(σv^-2, pdim(DM)+1))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
     ProfileGetter(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
                 Fisher=NewFisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
@@ -1850,9 +1848,11 @@ function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVecto
     end
     # If should remain on true scale, add ypreds back on
     offsetvec = OffsetToZero ? Zeros(length(Ts)) : ypreds
-    for i in eachindex(Ts)   Profs[i][:,1] .+= offsetvec[i];     for j in 1:size(Trajs[i],1)    Trajs[i][j][end] += offsetvec[i]    end    end
+    for i in eachindex(Ts)   Profs[i].u[1] .+= offsetvec[i];     for j in 1:size(Trajs[i],1)    Trajs[i][j][end] += offsetvec[i]    end    end
     VPL = "VPL"*(ydim > 1 ? "[$(yComp)]" : "");   ParameterProfiles(Profs, Trajs, [VPL*"($(Ts[i]))" for i in eachindex(Ts)], offsetvec, dof, IsCost; Meta)
 end
+# VectorOfArray mutation by OffsetToZero does not work properly for ranges
+ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractRange; kwargs...) = ValidationProfiles(DM, yComp, collect(Ts); kwargs...)
 ValidationProfiles(DM::AbstractDataModel, yComp::Int, t::Number; kwargs...) = ValidationProfiles(DM, yComp, [t]; kwargs...)
 
 # Add virtual point to validation profile again to obtain prediction profile
