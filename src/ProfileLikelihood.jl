@@ -1807,7 +1807,7 @@ end
 ### Last index in Trajectories is auxiliary ypred point
 # Generate validation profile centered on prediction at a single independent variable t
 # Ficticious point contribution accounted for via prior field, if a prior already exists then it is not saved separately in the profile object but still accounted for
-function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
+function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2.2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
                                 MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
                                 dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), 
                                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
@@ -1836,7 +1836,7 @@ Therefore, if the validation profiles are not only computed as an intermediate s
 Otherwise, a small value is chosen by default to make the subsequent prediction profile computation more efficient.
 Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
 """
-function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2, dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
+function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2.2, dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
                         Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof),
                         Model::ModelOrFunction=Predictor(DM), ydim::Int=length(Model(Ts[1], ModelParExtractor(MLE))), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = @view EmbeddingMap(Val(true), Model, ModelParExtractor(MLE), Ts)[yComp:ydim:end]      # Always compute with offset to zero internally
@@ -1877,7 +1877,7 @@ Most other kwargs are passed on to the `ParameterProfiles` function and thereby 
 PredictionProfiles(args...; DivideBy::Real=10, kwargs...) = ValidationProfiles(args...; DivideBy, kwargs...) |> ConvertValidationToPredictionProfiles
 
 
-function GetProfileTimes(P::ParameterProfiles)
+function GetProfileTimes(P::Union{ParameterProfiles,ConfidenceIntervals})
     @assert P.Meta === :PredictionProfiles || P.Meta === :ValidationProfiles
     function ExtractBracketedString(S::AbstractString, OpenBracket='(', CloseBracket=')')
         Start = findfirst(OpenBracket, S);  @assert !isnothing(Start)
