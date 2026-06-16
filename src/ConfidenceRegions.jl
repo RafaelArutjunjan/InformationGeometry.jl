@@ -1412,7 +1412,7 @@ struct ConfidenceIntervals{C<:HyperCube, CT<:Number} <: AbstractVector{Tuple{CT,
     Pnames::AbstractVector{Symbol}
     Meta
     function ConfidenceIntervals(DM::AbstractDataModel, Confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector{<:Number}=MLE(DM), dof::Int=DOF(DM), kwargs...)
-        ConfidenceIntervals(ParameterProfiles(DM, Confnum, inds; MLE, dof, kwargs...), Confnum; MLE, dof)
+        ConfidenceIntervals(ParameterProfiles(DM, Confnum+0.1, inds; MLE, dof, kwargs...), Confnum; MLE, dof)
     end
     function ConfidenceIntervals(P::AbstractSingleProfile, Confnum::Real=2; MLE::AbstractVector{<:Number}=(@view MLE(P)[P.i:P.i]), dof::Real=DOF(P), dof2::Union{<:Real,Nothing}=nothing, 
                     IsCost::Bool=IsCost(P), pnames::AbstractVector{<:StringOrSymb}=(@view Pnames(P)[P.i:P.i]), Meta=P.P.Meta, kwargs...)
@@ -1467,6 +1467,27 @@ Base.vcat(C1::ConfidenceIntervals, C2::ConfidenceIntervals, args::ConfidenceInte
 function SubConfidenceIntervals(CI::ConfidenceIntervals, inds::AbstractVector{<:Int})
     @assert all(1 .≤ inds .≤ length(CI))
     ConfidenceIntervals(SubHyperCube(HyperCube(CI), inds), CI.Confnum, getindex(MLE(CI), inds), DOF(CI), CI.dof2, IsCost(CI), getindex(pnames(CI), inds), CI.Meta)
+end
+
+
+@recipe function f(CI::ConfidenceIntervals)
+    @assert CI.Meta === :PredictionProfiles || CI.Meta === :ValidationProfiles
+    Ts = GetProfileTimes(CI);    B = HyperCube(CI)
+    color = get(plotattributes, :seriescolor, 1)
+    Summary = string(string(round(CI.Confnum; sigdigits=3)), "σ ", (CI.Meta === :PredictionProfiles ? "Prediction " : "Validation "), "CIs with dof=", string(DOF(CI)))
+    label = get(plotattributes, :label, Summary)
+    @series begin
+        c := color
+        line --> :dash
+        label := label
+        Ts, B.L
+    end
+    @series begin
+        c := color
+        line --> :dash
+        label := nothing
+        Ts, B.U
+    end
 end
 
 
