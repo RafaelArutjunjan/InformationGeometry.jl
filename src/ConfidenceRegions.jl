@@ -1476,15 +1476,14 @@ end
     color = get(plotattributes, :seriescolor, 1)
     Summary = string(string(round(CI.Confnum; sigdigits=3)), "σ ", (CI.Meta === :PredictionProfiles ? "Prediction " : "Validation "), "CIs with dof=", string(DOF(CI)))
     label = get(plotattributes, :label, Summary)
+    linestyle --> get(plotattributes, :linestyle, :dash)
     @series begin
         c := color
-        line --> :dash
         label := label
         Ts, B.L
     end
     @series begin
         c := color
-        line --> :dash
         label := nothing
         Ts, B.U
     end

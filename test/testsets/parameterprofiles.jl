@@ -161,8 +161,8 @@ CI2 = ConfidenceIntervals(VP2, 2)
 # Check that prediction bands based respectively on variance propagation, confidence boundary propagation and prediction profiles coincide exactly. 
 xran = -1:0.5:10
 Y = EmbeddingMap(DM, MLE(DM), xran)
-F = VariancePropagation(DM; Confnum=2)
-VarianceSqrt = map(F, xran)
+VarianceSqrtF = VariancePropagation(DM; Confnum=2)
+VarianceSqrt = map(VarianceSqrtF, xran)
 VariancePropMat = [xran Y-VarianceSqrt Y+VarianceSqrt]
 Bmat = ConfidenceBands(DM, 2, xran)
 PCI = ConfidenceIntervals(PredictionProfiles(DM, 1, xran; Confnum=2.5), 2)
