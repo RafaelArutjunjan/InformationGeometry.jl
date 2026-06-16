@@ -775,8 +775,8 @@ FindSingleZeroWrapper(args...; kwargs...) = try Roots.find_zero(args...; kwargs.
 FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat; meth::Union{Nothing,Roots.AbstractUnivariateZeroMethod}=Roots.AlefeldPotraShi(), kwargs...) = FindZerosWrapper(F, lb, ub, meth; kwargs...)
 # Catch unwanted kwargs: no_pts for single zero searches and mleval for AllZeros search
 FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, ::Nothing; mleval::Real=0, kwargs...) = Roots.find_zeros(F, lb, ub; kwargs...)
-FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb, mleval), meth; kwargs...), FindSingleZeroWrapper(F, (mleval, ub), meth; kwargs...)]
-FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractNonBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, kwargs...) = [FindSingleZeroWrapper(F, (lb+mleval)/2, meth; kwargs...), FindSingleZeroWrapper(F, (mleval+ub)/2, meth; kwargs...)]
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, mleweight::Real=0.5, kwargs...) = [FindSingleZeroWrapper(F, (lb, mleval), meth; kwargs...), FindSingleZeroWrapper(F, (mleval, ub), meth; kwargs...)]
+FindZerosWrapper(F::Function, lb::AbstractFloat, ub::AbstractFloat, meth::Roots.AbstractNonBracketing; no_pts::Int=0, mleval::Real=(lb+ub)/2, mleweight::Real=0.5, kwargs...) = [FindSingleZeroWrapper(F, ((1-mleweight)*lb + mleweight*mleval), meth; kwargs...), FindSingleZeroWrapper(F, (mleweight*mleval + (1-mleweight)*ub), meth; kwargs...)]
 
 
 _ProfileBox(F::Nothing, Confnum::Real=1.0; kwargs...) = HyperCube([-Inf], [Inf])
@@ -884,7 +884,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     end
     function ParameterProfiles(Profiles::AbstractVector{<:Union{<:AbstractMatrix,<:VectorOfArray}}, Trajectories::AbstractVector, Names::AbstractVector{<:StringOrSymb}, mle, dof::Int, IsCost::Bool, meta::Symbol=:ParameterProfiles; Meta::Symbol=meta, verbose::Bool=true)
         @assert length(Profiles) == length(Names) == length(mle) == length(Trajectories)
-        verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
+        Meta === :ParameterProfiles && verbose && !(1 ≤ dof ≤ length(mle)) && @warn "Got dof=$dof but length(MLE)=$(length(mle))."
         new(Profiles, Trajectories, Symbol.(Names), mle, dof, IsCost, Meta)
     end
 end
@@ -1689,7 +1689,6 @@ PlotProfilePaths(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs...) 
 @recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathDiffs},Val{:PathDiffs}})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, false)
-    idxs = get(plotattributes, :idxs, 1:pdim(PV))
     mle = get(plotattributes, :MLE, MLE(PV))
     OffsetResults = get(plotattributes, :OffsetResults, true)
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
@@ -1743,7 +1742,6 @@ PlotProfilePathDiffs(PV::Union{ParameterProfiles,ParameterProfilesView}; kwargs.
 @recipe function f(PV::ParameterProfilesView, ::Union{Val{:ProfilePathNormDiffs},Val{:PathNormDiffs}})
     @assert HasTrajectories(PV)
     RelChange = get(plotattributes, :RelChange, false)
-    idxs = get(plotattributes, :idxs, 1:pdim(PV))
     mle = get(plotattributes, :MLE, MLE(PV))
     OffsetResults = get(plotattributes, :OffsetResults, true)
     ParameterFunctions = get(plotattributes, :ParameterFunctions, nothing)
