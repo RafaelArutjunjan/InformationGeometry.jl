@@ -743,21 +743,28 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     RecipesBase.plot!(P, [MLE(DM)[collect(idxs)]]; linealpha=0, marker=:hex, markersize=3, label="MLE", axislabels..., kwargs...)
 end
 
+# Make vectors unique and only keep finite values for interpolation
+function CleanupYX(Y::AbstractVector, X::AbstractVector)
+    @assert length(X) == length(Y)
+    # keep only finite pairs
+    mask = map(x->all(isfinite,x), X) .&& map(y->all(isfinite,y), Y);   Xf = (@view X[mask]);   Yf = (@view Y[mask])
+    # sort by X
+    p = sortperm(Xf);    Xs = Xf[p];    Ys = Yf[p]
+
+    # keep only the first occurrence of each X
+    n = length(Xs);   keep = trues(n)
+    n > 1 && (keep[2:end] .= (Xs[2:end] .!= Xs[1:end-1]))
+    Ys[keep], Xs[keep]
+end
+
+
 # Centralized Interpolation method where defaults for extension can be chosen - possibly change to ExtrapolationType.Extension?
 function GetInterpolator(Y::AbstractVector{<:Number}, X::AbstractVector{<:Number}, Interp::Type{<:AbstractInterpolation}; extrapolation=ExtrapolationType.None, kwargs...)
     try
         Interp(Y, X; extrapolation, kwargs...)
     catch E;
         @warn "Got error message in construction of $Interp: $E. Trying to clean up data manually."
-        # keep only finite pairs
-        mask = isfinite.(X) .&& isfinite.(Y);   Xf = (@view X[mask]);   Yf = (@view Y[mask])
-        # sort by X
-        p = sortperm(Xf);    Xs = Xf[p];    Ys = Yf[p]
-
-        # keep only the first occurrence of each X
-        n = length(Xs);   keep = trues(n)
-        n > 1 && (keep[2:end] .= (Xs[2:end] .!= Xs[1:end-1]))
-        Interp(Ys[keep], Xs[keep]; extrapolation, kwargs...)
+        Interp(CleanupYX(Y, X)...; extrapolation, kwargs...)
     end
 end
 
