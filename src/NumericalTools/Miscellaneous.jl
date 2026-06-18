@@ -151,6 +151,9 @@ UnrollCache(dc, u) = PreallocationTools.get_tmp(dc, u)
 # Overload to do nothing if first arg not DiffCache
 UnrollCache(dc::AbstractArray, u) = dc
 
+# UnrollCache(N::Nothing, u, v) = N
+UnrollCache(N::Nothing, u) = N
+
 
 """
     invert(F::Function, x::Number; tol::Real=GetH(x)) -> Real

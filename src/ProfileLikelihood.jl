@@ -744,7 +744,22 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
 end
 
 # Centralized Interpolation method where defaults for extension can be chosen - possibly change to ExtrapolationType.Extension?
-GetInterpolator(X::AbstractVector{<:Number}, Y::AbstractVector{<:Number}, Interp::Type{<:AbstractInterpolation}; extrapolation=ExtrapolationType.None, kwargs...) = Interp(X, Y; extrapolation, kwargs...)
+function GetInterpolator(Y::AbstractVector{<:Number}, X::AbstractVector{<:Number}, Interp::Type{<:AbstractInterpolation}; extrapolation=ExtrapolationType.None, kwargs...)
+    try
+        Interp(Y, X; extrapolation, kwargs...)
+    catch E;
+        @warn "Got error message in construction of $Interp: $E. Trying to clean up data manually."
+        # keep only finite pairs
+        mask = isfinite.(X) .&& isfinite.(Y);   Xf = (@view X[mask]);   Yf = (@view Y[mask])
+        # sort by X
+        p = sortperm(Xf);    Xs = Xf[p];    Ys = Yf[p]
+
+        # keep only the first occurrence of each X
+        n = length(Xs);   keep = trues(n)
+        n > 1 && (keep[2:end] .= (Xs[2:end] .!= Xs[1:end-1]))
+        Interp(Ys[keep], Xs[keep]; extrapolation, kwargs...)
+    end
+end
 
 """
     InterpolatedProfiles(M::AbstractVector{<:AbstractMatrix}, Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation) -> Vector{Function}
@@ -1809,7 +1824,7 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
                                 MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
                                 dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), 
                                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
-                                DivideBy::Real=6, σv::Real=LinPredictionUncert/DivideBy, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+                                DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0;    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - Model(t, ModelParExtractor(θ))[yComp] + yoffset))
     FictDataPointPrior(θnew::ComponentVector) = logpdf(FicticiousPoint, θnew.new[1] - Model(t, ModelParExtractor(θnew.original))[yComp] + yoffset)
