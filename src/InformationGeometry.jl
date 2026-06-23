@@ -3,7 +3,7 @@ module InformationGeometry
 
 # using Reexport
 # @reexport
-using LinearAlgebra, GenericLinearAlgebra, Random, Distributions, DistributionsAD, DataFrames
+using LinearAlgebra, GenericLinearAlgebra, Random, Distributions, DataFrames
 using ComponentArrays, StaticArrays, PreallocationTools, RecursiveArrayTools, FillArrays, BlockDiagonals
 
 using Distributed, ForwardDiff
