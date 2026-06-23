@@ -518,7 +518,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             maxstep = 1e5 * initialδ
 
             # Second left point
-            p = MLE[Comp] - δ
+            p = clamp(MLE[Comp] - δ, ParamBounds...)
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
 
             # Input MLE
@@ -529,7 +529,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
             SavePriors && push!(priors, EvalLogPrior(LogPriorFn, MLE))
 
             # Second right point
-            p = MLE[Comp] + δ
+            p = clamp(MLE[Comp] + δ, ParamBounds...)
             PerformStep!!!(Res, MLEstash, Converged, visitedps, path, priors, p)
 
             visitedps2 = deepcopy(visitedps) |> reverse!
