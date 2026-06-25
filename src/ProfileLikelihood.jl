@@ -668,13 +668,13 @@ function ProfileLikelihood(DM::AbstractDataModel, Confnum::Real=2.0, inds::Abstr
 end
 
 function ProfileLikelihood(DM::AbstractDataModel, ProfileDomain::HyperCube, inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), Multistart::Int=0, parallel::Bool=true, verbose::Bool=true, showprogress::Bool=verbose, idxs::Tuple{Vararg{Int}}=length(pdim(DM))≥3 ? (1,2,3) : (1,2), 
-                        MLE::AbstractVector{<:Number}=MLE(DM), kwargs...)
+                        MLE::AbstractVector{<:Number}=MLE(DM), ProfileGetter::Function=InformationGeometry.GetProfile, kwargs...)
     # idxs for plotting only
     @assert 1 ≤ length(inds) ≤ length(MLE) && allunique(inds) && all(1 .≤ inds .≤ length(MLE)) && issorted(inds)
     @assert length(MLE) ≥ pdim(DM) # Allow for method reuse with FullParameterProfiles
 
     Prog = Progress(length(inds); enabled=showprogress, desc="Computing Profiles... "*(parallel ? "(parallel, $(nworkers()) workers) " : ""), dt=1, showspeed=true)
-    Profiles = (parallel ? progress_pmap : progress_map)(i->GetProfile(DM, i, (ProfileDomain.L[i], ProfileDomain.U[i]); verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
+    Profiles = (parallel ? progress_pmap : progress_map)(i->ProfileGetter(DM, i, ProfileDomain[i]; verbose, Multistart, MLE, kwargs...), inds; progress=Prog)
 
     plot && display(ProfilePlotter(DM, Profiles; idxs))
     Profiles
@@ -743,6 +743,8 @@ function PlotProfileTrajectories(DM::AbstractDataModel, Profiles::AbstractVector
     RecipesBase.plot!(P, [MLE(DM)[collect(idxs)]]; linealpha=0, marker=:hex, markersize=3, label="MLE", axislabels..., kwargs...)
 end
 
+
+CleanupYX(M::AbstractMatrix, X::AbstractVector) = CleanupYX([view(M,i,:) for i in axes(M,1)], X)
 # Make vectors unique and only keep finite values for interpolation
 function CleanupYX(Y::AbstractVector, X::AbstractVector)
     @assert length(X) == length(Y)
@@ -1169,7 +1171,7 @@ function IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, in
 end
 
 
-function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector=Float64[]; N::Union{Nothing,Int}=51, GenerateNewDerivatives::Bool=false, 
+function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::Union{<:Tuple{<:Real,<:Real},<:AbstractVector}=Float64[]; N::Union{Nothing,Int}=51, GenerateNewDerivatives::Bool=false, 
                 LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), MLE::AbstractVector{<:Number}=MLE(DM), ADmode::Val=Val(:ForwardDiff), 
                 CostGradient::Union{Function,Nothing}=(GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM)),
                 CostHessian::Union{Function,Nothing}=(GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM)),
@@ -1831,7 +1833,7 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
                                 MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
                                 dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), ScaledInverseFisher::AbstractMatrix=InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)), 
                                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
-                                DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+                                DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ValidationSafetyFactor::Real=2, ProfileGetter::Function=InformationGeometry.GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0;    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - Model(t, ModelParExtractor(θ))[yComp] + yoffset))
     FictDataPointPrior(θnew::ComponentVector) = logpdf(FicticiousPoint, θnew.new[1] - Model(t, ModelParExtractor(θnew.original))[yComp] + yoffset)

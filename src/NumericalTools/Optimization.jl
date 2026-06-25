@@ -532,8 +532,7 @@ function PartialMinimization(F::Function, X::AbstractVector{<:Number}, idxs::Abs
                 SubDomain::Union{Nothing,HyperCube}=SubHyperCube(Domain,idxs), MinimizeFunc::Function=InformationGeometry.Minimize, ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
     @assert allunique(idxs) && all(1 .≤ idxs .≤ length(X))
     @assert isnothing(SubDomain) || length(SubDomain) == length(idxs)
-    LastX = copy(X)
-    DropInds = Drop(1:length(X), idxs)
+    LastX = copy(X);    DropInds = Drop(1:length(X), idxs)
     LastX[idxs] .= GetMinimizer(MinimizeFunc(F∘ValInserter(DropInds, (@view X[DropInds]), X), X[idxs]; Domain=SubDomain, kwargs...))
     LastX
 end
