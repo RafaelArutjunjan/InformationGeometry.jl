@@ -36,8 +36,9 @@ end
 """
 Concatenated total least squares vector [xdata; pdim].
 """
-TotalLeastSquaresV(args...; kwargs...) = reduce(vcat, TotalLeastSquares(args...; kwargs...))
-
+function TotalLeastSquaresV(DM::AbstractDataModel, initialp::AbstractVector{T}=MLE(DM), args...; kwargs...) where T<:Number
+    reduce(vcat, reduce(vcat, TotalLeastSquares(DM, initialp, args...; kwargs...)))
+end
 
 # Currently, Fminbox errors for: SimulatedAnnealing, ParticleSwarm, AbstractNGMRES
 # Apparently by design cannot handle: AcceleratedGradientDescent, MomentumGradientDescent, Newton, NewtonTrustRegion, KrylovTrustRegion

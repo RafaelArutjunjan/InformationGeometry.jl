@@ -39,8 +39,9 @@ struct DataSetExact{XdistType<:Distribution,YdistType<:Distribution,InvC<:Abstra
 
     DataSetExact(DM::AbstractDataModel, args...; kwargs...) = DataSetExact(Data(DM), args...; kwargs...)
     DataSetExact(DS::AbstractDataSet; kwargs...) = DataSetExact(xDataDist(DS), yDataDist(DS), dims(DS); xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
-    DataSetExact(x::AbstractArray, y::AbstractArray, allsigmas::Real=1.0; kwargs...) = DataSetExact(x, y, Fill(allsigmas,length(y)*length(y[1])); kwargs...)
-    DataSetExact(x::AbstractArray, allxsigmas::Real=1.0, args...; kwargs...) = DataSetExact(x, Fill(allxsigmas,length(x)*length(x[1])), args...; kwargs...)
+    DataSetExact(x::AbstractArray, y::AbstractArray, allysigmas::Real=1.0; kwargs...) = DataSetExact(x, y, Fill(allysigmas,length(y)*length(y[1])); kwargs...)
+    DataSetExact(x::AbstractArray, allxsigmas::Real, args...; kwargs...) = DataSetExact(x, Fill(allxsigmas,length(x)*length(x[1])), args...; kwargs...)
+    DataSetExact(x::AbstractArray, xerr::AbstractArray, y::AbstractArray, allysigmas::Real; kwargs...) = DataSetExact(x, xerr, y, Fill(allysigmas,length(y)*length(y[1])); kwargs...)
     DataSetExact(x::AbstractArray, y::AbstractArray, yerr::AbstractArray; kwargs...) = DataSetExact(x, Zeros(size(x,1)*length(x[1])), y, yerr; kwargs...)
     DataSetExact(x::AbstractArray{<:Number},y::AbstractArray{<:Measurement}; kwargs...) = DataSetExact(Measurements.value.(x), Measurements.uncertainty.(x), Measurements.value.(y), Measurements.uncertainty.(y); kwargs...)
     ###### No Unwinding above here.
