@@ -21,7 +21,7 @@ function MakeMultistartDomain(Pdim::Int, ProspectiveDom::Nothing, maxval::Real=1
 end
 function MakeMultistartDomain(Pdim::Int, ProspectiveDom::HyperCube, maxval::Real=1e3; verbose::Bool=true)
     # clamp ProspectiveDom to finite size
-    intersect(ProspectiveDom, FullDomain(length(ProspectiveDom), maxval))
+    Base.intersect(ProspectiveDom, FullDomain(length(ProspectiveDom), maxval))
 end
 
 MultistartFit(DM::AbstractDataModel; kwargs...) = MultistartFit(DM, Predictor(DM); kwargs...)

@@ -326,7 +326,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
                 return map(z->ConcatenatedModel(z, θ; kwargs...), X) |> Reduction
             end
         end
-        return ModelMap(ConcatenatedModel, reduce(union, Domain.(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
+        return ModelMap(ConcatenatedModel, reduce(Base.union, Domain.(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
     else
         function NConcatenatedModel(x::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...)
             map(model->model(x, θ; kwargs...), Mods) |> Reduction
@@ -343,7 +343,7 @@ function ConcatenateModels(Mods::AbstractVector{<:ModelMap})
                 return map(z->NConcatenatedModel(z, θ; kwargs...), X) |> Reduction
             end
         end
-        return ModelMap(NConcatenatedModel, reduce(union, Domain.(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
+        return ModelMap(NConcatenatedModel, reduce(Base.union, Domain.(Mods)), (Mods[1].xyp[1], sum((q->q.xyp[2]).(Mods)), Mods[1].xyp[3])) |> MakeCustom
     end
 end
 

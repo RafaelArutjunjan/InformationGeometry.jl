@@ -377,7 +377,7 @@ function SplitObservablesIntoConditions(DM::AbstractDataModel, Structure::Abstra
     # No double counting of observables
     @assert all(isempty, [Si ∩ Sj for (i,Si) in enumerate(Structure), (j,Sj) in enumerate(Structure) if i > j])
     # Check if any observables missing
-    sort(reduce(union, Structure)) != 1:ydim(DM) && @warn "SplitObservablesIntoConditions: Missing components $(setdiff(1:ydim(DM), reduce(union, Structure))) in given Structure."
+    sort(reduce(Base.union, Structure)) != 1:ydim(DM) && @warn "SplitObservablesIntoConditions: Missing components $(setdiff(1:ydim(DM), reduce(Base.union, Structure))) in given Structure."
 
     DMs = [DataModel(SubDataSetComponent(Data(DM), Structure[i]), 
         SubComponentModel(Predictor(DM), Structure[i], xdim(DM), ydim(DM)),
