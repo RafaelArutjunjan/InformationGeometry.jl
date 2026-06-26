@@ -120,7 +120,7 @@ abstract type AbstractFixedUncertaintyDataSet <: AbstractDataSet end
 abstract type AbstractParameterTransformations{F<:Function} <: AbstractVector{F} end
 
 
-import Base: length, rand, BigFloat, in, union, intersect, join, ==
+import Base: length, rand, BigFloat, in, join, ==
 import DataFrames.DataFrame
 import Distributions.loglikelihood
 
