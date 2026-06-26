@@ -78,7 +78,12 @@ function ConstrainStart(Start::AbstractVector{T}, Dom::HyperCube{<:AbstractVecto
         Start
     else
         verbose && @warn "Initial guess $Start not within given bounds. Clamping to bounds and continuing."
-        clamp(Start, HyperCube(Dom; Padding=-1e-3))
+        try
+            clamp(Start, HyperCube(Dom; Padding=-1e-8))
+        catch E;
+            println("Got error in clamping: $E.")
+            clamp(Start, Dom)
+        end
     end
     StaticArrays.isstatic(start) ? convert(Vector{T}, start) : start
 end
