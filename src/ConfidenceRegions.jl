@@ -700,7 +700,7 @@ Computes the forward propagation of the parameter covariance to the residuals. T
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Model::ModelOrFunction=Predictor(DM), dModel::ModelOrFunction=dPredictor(DM), 
-                            yInvErrorModel::Union{Nothing,Function}=HasEstimatedUncertainties(DM) ? yinverrormodel(Data(DM)) : nothing, ConfScaling::Real=InvChisqCDF(dof, ConfVol(Confnum)),
+                            yInvErrorModel::Union{Nothing,Function}=HasEstimatedUncertainties(DM) ? yinverrormodel(Data(DM)) : nothing, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)),
                             xdim::Int=xdim(DM), ydim::Int=ydim(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
     @assert dof > 0;    @assert Confnum > 0
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
@@ -716,12 +716,12 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
         else    # No data uncertainty contribution
             Diagonal(Zeros(ydim))
         end
-        Ysig *= ConfScaling
+        Ysig *= IC
         ydim == 1 && (Ysig = Ysig[1])
         x -> Ysig
     else
         if Validation
-            x -> (S=inv(yInvErrorModel(x, Model(x,normalparamsNoXs), yerrorparams));   ConfScaling * (S' * S))
+            x -> (S=inv(yInvErrorModel(x, Model(x,normalparamsNoXs), yerrorparams));   IC * (S' * S))
         else
             x -> 0.0
         end
@@ -752,9 +752,10 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim), X))
     xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), 
+                IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), Fisher::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
     verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
-    VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Confnum)) * Symmetric(pinv(Fisher)); Confnum, dof, kwargs...)
+    VariancePropagation(DM, mle, IC * Symmetric(pinv(Fisher)); Confnum, dof, IC, verbose, kwargs...)
 end
 
 
