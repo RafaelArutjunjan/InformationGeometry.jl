@@ -1830,10 +1830,10 @@ end
 # Generate validation profile centered on prediction at a single independent variable t
 # Ficticious point contribution accounted for via prior field, if a prior already exists then it is not saved separately in the profile object but still accounted for
 function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2.2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
-                                MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
-                                dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), 
-                                VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
-                                DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), ValidationSafetyFactor::Real=2, ProfileGetter::Function=InformationGeometry.GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
+                MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
+                dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), 
+                VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
+                DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), ValidationSafetyFactor::Real=2, ProfileGetter::Function=InformationGeometry.GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0;    FicticiousPoint = Normal(0, σv)
     FictDataPointPrior(θnew::AbstractVector) = (θ=view(θnew, 1:lastindex(θnew)-1);   logpdf(FicticiousPoint, θnew[end] - Model(t, ModelParExtractor(θ))[yComp] + yoffset))
     FictDataPointPrior(θnew::ComponentVector) = logpdf(FicticiousPoint, θnew.new[1] - Model(t, ModelParExtractor(θnew.original))[yComp] + yoffset)
@@ -1841,9 +1841,9 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
     VPL(θnew::ComponentVector) = LogLikelihoodFn(θnew.original) + FictDataPointPrior(θnew)
     MakeNewMLE(MLE::AbstractVector{T}) where T<:Number = [MLE; T(ypred-yoffset)]
     MakeNewMLE(MLE::ComponentVector{T}) where T<:Number = ComponentVector{T}(original=MLE; new=T(ypred-yoffset))
-    mleNew = MakeNewMLE(MLE);    NewFisher = Diagonal(Fill(σv^-2, pdim(DM)+1))
+    mleNew = MakeNewMLE(MLE);    NewFisher = Diagonal(Fill(σv^-2, length(mleNew)))
     B = ValidationSafetyFactor*σv*sqrt(2*IC);    Ran = range(-B + (ypred-yoffset), B + (ypred-yoffset); length=N)
-    ProfileGetter(DM, pdim(DM)+1, Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
+    ProfileGetter(DM, length(mleNew), Ran; LogLikelihoodFn=VPL, LogPriorFn=FictDataPointPrior, dof, MLE=mleNew, logLikeMLE=VPL(mleNew), GenerateNewDerivatives=true, 
                 Fisher=NewFisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
@@ -1860,7 +1860,7 @@ function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVecto
                         Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof),
                         Model::ModelOrFunction=Predictor(DM), ydim::Int=length(Model(Ts[1], ModelParExtractor(MLE))), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = @view EmbeddingMap(Val(true), Model, ModelParExtractor(MLE), Ts)[yComp:ydim:end]      # Always compute with offset to zero internally
-    Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], Confnum, dof, MLE, Model, ydim=ydim, Fisher, ScaledInverseFisher, VarianceProp, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
+    Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], Confnum, dof, MLE, Model, ModelParExtractor, ydim=ydim, IC, Fisher, ScaledInverseFisher, VarianceProp, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)
     InsertToZprof(TrajPoint::AbstractVector{T}, i::Int) where T<:Number = T.(Model(Ts[i], ModelParExtractor(@view TrajPoint[1:end-1]))[yComp])
     InsertToZprof(TrajPoint::ComponentVector{T}, i::Int) where T<:Number = T.(Model(Ts[i], ModelParExtractor(TrajPoint.original))[yComp])
