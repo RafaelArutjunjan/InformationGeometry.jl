@@ -753,9 +753,9 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), 
-                IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), Fisher::AbstractMatrix=FisherMetric(DM, mle), verbose::Bool=true, kwargs...)
+                IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), Fisher::AbstractMatrix=FisherMetric(DM, mle), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), verbose::Bool=true, kwargs...)
     verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
-    VariancePropagation(DM, mle, IC * Symmetric(pinv(Fisher)); Confnum, dof, IC, verbose, kwargs...)
+    VariancePropagation(DM, mle, ScaledInverseFisher; Confnum, dof, IC, verbose, kwargs...)
 end
 
 
