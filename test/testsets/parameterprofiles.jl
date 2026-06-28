@@ -150,25 +150,58 @@ cpdmu = DataModel(DataSetUncertain(1:4, [4,5,6.5,9]), LinearModel, ComponentVect
 
 
 # Check that OffsetToZero correctly mutates profile range
+xran = -1:0.5:10
 DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->exp(p[1])*x + p[2])
-VP1 = ValidationProfiles(DM, 1, -2:10; Confnum=7, OffsetToZero=false)
-VP2 = ValidationProfiles(DM, 1, -2:10; Confnum=7, OffsetToZero=true)
+VP1 = ValidationProfiles(DM, 1, xran; Confnum=7, OffsetToZero=false)
+VP2 = ValidationProfiles(DM, 1, xran; Confnum=7, OffsetToZero=true)
 CI1 = ConfidenceIntervals(VP1, 2)
 CI2 = ConfidenceIntervals(VP2, 2)
 @test isfinite(CI1)
 @test isfinite(CI2)
 
-# Check that prediction bands based respectively on variance propagation, confidence boundary propagation and prediction profiles coincide exactly. 
-xran = -1:0.5:10
+# Check that prediction bands based respectively on variance propagation, confidence boundary propagation and prediction profiles coincide exactly
 Y = EmbeddingMap(DM, MLE(DM), xran)
 VarianceSqrtF = VariancePropagation(DM; Confnum=2)
 VarianceSqrt = map(VarianceSqrtF, xran)
 VariancePropMat = [xran Y-VarianceSqrt Y+VarianceSqrt]
-Bmat = ConfidenceBands(DM, 2, xran)
+Rsol = ConfidenceRegion(DM, 2)
+Bmat = ConfidenceBands(DM, Rsol, xran; plot=false)
 PCI = ConfidenceIntervals(PredictionProfiles(DM, 1, xran; Confnum=2.5), 2)
 PCImat = [InformationGeometry.GetProfileTimes(PCI) HyperCube(PCI).L HyperCube(PCI).U]
+@test norm(Bmat - PCImat) < 1e-2
 @test norm(VariancePropMat - Bmat) < 1e-2
 @test norm(VariancePropMat - PCImat) < 1e-2
+
+## Check that ValidationBands always wider than PredictionBands
+@test all(HyperCube(CI1).L .< HyperCube(PCI).L) && all(HyperCube(PCI).U .≤ HyperCube(CI1).U)
+
+
+xran = -1:0.5:10
+DME = DataModel(DataSetExact([1,2,3,4], 0.3, [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->exp(p[1])*x + p[2])
+VPE1 = FullValidationProfiles(DME, 1, xran; Confnum=7, OffsetToZero=false)
+VPE2 = FullValidationProfiles(DME, 1, xran; Confnum=7, OffsetToZero=true)
+CIE1 = ConfidenceIntervals(VPE1, 2)
+CIE2 = ConfidenceIntervals(VPE2, 2)
+@test isfinite(CIE1)
+@test isfinite(CIE2)
+
+XP = TotalLeastSquaresV(DME)
+YE = EmbeddingMap(DME, XP[end-1:end], xran)
+VarianceSqrtFE = FullVariancePropagation(DME; Confnum=2)
+VarianceSqrtE = map(VarianceSqrtFE, xran)
+VariancePropMatE = [xran YE-VarianceSqrtE YE+VarianceSqrtE]
+# RsolE = FullConfidenceRegion(DME, 2)
+# BmatE = ConfidenceBands(DME, RsolE, xran; plot=false)
+PCIE = ConfidenceIntervals(FullPredictionProfiles(DME, 1, xran; Confnum=2.5), 2)
+PCImatE = [InformationGeometry.GetProfileTimes(PCIE) HyperCube(PCIE).L HyperCube(PCIE).U]
+# @test norm(BmatE - PCImatE) < 5e-2
+
+# @test norm(VariancePropMatE - PCImatE) < 1e-2
+### VarianceProp cannot correctly account for asymmetric bands around MLE prediction, so only compare widths
+@test all(1.15 .> (PCImatE[:,3] .- PCImatE[:,2]) ./ (VariancePropMatE[:,3] .- VariancePropMatE[:,2]) .> 1)
+
+## Check that ValidationBands always wider than PredictionBands
+@test all(HyperCube(CIE1).L .< HyperCube(PCIE).L) && all(HyperCube(PCIE).U .≤ HyperCube(CIE1).U)
 
 
 using Plots

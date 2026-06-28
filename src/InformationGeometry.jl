@@ -230,7 +230,7 @@ export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
 export ParameterSavingCallback, BlockMatrix
-export TotalLeastSquares, Minimize, Refit, Prefit, Curve_fit, RobustFit, IncrementalTimeSeriesFit
+export TotalLeastSquares, TotalLeastSquaresV, Minimize, Refit, Prefit, Curve_fit, RobustFit, IncrementalTimeSeriesFit
 export AlternatingMinimization, PartialMinimization
 
 
@@ -249,7 +249,7 @@ export FindConfBoundary, FCriterion, FTest, FindFBoundary, ChisquaredReduced
 export GenerateBoundary, ConfidenceRegion, ConfidenceRegions
 export GenerateInterruptedBoundary, InterruptedConfidenceRegion
 export IsStructurallyIdentifiable, StructurallyIdentifiable, IdentifiabilityReport, IdentifiabilityReportGraph
-export FisherMetric, GeometricDensity, VariancePropagation
+export FisherMetric, GeometricDensity, VariancePropagation, ValidationPropagation, FullVariancePropagation
 export ConfidenceRegionVolume, CoordinateVolume
 export ExpectedInvariantVolume, GeodesicRadius, CoordinateDistortion, Sensitivity
 
@@ -273,6 +273,7 @@ export IntegrationParameterProfiles
 export PlotProfilePaths, PlotProfilePaths!, PlotProfilePathDiffs, PlotProfilePathDiffs!
 export PlotProfileTrajectories, PlotProfileTrajectories!, PlotProfilePathNormDiffs, PlotProfilePathNormDiffs!
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
+export FullValidationProfiles, FullPredictionProfiles
 export ConfidenceIntervals, SubConfidenceIntervals
 
 

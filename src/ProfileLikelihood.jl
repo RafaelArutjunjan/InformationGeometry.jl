@@ -1847,6 +1847,17 @@ function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{A
                 Fisher=NewFisher, Confnum, N, IsCost=true, Domain=nothing, InDomain=nothing, ProfileDomain=nothing, AllowNewMLE=false, general=true, SavePriors=true, kwargs...)
 end
 
+
+function FullValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2.2, dof::Int=DOF(DM), 
+                LogLikelihoodFn::Function=FullLiftedLogLikelihoodAfterEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), pInds::AbstractVector{<:Int}=(xp=length(MLE);  xp-pdim(DM)+1:xp), 
+                ModelParExtractor::Function=(G=GetOnlyModelParams(DM);  G === identity ? (d=1+length(xdata(DM));  x::AbstractVector->view(x,pInds)) : G),
+                Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), 
+                VarianceProp::Function=FullVariancePropagation(DM, MLE, Confnum; Confnum, dof, IC, Fisher, pInds, ScaledInverseFisher), kwargs...)
+    ValidationProfiles(DM, yComp, Ts; Confnum, dof, LogLikelihoodFn, MLE, ModelParExtractor, Fisher, IC, ScaledInverseFisher, VarianceProp, kwargs...)
+end
+FullPredictionProfiles(args...; DivideBy::Real=10, kwargs...) = FullValidationProfiles(args...; DivideBy, kwargs...) |> ConvertValidationToPredictionProfiles
+
+
 # Generate multiple validation profiles and add back offset to prediction scale
 """
     ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector; Confnum::Real=2, dof::Int=DOF(DM), OffsetToZero::Bool=false, kwargs...)
