@@ -829,7 +829,7 @@ function _CreateMats(DM::AbstractDataModel, woundX::AbstractVector{<:Number})
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM), N::Int=0, # catch last
-                            plot::Bool=isloaded(:Plots), samples::Int=100, verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=200, verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
@@ -844,7 +844,7 @@ function ConfidenceBands(DM::AbstractDataModel, sol::AbstractODESolution, woundX
 end
 
 function ConfidenceBands(DM::AbstractDataModel, sols::AbstractVector{<:AbstractODESolution}, woundX::AbstractVector{<:Number}; dof::Int=DOF(DM),
-                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),100), verbose::Bool=true)
+                            plot::Bool=isloaded(:Plots), samples::Int=max(2*length(sols),200), verbose::Bool=true)
     @assert xdim(DM) == 1
     @assert !(Data(DM) isa CompositeDataSet)
     M, Res, Yt = _CreateMats(DM, woundX)
