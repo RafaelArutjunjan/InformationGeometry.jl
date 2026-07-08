@@ -881,8 +881,8 @@ Computes volume of ellipsoid defined by symmetric positive-definite matrix whose
 """
 EllipsoidVolume(Σ::AbstractMatrix) = (n=size(Σ,1);   sqrt(exp(sum(log.(eigvals(Σ))))) * 2 * π^(n/2) / (n * gamma(n/2)))
 
-GeodesicRadius(DM::AbstractDataModel, Confnum::Real) = GeodesicRadius(Confnum, pdim(DM))
-GeodesicRadius(Confnum::Real, dim::Int) = sqrt(icdfThreshold(dof,Confnum))
+GeodesicRadius(DM::AbstractDataModel, Confnum::Real; dof::Int=DOF(DM)) = GeodesicRadius(Confnum, dof)
+GeodesicRadius(Confnum::Real, dof::Int) = sqrt(icdfThreshold(dof,Confnum))
 
 """
     CoordinateDistortion(DM::AbstractDataModel, Confnum::Real=1) -> Real
