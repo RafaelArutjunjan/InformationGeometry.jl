@@ -75,7 +75,7 @@ end
 Gives the parameter value of the geodesic `sol` at which the confidence level `Conf` is crossed.
 """
 function GeodesicCrossing(DM::AbstractDataModel, sol::AbstractODESolution, Conf::Real=ConfVol(1); tol::Real=1e-15, dof::Real=DOF(DM), meth::Roots.AbstractNonBracketing=Roots.Order1B(), 
-                IC::Real=InvChisqCDF(dof, Conf), kwargs...)
+                IC::Real=InvChisqCDF(dof,Conf), kwargs...)
     if (tol < 1e-15)
         start *= one(BigFloat)
         @warn "GeodesicCrossing: Conf value not programmed for BigFloat yet."
@@ -145,7 +145,7 @@ Computes geodesic ODE with discrete callback to check whether already outside of
 Stops on first integrator step outside of boundary, not on boundary.
 """
 function BoundaryViaGeodesic(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; 
-                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), kwargs...)
+                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum), kwargs...)
     BoundaryFunc(u,t,int) = 2*(LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2])) > IC
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; Boundaries=BoundaryFunc, kwargs...)
 end
@@ -154,7 +154,7 @@ end
 Computes geodesic ODE with continuous callback and terminates exactly on boundary.
 """
 function BoundaryViaGeodesicDirect(DM::AbstractDataModel, InitialPos::AbstractVector, InitialVel::AbstractVector, ConfNum::Real=1, Endtime::Real=500.0; 
-                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), kwargs...)
+                                    Confnum::Real=ConfNum, dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum), kwargs...)
     BoundaryFunc(u,t,int) = 2*(LogLikeMLE(DM) - loglikelihood(DM, @view u[1:end÷2])) - IC
     ComputeGeodesic(FisherMetric(DM), InitialPos, InitialVel, Endtime; callback=ContinuousCallback(BoundaryFunc, terminate!), kwargs...)
 end

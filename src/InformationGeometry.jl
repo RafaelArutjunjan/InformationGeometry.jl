@@ -225,7 +225,7 @@ include("NumericalTools/Integration.jl")
 include("NumericalTools/Optimization.jl")
 export Unpack, Unwind, Windup, PromoteStatic, SplitAfter
 export GetH, suff, ToCols
-export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF
+export ConfAlpha, ConfVol, InvConfVol, ChisqCDF, InvChisqCDF, icdfThreshold
 export KillAfter
 export Integrate1D, IntegrateND, IntegrateOverConfidenceRegion, IntegrateOverApproxConfidenceRegion
 export LineSearch, MonteCarloArea
