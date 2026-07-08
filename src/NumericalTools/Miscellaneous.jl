@@ -226,6 +226,67 @@ InvFDistCDF(x::T, d1::Number, d2::Number; maxval::Real=1e4, Domain::Tuple{Real,R
 
 
 
+# erf(n/sqrt(2)) for large x via the upper tail asymptotic series
+function log_erf_TailApprox(x::Real)
+    invx2 = 1 / abs2(x)
+    # 1 - 1/x^2 + 3/x^4 - 15/x^6 + 105/x^8 - 945/x^10 + 10395/x^12
+    poly = 1 - invx2 + 3*invx2^2 - 15*invx2^3 + 105*invx2^4 - 945*invx2^5 + 10395*invx2^6
+    abs2(x)/2 + log(x) + log(pi/2)/2 - log(poly)
+end
+
+
+# InvChisqCDF for large confidence levels q, where given L already assumed to be log_erf result
+# Uses fixed point interation to improve accuracy
+function InvChisqCDF_logtail(k::Real, L::Real; fixedpoint_iters::Int=3)
+    @assert fixedpoint_iters ≥ 1
+    a = k / 2;        n = a - 1;        lg = SpecialFunctions.loggamma(a)
+    # coefficients from the log of the incomplete-gamma tail expansion
+    c1 = n
+    c2 = n*(n - 2) / 2
+    c3 = n*(n^2 - 6*n + 6) / 3
+    c4 = n*(n^3 - 12*n^2 + 34*n - 24) / 4
+    c5 = n*(n^4 - 20*n^3 + 110*n^2 - 210*n + 120) / 5
+    # initial guess
+    t = L + n*log(L) - lg
+    # fixed-point refinement
+    for _ in 1:fixedpoint_iters
+        invt = 1 / t
+        t = L + n*log(t) - lg + c1*invt + c2*invt^2 + c3*invt^3 + c4*invt^4 + c5*invt^5
+    end;    2t
+end
+
+# InvChisqCDF for large confidence levels q, without intermediate calculation of erf, but log_erf instead
+# Uses Newton step to improve approximation: for desired g(q) = 0, uses q = q - g(q)/g'(q)
+function InvChisqCDFConfVol_Newton(k::Real, x::Real; fixedpoint_iters::Int=3, newton_iters::Int=2)
+    L = log_erf_TailApprox(x)
+    q = InvChisqCDF_logtail(k, L; fixedpoint_iters=fixedpoint_iters)
+    newton_iters < 1 && return q
+
+    d = Distributions.Chisq(k);    u = exp(-L)
+    for _ in 1:newton_iters
+        # Newton step for ccdf(d, q) = u
+        q += (Distributions.ccdf(d, q) - u) / Distributions.pdf(d, q)
+    end;    q
+end
+
+"""
+    icdfThreshold(dof::Real, Confnum::Real; fixedpoint_iters::Int=3, newton_iters::Int=2, kwargs...)
+Computes inverse cdf of χ² distribution with `dof` degrees of freedom given confidence level in units of σ, i.e. `icdf((χ_k)^2, erf(n/sqrt(2)))`.
+For example, the `2σ` confidence threshold for `k` degrees of freedom is calculated by `icdfThreshold(k, 2)`.
+"""
+function icdfThreshold(dof::Real, Confnum::Real; fixedpoint_iters::Int=3, newton_iters::Int=2, kwargs...)
+    if Confnum < 7
+        InvChisqCDF(dof, ConfVol(Confnum); kwargs...)
+    else
+        # Do not compute intermediate ConfVol result to avoid loss of precision for resulting values close to 1
+        InvChisqCDFConfVol_Newton(dof, Confnum; fixedpoint_iters, newton_iters)
+    end
+end
+# absorb kwargs
+icdfThreshold(dof::Real, Confnum::BigFloat; fixedpoint_iters::Int=3, newton_iters::Int=2, kwargs...) = InvChisqCDF(dof, ConfVol(Confnum); kwargs...)
+
+
+
 
 for F in [:Sgn, :BiLog, :BiExp,  :BiLog10, :BiExp10,
             :BiRoot, :BiPower, :SoftAbs, :SoftLog]
