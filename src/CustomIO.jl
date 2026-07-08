@@ -143,8 +143,8 @@ function Base.show(io::IO, ::MIME"text/plain", DM::AbstractDataModel)
     Expr = string(CachedSymbolicModel(DM))
     LogPr = !isnothing(LogPrior(DM)) ? LogPrior(DM)(MLE(DM)) : nothing
     println(io, Base.summary(DM))
-    println(io, "Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
-    isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(LogPr; sigdigits=5)))
+    println(io, "Maximal value of log-likelihood: "*string(round(Float64(LogLikeMLE(DM)); sigdigits=5)))
+    isnothing(LogPr) || println(io, "Log prior at MLE: "*string(round(Float64(LogPr); sigdigits=5)))
     Expr[1] == 'y' && println(io, "Model Expr:  " * Expr)
     # Discard generation of ParamSummary after 10 seconds
     # @timeout 10 ParamSummary(io, DM)
@@ -155,7 +155,7 @@ end
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = CachedSymbolicModel(DM)
     print(io, Base.summary(DM))
-    print(io, ", Maximal value of log-likelihood: "*string(round(LogLikeMLE(DM); sigdigits=5)))
+    print(io, ", Maximal value of log-likelihood: "*string(round(Float64(LogLikeMLE(DM)); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
