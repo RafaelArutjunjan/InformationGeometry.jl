@@ -302,7 +302,7 @@ function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwarg
 end
 
 # Refactor to use MLEuncert
-function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), IC::Real=InvChisqCDF(dof,ConfVol(Confnum)), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), IC::Real=icdfThreshold(dof,Confnum), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
     widths = try
         sqrt.(abs.(Diagonal(inv(F)).diag))
     catch;
@@ -387,7 +387,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : DefaultFirstOrderOptimizer), OptimMeth=meth, OffsetResults::Bool=true,
-                        IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
+                        IC::Real=(!UseFscaling ? eltype(MLE)(icdfThreshold(dof,Confnum)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but model does not have prior."
     @assert Confnum > 0
@@ -815,7 +815,7 @@ function _ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=t
             # Allow for computation of F-based threshold here?
             CostThreshold
         else
-            InvChisqCDF(dof, ConfVol(Confnum))
+            icdfThreshold(dof,Confnum)
         end
         FindZerosWrapper(x->(F(x)-CostThresh), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
     end
@@ -1176,7 +1176,7 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::Union{<:Tup
                 CostGradient::Union{Function,Nothing}=(GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM)),
                 CostHessian::Union{Function,Nothing}=(GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM)),
                 dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false, verbose::Bool=true, 
-                IC::Real=(!UseFscaling ? eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
+                IC::Real=(!UseFscaling ? eltype(MLE)(icdfThreshold(dof,Confnum)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
                 LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), 
                 ### Pure PostProcessing:
                 AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(LogPriorFn), OffsetResults::Bool=true, SaveTrajectories::Bool=true, # Catch last
@@ -1220,7 +1220,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:
                 DiagonalRegularization::Real=1e-9, γAdaptive::Bool=false, #!isnothing(γ), 
                 AdaptiveGammaCallback=nothing, # γAdaptive ? DiscreteCallback((u,t,int)->true, int->(int.p = (; int.p..., γ=UpdateFunction(int, int.p.γ)); nothing)) : nothing,
                 logLikeMLE::Real=LogLikelihoodFn(MLE), Confnum::Number=2, dof::Real=length(MLE), verbose::Bool=true, 
-                IC::Real=eltype(MLE)(InvChisqCDF(dof, ConfVol(Confnum); maxval=1e8)), MinSafetyFactor::Real=1.05,
+                IC::Real=T(icdfThreshold(dof,Confnum)), MinSafetyFactor::Real=1.05,
                 Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
                 Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
                 meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, kwargs...)
@@ -1538,7 +1538,8 @@ end
     if IsCost(PV) && all(Confnum .> 0)
         dof = get(plotattributes, :dof, DOF(PV))
         MaxLevel = get(plotattributes, :MaxLevel, maximum(view(Profiles(PV).u[2],GetConverged(Profiles(PV))); init=-Inf))
-        for (j,Thresh) in Iterators.zip(sort(Confnum; rev=true), convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sort(Confnum; rev=true)))))
+        sorted_conf = sort(Confnum; rev=true)
+        for (j,Thresh) in Iterators.zip(sorted_conf, convert.(eltype(MLE(PV)), icdfThreshold.(dof, sorted_conf)))
             if Thresh < MaxLevel
                 @series begin
                     st := :hline
@@ -1831,7 +1832,7 @@ end
 # Ficticious point contribution accounted for via prior field, if a prior already exists then it is not saved separately in the profile object but still accounted for
 function GetValidationProfilePoint(DM::AbstractDataModel, yComp::Int, t::Union{AbstractVector{<:Number},Number}; Confnum::Real=2.2, N::Int=21, LogLikelihoodFn::Function=loglikelihood(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
                 MLE::AbstractVector{<:Number}=MLE(DM), Model::ModelOrFunction=Predictor(DM), ydim::Int=InformationGeometry.ydim(DM), ypred::Real=Model(t,ModelParExtractor(MLE))[yComp], yoffset::Real=ypred,
-                dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), 
+                dof::Int=DOF(DM), Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=icdfThreshold(dof,Confnum), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), 
                 VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof), LinPredictionUncert::Real=(C=VarianceProp(t);   ydim>1 ? C[yComp, yComp] : C[1]),
                 DivideBy::Real=6, σv::Real=min(LinPredictionUncert/DivideBy,30.0), ValidationSafetyFactor::Real=2, ProfileGetter::Function=InformationGeometry.GetProfile, kwargs...) # Make Confnumsafety ratio σv/(obs + σv) to decrease computations when prediction profiles are desired?
     @assert IC > 0 && dof > 0;    FicticiousPoint = Normal(0, σv)
@@ -1851,7 +1852,7 @@ end
 function FullValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2.2, dof::Int=DOF(DM), 
                 LogLikelihoodFn::Function=FullLiftedLogLikelihoodAfterEmbedding(DM), MLE::AbstractVector{<:Number}=TotalLeastSquaresV(DM), pInds::AbstractVector{<:Int}=(xp=length(MLE);  xp-pdim(DM)+1:xp), 
                 ModelParExtractor::Function=(G=GetOnlyModelParams(DM);  G === identity ? (d=1+length(xdata(DM));  x::AbstractVector->view(x,pInds)) : G),
-                Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), 
+                Fisher::AbstractMatrix=FullFisherMetric(DM, MLE), IC::Real=icdfThreshold(dof,Confnum), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), 
                 VarianceProp::Function=FullVariancePropagation(DM, MLE, Confnum; Confnum, dof, IC, Fisher, pInds, ScaledInverseFisher), kwargs...)
     ValidationProfiles(DM, yComp, Ts; Confnum, dof, LogLikelihoodFn, MLE, ModelParExtractor, Fisher, IC, ScaledInverseFisher, VarianceProp, kwargs...)
 end
@@ -1868,7 +1869,7 @@ Otherwise, a small value is chosen by default to make the subsequent prediction 
 Most other kwargs are passed on to the `ParameterProfiles` function and thereby also to the optimizers, see e.g. [`ParameterProfiles`](@ref), [`InformationGeometry.minimize`](@ref).
 """
 function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2.2, dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
-                        Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof),
+                        Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=icdfThreshold(dof,Confnum), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof),
                         Model::ModelOrFunction=Predictor(DM), ydim::Int=length(Model(Ts[1], ModelParExtractor(MLE))), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = @view EmbeddingMap(Val(true), Model, ModelParExtractor(MLE), Ts)[yComp:ydim:end]      # Always compute with offset to zero internally
     Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], Confnum, dof, MLE, Model, ModelParExtractor, ydim=ydim, IC, Fisher, ScaledInverseFisher, VarianceProp, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))

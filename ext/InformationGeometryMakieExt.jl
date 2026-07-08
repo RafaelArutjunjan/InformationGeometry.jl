@@ -4,7 +4,7 @@ module InformationGeometryMakieExt
     using Distributions, DataInterpolations, LinearAlgebra, PlotUtils
 
     import InformationGeometry: ParameterProfilesView, IsPopulated, PlotSizer, GetConverged, Profiles, Trajectories, DOF, ApplyTrafoNames, pnames
-    import InformationGeometry: IsCost, Convergify, HasPriors
+    import InformationGeometry: IsCost, Convergify, HasPriors, icdfThreshold
 
     ### Taken from AlgebraOfGraphics.jl
     """
@@ -131,7 +131,7 @@ module InformationGeometryMakieExt
         if IsCost(PV) && all(Confnum .> 0)
             MaxLevel === nothing && (MaxLevel = maximum(view(Profiles(PV).u[2], GetConverged(Profiles(PV))); init=-Inf))
             sorted_conf = sort(Confnum; rev=true)
-            for (j, (Conf, Thresh)) in enumerate(zip(sorted_conf, convert.(eltype(MLE(PV)), InvChisqCDF.(dof, ConfVol.(sorted_conf)))))
+            for (j, (Conf, Thresh)) in enumerate(zip(sorted_conf, convert.(eltype(MLE(PV)), icdfThreshold.(dof, sorted_conf))))
                 Thresh < MaxLevel && hlines!(ax, [Trafo(Thresh)]; linewidth=1.5, linestyle=:dash, color=palette(:viridis, length(sorted_conf); rev=true)[j], linecap=:round, label="$(j)σ level, dof=$dof")
             end
         end
@@ -217,7 +217,7 @@ module InformationGeometryMakieExt
                     if ydim(DM) == 1
                         SqrtVar = VariancePropagation(
                             DM, mle,
-                            InvChisqCDF(dof, ConfVol(Conf)) * pinv(F);
+                            icdfThreshold(dof,Conf) * pinv(F);
                             Validation = Validation,
                             Confnum    = Conf,
                             dof        = dof
@@ -229,7 +229,7 @@ module InformationGeometryMakieExt
                     else
                         SqrtVar = VariancePropagation(
                             DM, mle,
-                            InvChisqCDF(dof, ConfVol(Conf)) * pinv(F);
+                            icdfThreshold(dof,Confnum) * pinv(F);
                             Validation = Validation,
                             Confnum    = Conf,
                             dof        = dof

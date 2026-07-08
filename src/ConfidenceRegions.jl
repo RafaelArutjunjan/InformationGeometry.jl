@@ -73,8 +73,8 @@ function _FindFloatBoundary(Test::Function, Interval::Tuple{<:Real,<:Real}, mle:
     muladd(AltLineSearch(Test, Interval, meth; tol=tol), BasisVector(Comp, length(mle)), mle)
 end
 
-function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=DOF(DM), Comp::Int=1, factor::Real=10.0)
-    b = sqrt(InvChisqCDF(dof, CF) / FisherMetric(DM,MLE(DM))[Comp,Comp])
+function _BracketingInterval(DM::AbstractDataModel, CF::Real; dof::Int=DOF(DM), IC::Real=InvChisqCDF(dof, CF), Comp::Int=1, factor::Real=10.0)
+    b = sqrt(IC / FisherMetric(DM,MLE(DM))[Comp,Comp])
     (b/factor, factor*b)
 end
 
@@ -320,15 +320,15 @@ end
     ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14) -> Tuple{Number,Number}
 Returns the confidence interval associated with confidence level `Confnum` in the case of one-dimensional parameter spaces.
 """
-function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), dof::Int=DOF(DM), kwargs...)
+function ConfidenceInterval1D(DM::AbstractDataModel, Confnum::Real=1.; tol::Real=1e-14, ADmode::Union{Val,Symbol}=Val(:ForwardDiff), dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum), kwargs...)
     (tol < 2e-15 || Confnum > 8) && throw("ConfidenceInterval1D not programmed for BigFloat yet.")
     pdim(DM) != 1 && throw("ConfidenceInterval1D not defined for p != 1.")
-    A = LogLikeMLE(DM) - (1/2)*InvChisqCDF(pdim(DM),ConfVol(Confnum))
+    A = LogLikeMLE(DM) - (1/2)*IC
     Func(p::Number) = loglikelihood(DM, muladd(p, BasisVector(1,pdim(DM)), MLE(DM))) - A
     B = try
-        AltLineSearch(Func, sqrt(InvChisqCDF(dof, ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol, kwargs...)
+        AltLineSearch(Func, sqrt(IC * inv(FisherMetric(DM, MLE(DM)))[1]); tol, kwargs...)
     catch;
-        LineSearch(Func, sqrt(InvChisqCDF(dof, ConfVol(Confnum)) * inv(FisherMetric(DM, MLE(DM)))[1]); tol)
+        LineSearch(Func, sqrt(IC * inv(FisherMetric(DM, MLE(DM)))[1]); tol)
     end
     A = try
         AltLineSearch(Func, -B; tol, kwargs...)
@@ -395,10 +395,11 @@ end
 """
     GenerateBoundary2(DM::AbstractDataModel, u0::AbstractVector{<:Number}; tol::Real=1e-9, meth=GetBoundaryMethod(tol,DM), mfd::Bool=false, ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false, Embedded::Bool=true, kwargs...)
 """
-function GenerateBoundary2(DM::AbstractDataModel, U0::AbstractVector{<:Number}; tol::Real=1e-5, Boundaries::Union{Function,Nothing}=nothing,
+function GenerateBoundary2(DM::AbstractDataModel, U0::AbstractVector{<:Number}; tol::Real=1e-5, Boundaries::Union{Function,Nothing}=nothing, 
+                Confnum::Real=GetConfnum(DM,U0), dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum),
                 meth::AbstractODEAlgorithm=GetBoundaryMethod(tol,DM), mfd::Bool=false, promote::Bool=!OrdinaryDiffEqCore.isimplicit(meth), ADmode::Val=Val(:ForwardDiff), FullRescale::Bool=false,
                 autodiff::AbstractADType=ADtypeConverter(ADmode), Embedded::Bool=true, factor::Real=1.0, tspan::Tuple{<:Number,<:Number}=(0,1e5), kwargs...)
-    iEmb, Emb = Rescaling(FisherMetric(DM, MLE(DM))/InvChisqCDF(pdim(DM),ConfVol(GetConfnum(DM,U0))), MLE(DM); Full=FullRescale, factor=factor)
+    iEmb, Emb = Rescaling(FisherMetric(DM, MLE(DM)) ./ IC, MLE(DM); Full=FullRescale, factor=factor)
     u0 = (promote && !mfd) ? PromoteStatic(iEmb(U0), true) : DeStatic(iEmb(U0))
     EmbLikelihood = loglikelihood(DM) ∘ Emb
     LogLikeOnBoundary = EmbLikelihood(u0)
@@ -700,7 +701,7 @@ Computes the forward propagation of the parameter covariance to the residuals. T
 Matrix `C` corresponds to a parameter covariance matrix `Σ` which has been properly scaled according to a desired confidence level.
 """
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::AbstractMatrix; Confnum::Real=1, dof::Int=DOF(DM), Model::ModelOrFunction=Predictor(DM), dModel::ModelOrFunction=dPredictor(DM), 
-                            yInvErrorModel::Union{Nothing,Function}=HasEstimatedUncertainties(DM) ? yinverrormodel(Data(DM)) : nothing, IC::Real=InvChisqCDF(dof, ConfVol(Confnum)),
+                            yInvErrorModel::Union{Nothing,Function}=HasEstimatedUncertainties(DM) ? yinverrormodel(Data(DM)) : nothing, IC::Real=icdfThreshold(dof,Confnum),
                             xdim::Int=xdim(DM), ydim::Int=ydim(DM), Validation::Bool=false, InterpolateDataUncertainty::Bool=false, ADmode::Val=Val(:ForwardDiff), verbose::Bool=true)
     @assert dof > 0;    @assert Confnum > 0
     JacobianWindup(J::AbstractMatrix, ydim::Int) = size(J,1) == ydim ? [J] : map(yinds->view(J, yinds, :), Iterators.partition(1:size(J,1), ydim))
@@ -753,7 +754,7 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
 function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), 
-                IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), Fisher::AbstractMatrix=FisherMetric(DM, mle), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), verbose::Bool=true, kwargs...)
+                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FisherMetric(DM, mle), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), verbose::Bool=true, kwargs...)
     verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     VariancePropagation(DM, mle, ScaledInverseFisher; Confnum, dof, IC, verbose, kwargs...)
 end
@@ -763,7 +764,7 @@ end
 Variance propagation based on FullFisherMetric, i.e. including x-uncertainties.
 """
 function FullVariancePropagation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), pInds::AbstractVector{<:Int}=(xp=length(XP);  xp-pdim(DM)+1:xp), 
-                IC::Real=InvChisqCDF(dof, ConfVol(Confnum)), Fisher::AbstractMatrix=FullFisherMetric(DM, XP), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), verbose::Bool=true, kwargs...)
+                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FullFisherMetric(DM, XP), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), verbose::Bool=true, kwargs...)
     @assert size(Fisher,1) == size(Fisher,2) == length(XP) == xpdim(DM);    @assert xpdim(DM) > length(MLE(DM));    verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FullFisherMetric)=0."
     VariancePropagation(DM, (@view XP[pInds]), ScaledInverseFisher; Confnum, dof, IC, verbose, kwargs...)
 end
@@ -881,7 +882,7 @@ Computes volume of ellipsoid defined by symmetric positive-definite matrix whose
 EllipsoidVolume(Σ::AbstractMatrix) = (n=size(Σ,1);   sqrt(exp(sum(log.(eigvals(Σ))))) * 2 * π^(n/2) / (n * gamma(n/2)))
 
 GeodesicRadius(DM::AbstractDataModel, Confnum::Real) = GeodesicRadius(Confnum, pdim(DM))
-GeodesicRadius(Confnum::Real, dim::Int) = sqrt(InvChisqCDF(dim, ConfVol(Confnum)))
+GeodesicRadius(Confnum::Real, dim::Int) = sqrt(icdfThreshold(dof,Confnum))
 
 """
     CoordinateDistortion(DM::AbstractDataModel, Confnum::Real=1) -> Real
@@ -1108,8 +1109,8 @@ end
 Returns `HyperCube` which bounds the linearized confidence region of level `Confnum` for a `DataModel`.
 """
 function LinearCuboid(DM::AbstractDataModel, Confnum::Real=1.; dof::Int=DOF(DM), Padding::Number=1/30, N::Int=200)
-    # LinearCuboid(Symmetric(InvChisqCDF(pdim(DM),ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding, N=N)
-    BoundingBox(Symmetric(InvChisqCDF(dof,ConfVol(Confnum))*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding)
+    # LinearCuboid(Symmetric(icdfThreshold(dof,Confnum)*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding, N=N)
+    BoundingBox(Symmetric(icdfThreshold(dof,Confnum)*inv(FisherMetric(DM, MLE(DM)))), MLE(DM); Padding=Padding)
 end
 
 # Formula from https://tavianator.com/2014/ellipsoid_bounding_boxes.html

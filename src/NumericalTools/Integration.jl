@@ -54,10 +54,10 @@ IntegrateND(F::Function, Interval::Union{AbstractVector{<:Number},Tuple{<:Number
     IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
 Integrates a function `F` over the intersection of `Domain` and the confidence region of level `Confnum`.
 """
-function IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real, F::Function; N::Int=Int(1e5), WE::Bool=true, kwargs...)
+function IntegrateOverConfidenceRegion(DM::AbstractDataModel, Domain::HyperCube, Confnum::Real, F::Function; N::Int=Int(1e5), WE::Bool=true, dof::Int=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), kwargs...)
     @assert length(Domain) == pdim(DM)
     # Multiply F with characteristic function for confidence region
-    Threshold = LogLikeMLE(DM) - 0.5InvChisqCDF(pdim(DM), ConfVol(Confnum))
+    Threshold = LogLikeMLE(DM) - 0.5IC
     InsideRegion(X::AbstractVector{<:Number}) = loglikelihood(DM, X; kwargs...) > Threshold
     Integrand(X::AbstractVector{T}) where T<:Number = InsideRegion(X) ? F(X) : zero(T)
     # Use HCubature instead of MonteCarlo

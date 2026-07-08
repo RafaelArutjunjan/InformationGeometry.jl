@@ -64,7 +64,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
         if PlotVariance || !NotPosDef(F)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
                 if ydim(DM) == 1
-                    SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
+                    SqrtVar = VariancePropagation(DM, mle, icdfThreshold(dof,Conf) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM)))
                     @series begin
                         seriescolor :=  get(plotattributes, :seriescolor, palette(color_palette)[6])
                         linestyle   --> :dash
@@ -73,7 +73,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                         X, [Y .+ SqrtVar Y .- SqrtVar]
                     end
                 else
-                    SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                    SqrtVar = VariancePropagation(DM, mle, icdfThreshold(dof,Conf) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                     for i in 1:ydim(DM)
                         @series begin
                             seriescolor := Colors[i]
@@ -197,7 +197,7 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
         if PlotVariance || !NotPosDef(F)
             color_palette = get(plotattributes, :color_palette, :default)
             for (j,Conf) in enumerate(Confnum[Confnum .> 0])
-                SqrtVar = VariancePropagation(DM, mle, InvChisqCDF(dof, ConfVol(Conf)) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
+                SqrtVar = VariancePropagation(DM, mle, icdfThreshold(dof,Conf) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
                 for i in 1:ydim(DM)
                     @series begin
                         subplot := i
@@ -1092,7 +1092,7 @@ PlotMatrix(inv(FisherMetric(DM,mle)),mle)
 """
 function PlotMatrix(Mat::AbstractMatrix, MLE::AbstractVector{<:Number}=zeros(size(Mat,1)); Confnum::Real=0., dof::Int=length(MLE), dims::Tuple{Int,Int}=(1,2), N::Int=400, plot::Bool=isloaded(:Plots), OverWrite::Bool=true, kwargs...)
     !(length(MLE) == size(Mat,1) == size(Mat,2)) && throw("PlotMatrix: Dimensional mismatch.")
-    corr = Confnum != 0. ? sqrt(InvChisqCDF(dof, ConfVol(Confnum))) : 1.0
+    corr = Confnum != 0. ? sqrt(icdfThreshold(dof,Confnum)) : 1.0
     C = corr .* cholesky(Symmetric(Mat)).L
     angles = range(0, 2π; length=N)
     F(α::Number) = muladd(C, RotatedVector(α, dims[1], dims[2], length(MLE)), MLE)

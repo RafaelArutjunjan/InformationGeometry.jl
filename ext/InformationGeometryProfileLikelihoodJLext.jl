@@ -32,13 +32,13 @@ end
     ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, OptimMeth=DefaultFirstOrderOptimizer, parallel::Bool=true, kwargs...)
 Computes profiles for given `idxs` up to given confidence threshold `Confnum` in units of `σ` via the `ProfileLikelihood.jl` package.
 """
-function ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, alg=OptimMeth, 
+function ProfileLikelihood.profile(DM::AbstractDataModel, Confnum::Real=1; idxs=1:pdim(DM), N::Int=31, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, alg=OptimMeth, dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum),
                                     parallel::Bool=true, resolution=N, maxval::Real=1e5, Mle::AbstractVector=MLE(DM), Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval), 
                                     lb=(!isnothing(Domain) ? Domain.L : fill(-maxval,length(Mle))), ub=(!isnothing(Domain) ? Domain.U : fill(maxval,length(Mle))), kwargs...)
     prob = ProfileLikelihood.LikelihoodProblem(DM; Domain, maxval, lb, ub)
     sol = ProfileLikelihood.mle(prob, alg)
     ProfileLikelihood.profile(prob, sol, idxs; alg, parallel, conf_level=ConfVol(Confnum),
-        threshold=-0.5*InvChisqCDF(DOF(DM), ConfVol(Confnum)), resolution, kwargs...)
+        threshold=-0.5*IC, resolution, kwargs...)
 end
 
 
@@ -46,17 +46,17 @@ end
     ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, OptimMeth=DefaultFirstOrderOptimizer, parallel::Bool=true, kwargs...)
 Computes bivariate profiles for given `idxs` up to given confidence threshold `Confnum` in units of `σ`, where pairs of parameters are fixed at different values and the remaining parameters are re-optimized.
 """
-function ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, alg=OptimMeth, 
+function ProfileLikelihood.bivariate_profile(DM::AbstractDataModel, Confnum::Real=1; idxs=nothing, N::Int=31, meth=DefaultFirstOrderOptimizer, OptimMeth=meth, alg=OptimMeth, dof::Int=DOF(DM), IC::Real=icdfThreshold(dof,Confnum),
                                         parallel::Bool=true, resolution=N, maxval::Real=1e5, Mle::AbstractVector=MLE(DM), Domain::Union{HyperCube,Nothing}=GetDomain(DM)∩FullDomain(length(Mle),maxval),
                                         lb=(!isnothing(Domain) ? Domain.L : fill(-maxval,length(Mle))), ub=(!isnothing(Domain) ? Domain.U : fill(maxval,length(Mle))), kwargs...)
     prob = ProfileLikelihood.LikelihoodProblem(DM; Domain, maxval, lb, ub)
     sol = ProfileLikelihood.mle(prob, alg)
     if isnothing(idxs)
         ProfileLikelihood.bivariate_profile(prob, sol; alg, parallel, conf_level=ConfVol(Confnum),
-            threshold=-0.5InvChisqCDF(DOF(DM), ConfVol(Confnum)), resolution, kwargs...)
+            threshold=-0.5IC, resolution, kwargs...)
     else
         ProfileLikelihood.bivariate_profile(prob, sol, idxs; alg, parallel, conf_level=ConfVol(Confnum),
-            threshold=-0.5InvChisqCDF(DOF(DM), ConfVol(Confnum)), resolution, kwargs...)
+            threshold=-0.5IC, resolution, kwargs...)
     end
 end
 
