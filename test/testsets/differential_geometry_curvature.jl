@@ -39,6 +39,8 @@ Metric3SA(x) = SA[sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*
 @test -20 > Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(true)) - Riemann(Metric3SA, BigFloat.(Y); ADmode=Val(false)) |> maximum |> log10 |> Float64
 
 
+
+## Test extrinsic curvature and Bartlett correction
 a = 1+rand();   b = 2+rand()
 DM = DataModel(DataSet(0:0, rand(2), Diagonal([inv(a), inv(b)]), (1,1,2)), (x,p)->[p[1], p[1]^2])
 θ = MLE(DM)[1]
@@ -53,3 +55,17 @@ DM2 = DataModel(DataSet(0:0, rand(3), Diagonal([inv(a), inv(a), inv(b)]), (1,1,3
 @test FisherMetric(DM2, [0,0.]) ≈ Diagonal([a,a])
 @test SecondFundamentalForm(DM2, [0,0.])[1] ≈ [0,0,2.]
 @test EfronScalarCurvature(DM2, [0,0.]) ≈ 4b/a^2
+
+
+# ## Need to put σ here, not sigma^2!
+# DSU = DataSetUncertain(0:5., 1:6., (x,y,c)->c[1], x->(x,x), [1.0]; nerrorparameters=0)
+# DMU = DataModel(DSU, (x,p)->p[1], [0.1])
+
+# θ = MLE(DMU)[1];    N = InformationGeometry.DataspaceDim(DMU)
+# ## Metric
+# @test FisherMetric(DMU, MLE(DMU))[1] ≈ N * (θ^4 +2) / θ^2
+
+# @test sum(yInvCovProper(DMU, MLE(DMU))) ≈ N * θ^2
+
+# # Efron curvature
+# @test Evaluate(DMU, MLE(DMU)) ≈ 2 * θ^4 / (N * (θ^4 +2)^3)
