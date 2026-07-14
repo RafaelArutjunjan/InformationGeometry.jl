@@ -302,7 +302,7 @@ function LinkParameters(DM, S::AbstractString, T::AbstractString, args...; kwarg
 end
 
 # Refactor to use MLEuncert
-function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), IC::Real=icdfThreshold(dof,Confnum), failed::Real=1e-10, failedlow::Real=failed, failedhigh::Real=1/failed)
+function _WidthsFromFisher(F::AbstractMatrix, Confnum::Real; dof::Int=size(F,1), IC::Real=icdfThreshold(dof,Confnum), failed::Real=1e-6, failedlow::Real=failed, failedhigh::Real=1/failed)
     widths = try
         sqrt.(abs.(Diagonal(inv(F)).diag))
     catch;
@@ -321,15 +321,16 @@ end
 Computes approximate width of Confidence Region from Fisher Metric and return this domain as a `HyperCube`.
 Ensures that this width is positive even for structurally unidentifiable models.
 """
-function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), ForcePositive::Bool=false, failed::Real=1e-10)
+function GetProfileDomainCube(F::AbstractMatrix, mle::AbstractVector, Confnum::Real; dof::Int=length(mle), ForcePositive::Bool=false, failed::Real=1e-6, 
+                        failedlow::Real=failed, failedhigh::Real=1/failed, Padding::Real=0.01, kwargs...)
     @assert size(F,1) == size(F,2) == length(mle)
-    widths = _WidthsFromFisher(F, Confnum; dof=dof, failed=failed)
+    widths = _WidthsFromFisher(F, Confnum; dof, failed, failedlow, failedhigh)
     @assert all(x->x>0, widths)
     L = mle - widths;   U = mle + widths
     if ForcePositive
-        L = clamp.(L, 1e-10, 1e12);     U = clamp.(U, 1e-10, 1e12)
+        L = clamp.(L, failedlow, failedhigh);     U = clamp.(U, failedlow, failedhigh)
     end
-    HyperCube(L,U)
+    HyperCube(L, U; Padding, kwargs...)
 end
 
 # USE NelderMead for ODEmodels!!!!!
