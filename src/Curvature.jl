@@ -228,7 +228,8 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
             :EfronRicciCurvature, :EfronRicciCurvature2,
             :EfronRiemannCurvature, :EfronRiemannCurvature2,
             :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
-            :EfronShapeOperator, :EfronCurvatureIsotropy]
+            :EfronShapeOperator, :EfronCurvatureIsotropy,
+            :NormSFF]
     @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
             g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), SkipTests::Bool=false, kwargs...)
@@ -238,12 +239,14 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
     @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
 end
 ## Gives proportionality to 2nd order MLE risk
-function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function NormSFF(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     @tullio IInorm = g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
-    γ² = IInorm / 2
+end
+function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+    NormSFF(II, g, g⁻¹, Σ⁻¹) / 2
 end
 ## Gives direction of mean curvature, i.e. externally induced acceleration H = tr_g(II), no 1/k in definition!
-function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}=Eye(1)) where T<:Number
+function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}=Eye(1), ::Nothing=nothing, args...) where T<:Number
     # 1/size(g⁻¹,1) .* sum(g⁻¹[i,j]*II[i,j] for i in axes(g⁻¹,1), j in axes(g⁻¹,2))
     Res = zeros(T,length(II[1]))
     for i in axes(g⁻¹,1), j in axes(g⁻¹,2)
@@ -251,7 +254,7 @@ function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::Abstract
     end;    Res
 end
 ## Sectional curvature with respect to coordinate basis
-function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}) where T<:Number
+function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...) where T<:Number
     K = fill(T(NaN), size(II,1), size(II,1))
     for a in axes(II,1), b in a+1:size(II,1)
         num = dot(II[a,a], Σ⁻¹, II[b,b]) - dot(II[a,b], Σ⁻¹, II[a,b])
@@ -260,7 +263,7 @@ function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::Abs
     end;    K
 end
 ## Sectional curvature with respect to arbitrary given intrinsic tangent vectors
-function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}) where T<:Number
+function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...) where T<:Number
     ## Precompute Q
     k = size(II,1);    Q = zeros(T, k, k, k, k)
     for i in 1:k, j in i:k, a in 1:k, b in a:k
@@ -279,25 +282,25 @@ function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::
     end
 end
 
-function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     @tullio Ric[i,j] := g⁻¹[a,b] * dot(II[i,j], Σ⁻¹, II[a,b])
 end
-function EfronRiemannCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronRiemannCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     @tullio Riem[i,j,k,l] := dot(II[i,k], Σ⁻¹, II[j,l]) - dot(II[i,l], Σ⁻¹, II[j,k])
 end
 ## Pre-whitening of II, more performant for large Σ⁻¹ with non-zero off-diagonal
-function EfronRicciCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronRicciCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     L = cholesky(Σ⁻¹).L;    IIw = [L * II[i,j] for i in axes(II,1), j in axes(II,2)]
     @tullio Ric[i,j] := g⁻¹[a,b] * dot(IIw[i,a], IIw[j,b])
 end
 ## Pre-whitening of II, more performant for large Σ⁻¹ with non-zero off-diagonal
-function EfronRiemannCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronRiemannCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     L = cholesky(Σ⁻¹).L;    IIw = [L * II[i,j] for i in axes(II,1), j in axes(II,2)]
     @tullio Riem[i,j,k,l] := dot(IIw[i,k], IIw[j,l]) - dot(IIw[i,l], IIw[j,k])
 end
 
 # Returns shape operator matrix (S_n)^i_j for a given normal vector n
-function EfronShapeOperator(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronShapeOperator(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     k = size(II,1)
     function ShapeOperator(n::AbstractVector{T}) where T<:Number
         @boundscheck @assert length(n) == length(II[1])
@@ -312,7 +315,7 @@ end
 
 ## norm(H)^2 / norm(II)^2
 ## If -> 1, then curvature mostly mean, if -> 0 then curvature anisotropic, i.e. due to few distinct parameter directions. 
-function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number})
+function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
     Hnorm² = InnerProduct(Σ⁻¹, H)
     IInorm² = 2*EfronScalarCurvature(II, g, g⁻¹, Σ⁻¹)
