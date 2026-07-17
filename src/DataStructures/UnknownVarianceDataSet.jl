@@ -1,6 +1,7 @@
 
 
-# Use general bitvector mask to implement missing values
+# Missing y values use the same compact observed-space representation as
+# DataSetUncertain. Missing x values still require a separate latent-x design.
 
 """
     UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, σ_x⁻¹::Function, σ_y⁻¹::Function, cx::AbstractVector, cy::AbstractVector; BesselCorrection::Bool=false)
@@ -43,6 +44,9 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
+    datakeep::Union{Nothing,AbstractVector{<:Bool}}
+    predkeep::Union{Nothing,AbstractVector{<:Int}}
+    woundXpred::Union{Nothing,AbstractVector}
 
     UnknownVarianceDataSet(DM::AbstractDataModel, args...; kwargs...) = UnknownVarianceDataSet(Data(DM), args...; kwargs...)
     UnknownVarianceDataSet(DS::AbstractDataSet, args...; kwargs...) = UnknownVarianceDataSet(WoundX(DS), WoundY(DS), args...; xnames=Xnames(DS), ynames=Ynames(DS), name=name(DS), kwargs...)
@@ -54,10 +58,12 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
         UnknownVarianceDataSet(Unwind(X), Unwind(Y), xerrmod, yerrmod, testpx, testpy, dims; verbose, kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, invxerrormodel::Function, invyerrormodel::Function,
-        testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(x,1), ConsistentElDims(x), ConsistentElDims(y)); verbose::Bool=true, kwargs...)
+        testpx::AbstractVector, testpy::AbstractVector, dims::Tuple{Int,Int,Int}=(size(x,1), (all(z -> z isa Number, x) ? 1 : ConsistentElDims(x)), (all(z -> z isa Number || ismissing(z), y) ? 1 : ConsistentElDims(y))); verbose::Bool=true, kwargs...)
         verbose && @info "Assuming error parameters always given by last ($(length(testpx)),$(length(testpy))) parameters respectively."
         # Error param splitter
-        UnknownVarianceDataSet(Unwind(x), Unwind(y), dims, invxerrormodel, invyerrormodel, testpx, testpy, DefaultErrorModelSplitter(length(testpx),length(testpy)); verbose, kwargs...)
+        xflat = all(z -> z isa Number, x) ? collect(x) : Unwind(x)
+        yflat = all(z -> z isa Number || ismissing(z), y) ? collect(y) : Unwind(y)
+        UnknownVarianceDataSet(xflat, yflat, dims, invxerrormodel, invyerrormodel, testpx, testpy, DefaultErrorModelSplitter(length(testpx),length(testpy)); verbose, kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function;
@@ -67,20 +73,30 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
     end
     function UnknownVarianceDataSet(x::AbstractVector, y::AbstractVector, dims::Tuple{Int,Int,Int}, 
             invxerrormodelraw::Function, invyerrormodelraw::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function,
-            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); SkipXs::Function=(n = length(x); p::AbstractVector{<:Number}->SafeView(p,n+1:length(p))), kwargs...)
-        Q = invxerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpx)
+            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); SkipXs::Function=(n = length(x); p::AbstractVector{<:Number}->SafeView(p,n+1:length(p))), datakeep::Union{Nothing,AbstractVector{<:Bool}}=map(z->!ismissing(z) && isfinite(z), y), predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing, woundXpred::Union{Nothing,AbstractVector}=nothing, kwargs...)
+        @assert all(!ismissing(z) && isfinite(z) for z in x) "UnknownVarianceDataSet currently supports missing y values only."
+        yfull = [datakeep[i] ? y[i] : 0.0 for i in eachindex(y)]
+        sparseX, sparsePredKeep = if all(datakeep)
+            (nothing, nothing)
+        elseif !isnothing(predkeep) && !isnothing(woundXpred)
+            (woundXpred, predkeep)
+        else
+            (nothing, nothing)
+        end
+        Q = invxerrormodelraw(Windup(x, xdim(dims))[1], Windup(yfull, ydim(dims))[1], testpx)
         Invxerrormodelraw, Invxerrormodel = ErrorModelTester(invxerrormodelraw, Q)
-        M = invyerrormodelraw(Windup(x, xdim(dims))[1], Windup(y, ydim(dims))[1], testpy)
+        M = invyerrormodelraw(Windup(x, xdim(dims))[1], Windup(yfull, ydim(dims))[1], testpy)
         Invyerrormodelraw, Invyerrormodel = ErrorModelTester(invyerrormodelraw, M)
         
-        UnknownVarianceDataSet(x, y, dims, Invxerrormodelraw, Invyerrormodelraw, Q, M, Invxerrormodel, Invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, xnames, ynames, name; kwargs...)
+        UnknownVarianceDataSet(x, y[datakeep], dims, Invxerrormodelraw, Invyerrormodelraw, Q, M, Invxerrormodel, Invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, xnames, ynames, name; datakeep=all(datakeep) ? nothing : datakeep, predkeep=all(datakeep) ? nothing : sparsePredKeep, woundXpred=sparseX, kwargs...)
     end
     function UnknownVarianceDataSet(x::AbstractVector{<:Number}, y::AbstractVector{<:Number}, dims::Tuple{Int,Int,Int}, 
             invxerrormodelraw::Function, invyerrormodelraw::Function, testoutx::Union{Number,<:AbstractVector,<:AbstractMatrix}, testouty::Union{Number,<:AbstractVector,<:AbstractMatrix},
             invxerrormodel::Function, invyerrormodel::Function, testpx::AbstractVector, testpy::AbstractVector, errorparamsplitter::Function, SkipXs::Function,
-            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true)
+            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, name::StringOrSymb=Symbol(); BesselCorrection::Bool=false, verbose::Bool=true, datakeep::Union{Nothing,AbstractVector{<:Bool}}=nothing, predkeep::Union{Nothing,AbstractVector{<:Int}}=nothing, woundXpred::Union{Nothing,AbstractVector}=nothing)
         @assert all(x->(x > 0), dims) "Not all dims > 0: $dims."
-        @assert Npoints(dims) == Int(length(x)/xdim(dims)) == Int(length(y)/ydim(dims)) "Inconsistent input dimensions."
+        @assert Npoints(dims) == Int(length(x)/xdim(dims)) "Inconsistent x input dimensions."
+        @assert isnothing(datakeep) ? Npoints(dims) == Int(length(y)/ydim(dims)) : length(y) == sum(datakeep) "Inconsistent y input dimensions."
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
         ## Check that inverrormodel either outputs Matrix for ydim > 1
         xdim(dims) == 1 && (@assert testoutx isa Number && testoutx > 0)
@@ -88,8 +104,10 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
         ydim(dims) == 1 && (@assert testouty isa Number && testouty > 0)
         ydim(dims) > 1 && @assert (testouty isa AbstractVector && length(testouty) == ydim(dims) && all(testouty .> 0)) || (testouty isa AbstractMatrix && size(testouty,1) == size(testouty,2) == ydim(dims) && det(testouty) > 0)
         
+        @assert isnothing(datakeep) || length(datakeep) == Npoints(dims) * ydim(dims)
+        @assert isnothing(datakeep) || length(y) == sum(datakeep)
         new{BesselCorrection, typeof(x), typeof(y), typeof(invxerrormodelraw), typeof(invyerrormodelraw), typeof(errorparamsplitter), typeof(SkipXs)}(x, y, dims, 
-                    invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(name))
+                    invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(name), datakeep, predkeep, woundXpred)
     end
 end
 
@@ -138,6 +156,25 @@ Ynames(DS::UnknownVarianceDataSet) = DS.ynames
 name(DS::UnknownVarianceDataSet) = DS.name
 
 HasXerror(DS::UnknownVarianceDataSet; kwargs...) = true
+HasMissingValues(DS::UnknownVarianceDataSet) = !isnothing(DS.datakeep)
+DataspaceDim(DS::UnknownVarianceDataSet) = isnothing(DS.datakeep) ? length(ydata(DS)) : sum(DS.datakeep)
+
+# Missing x values will require a separate latent-x mask; x remains complete for now.
+function WoundY(DS::UnknownVarianceDataSet)
+    isnothing(DS.datakeep) && return Windup(ydata(DS), ydim(DS))
+    Y = fill(zero(eltype(DS.testpy)), length(DS.datakeep))
+    Y[DS.datakeep] .= ydata(DS)
+    Windup(Y, ydim(DS))
+end
+WoundYmasked(DS::UnknownVarianceDataSet) = WoundY(DS)
+ReconstructDataMatrices(DS::UnknownVarianceDataSet) = (Windup(xdata(DS), xdim(DS)), WoundY(DS))
+
+_MaskedUVD(M::AbstractMatrix, ::Nothing) = M
+_MaskedUVD(M::Diagonal, ::Nothing) = M
+_MaskedUVD(M::Diagonal, keep) = Diagonal(view(M.diag, keep))
+_MaskedUVD(M::AbstractMatrix, keep) = view(M, keep, keep)
+_MaskedUVD(v::AbstractVector, ::Nothing) = v
+_MaskedUVD(v::AbstractVector, keep) = view(v, keep)
 
 
 xerrormoddim(DS::UnknownVarianceDataSet) = length(DS.testpx)
@@ -198,7 +235,7 @@ function ysigma(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testp
         verbose && c === DS.testpy && @warn "ysigma: Cheating by not constructing uncertainty around given prediction."
         c
     end;    errmod = yinverrormodel(DS)
-    map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt
+    _MaskedUVD(map((x,y)->inv(errmod(x,y,C)), WoundX(DS), WoundY(DS)) |> _TryVectorizeNoSqrt, DS.datakeep)
 end
 
 function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.testpy; verbose::Bool=true)
@@ -208,7 +245,7 @@ function yInvCov(DS::UnknownVarianceDataSet, c::AbstractVector{<:Number}=DS.test
     else
         verbose && c === DS.testpy && @warn "yInvCov: Cheating by not constructing uncertainty around given prediction."
         c
-    end;    _InvCov(yinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testouty)
+    end;    _MaskedUVD(_InvCov(yinverrormodel(DS), C, WoundX(DS), WoundY(DS), DS.testouty), DS.datakeep)
 end
 
 
@@ -223,10 +260,28 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     LiftedEmb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS))) # Picks out last length(normalparams)-length(xdata(DS)) as model parameters
     XY = LiftedEmb(normalparams);   Xinds = 1:length(xdata(DS));    NonXinds = length(xdata(DS))+1:length(XY)
     woundXpred = Windup(view(XY, Xinds), xdim(DS));    woundYpred = Windup(view(XY, NonXinds), ydim(DS))
-    Bessel = BesselCorrection ? sqrt((length(xdata(DS))+length(ydata(DS))-DOF(DS, θ))/(length(xdata(DS))+length(ydata(DS)))) : one(T)
+    if !isnothing(DS.datakeep)
+        Bessel = BesselCorrection ? sqrt((length(xdata(DS)) + sum(DS.datakeep) - DOF(DS, θ)) / (length(xdata(DS)) + sum(DS.datakeep))) : one(T)
+        InvσKeep = _MaskedUVD(map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred) |> BlockMatrix, DS.datakeep)
+        yPredKeep = view(Unwind(woundYpred), DS.datakeep)
+        yll = _EvalObservedUVD(yPredKeep, InvσKeep, ydata(DS), T)
+        return yll + _EvalWoundsLogLikelihood(woundXpred, map((x,y)->xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred), WoundX(DS))
+    end
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS)) + DataspaceDim(DS) - DOF(DS, θ)) / (length(xdata(DS)) + DataspaceDim(DS))) : one(T)
     woundInvXσ = map((x,y)->Bessel .* xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred)
     _EvalWoundsLogLikelihood(woundYpred, woundInvYσ, WoundY(DS)) + _EvalWoundsLogLikelihood(woundXpred, woundInvXσ, WoundX(DS))
+end
+
+function _EvalObservedUVD(pred, invσ::AbstractVector, data, ::Type{T}) where T
+    Res::T = -length(data) * log(2T(π))
+    @inbounds for i in eachindex(data)
+        Res += 2log(invσ[i]) - abs2(invσ[i] * (data[i] - pred[i]))
+    end
+    Res / 2
+end
+function _EvalObservedUVD(pred, invσ::AbstractMatrix, data, ::Type{T}) where T
+    (-length(data) * log(2T(π)) + 2logdet(invσ) - sum(abs2, invσ * (data - pred))) / 2
 end
 
 
@@ -247,7 +302,13 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
     woundInvYσ = map((x,y)->Bessel .* yinverrmod(x,y,yerrorparams), woundXpred, woundYpred)
 
     NormalParamJac = SplitterJacNormalParams(DS; SkipXs=identity)(θ)
-    J = BlockMatrix(BlockMatrix(woundInvXσ), BlockMatrix(woundInvYσ)) * (GetJac(ADmode, LiftedEmb, length(normalparams))(normalparams)) * NormalParamJac
+    Jfull = BlockMatrix(BlockMatrix(woundInvXσ), BlockMatrix(woundInvYσ)) * (GetJac(ADmode, LiftedEmb, length(normalparams))(normalparams)) * NormalParamJac
+    J = if isnothing(DS.datakeep)
+        Jfull
+    else
+        yrows = length(xdata(DS)) .+ (1:length(DS.datakeep))
+        vcat(view(Jfull, 1:length(xdata(DS)), :), view(Jfull, yrows[DS.datakeep], :))
+    end
     F_m = transpose(J) * J
 
     # Check if small invs faster than single inversion of full matrix
@@ -288,6 +349,10 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
     @inline AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::AbstractMatrix, ΣneghalfJac::AbstractArray{<:Number,3}) = @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
     @inline function AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::Diagonal, ΣneghalfJac::AbstractMatrix) # (N × θ) in diagonal case
         s = Σposhalf.diag;  @tullio F_m[i,j] += 2 * s[a]^2 * ΣneghalfJac[a,i] * ΣneghalfJac[a,j]    # F_m .+= 2 .* (ΣneghalfJac' * Diagonal(s.^2) * ΣneghalfJac)
+    end
+    if !isnothing(DS.datakeep)
+        yΣposhalf = _MaskedUVD(yΣposhalf, DS.datakeep)
+        yΣneghalfJac = yΣneghalfJac isa AbstractMatrix ? view(yΣneghalfJac, DS.datakeep, :) : view(yΣneghalfJac, DS.datakeep, DS.datakeep, :)
     end
     AddCovarianceContribution!(F_m, yΣposhalf, yΣneghalfJac)
     AddCovarianceContribution!(F_m, xΣposhalf, xΣneghalfJac)
