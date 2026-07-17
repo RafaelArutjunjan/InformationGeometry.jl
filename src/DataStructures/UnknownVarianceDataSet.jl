@@ -27,7 +27,7 @@ DS = UnknownVarianceDataSet([1,2,3,4], [4,5,6.5,7.8], (x,y,cx)->1/exp10(cx[1]), 
     It is generally advisable to exponentiate error parameters, since they are penalized poportional to `log(c)` in the normalization term of Gaussian likelihoods.
     A Bessel correction `sqrt((length(xdata(DS))+length(ydata(DS))-length(params))/(length(xdata(DS))+length(ydata(DS))))` can be applied to the reciprocal error to account for the fact that the maximum likelihood estimator for the variance is biased via kwarg `BesselCorrection`.
 """
-struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVector, XER<:Function, YER<:Function, SP<:Function, SX<:Function} <: AbstractUnknownUncertaintyDataSet
+struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVector, XER<:Function, YER<:Function, SP<:Function, SX<:Function, DK<:Union{Nothing,<:AbstractVector}} <: AbstractUnknownUncertaintyDataSet
     x::X
     y::Y
     dims::Tuple{Int,Int,Int}
@@ -44,7 +44,7 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
-    datakeep::Union{Nothing,AbstractVector{<:Bool}}
+    datakeep::DK
     predkeep::Union{Nothing,AbstractVector{<:Int}}
     woundXpred::Union{Nothing,AbstractVector}
 
@@ -106,7 +106,7 @@ struct UnknownVarianceDataSet{BesselCorrection, X<:AbstractVector, Y<:AbstractVe
         
         @assert isnothing(datakeep) || length(datakeep) == Npoints(dims) * ydim(dims)
         @assert isnothing(datakeep) || length(y) == sum(datakeep)
-        new{BesselCorrection, typeof(x), typeof(y), typeof(invxerrormodelraw), typeof(invyerrormodelraw), typeof(errorparamsplitter), typeof(SkipXs)}(x, y, dims, 
+        new{BesselCorrection, typeof(x), typeof(y), typeof(invxerrormodelraw), typeof(invyerrormodelraw), typeof(errorparamsplitter), typeof(SkipXs), typeof(datakeep)}(x, y, dims, 
                     invxerrormodelraw, invyerrormodelraw, testoutx, testouty, invxerrormodel, invyerrormodel, testpx, testpy, errorparamsplitter, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(name), datakeep, predkeep, woundXpred)
     end
 end
@@ -157,24 +157,27 @@ name(DS::UnknownVarianceDataSet) = DS.name
 
 HasXerror(DS::UnknownVarianceDataSet; kwargs...) = true
 HasMissingValues(DS::UnknownVarianceDataSet) = !isnothing(DS.datakeep)
-DataspaceDim(DS::UnknownVarianceDataSet) = isnothing(DS.datakeep) ? length(ydata(DS)) : sum(DS.datakeep)
+DataspaceDim(DS::UnknownVarianceDataSet) = _UVDDataspaceDim(DS.datakeep, ydata(DS))
+_UVDDataspaceDim(::Nothing, y) = length(y)
+_UVDDataspaceDim(keep::AbstractVector, y) = sum(keep)
 
 # Missing x values will require a separate latent-x mask; x remains complete for now.
-function WoundY(DS::UnknownVarianceDataSet)
-    isnothing(DS.datakeep) && return Windup(ydata(DS), ydim(DS))
-    Y = fill(zero(eltype(DS.testpy)), length(DS.datakeep))
-    Y[DS.datakeep] .= ydata(DS)
-    Windup(Y, ydim(DS))
+WoundY(DS::UnknownVarianceDataSet) = _WoundYUVD(DS.datakeep, ydata(DS), ydim(DS), eltype(DS.testpy))
+_WoundYUVD(::Nothing, y, ydim, T) = Windup(y, ydim)
+function _WoundYUVD(keep::AbstractVector, y, ydim, T)
+    Y = fill(zero(T), length(keep))
+    Y[keep] .= y
+    Windup(Y, ydim)
 end
 WoundYmasked(DS::UnknownVarianceDataSet) = WoundY(DS)
 ReconstructDataMatrices(DS::UnknownVarianceDataSet) = (Windup(xdata(DS), xdim(DS)), WoundY(DS))
 
 _MaskedUVD(M::AbstractMatrix, ::Nothing) = M
 _MaskedUVD(M::Diagonal, ::Nothing) = M
-_MaskedUVD(M::Diagonal, keep) = Diagonal(view(M.diag, keep))
-_MaskedUVD(M::AbstractMatrix, keep) = view(M, keep, keep)
+_MaskedUVD(M::Diagonal, keep::AbstractVector) = Diagonal(view(M.diag, keep))
+_MaskedUVD(M::AbstractMatrix, keep::AbstractVector) = view(M, keep, keep)
 _MaskedUVD(v::AbstractVector, ::Nothing) = v
-_MaskedUVD(v::AbstractVector, keep) = view(v, keep)
+_MaskedUVD(v::AbstractVector, keep::AbstractVector) = view(v, keep)
 
 
 xerrormoddim(DS::UnknownVarianceDataSet) = length(DS.testpx)
@@ -260,25 +263,28 @@ function _loglikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mod
     LiftedEmb = LiftedEmbedding(DS, model, length(normalparams)-length(xdata(DS))) # Picks out last length(normalparams)-length(xdata(DS)) as model parameters
     XY = LiftedEmb(normalparams);   Xinds = 1:length(xdata(DS));    NonXinds = length(xdata(DS))+1:length(XY)
     woundXpred = Windup(view(XY, Xinds), xdim(DS));    woundYpred = Windup(view(XY, NonXinds), ydim(DS))
-    if !isnothing(DS.datakeep)
-        Bessel = BesselCorrection ? sqrt((length(xdata(DS)) + sum(DS.datakeep) - DOF(DS, θ)) / (length(xdata(DS)) + sum(DS.datakeep))) : one(T)
-        InvσKeep = _MaskedUVD(map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred) |> BlockMatrix, DS.datakeep)
-        yPredKeep = view(Unwind(woundYpred), DS.datakeep)
-        yll = _EvalObservedUVD(yPredKeep, InvσKeep, ydata(DS), T)
-        return yll + _EvalWoundsLogLikelihood(woundXpred, map((x,y)->xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred), WoundX(DS))
-    end
+    _EvaluateUVDFullLikelihood(DS, DS.datakeep, woundXpred, woundYpred, xinverrmodraw, yinverrmodraw, xerrorparams, yerrorparams, θ, T)
+end
+
+function _EvaluateUVDFullLikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, ::Nothing, woundXpred, woundYpred, xinverrmodraw, yinverrmodraw, xerrorparams, yerrorparams, θ, ::Type{T}) where {BesselCorrection,T}
     Bessel = BesselCorrection ? sqrt((length(xdata(DS)) + DataspaceDim(DS) - DOF(DS, θ)) / (length(xdata(DS)) + DataspaceDim(DS))) : one(T)
     woundInvXσ = map((x,y)->Bessel .* xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred)
     woundInvYσ = map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred)
     _EvalWoundsLogLikelihood(woundYpred, woundInvYσ, WoundY(DS)) + _EvalWoundsLogLikelihood(woundXpred, woundInvXσ, WoundX(DS))
 end
 
+function _EvaluateUVDFullLikelihood(DS::UnknownVarianceDataSet{BesselCorrection}, keep::AbstractVector, woundXpred, woundYpred, xinverrmodraw, yinverrmodraw, xerrorparams, yerrorparams, θ, ::Type{T}) where {BesselCorrection,T}
+    Bessel = BesselCorrection ? sqrt((length(xdata(DS)) + sum(keep) - DOF(DS, θ)) / (length(xdata(DS)) + sum(keep))) : one(T)
+    Invσ = _MaskedUVD(map((x,y)->Bessel .* yinverrmodraw(x,y,yerrorparams), woundXpred, woundYpred) |> BlockMatrix, keep)
+    yPred = view(Unwind(woundYpred), keep)
+    _EvalObservedUVD(yPred, Invσ, ydata(DS), T) + _EvalWoundsLogLikelihood(woundXpred, map((x,y)->xinverrmodraw(x,y,xerrorparams), woundXpred, woundYpred), WoundX(DS))
+end
+
 function _EvalObservedUVD(pred, invσ::AbstractVector, data, ::Type{T}) where T
     Res::T = -length(data) * log(2T(π))
     @inbounds for i in eachindex(data)
         Res += 2log(invσ[i]) - abs2(invσ[i] * (data[i] - pred[i]))
-    end
-    Res / 2
+    end;    Res / 2
 end
 function _EvalObservedUVD(pred, invσ::AbstractMatrix, data, ::Type{T}) where T
     (-length(data) * log(2T(π)) + 2logdet(invσ) - sum(abs2, invσ * (data - pred))) / 2
@@ -303,12 +309,12 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
 
     NormalParamJac = SplitterJacNormalParams(DS; SkipXs=identity)(θ)
     Jfull = BlockMatrix(BlockMatrix(woundInvXσ), BlockMatrix(woundInvYσ)) * (GetJac(ADmode, LiftedEmb, length(normalparams))(normalparams)) * NormalParamJac
-    J = if isnothing(DS.datakeep)
-        Jfull
-    else
-        yrows = length(xdata(DS)) .+ (1:length(DS.datakeep))
-        vcat(view(Jfull, 1:length(xdata(DS)), :), view(Jfull, yrows[DS.datakeep], :))
-    end
+
+    @inline _UVDFisherMeanJacobian(J, ::Nothing, xlen) = J
+    @inline _UVDFisherMeanJacobian(J, keep::AbstractVector, xlen) = (yrows = xlen .+ (1:length(keep));     vcat(view(J, 1:xlen, :), view(J, yrows[keep], :)))
+    totalxlen = length(xdata(DS))
+
+    J = _UVDFisherMeanJacobian(Jfull, DS.datakeep, totalxlen)
     F_m = transpose(J) * J
 
     # Check if small invs faster than single inversion of full matrix
@@ -346,18 +352,22 @@ function _FisherMetric(DS::UnknownVarianceDataSet{BesselCorrection}, model::Mode
         GetMatrixJac(ADmode, InvSqrtxCovFromFull, length(θ), size(xΣposhalf))(θ)
     end
 
+    @inline _UVDFisherYCovariance(dS::AbstractArray, ::Nothing) = dS
+    @inline _UVDFisherYCovariance(dS::AbstractMatrix, keep::AbstractVector) = view(dS, keep, :)
+    @inline _UVDFisherYCovariance(dS::AbstractArray, keep::AbstractVector) = view(dS, keep, keep, :)
+    yΣposhalf = _MaskedUVD(yΣposhalf, DS.datakeep)
+    yΣneghalfJac = _UVDFisherYCovariance(yΣneghalfJac, DS.datakeep)
+
     @inline AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::AbstractMatrix, ΣneghalfJac::AbstractArray{<:Number,3}) = @tullio F_m[i,j] += 2 * Σposhalf[a,b] * ΣneghalfJac[b,c,i] * Σposhalf[c,d] * ΣneghalfJac[d,a,j]
     @inline function AddCovarianceContribution!(F_m::AbstractMatrix, Σposhalf::Diagonal, ΣneghalfJac::AbstractMatrix) # (N × θ) in diagonal case
         s = Σposhalf.diag;  @tullio F_m[i,j] += 2 * s[a]^2 * ΣneghalfJac[a,i] * ΣneghalfJac[a,j]    # F_m .+= 2 .* (ΣneghalfJac' * Diagonal(s.^2) * ΣneghalfJac)
     end
-    if !isnothing(DS.datakeep)
-        yΣposhalf = _MaskedUVD(yΣposhalf, DS.datakeep)
-        yΣneghalfJac = yΣneghalfJac isa AbstractMatrix ? view(yΣneghalfJac, DS.datakeep, :) : view(yΣneghalfJac, DS.datakeep, DS.datakeep, :)
-    end
+    
     AddCovarianceContribution!(F_m, yΣposhalf, yΣneghalfJac)
     AddCovarianceContribution!(F_m, xΣposhalf, xΣneghalfJac)
     F_m
 end
+
 
 # function _Score(DSE::DataSetExact, model::ModelOrFunction, dmodel::ModelOrFunction, θ::AbstractVector{<:Number}, ADmode::Val{false}; kwargs...)
 #     transpose(EmbeddingMatrix(DSE,dmodel,θ; kwargs...)) * gradlogpdf(ydist(DSE), EmbeddingMap(DSE,model,θ; kwargs...))
