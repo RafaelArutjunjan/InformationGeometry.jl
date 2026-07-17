@@ -1315,6 +1315,9 @@ PlotSizer(n::Int; singlesize::Int=250, size::Tuple{<:Int,<:Int}=(singlesize,sing
 
     tol = get(plotattributes, :tol, 0.05)
     ymin = get(plotattributes, :Ymin, Trafo.(-tol))
+    M = [maximum(view(T.u[2], GetConverged(T))) for T in Profiles(P) if !all(isnan, T.u[1]) && any(GetConverged(T)) && maximum(view(T.u[2], GetConverged(T))) > tol]
+    maxy = length(M) > 0 ? median(M) : median([maximum(T.u[2]) for T in Profiles(P) if !all(isnan, T.u[1])])
+    maxy = maxy < tol ? (maxy < 1e-8 ? tol : Inf) : maxy
     Ylims = get(plotattributes, :ylims, (ymin, Trafo.(maxy)))
 
     @series begin

@@ -517,6 +517,19 @@ end
 
 
 """
+    ClipArray(X::AbstractArray{T}, value::T=maximum(X); ClipperBool::Function=isequal(value), Impute::T=zero(T))
+Clips elements of array `X` for which `ClipperBool` evaluates to `true` to value specified by `Impute`.
+"""
+ClipArray(X, args...; kwargs...) = (Res = copy(X);    ClipArray!(Res, args...; kwargs...);    Res)
+function ClipArray!(X::AbstractArray{T}, value::T=maximum(X); ClipperBool::Function=isequal(value), Impute::T=zero(T)) where T<:Number
+    @inbounds for i in eachindex(X)
+        ClipperBool(X[i]) && (X[i] = Impute)
+    end
+end
+
+
+
+"""
     WeightedAverage(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number})
 Computes weighted average of `x`.
 """

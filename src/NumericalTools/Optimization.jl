@@ -335,6 +335,8 @@ function ParameterSavingCallback(X::AbstractVector{T}; PrintLossEvery::Int=0,
                     Terminate::Function=TerminationCriterion == 0 ? ((State,loss)->false) : ((State,loss)->length(Losses) ≥ TerminationLength && length(Losses) % TerminationLength == 0 && abs(Losses[end-TerminationLength+1] - Losses[end]) < TerminationCriterion && abs(Losses[end-2TerminationLength+1] - Losses[end]) < 2TerminationCriterion),
                     ) where T<:Number
     GetCurPar(State::Optim.OptimizationState) = ((@warn "Cannot access current parameters in OptimizationState for Optim.jl. Wrap via OptimizationOptimJL.jl.");    fill(Inf, length(X)))
+    ## Works for ZerothOrderState, e.g. NelderMead
+    GetCurPar(State::Optim.AbstractOptimizerState) = State.x
     ## Definition of type OptimizationState was moved to OptimizationBase.jl in OptimizationBasev4 and Optimizationv5 but was in Optimizationv4 previously
     # GetCurPar(S::OptimizationBase.OptimizationState) = S.u
     GetCurPar(State) = try  State.u  catch;   throw("Got $State instead of OptimizationState.");    fill(Inf, length(X))  end

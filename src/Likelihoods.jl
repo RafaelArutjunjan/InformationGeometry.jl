@@ -257,7 +257,7 @@ UnsafeScore(B::Bool) = !B
 UnsafeScore(V::Val{T}) where T = UnsafeScore(T)
 
 function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
-                        SafeScore::Bool=UnsafeScore(ADmode), UseCachedConfig::Bool=false, Kwargs...)
+                        SafeScore::Bool=UnsafeScore(ADmode), UseCachedConfig::Bool=true, Kwargs...)
     ADmode isa Symbol && (ADmode = Val(ADmode))
     if !SafeScore
         ADkwargs, ADkwargs! = GetGrad(ADmode, LogLikelihoodFn), GetGrad!(ADmode, LogLikelihoodFn)
@@ -333,7 +333,7 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
 end
 
 function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOrFunction, LogPriorFn::Union{Nothing,Function}, LogLikelihoodFn::Union{Function,Nothing}=nothing; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
-                                    UseHess::Bool=false, IncludePrior::Bool=true, UseCachedConfig::Bool=false, Kwargs...)
+                                    UseHess::Bool=false, IncludePrior::Bool=true, UseCachedConfig::Bool=true, Kwargs...)
     ADmode isa Symbol && (ADmode = Val(ADmode))
     if UseHess
         @assert !isnothing(LogLikelihoodFn)
