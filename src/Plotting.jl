@@ -1,6 +1,19 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
+_PlotDataMatrices(DS::AbstractDataSet) = ReconstructDataMatrices(DS)
+function _PlotObservedVector(DS::UnknownVarianceDataSet, values, mask, dim)
+    isnothing(mask) && return values
+    result = fill(convert(eltype(values), NaN), length(mask))
+    result[mask] .= values
+    Windup(result, dim)
+end
+_PlotXUncertainty(DS::AbstractDataSet) = xsigma(DS)
+_PlotYUncertainty(DS::AbstractDataSet) = ysigma(DS)
+_PlotXUncertainty(DS::UnknownVarianceDataSet) = _PlotObservedVector(DS, xsigma(DS), DS.xdatakeep, xdim(DS))
+_PlotYUncertainty(DS::UnknownVarianceDataSet) = _PlotObservedVector(DS, ysigma(DS), DS.datakeep, ydim(DS))
+_PlotFlatValues(values) = values isa AbstractVector && any(v -> v isa AbstractArray, values) ? reduce(vcat, map(collect, values)) : collect(values)
+
 RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
@@ -107,10 +120,16 @@ RecipesBase.@recipe f(DS::AbstractDataSet, positions::AbstractVector{<:Number}=x
 # xpositions for PDE Datasets
 RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS))
     @assert xdim(DS) == 1 "Use a different plotting method with Val(:ManyPredictors) or Val(:IgnoreX)"
-    ysig = ysigma(DS)
-    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
-    xsig = xsigma(DS)
-    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    ysig = _PlotYUncertainty(DS)
+    Σ_y = _PlotFlatValues(ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
+    Σ_y = Σ_y isa AbstractVector{<:AbstractVector} ? reduce(vcat, Σ_y) : Σ_y
+    Σ_y = Σ_y isa AbstractVector{<:AbstractVector} ? reduce(vcat, Σ_y) : Σ_y
+    xsig = _PlotXUncertainty(DS)
+    Σ_x = HasXerror(DS) ? _PlotFlatValues(xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    Σ_x = Σ_x isa AbstractVector{<:AbstractVector} ? reduce(vcat, Σ_x) : Σ_x
+    Xdata, Ydata = _PlotDataMatrices(DS)
+    Σ_x = Σ_x isa AbstractVector{<:AbstractVector} ? reduce(vcat, Σ_x) : Σ_x
+    Xdata, Ydata = _PlotDataMatrices(DS)
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
@@ -118,7 +137,8 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions
     color_palette = get(plotattributes, :color_palette, :default)
     Colors = get(plotattributes, :seriescolor, ydim(DS) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DS)],1,:) : :auto)
     seriescolor := Colors
-    Y = ReconstructDataMatrices(DS)[2]
+    Xdata, Y = _PlotDataMatrices(DS)
+    xpositions = (DS isa UnknownVarianceDataSet && HasMissingValues(DS)) ? vec(Xdata) : xpositions
     ydim(DS) > Npoints(DS) && (Y = transpose(Y))
 
     if ydim(DS) == 1
@@ -131,7 +151,7 @@ RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions
         xerror --> Σ_x
     else                                # Series per x-component
         # Use of xdata instead of xpositions deliberate here!
-        label --> reshape("Data for $(xnames(DS)[1])=" .* string.(round.(xdata(DS); sigdigits=3)), 1, length(xdata(DS)))
+        label --> reshape("Data for $(xnames(DS)[1])=" .* string.(round.(vec(Xdata); sigdigits=3)), 1, length(vec(Xdata)))
         yerror --> transpose(Unpack(Windup(Σ_y, ydim(DS))))
         # No way to incorporate errors in xpositions here....
     end
@@ -221,10 +241,11 @@ RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, 
 @recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}; rectangular=(xdim(DS) ≤ 10))
     layout --> (rectangular ? (ydim(DS),xdim(DS)) : xdim(DS)*ydim(DS))
     plot_title --> string(name(DS))
-    ysig = ysigma(DS)
-    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
-    xsig = xsigma(DS)
-    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    ysig = _PlotYUncertainty(DS)
+    Σ_y = _PlotFlatValues(ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
+    xsig = _PlotXUncertainty(DS)
+    Σ_x = HasXerror(DS) ? _PlotFlatValues(xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    Xdata, Ydata = _PlotDataMatrices(DS)
     for j in 1:ydim(DS)
         for i in 1:xdim(DS)
             @series begin
@@ -233,9 +254,9 @@ RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, 
                 label --> "Data"
                 leg --> false
                 seriestype --> :scatter
-                yerror --> getindex.(Windup(Σ_y, ydim(DS)), j)
-                !isnothing(Σ_x) && (xerror --> getindex.(Windup(Σ_x, xdim(DS)), i))
-                getindex.(WoundX(DS),i), getindex.(WoundY(DS),j)
+                yerror --> reshape(collect(Σ_y), ydim(DS), :)[j, :]
+                !isnothing(Σ_x) && (xerror --> reshape(collect(Σ_x), xdim(DS), :)[i, :])
+                getindex.(Xdata, i), getindex.(Ydata, j)
             end
         end
     end
