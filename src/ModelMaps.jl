@@ -480,12 +480,13 @@ function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::
     DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; Domain), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)); SkipOptim, SkipTests, kwargs...)
 end
 
-_GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle)) = (_GetDecorrelationTransform(F), mle)
-_GetDecorrelationTransform(M::AbstractMatrix) = cholesky(Symmetric(inv(M))).L
-LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, mle; kwargs...))
+_GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (_GetDecorrelationTransform(F; kwargs...), mle)
+_GetDecorrelationTransform(M::AbstractMatrix; Diagonal::Bool=false) = (C=cholesky(Symmetric(inv(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
+LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Diagonal::Bool=false, kwargs...) = (M =_GetDecorrelationTransform(F; Diagonal); AffineTransform(DM, M, mle; kwargs...))
+# FullLinearDecorrelation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, XP; kwargs...))
 
-function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle))
-    M = _GetDecorrelationTransform(F);      iM = inv(M)
+function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...)
+    M = _GetDecorrelationTransform(F; kwargs...);      iM = inv(M)
     ForwardTransform(x::AbstractVector) = muladd(M, x, mle)
     InvTransform(x::AbstractVector) = iM * (x - mle)
     ForwardTransform, InvTransform
