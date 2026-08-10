@@ -62,7 +62,7 @@ function PlanarDataModel(CG::AbstractConditionGrid, PL::Plane, mle::AbstractVect
     LogLikelihoodFn = loglikelihood(CG)∘PlaneCoordinates(PL)
     # ScoreFn = MergeOneArgMethods(Score(DM)∘PlaneCoordinates(PL), nothing)
     # FisherInfoFn = MergeOneArgMethods(FisherMetric(DM)∘PlaneCoordinates(PL), nothing)
-    ConditionGrid(Conditions(CG), CG.Trafos∘PlaneCoordinates(PL), mle, PlanarLogPrior; verbose=false, SkipOptim=true, SkipTests=true, LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
+    ConditionGrid(Conditions(CG), Trafos(CG)∘PlaneCoordinates(PL), mle, PlanarLogPrior; verbose=false, SkipOptim=true, SkipTests=true, LogLikelihoodFn) # , ScoreFn, FisherInfoFn)
 end
 
 

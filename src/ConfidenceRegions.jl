@@ -440,7 +440,7 @@ function GenerateBoundary(DM::AbstractDataModel, PL::Plane, u0::AbstractVector{<
     terminatecondition(u,t,integrator) = u[2] - u0[2]
     CB = ContinuousCallback(terminatecondition,terminate!,nothing)
     !isnothing(Boundaries) && (CB = CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(Boundaries, PL),terminate!)))
-    Predictor(DM) isa ModelMap && (CB = CallbackSet(CB, CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)),PL),terminate!))))
+    DM isa DataModel && Predictor(DM) isa ModelMap && (CB = CallbackSet(CB, CallbackSet(CB, DiscreteCallback(EmbedCallbackFunc(SpatialBoundaryFunction(Predictor(DM)),PL),terminate!))))
     mfd && (CB = CallbackSet(CB, ManifoldProjection(g!; autodiff, resid_prototype=u0[1:1])))
     prob = ODEProblem(IntCurveODE!, u0, tspan)
     sol = solve(prob, meth; reltol=tol, abstol=tol, callback=CB, kwargs...)
@@ -1170,7 +1170,7 @@ end
     ContourDiagram(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), 
+function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); idxs::AbstractVector{<:AbstractVector{<:Int}}=OrderedIndCombs2D(paridxs), MLE::AbstractVector=MLE(DM),
                                 tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), size=PlotSizer(length(idxs)), SkipTests::Bool=false, kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0
     @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
@@ -1178,13 +1178,13 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::Abstrac
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
     Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
-    Planes = [Plane(MLE(DM), 0.5widths[paridxs[i]]*BasisVector(paridxs[i], length(Cube)), 0.5widths[paridxs[j]]*BasisVector(paridxs[j], length(Cube))) for (i,j) in idxs]
+    Planes = [Plane(MLE, 0.5widths[i]*BasisVector(i, length(Cube)), 0.5widths[j]*BasisVector(j, length(Cube))) for (i,j) in idxs]
 
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(idxs)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
     if plot
-        Plts = [(p = RecipesBase.plot([MLE(DM)[inds]]; label="MLE$(inds)", seriestype=:scatter);
+        Plts = [(p = RecipesBase.plot([MLE[inds]]; label="MLE$(inds)", seriestype=:scatter);
                 RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], xlims=eCubes[k][1], ylims=eCubes[k][2]); p) for (k,inds) in enumerate(idxs)]
         RecipesBase.plot(Plts...; layout=length(Plts), size) |> display
     end;    esols
@@ -1194,7 +1194,7 @@ end
     ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real, paridxs::AbstractVector{<:Int}=1:pdim(DM))
 Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
 """
-function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); 
+function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
                 tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=false, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], 
                 idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, size=PlotSizer(length(idxs)), kwargs...)
@@ -1204,24 +1204,25 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
     Cube = LinearCuboid(DM, Confnum);   widths = CubeWidths(Cube)
-    finalidxs = [[i,j] for (i,j) in idxs if comparison(i,j)]
-    Planes = [Plane(MLE(DM), 0.5widths[i]*BasisVector(i, length(Cube)), 0.5widths[j]*BasisVector(j, length(Cube))) for (i,j) in finalidxs]
+    n = length(paridxs)
+    finalidxs = [IndMat[i,j] for i in 2:n for j in 1:(n-1) if comparison(j,i)]
+    Planes = [Plane(MLE, 0.5widths[i]*BasisVector(i, length(Cube)), 0.5widths[j]*BasisVector(j, length(Cube))) for (i,j) in finalidxs]
     sols = MincedBoundaries(DM, Planes, Confnum; tol, kwargs...)
     esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(finalidxs)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
     if plot
         k = 0;  Plts = []
-        for i in 2:length(paridxs), j in 1:(length(paridxs)-1)
+        for i in 2:n, j in 1:(n-1)
             inds = IndMat[i,j]
             if comparison(j,i)
                 k += 1
-                plt = RecipesBase.plot([MLE(DM)[inds]]; label="MLE$(inds)", seriestype=:scatter)
+                plt = RecipesBase.plot([MLE[inds]]; label="MLE$(inds)", seriestype=:scatter)
                 RecipesBase.plot!(plt, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], xlims=eCubes[k][1], ylims=eCubes[k][2])
                 push!(Plts, plt)
             else
                 push!(Plts, RecipesBase.plot(; framestyle = :none))
             end
-        end;    RecipesBase.plot(Plts...; layout=(length(paridxs)-1, length(paridxs)-1), size) |> display
+        end;    RecipesBase.plot(Plts...; layout=(n-1, n-1), size) |> display
     end;    esols
 end
 
