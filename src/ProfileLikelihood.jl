@@ -1215,48 +1215,82 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::Union{<:Tup
     (ResMat, path)
 end
 
-function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{<:Number}, Comp::Int; ADmode::Val=Val(:ForwardDiff), Left::Bool=false,
+function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{T}, Comp::Int; ADmode::Val=Val(:ForwardDiff), Left::Bool=false,
                 CostFunction::Function=Negate(LogLikelihoodFn), CostHessian::Function=GetHess!(ADmode, CostFunction), γ::Union{Nothing,Real}=nothing, 
-                CostGradient::Union{Nothing,Function}=isnothing(γ) ? nothing : GetGrad!(ADmode, CostFunction),
-                DiagonalRegularization::Real=1e-9, γAdaptive::Bool=false, #!isnothing(γ), 
+                CostGradient::Union{Nothing,Function}=isnothing(γ) ? nothing : GetGrad!(ADmode, CostFunction), levels::Int=1,
+                DiagonalRegularization::Union{Nothing, <:Real}=nothing, EmergencyDiagonalRegularization::Real=1e-9, γAdaptive::Bool=false, #!isnothing(γ), 
                 AdaptiveGammaCallback=nothing, # γAdaptive ? DiscreteCallback((u,t,int)->true, int->(int.p = (; int.p..., γ=UpdateFunction(int, int.p.γ)); nothing)) : nothing,
                 logLikeMLE::Real=LogLikelihoodFn(MLE), Confnum::Number=2, dof::Real=length(MLE), verbose::Bool=true, 
                 IC::Real=T(icdfThreshold(dof,Confnum)), MinSafetyFactor::Real=1.05,
                 Domain::Union{Nothing, HyperCube}=nothing, ProfileDomain::Union{Nothing, HyperCube}=Domain,
                 Endtime::Real=1e2, psi_span::Tuple{<:Number,<:Number}=(MLE[Comp], Left ? MLE[Comp] -Endtime : MLE[Comp] +Endtime),
-                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, kwargs...)
+                meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, kwargs...) where T<:Number
 
-    @inline AddGradient!(Hλψ, γ::Nothing, CostGradient, G, θ, λ_indices) = nothing
-    @inline function AddGradient!(Hλψ::AbstractVector, γ::Number, CostGradient::Function, G::AbstractVector, θ::AbstractVector, λ_indices)
-        CostGradient(G, θ);     Hλψ .+= γ .* (@view G[λ_indices]);      nothing
-    end
-    function ProfileODE!(dλ_dψ::AbstractVector{<:Number}, λ::AbstractVector{<:Number}, params, ψ::Number)
-        (; θ, H, G, Comp, λ_indices, CostHessian, CostGradient, γ) = params
+    n = length(MLE);    λ_indices = setdiff(1:n, Comp);    LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
+    Hcache = DiffCache(Matrix{T}(undef, n, n); levels);   Gcache = isnothing(γ) || isnothing(CostGradient) ? nothing : DiffCache(Vector{T}(undef, n); levels)
+    θcache = DiffCache(copy(MLE); levels);     HλλCache = DiffCache(Matrix{T}(undef, n-1, n-1); levels)
+    # rhsCache = DiffCache(Vector{T}(undef, n-1); levels);    
+    HλψCache = DiffCache(Vector{T}(undef, n-1); levels)
+    # Use loops instead of creating views
+    @inline FastFill!(Res, Input, inds::AbstractVector) = (@inbounds for i in eachindex(inds)  Res[i] = Input[inds[i]]  end; nothing)
+    @inline FastFill!(Res, Input, inds::AbstractVector, fixedInd::Int) = (@inbounds for i in eachindex(inds)  Res[i] = Input[inds[i],fixedInd]  end; nothing)
+    @inline FastFill!(Res, Input, rowinds::AbstractVector, colinds::AbstractVector) = (@inbounds for j in eachindex(colinds) cj = colinds[j]; @inbounds for i in eachindex(rowinds) Res[i,j] = Input[rowinds[i], cj] end end; nothing)
+    @inline FastFill!(Res, NoInput::Nothing, inds, args...) = NoInput
+    
+    @inline PrepareGradientCorrection!(G, γ::Nothing, CostGradient, θ) = nothing
+    @inline PrepareGradientCorrection!(G, γ::Number, CostGradient, θ) = (CostGradient(G, θ);     G .*= γ;    nothing)
+    @inline ConditionalAddGradient!(rhs, G::Nothing, inds) = G
+    @inline ConditionalAddGradient!(rhs, G, inds) = (@inbounds for i in eachindex(inds)  rhs[i] += G[inds[i]]  end; nothing)
+
+    @inline RegularizeDiagonal!(M, Regularization::Number) = (@inbounds for i in axes(M,1)   M[i,i] += Regularization end;   nothing)
+    @inline RegularizeDiagonal!(M, N::Nothing) = N
+    # @inline function GradientCorrection!(Hλψ::AbstractVector, γ::Number, CostGradient::Function, Gcache::AbstractVector, θ::AbstractVector, λ_indices)
+    #     # Using minus here since CostGradient already has minus compared wrt likelihood gradient
+    #     G = UnrollCache(Gcache, θ)
+    #     CostGradient(G, θ);     G .*= γ;    FastFill!(Hλψ, G, λ_indices);      nothing
+    # end
+    ## Use diffcache to make differentiable?
+    function ProfileODE!(dλ_dψ::AbstractVector{<:Number}, λ::AbstractVector{<:Number}, unusedparams, ψ::Number)
+        H = UnrollCache(Hcache, λ, ψ);      Hλλ = UnrollCache(HλλCache, λ, ψ);      θ = UnrollCache(θcache, λ, ψ)
+        # rhs = UnrollCache(rhsCache, λ, ψ);      
+        Hλψ = UnrollCache(HλψCache, λ, ψ);     G = UnrollCache(Gcache, λ, ψ)
+
         θ[Comp] = ψ;    θ[λ_indices] .= λ;     CostHessian(H, θ)
-        Hλλ = (@view H[λ_indices, λ_indices]);     Hλψ = (@view H[λ_indices, Comp])
+        FastFill!(Hλλ, H, λ_indices, λ_indices);     FastFill!(Hλψ, H, λ_indices, Comp)
         ## Original Chen Jennrich with γ:  (Should not use γ > 0 unless accuracy of Hessian low)
         ## dλ_dψ .= -(Hλλ \ (Hλψ .+ γ .* (@view (GetGrad(ADmode,LogLikelihoodFn)(θ))[λ_indices])))
-        AddGradient!(Hλψ, γ, CostGradient, G, θ, λ_indices)
+        PrepareGradientCorrection!(G, γ, CostGradient, θ)
+        ConditionalAddGradient!(Hλψ, G, λ_indices)
+
+        RegularizeDiagonal!(Hλλ, DiagonalRegularization)
         try
-            dλ_dψ .= -(Hλλ \ Hλψ)
-            # F = cholesky!(Symmetric(Hλλ); check=false)
-            # ldiv!(dλ_dψ, F, Hλψ)
-            # dλ_dψ .*= -1
+            ## Old: rhs .= (Hλλ \ Hλψ)
+            # Potentially throws SingularException without check=false in lu!
+            ldiv!(lu!(Hλλ), Hλψ)
         catch E;
-            verbose && println("Error happened in profile $Comp at p=$ψ: $E")
-            mul!(dλ_dψ, -pinv(Hλλ), Hλψ)
+            verbose && println("Singular Hessian in integration of profile $Comp at p=$ψ with $E: Regularizing diagonal with $EmergencyDiagonalRegularization.")
+
+            FastFill!(Hλλ, H, λ_indices, λ_indices);     FastFill!(Hλψ, H, λ_indices, Comp)
+            ConditionalAddGradient!(Hλψ, G, λ_indices)
+            RegularizeDiagonal!(Hλλ, EmergencyDiagonalRegularization)
+            ldiv!(lu!(Hλλ), Hλψ)
+            # copyto!(Hwork, Hλλ)
+            # copyto!(rhs, rhs_base)
+            # @inbounds for i in eachindex(rhs)
+            #     Hwork[i,i] += EmergencyDiagonalRegularization
+            # end
+            # ldiv!(lu!(Hwork), rhs)
+            # if !all(isfinite, rhs)
+            #     verbose && println("Regularization unsuccessful at p=$ψ: Using pseudo-inverse fallback.")
+            #     mul!(rhs, pinv(Hλλ), Hλψ)
+            # end
         end
-        nothing
+        dλ_dψ .= -Hλψ;      nothing
     end
-    n = length(MLE);    λ_indices = setdiff(1:n, Comp)
-    LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
-    H = Matrix{eltype(MLE)}(undef, n, n);   G = isnothing(CostGradient) ? nothing : (Vector{eltype(MLE)}(undef, n))
-    
-    params = (θ=copy(MLE), H=H, G=G, Comp=Comp, λ_indices=λ_indices, CostHessian=CostHessian, CostGradient=CostGradient, γ=γ, LogLikelihoodFn=LogLikelihoodFn, LogLikeThreshold=LogLikeThreshold)
-    prob = ODEProblem(ODEFunction(ProfileODE!), MLE[λ_indices], psi_span, params)
+    prob = ODEProblem(ODEFunction(ProfileODE!), MLE[λ_indices], psi_span)
 
     function EarlyTermination(λ::AbstractVector{<:Number}, ψ::Number, int)
-        (; LogLikelihoodFn, θ, Comp, λ_indices, LogLikeThreshold) = int.p
+        θ = UnrollCache(θcache, λ, ψ)
         θ[Comp] = ψ;    θ[λ_indices] .= λ;        LogLikelihoodFn(θ) - LogLikeThreshold
     end
     DomainTermination = if !isnothing(ProfileDomain)
