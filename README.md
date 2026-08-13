@@ -37,8 +37,8 @@ Examples detailing how to use this package can be found in the [**documentation*
 The simple high-level interface of **InformationGeometry.jl** is conducive to automation of many repetitive aspects of the parameter inference process.
 Moreover, this prospectively also enables researchers without specialised programming or modelling backgrounds to orchestrate parameter inference with natural language.
 
-A work-in-progress of agentic skill files for automating iterative model development with the **InformationGeometry.jl** package can be found at
-[RafaelArutjunjan/AgenticParameterInference reposititory](github.com/RafaelArutjunjan/AgenticParameterInference).
+A work-in-progress of agentic skill files for automating iterative model development via the **InformationGeometry.jl** package can be found at
+[AgenticParameterInference](https://github.com/RafaelArutjunjan/AgenticParameterInference).
 
 
 
