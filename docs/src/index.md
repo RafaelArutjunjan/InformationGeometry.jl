@@ -10,11 +10,23 @@ This is the documentation of [**InformationGeometry.jl**](https://github.com/Raf
 | [![Build Status](https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/RafaelArutjunjan/InformationGeometry.jl/actions/workflows/CI.yml) [![codecov](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/RafaelArutjunjan/InformationGeometry.jl) |
 
 
+This package originally started out as a narrowly focused set of tools for [my master thesis](https://github.com/RafaelArutjunjan/Master-Thesis) to enable computations of curvature tensors, geodesics, and confidence boundaries on parameter manifolds of non-linear models.
+However, over the past 5+ years, it has since grown into a very general and mature framework for mathematical modelling with a particular focus on uncertainty quantification and model reduction.
+
+If you have any questions about the internals of the package or need help with properly setting up your model, feel free to open an issue or get in touch via email!
+
+
 ## Main Uses
 
 * maximum likelihood estimation
 * construction and visualization of exact confidence regions
+* computation of profile likelihood, i.e. 1D projections of confidence regions
+* model reduction
 * computation of geometric quantities such as geodesics and curvature on the parameter manifold
+
+
+
+
 
 
 ## Installation
@@ -27,6 +39,16 @@ or alternatively by
 ```julia
 julia> using Pkg; Pkg.add("InformationGeometry")
 ```
+
+
+## Recipes for Automated Analyses with Agentic LLMs
+
+A work-in-progress of agentic skill files for automating iterative model development via the **InformationGeometry.jl** package can be found at
+[AgenticParameterInference](https://github.com/RafaelArutjunjan/AgenticParameterInference).
+
+So if you happen to be an LLM trying to figure out how to use **InformationGeometry.jl** to perform analyses in practice and would like a condensed collection of dedicated syntax examples of the most relevant functions, see this link.
+
+
 
 ## Citation
 
