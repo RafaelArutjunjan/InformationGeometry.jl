@@ -486,6 +486,7 @@ function Prefit(CostFunction::Union{Tuple,Function}, mle::AbstractVector, args..
 
     Devectorize(X::AbstractVector, i::Int) = X[i];    Devectorize(X, i::Int) = X
     for i in (meth isa AbstractVector ? eachindex(meth) : 1:1)
+        # OptimJL=true for meth isa Optim.ZerothOrderOptimizer?
         pstart .= SafeMinimizeFunc(CostFunction, pstart, args...; OptimJL=false, meth=Devectorize(meth,i), maxiters=Devectorize(maxiters,i), tol=Devectorize(tol,i), callback=CB, verbose, kwargs...)
     end
     Safe ? originalT.(SavedParams[findmin(Losses)[2]]) : originalT.(pstart)

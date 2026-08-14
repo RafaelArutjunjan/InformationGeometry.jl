@@ -58,6 +58,7 @@ Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 ModelingToolkitBase = "7771a370-6774-4173-bd38-47e70ca0b839"
+NonlinearSolveFirstOrder = "5959db7a-ea39-4486-b5fe-2dd0bf03d60d"
 PEtab = "48d54b35-e43e-4a66-a5a1-dde6b987cf69"
 SciMLSensitivity = "1ed8b502-d754-442c-8d5d-10ac956f44a1"
 StochasticDiffEqCore = "19c5a474-6cd1-4a5f-be79-46dc34e54d7f"
@@ -73,6 +74,7 @@ InformationGeometryLsqFitExt = ["LsqFit"]
 InformationGeometryLuxExt = ["Lux"]
 InformationGeometryMakieExt = ["Makie"]
 InformationGeometryModelingToolkitBaseExt = ["ModelingToolkitBase"]
+InformationGeometryNonlinearSolveExt = ["NonlinearSolveFirstOrder"]
 InformationGeometryPEtabExt = ["PEtab", "ModelingToolkitBase"]
 InformationGeometryStochasticDiffEqExt = ["StochasticDiffEqCore", "StochasticDiffEqHighOrder", "SciMLSensitivity"]
 
@@ -102,6 +104,7 @@ Makie = "0.23, 0.24"
 Measurements = "2"
 ModelingToolkit = "11"
 ModelingToolkitBase = "1"
+NonlinearSolveFirstOrder = "1, 2"
 Optim = "1, =2.0.0, 2.2.1"
 OptimizationBase = "2, 3, 4, 5"
 OrdinaryDiffEqCore = "1, 2, 3, 4, 5"

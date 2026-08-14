@@ -234,6 +234,10 @@ export TotalLeastSquares, TotalLeastSquaresV, Minimize, Refit, Prefit, Curve_fit
 export AlternatingMinimization, PartialMinimization
 
 
+include("NumericalTools/ConstrainedOptimization.jl")
+export SolveConstrainedOptimisationProblem
+
+
 include("Likelihoods.jl")
 export likelihood, loglikelihood, Score, GetRemainderFunction, GeneralizedDOF
 
