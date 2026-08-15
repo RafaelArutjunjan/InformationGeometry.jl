@@ -3,8 +3,7 @@
 
 """
     ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10)
-Project `θ` onto the level set `loglike(θ) = C` using damped gradient steps.
-Returns `(θ, residual)`.
+Projects `θ` onto the level set `loglike(θ) = C` using damped gradient steps and returns `(θ, residual)`.
 """
 function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
     g = similar(θ);     GradGetter! = GetGrad!(ADmode, loglike)
@@ -18,6 +17,7 @@ function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Num
     end;    θ, abs(loglike(θ) - C)
 end
 
+## Computes extremal parameter configuration on confidence boundary, which produces the most extreme prediction at a fixed confidence level
 function RefineInitialCondition(DM::AbstractDataModel, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, kwargs...)
     RefineInitialCondition(DM, MLE(DM), t0, ConfNum; Confnum, kwargs...)
 end
@@ -33,8 +33,16 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
     throw("Need to load NonlinearSolve.jl first or pass explicit solve method as final positional argument or kwarg `meth`.")
 end
 
+"""
+    SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
+                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
+                            ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
+                            TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...)
+Solves constrained optimisation problem for objective `objective_fixedt0(θ)` under the constraint that `constraint(θ) - C == 0`.
+For `sense == +1`, the given objective is maximized, for `sense == -1`, the objective is minimized.
+"""
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, # objective::Function=(MaximalNumberOfArguments(objective)==1 ? objective : θ->objective(t0, θ)), 
+                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
                             ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...)
     @assert abs(sense) == 1
@@ -106,4 +114,22 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
     sol = solve(prob, meth; abstol=tol, reltol=tol, maxiters, kwargs...)
     θ0 = copy(sol.u[1:n]);    λ0 = sol.u[end]
     θ0, λ0
+end
+
+
+
+### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), 
+                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, kwargs...)
+    @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
+    ## Fix direction in which parameters are to be changed and put this radius in the last component
+    ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
+
+    startz = vcat(view(FullInitial, setdiff(1:length(FullInitial), FixedInds)), 1.0)
+    function ReconstructModelParams(z::AbstractVector)
+        V = ValInserter(FixedInds, abs(z[end]) .* ParameterDirection, FullInitial)
+        V((@view z[1:end-1]))
+    end
+    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end])
+    SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C; sense=1, kwargs...)[1] |> ReconstructModelParams
 end
