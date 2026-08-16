@@ -35,11 +35,12 @@ end
 
 """
     SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
-                            ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
+                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, ADmode::Val=Val(:ForwardDiff), 
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...)
 Solves constrained optimisation problem for objective `objective_fixedt0(θ)` under the constraint that `constraint(θ) - C == 0`.
 For `sense == +1`, the given objective is maximized, for `sense == -1`, the objective is minimized.
+For default `TransformGuess == true`, the initial parameter configuration is first projected and refined, which can lead to worse results in some cases. 
+If the initial guess is already known to be reasonably accurate, this projection step can be avoided by setting `TransformGuess = false`.
 """
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
@@ -119,7 +120,7 @@ end
 
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
-function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), 
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
                     constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put this radius in the last component
@@ -131,5 +132,5 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         V((@view z[1:end-1]))
     end
     ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end])
-    SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C; sense=1, kwargs...)[1] |> ReconstructModelParams
+    SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)[1] |> ReconstructModelParams
 end
