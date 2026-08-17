@@ -22,41 +22,48 @@ function RefineInitialCondition(DM::AbstractDataModel, t0::Real, ConfNum::Real=2
     RefineInitialCondition(DM, MLE(DM), t0, ConfNum; Confnum, kwargs...)
 end
 
-function RefineInitialCondition(DM::AbstractDataModel, θguess::AbstractVector{<:Real}, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, constraint::Function=loglikelihood(DM), 
+function RefineInitialCondition(DM::AbstractDataModel, θguess::AbstractVector{<:Number}, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, constraint::Function=loglikelihood(DM), 
             dof::Real=DOF(DM), loglikeMLE::Real=LogLikeMLE(DM), objective::Function=only∘Predictor(DM), C::Real=loglikeMLE-0.5*icdfThreshold(dof, Confnum), meth=nothing, kwargs...)
     SolveConstrainedOptimisationProblem(θ->objective(t0, θ), constraint, θguess, C, nothing; kwargs...)
 end
 
 
+
+## Consolidate function with version that does not take C anymore but already absorbed into constraint
+function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Number}, C::Real, meth; kwargs...)
+    ZerodConstraint(θ) = constraint(θ) - C
+    SolveConstrainedOptimisationProblem(objective_fixedt0, ZerodConstraint, θguess, meth; kwargs...)
+end
+
+
 ### Overload in extension
-function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth; kwargs...)
+function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Number}, meth; kwargs...)
     throw("Need to load NonlinearSolve.jl first or pass explicit solve method as final positional argument or kwarg `meth`.")
 end
 
 """
-    SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
+    SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{<:Real}, meth::SciMLBase.AbstractNonlinearAlgorithm;
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, ADmode::Val=Val(:ForwardDiff), 
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...)
-Solves constrained optimisation problem for objective `objective_fixedt0(θ)` under the constraint that `constraint(θ) - C == 0`.
+Solves constrained optimisation problem for objective `objective_fixedt0(θ)` under the constraint that `ZerodConstraint(θ) == 0`.
 For `sense == +1`, the given objective is maximized, for `sense == -1`, the objective is minimized.
 For default `TransformGuess == true`, the initial parameter configuration is first projected and refined, which can lead to worse results in some cases. 
 If the initial guess is already known to be reasonably accurate, this projection step can be avoided by setting `TransformGuess = false`.
 """
-function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constraint::Function, θguess::AbstractVector{<:Real}, C::Real, meth::SciMLBase.AbstractNonlinearAlgorithm;
+function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::SciMLBase.AbstractNonlinearAlgorithm;
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
                             ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
-                            TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...)
-    @assert abs(sense) == 1
-    n = length(θguess);    T = promote_type(eltype(θguess), typeof(C))
+                            TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
+    @assert abs(sense) == 1;    n = length(θguess)
     if TransformGuess
         gobj = GradientGetter(objective_fixedt0, θguess)
-        gcon = GradientGetter(constraint, θguess)
-        Δ = constraint(θguess) - C
+        gcon = GradientGetter(ZerodConstraint, θguess)
+        Δ = ZerodConstraint(θguess)
 
         if norm(gcon) <= InteriorTol
             # θguess is near a stationary point of the constraint (e.g. the MLE):
             # quadratic branch-selecting seed, signed by `sense`.
-            Hcon = HessianGetter(constraint, θguess)
+            Hcon = HessianGetter(ZerodConstraint, θguess)
             Hpos = copy(-Hcon)
             @inbounds for i in 1:n    Hpos[i, i] += reg    end
             d = Hpos \ gobj
@@ -82,7 +89,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
             θseed = copy(θguess)
             λseed = -sense * dot(gcon, gobj) / (dot(gcon, gcon) + reg)
         end
-        ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, constraint, C; ADmode, maxiters=ProjectIters, tol=ProjectTol, reg))
+        ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, maxiters=ProjectIters, tol=ProjectTol, reg))
     else
         θseed = θguess;     λseed = T(sense)
     end
@@ -91,17 +98,17 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
     function residual!(F, x, p)
         θ = @view x[1:n];      λ = x[end]
         gobj = GradientGetter(objective_fixedt0, θ)
-        gcon = GradientGetter(constraint, θ)
+        gcon = GradientGetter(ZerodConstraint, θ)
 
         F[1:n] .= sense .* gobj .+ λ .* gcon
-        F[n + 1] = constraint(θ) - C
+        F[n + 1] = ZerodConstraint(θ)
         nothing
     end
     function jacobian!(J, x, p)
         θ = @view x[1:n];      λ = x[end]
         Hobj = HessianGetter(objective_fixedt0, θ)
-        Hcon = HessianGetter(constraint, θ)
-        gcon = GradientGetter(constraint, θ)
+        Hcon = HessianGetter(ZerodConstraint, θ)
+        gcon = GradientGetter(ZerodConstraint, θ)
 
         fill!(J, zero(eltype(J)))
         J[1:n, 1:n] .= sense .* Hobj .+ λ .* Hcon
@@ -144,6 +151,7 @@ function BisectInds(FullPs::AbstractVector{T}; factor::Real=1.5, SubSetter::Func
     length(Res) == 0 ? T[] : Res
 end
 
+## Project points to two dimensions and order original points counter-clockwise based on projections
 function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::Function=identity, rev::Bool=false)
     Ps = map(SubSetter, FullPs)
     @assert ConsistentElDims(Ps) == 2
@@ -162,12 +170,12 @@ function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int
 end
 
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
-                    parallel::Bool=true, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, 
+                    parallel::Bool=true, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, kwargs..., Kwargs...)
+    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(Pt->SeedFixedInds(sqrtIC .* Pt), Points)
     !Refine && return Res
     IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), maxiters, factor)
