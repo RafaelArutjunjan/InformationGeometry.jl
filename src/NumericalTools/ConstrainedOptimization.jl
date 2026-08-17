@@ -134,3 +134,41 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end])
     SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)[1] |> ReconstructModelParams
 end
+
+
+## Returns new points to add
+function BisectInds(FullPs::AbstractVector{T}; factor::Real=1.5, SubSetter::Function=identity, Norm::Function=norm, Median::Function=median) where T<:AbstractVector{<:Number}
+    Ps = map(SubSetter, FullPs);    Ds = map(Norm, diff(Ps));    Med = Median(Ds);    Thresh = factor * Med
+    Res = [(FullPs[i] .+ FullPs[i+1])./2 for i in eachindex(Ds) if Ds[i] > Thresh]
+    Norm(Ps[1]-Ps[end]) > Thresh && push!(Res, (FullPs[1] .+ FullPs[end])./2)
+    length(Res) == 0 ? T[] : Res
+end
+
+function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::Function=identity, rev::Bool=false)
+    Ps = map(SubSetter, FullPs)
+    @assert ConsistentElDims(Ps) == 2
+    M = mean(Ps)
+    order = map(p->mod2pi(atan(p[2]-M[2], p[1]-M[1])+2π), Ps)
+    @view FullPs[sortperm(order; rev)]
+end
+
+function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, kwargs...)
+    Pts = collect(ReorderPointsCCW(Ps; SubSetter))
+    for _ in 1:maxiters
+        ExtraPts = BisectInds(Pts; SubSetter, kwargs...)
+        length(ExtraPts) == 0 && break
+        Pts = ReorderPointsCCW([Pts; map(ProcessPoints,ExtraPts)]; SubSetter)
+    end;    Pts
+end
+
+function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
+                    parallel::Bool=true, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, 
+                    UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), kwargs...)
+    @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
+    subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
+    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, kwargs..., Kwargs...)
+    Res = (parallel ? pmap : map)(Pt->SeedFixedInds(sqrtIC .* Pt), Points)
+    !Refine && return Res
+    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), maxiters, factor)
+end
