@@ -17,6 +17,7 @@ function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Num
     end;    θ, abs(loglike(θ) - C)
 end
 
+
 ## Computes extremal parameter configuration on confidence boundary, which produces the most extreme prediction at a fixed confidence level
 function RefineInitialCondition(DM::AbstractDataModel, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, kwargs...)
     RefineInitialCondition(DM, MLE(DM), t0, ConfNum; Confnum, kwargs...)
@@ -51,7 +52,7 @@ For default `TransformGuess == true`, the initial parameter configuration is fir
 If the initial guess is already known to be reasonably accurate, this projection step can be avoided by setting `TransformGuess = false`.
 """
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::SciMLBase.AbstractNonlinearAlgorithm;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, 
+                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, 
                             ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
@@ -120,26 +121,41 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     nlf = NonlinearFunction(residual!; jac = jacobian!)
     prob = NonlinearProblem(nlf, x0, nothing)
     sol = solve(prob, meth; abstol=tol, reltol=tol, maxiters, kwargs...)
-    θ0 = copy(sol.u[1:n]);    λ0 = sol.u[end]
-    θ0, λ0
+    Full && return sol
+    θ0 = sol.u[1:n];    λ0 = sol.u[end];    θ0, λ0
 end
 
 
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
-                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, kwargs...)
+                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, 
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put this radius in the last component
     ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
-
-    startz = vcat(view(FullInitial, setdiff(1:length(FullInitial), FixedInds)), 1.0)
+    NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
+    startz = vcat(view(FullInitial, NuisanceInds), 1.0)
     function ReconstructModelParams(z::AbstractVector)
         V = ValInserter(FixedInds, abs(z[end]) .* ParameterDirection, FullInitial)
         V((@view z[1:end-1]))
     end
-    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end])
-    SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)[1] |> ReconstructModelParams
+    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = -factor * z[end] # Added minus here
+    if Multistart > 0
+        FixedMeth = meth
+        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, FixedMeth; sense=1, Full=true, Kwargs...)
+        Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
+        @assert length(Dom) == length(FullInitial)
+        Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
+        for i in eachindex(Points)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
+        end
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, kwargs...)
+        Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
+    else
+        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)
+        Full ? Res : ReconstructModelParams(Res[1])
+    end
 end
 
 
