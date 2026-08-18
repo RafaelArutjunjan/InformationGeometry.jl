@@ -140,7 +140,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         V = ValInserter(FixedInds, abs(z[end]) .* ParameterDirection, FullInitial)
         V((@view z[1:end-1]))
     end
-    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = -factor * z[end] # Added minus here
+    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end]) # Added minus here
     if Multistart > 0
         FixedMeth = meth
         MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, FixedMeth; sense=1, Full=true, Kwargs...)
@@ -150,7 +150,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         for i in eachindex(Points)
             Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
         end
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, kwargs...)
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
     else
         Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)
@@ -168,31 +168,55 @@ function BisectInds(FullPs::AbstractVector{T}; factor::Real=1.5, SubSetter::Func
 end
 
 ## Project points to two dimensions and order original points counter-clockwise based on projections
-function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::Function=identity, rev::Bool=false)
-    Ps = map(SubSetter, FullPs)
+function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::Function=identity, rev::Bool=false,
+                    Ps::AbstractVector=map(SubSetter,FullPs), SubSettedMeanPoint::AbstractVector{<:Number}=mean(Ps))
     @assert ConsistentElDims(Ps) == 2
-    M = mean(Ps)
-    order = map(p->mod2pi(atan(p[2]-M[2], p[1]-M[1])+2π), Ps)
+    order = map(p->mod2pi(atan(p[2]-SubSettedMeanPoint[2], p[1]-SubSettedMeanPoint[1])+2π), Ps)
     @view FullPs[sortperm(order; rev)]
 end
 
-function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, kwargs...)
-    Pts = collect(ReorderPointsCCW(Ps; SubSetter))
+function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, 
+            XP::AbstractVector{<:Number}=Float64[], SubSettedMeanPoint::Union{Nothing,AbstractVector{<:Number}}=(length(XP) > 0 ? SubSetter(XP) : nothing), kwargs...)
+    SubSettedMeanPointTuple = (!isnothing(SubSettedMeanPoint) ? (;SubSettedMeanPoint=SubSettedMeanPoint) : (;))
+    Pts = collect(ReorderPointsCCW(Ps; SubSetter, SubSettedMeanPointTuple...))
     for _ in 1:maxiters
         ExtraPts = BisectInds(Pts; SubSetter, kwargs...)
         length(ExtraPts) == 0 && break
-        Pts = ReorderPointsCCW([Pts; map(ProcessPoints,ExtraPts)]; SubSetter)
+        Pts = ReorderPointsCCW([Pts; map(ProcessPoints,ExtraPts)]; SubSetter, SubSettedMeanPointTuple...)
     end;    Pts
 end
 
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
                     parallel::Bool=true, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), kwargs...)
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
     SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
-    Res = (parallel ? pmap : map)(Pt->SeedFixedInds(sqrtIC .* Pt), Points)
+    Res = (parallel ? pmap : map)(Pt->SeedFixedInds(reducefactor .* sqrtIC .* Pt), Points)
     !Refine && return Res
-    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), maxiters, factor)
+    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), maxiters, factor, XP)
+end
+
+
+
+"""
+    GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM))
+Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
+"""
+function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
+                ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
+                PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol),
+                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=true, 
+                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
+                comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
+    @assert pdim(DM) > 2
+    @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
+    !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
+    n = length(paridxs)
+    finalidxs = [IndMat[i,j] for i in 2:n for j in 1:(n-1) if comparison(j,i)]
+    Sols = [ProcessInds(inds; kwargs...) for inds in finalidxs]
+    plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
+    Sols, finalidxs
 end
