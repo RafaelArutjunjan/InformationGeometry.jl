@@ -467,26 +467,27 @@ function AffineTransform(F::Function, A::AbstractMatrix{<:Number}, v::AbstractVe
     @assert size(A,1) == size(A,2) == length(v)
     TranslatedModel(x, θ::AbstractVector{<:Number}; Kwargs...) = F(x, muladd(A,θ,v); Kwargs...)
 end
-function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=Domain(M), kwargs...)
+function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; OldDomain::Union{HyperCube,Nothing}=Domain(M), Domain::Union{HyperCube,Nothing}=nothing, Inverter::Function=pinv, kwargs...)
     @assert isnothing(Domain) || (length(Domain) == size(A,1) == size(A,2) == length(v))
-    Ainv = pinv(A)
-    NewDomain = isnothing(Domain) ? HyperCube(Ainv*(Domain.L-v), Ainv*(Domain.U-v)) : nothing
-    ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘(θ->muladd(A,θ,v))) : nothing), NewDomain,
+    Ainv = Inverter(A);     Emb(θ) = muladd(A,θ,v);     invEmb(θ) = Ainv*(θ-v)
+    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘Emb) : nothing), NewDomain,
                     M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta; kwargs...)
 end
-function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; Domain::Union{HyperCube,Nothing}=GetDomain(DM), SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...)
+function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; OldDomain::Union{HyperCube,Nothing}=GetDomain(DM), Domain::Union{HyperCube,Nothing}=nothing, Inverter::Function=pinv, kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
-    Ainv = pinv(A)
-    DataModel(Data(DM), AffineTransform(Predictor(DM), A, v; Domain), Ainv*(MLE(DM)-v), EmbedLogPrior(DM, θ->muladd(A,θ,v)); SkipOptim, SkipTests, kwargs...)
+    Ainv = Inverter(A);     Emb(θ) = muladd(A,θ,v);     invEmb(θ) = Ainv*(θ-v)
+    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    ModelEmbedding(DM, Emb, invEmb; Domain=NewDomain, kwargs...)
 end
 
 _GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (_GetDecorrelationTransform(F; kwargs...), mle)
-_GetDecorrelationTransform(M::AbstractMatrix; Diagonal::Bool=false) = (C=cholesky(Symmetric(inv(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
-LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Diagonal::Bool=false, kwargs...) = (M =_GetDecorrelationTransform(F; Diagonal); AffineTransform(DM, M, mle; kwargs...))
+_GetDecorrelationTransform(M::AbstractMatrix; Inverter::Function=inv, Diagonal::Bool=false) = (C=cholesky(Symmetric(Inverter(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
+LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, Diagonal::Bool=false, kwargs...) = (M =_GetDecorrelationTransform(F; Inverter, Diagonal); AffineTransform(DM, M, mle; Inverter, kwargs...))
 # FullLinearDecorrelation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, XP; kwargs...))
 
-function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...)
-    M = _GetDecorrelationTransform(F; kwargs...);      iM = inv(M)
+function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, kwargs...)
+    M = _GetDecorrelationTransform(F; Inverter, kwargs...);      iM = Inverter(M)
     ForwardTransform(x::AbstractVector) = muladd(M, x, mle)
     InvTransform(x::AbstractVector) = iM * (x - mle)
     ForwardTransform, InvTransform
@@ -542,6 +543,19 @@ For component-wise transformations see [`ComponentwiseModelTransform`](@ref).
 """
 function ModelEmbedding(DM::AbstractDataModel, F::Function, start::AbstractVector{<:Number}=GetStartP(GetArgLength(F; max=MaxArgLen)); Domain::HyperCube=FullDomain(length(start),Inf), kwargs...)
     DataModel(Data(DM), EmbedModelVia(Predictor(DM), F; Domain=Domain), EmbedDModelVia(dPredictor(DM), F; Domain=Domain), start, EmbedLogPrior(DM, F); kwargs...)
+end
+
+function ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
+                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), kwargs...)
+    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb; Domain=NewDomain), invEmb(MLE), EmbedLogPrior(DM, Emb); 
+                LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherMetricFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, SkipOptim, SkipTests, name, kwargs...)
+end
+function ModelEmbedding(DM::AbstractConditionGrid, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
+                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), pnames::AbstractVector=pnames(DM), kwargs...)
+    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    ConditionGrid(Conditions(DM), Trafos(DM)∘Emb, invEmb(MLE), EmbedLogPrior(DM, Emb); Domain=NewDomain, SkipOptim, SkipTests, 
+            LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherMetricFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, pnames, name, kwargs...)
 end
 
 ## Transform dependent and independent variables of model
