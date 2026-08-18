@@ -1187,7 +1187,7 @@ function ContourDiagram(DM::AbstractDataModel, Confnum::Real=2, paridxs::Abstrac
         Plts = [(p = RecipesBase.plot([MLE[inds]]; label="MLE$(inds)", seriestype=:scatter);
                 RecipesBase.plot!(p, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], xlims=eCubes[k][1], ylims=eCubes[k][2], PlotKwargs...); p) for (k,inds) in enumerate(idxs)]
         RecipesBase.plot(Plts...; layout=length(Plts), size) |> display
-    end;    esols
+    end;    esols, idxs
 end
 
 """
@@ -1197,9 +1197,9 @@ Plots 2D slices through confidence region for all parameter pairs to show non-li
 function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
                 tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=false, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
-                idxs::AbstractVector{<:AbstractVector{<:Int}}=vec(IndMat), comparison::Function=Base.isless, size=PlotSizer(length(idxs)), kwargs...)
+                comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
     @assert pdim(DM) > 2 && Confnum > 0
-    @assert allunique(idxs) && ConsistentElDims(idxs) == 2 && all(1 .≤ getindex.(idxs,1) .≤ pdim(DM)) && all(1 .≤ getindex.(idxs,2) .≤ pdim(DM))
+    @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
 
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
 
@@ -1211,19 +1211,28 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
     esols = EmbeddedODESolution[EmbeddedODESolution(sols[k], ViewElements(inds)∘PlaneCoordinates(Planes[k])) for (k,inds) in enumerate(finalidxs)]
     eCubes = map(sol->ConstructCube(sol; Padding=0.075), esols)
     if plot
-        k = 0;  Plts = []
-        for i in 2:n, j in 1:(n-1)
-            inds = IndMat[i,j]
-            if comparison(j,i)
-                k += 1
-                plt = RecipesBase.plot([MLE[inds]]; label="MLE$(inds)", seriestype=:scatter)
-                RecipesBase.plot!(plt, esols[k]; idxs=(1,2), label="$(Confnum)σ Slice", xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], xlims=eCubes[k][1], ylims=eCubes[k][2], PlotKwargs...)
-                push!(Plts, plt)
-            else
-                push!(Plts, RecipesBase.plot(; framestyle = :none))
-            end
-        end;    RecipesBase.plot(Plts...; layout=(n-1, n-1), size) |> display
-    end;    esols
+        PlotLowerTriangular(esols, IndMat; pnames, comparison, size, Domains=eCubes,
+                PrePlot=inds->RecipesBase.plot([MLE[inds]]; marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+                (; PlotKwargs..., idxs=(1,2), label="$(Confnum)σ Slice", )...)
+    end;    esols, finalidxs
+end
+
+function PlotLowerTriangular(Sols::AbstractVector, IndMat::AbstractMatrix{<:AbstractVector{<:Int}}; pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(Base.size(IndMat,1)), 
+                        Domains::Union{Nothing,<:AbstractVector{<:HyperCube}}=nothing, comparison::Function=Base.isless, size=PlotSizer(length(IndMat)), 
+                        PrePlot::Function=inds->RecipesBase.plot(), ProcessSol::Function=(sol, inds)->sol, label="", kwargs...)
+    @assert Base.size(IndMat,1) == Base.size(IndMat,2)
+    k = 0;  Plts = [];  n = Base.size(IndMat,1)
+    for i in 2:n, j in 1:(n-1)
+        inds = IndMat[i,j]
+        if comparison(j,i)
+            k += 1;     Plt = PrePlot(inds)
+            RecipesBase.plot!(Plt, ProcessSol(Sols[k], inds); label, xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], 
+                                (!isnothing(Domains) ? (; xlims=Domains[k][1], ylims=Domains[k][2]) : (;))..., kwargs...)
+            push!(Plts, Plt)
+        else
+            push!(Plts, RecipesBase.plot(; framestyle=:none))
+        end
+    end;    RecipesBase.plot(Plts...; layout=(n-1, n-1), size) |> display
 end
 
 
