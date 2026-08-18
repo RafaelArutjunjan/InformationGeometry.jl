@@ -767,19 +767,29 @@ function MergeOneArgMethods(OutOfPlace::Function, ::Nothing, args...; kwargs...)
     MergeOneArgMethods(OutOfPlace, FakeInplace!, args...; kwargs...)
 end
 """
-MergeOneArgMethods(OutOfPlace::Union{Nothing,Function}, Inplace!::Union{Nothing,Function}; J=nothing)
-    Merges the `OutOfPlace` and `Inplace!` methods under a single `Function` so that `OutOfPlace(x)` is called whenever only a single arg is given and `Inplace!(J,x)`
-    is used whenever the function is called with two arguments.
-
-    If `nothing` is given for either function, an appropriate method is generated.
+    MergeOneArgMethods(OutOfPlace::Union{Nothing,Function}, Inplace!::Union{Nothing,Function}; J=nothing)
+Merges the `OutOfPlace` and `Inplace!` methods under a single `Function` so that `OutOfPlace(x)` is called whenever only a single arg is given and `Inplace!(J,x)`
+is used whenever the function is called with two arguments.
+If `nothing` is given for either function, an appropriate method is generated.
 """
-function MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function)
-    OverloadedMethod(x::AbstractVector; kwargs...) = OutOfPlace(x; kwargs...)
-    OverloadedMethod(J::AbstractArray, x::AbstractVector; kwargs...) = Inplace!(J, x; kwargs...)
-    # Allow for splitting tuples generated in composition with ∘
-    OverloadedMethod(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = OverloadedMethod(Tup[1], Tup[2]; kwargs...)
+MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function) = MergedMethods(OutOfPlace, Inplace!)
+# function MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function)
+#     OverloadedMethod(x::AbstractVector; kwargs...) = OutOfPlace(x; kwargs...)
+#     OverloadedMethod(J::AbstractArray, x::AbstractVector; kwargs...) = Inplace!(J, x; kwargs...)
+#     # Allow for splitting tuples generated in composition with ∘
+#     OverloadedMethod(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = OverloadedMethod(Tup[1], Tup[2]; kwargs...)
+# end
+struct MergedMethods{F1<:Function, F2<:Function} <: Function
+    OutOfPlace::F1
+    Inplace!::F2
+    MergedMethods(OutOfPlace::F1, Inplace!::F2) where {F1<:Function, F2<:Function} = new{F1,F2}(OutOfPlace, Inplace!)
 end
+(M::MergedMethods)(x::AbstractVector; kwargs...) = M.OutOfPlace(x; kwargs...)
+(M::MergedMethods)(J::AbstractArray, x::AbstractVector; kwargs...) = M.Inplace!(J, x; kwargs...)
+# Allow for splitting tuples generated in composition with ∘
+(M::MergedMethods)(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = M(Tup[1], Tup[2]; kwargs...)
 
+Base.ComposedFunction(M::MergedMethods, inner::Function) = MergedMethods(M.OutOfPlace∘inner, (J::AbstractArray, x::AbstractVector; kwargs...) -> M.Inplace!(J, x; kwargs...))
 
 
 ## Convert from ADmode keyword syntax using Vals to corresponding ADtype
