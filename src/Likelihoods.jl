@@ -293,10 +293,10 @@ function GetScoreFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::ModelOr
             The `ADmode` kwarg can be used to switch backends. For more information on the currently loaded backends, see `diff_backends()`.
         """
         LogLikelihoodGradient(θ::AbstractVector{<:Number}) = ADS(θ)
-        LogLikelihoodGradient(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}) = ADS!(dl, θ)
+        LogLikelihoodGradient!(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}) = ADS!(dl, θ)
         LogLikelihoodGradientWithKw(θ::AbstractVector{<:Number}; kwargs...) = ADkwargs(θ; Kwargs..., kwargs...)
-        LogLikelihoodGradientWithKw(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADkwargs!(dl, θ; Kwargs..., kwargs...)
-        KwargCallWrapper(LogLikelihoodGradient, LogLikelihoodGradientWithKw)
+        LogLikelihoodGradientWithKw!(dl::AbstractVector{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = ADkwargs!(dl, θ; Kwargs..., kwargs...)
+        MergedMethods(KwargCallWrapper(LogLikelihoodGradient, LogLikelihoodGradientWithKw), KwargCallWrapper(LogLikelihoodGradient!, LogLikelihoodGradientWithKw!))
     else
         @warn "The currently provided in-place method for Score is fake since fallback SafeScore=true was chosen."
         V = Val(false)
@@ -363,10 +363,10 @@ function GetFisherInfoFn(DS::AbstractDataSet, model::ModelOrFunction, dmodel::Mo
             Fkw, Fkw!
         end
         FisherInformation(θ::AbstractVector{<:Number}) = F(θ)
-        FisherInformation(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}) = F!(M, θ)
+        FisherInformation!(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}) = F!(M, θ)
         FisherInformationWithKw(θ::AbstractVector{<:Number}; kwargs...) = Fkw(θ; Kwargs..., kwargs...)
-        FisherInformationWithKw(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = Fkw!(M, θ; Kwargs..., kwargs...)
-        KwargCallWrapper(FisherInformation, FisherInformationWithKw)
+        FisherInformationWithKw!(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = Fkw!(M, θ; Kwargs..., kwargs...)
+        MergedMethods(KwargCallWrapper(FisherInformation, FisherInformationWithKw), KwargCallWrapper(FisherInformation!, FisherInformationWithKw!))
     else
         FisherMetricFn(θ::AbstractVector{<:Number}; kwargs...) = _FisherMetric(DS, model, dmodel, θ; Kwargs..., kwargs...)
         FisherMetricFn(M::AbstractMatrix{<:Number}, θ::AbstractVector{<:Number}; kwargs...) = copyto!(M, FisherMetricFn(θ; Kwargs..., kwargs...))

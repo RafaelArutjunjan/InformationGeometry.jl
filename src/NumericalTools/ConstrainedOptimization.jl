@@ -192,8 +192,10 @@ function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int
     end;    Pts
 end
 
+## Inner parallelism with parallel=true here should be avoided if GenericLowerTriangular already parallelises over different plots
+## Outer parallelism faster since it keeps work more local
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
-                    parallel::Bool=true, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
+                    parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)

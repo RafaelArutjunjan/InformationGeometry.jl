@@ -782,14 +782,18 @@ MergeOneArgMethods(OutOfPlace::Function, Inplace!::Function) = MergedMethods(Out
 struct MergedMethods{F1<:Function, F2<:Function} <: Function
     OutOfPlace::F1
     Inplace!::F2
-    MergedMethods(OutOfPlace::F1, Inplace!::F2) where {F1<:Function, F2<:Function} = new{F1,F2}(OutOfPlace, Inplace!)
 end
+# (M::MergedMethods)(x::AbstractVector) = M.OutOfPlace(x)
 (M::MergedMethods)(x::AbstractVector; kwargs...) = M.OutOfPlace(x; kwargs...)
+# (M::MergedMethods)(J::AbstractArray, x::AbstractVector) = M.Inplace!(J, x)
 (M::MergedMethods)(J::AbstractArray, x::AbstractVector; kwargs...) = M.Inplace!(J, x; kwargs...)
 # Allow for splitting tuples generated in composition with ∘
+# (M::MergedMethods)(Tup::Tuple{<:AbstractArray, <:AbstractArray}) = M(Tup[1], Tup[2])
 (M::MergedMethods)(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = M(Tup[1], Tup[2]; kwargs...)
 
-Base.ComposedFunction(M::MergedMethods, inner::Function) = MergedMethods(M.OutOfPlace∘inner, (J::AbstractArray, x::AbstractVector; kwargs...) -> M.Inplace!(J, x; kwargs...))
+Base.ComposedFunction(M::MergedMethods, inner::Function) = MergedMethods(M.OutOfPlace∘inner, (J::AbstractArray, x::AbstractVector; kwargs...) -> M.Inplace!(J, inner(x); kwargs...))
+Base.ComposedFunction(outer::Function, M::MergedMethods) = MergedMethods(outer∘M.OutOfPlace, (J::AbstractArray, x::AbstractVector; kwargs...) -> (M.Inplace!(J, x; kwargs...);  outer(J)))
+
 Negate(M::MergedMethods) = NegateBoth(M)
 NegateBoth(M::MergedMethods) = MergedMethods(Negate(M.OutOfPlace), Negate!!(M.Inplace!))
 

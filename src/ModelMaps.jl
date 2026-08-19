@@ -483,15 +483,25 @@ end
 
 _GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (_GetDecorrelationTransform(F; kwargs...), mle)
 _GetDecorrelationTransform(M::AbstractMatrix; Inverter::Function=inv, Diagonal::Bool=false) = (C=cholesky(Symmetric(Inverter(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
-LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, Diagonal::Bool=false, kwargs...) = (M =_GetDecorrelationTransform(F; Inverter, Diagonal); AffineTransform(DM, M, mle; Inverter, kwargs...))
-# FullLinearDecorrelation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, XP; kwargs...))
 
-function DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, kwargs...)
+DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
+FullDecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
+
+function DecorrelationTransforms(F::AbstractMatrix, mle::AbstractVector; Inverter::Function=inv, kwargs...)
     M = _GetDecorrelationTransform(F; Inverter, kwargs...);      iM = Inverter(M)
     ForwardTransform(x::AbstractVector) = muladd(M, x, mle)
     InvTransform(x::AbstractVector) = iM * (x - mle)
     ForwardTransform, InvTransform
 end
+
+function LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, Diagonal::Bool=false, kwargs...)
+    Emb, invEmb = DecorrelationTransforms(F, mle; Inverter, Diagonal)
+    ModelEmbedding(DM, Emb, invEmb; kwargs...)
+end
+
+
+# FullLinearDecorrelation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = (M =_GetDecorrelationTransform(F); AffineTransform(DM, M, XP; kwargs...))
+
 
 # Unlike "ComponentwiseModelTransform" EmbedModelVia should be mainly performant for use e.g. in ProfileLikelihood
 # Also only vector-valued transformations
