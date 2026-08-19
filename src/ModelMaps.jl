@@ -470,14 +470,14 @@ end
 function AffineTransform(M::ModelMap, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; OldDomain::Union{HyperCube,Nothing}=Domain(M), Domain::Union{HyperCube,Nothing}=nothing, Inverter::Function=pinv, kwargs...)
     @assert isnothing(Domain) || (length(Domain) == size(A,1) == size(A,2) == length(v))
     Ainv = Inverter(A);     Emb(θ) = muladd(A,θ,v);     invEmb(θ) = Ainv*(θ-v)
-    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; nothing end) : Domain
     ModelMap(AffineTransform(M.Map, A, v), (!isnothing(InDomain(M)) ? (InDomain(M)∘Emb) : nothing), NewDomain,
                     M.xyp, M.pnames, M.inplace, M.CustomEmbedding, name(M), M.Meta; kwargs...)
 end
 function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::AbstractVector{<:Number}; OldDomain::Union{HyperCube,Nothing}=GetDomain(DM), Domain::Union{HyperCube,Nothing}=nothing, Inverter::Function=pinv, kwargs...)
     @assert pdim(DM) == size(A,1) == size(A,2) == length(v)
     Ainv = Inverter(A);     Emb(θ) = muladd(A,θ,v);     invEmb(θ) = Ainv*(θ-v)
-    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; nothing end) : Domain
     ModelEmbedding(DM, Emb, invEmb; Domain=NewDomain, kwargs...)
 end
 
@@ -547,15 +547,15 @@ end
 
 function ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
                 MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), kwargs...)
-    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; nothing end) : Domain
     DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb; Domain=NewDomain), invEmb(MLE), EmbedLogPrior(DM, Emb); 
-                LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherMetricFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, SkipOptim, SkipTests, name, kwargs...)
+                LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherInfoFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, SkipOptim, SkipTests, name, kwargs...)
 end
 function ModelEmbedding(DM::AbstractConditionGrid, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
                 MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), pnames::AbstractVector=pnames(DM), kwargs...)
-    NewDomain = isnothing(Domain) ? HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) : Domain
+    NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; nothing end) : Domain
     ConditionGrid(Conditions(DM), Trafos(DM)∘Emb, invEmb(MLE), EmbedLogPrior(DM, Emb); Domain=NewDomain, SkipOptim, SkipTests, 
-            LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherMetricFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, pnames, name, kwargs...)
+            LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreFn=Score(DM)∘Emb, FisherInfoFn=FisherMetric(DM)∘Emb, CostHessianFn=CostHessian(DM)∘Emb, pnames, name, kwargs...)
 end
 
 ## Transform dependent and independent variables of model

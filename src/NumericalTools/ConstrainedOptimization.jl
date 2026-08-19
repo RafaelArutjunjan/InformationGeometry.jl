@@ -5,12 +5,12 @@
     ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10)
 Projects `θ` onto the level set `loglike(θ) = C` using damped gradient steps and returns `(θ, residual)`.
 """
-function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
-    g = similar(θ);     GradGetter! = GetGrad!(ADmode, loglike)
+function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), Gradient!::Function=GetGrad!(ADmode, loglike), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
+    g = similar(θ)
     for _ in 1:maxiters
         r = loglike(θ) - C
         abs(r) <= tol && return θ, abs(r)
-        GradGetter!(g, θ)
+        Gradient!(g, θ)
         # Scalar Newton step along the gradient direction
         α = r / (dot(g, g) + reg)
         θ .-= α .* g
@@ -130,15 +130,17 @@ end
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
                     constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, 
-                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, kwargs...)
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put this radius in the last component
     ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
     NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
     startz = vcat(view(FullInitial, NuisanceInds), 1.0)
+    V = ValInserter(FixedInds, ParameterDirection, FullInitial)
     function ReconstructModelParams(z::AbstractVector)
-        V = ValInserter(FixedInds, abs(z[end]) .* ParameterDirection, FullInitial)
-        V((@view z[1:end-1]))
+        Res = V(@view z[1:end-1])
+        Res[FixedInds] .*= abs(z[end])
+        Res
     end
     ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
     if Multistart > 0
@@ -179,7 +181,7 @@ function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::F
     end
 end
 
-function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, parallel::Bool=true, 
+function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, parallel::Bool=false, 
             XP::AbstractVector{<:Number}=Float64[], SubSettedMeanPoint::Union{Nothing,AbstractVector{<:Number}}=(length(XP) > 0 ? SubSetter(XP) : nothing), kwargs...)
     SubSettedMeanPointTuple = (!isnothing(SubSettedMeanPoint) ? (;SubSettedMeanPoint=SubSettedMeanPoint) : (;))
     Pts = collect(ReorderPointsCCW(Ps; SubSetter, SubSettedMeanPointTuple...))
@@ -205,22 +207,29 @@ end
 
 
 """
-    GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM))
-Plots 2D slices through confidence region for all parameter pairs to show non-linearity of parameter interdependence.
+GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
+            ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
+            parallel::Bool=true, parallelinner::Bool=false, plot::Bool=isloaded(:Plots), kwargs...)
+Plots projections of confidence region onto planes spanned by all pairs of parameters in `paridxs` to show non-linearity of parameter interdependence.
+
+`parallel=true` parallelizes over parameter pairs and is the recommended default. 
+Set `parallelinner=true` only when outer parallelism is disabled since enabling both creates significant scheduling overhead.
 """
 function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
                 ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
-                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol),
+                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=false,
                 plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=true, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
     @assert pdim(DM) > 2
     @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
+    parallel && parallelinner && @warn "Enabling both `parallel` and `parallelinner` creates nested process parallelism and is usually slower due to scheduling and serialization overhead."
+
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
     n = length(paridxs)
     finalidxs = [IndMat[i,j] for i in 2:n for j in 1:(n-1) if comparison(j,i)]
-    Sols = [ProcessInds(inds; kwargs...) for inds in finalidxs]
+    Sols = (parallel ? progress_pmap : progress_map)(inds->ProcessInds(inds; parallel=parallelinner, kwargs...), finalidxs)
     plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
     Sols, finalidxs
 end

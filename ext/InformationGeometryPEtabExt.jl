@@ -342,7 +342,7 @@ InformationGeometry.DataSet(M::PEtabModel, C::Symbol=Symbol(M.petab_tables[:cond
 InformationGeometry.ConditionGrid(P::PEtabModel; kwargs...) = InformationGeometry.ConditionGrid(PEtabODEProblem(P); kwargs...)
 function InformationGeometry.ConditionGrid(P::PEtabODEProblem, Mle::AbstractVector=MLE(P); ObsID=:observableId, CondID=:simulationConditionId, ADmode::Val=Val(:FiniteDifferences), SkipOptim::Bool=true, FixedError::Bool=true, verbose::Bool=false, SortConditions::Bool=false, 
                     pnames::AbstractVector{<:InformationGeometry.StringOrSymb}=InformationGeometry.GetNamesSymb(P.xnominal_transformed), BesselCorrection::Bool=false, kwargs...)
-    SkipOptim && @info "Not optimizing given PEtabODEProblem. To optimize, use SkipOptim=false."
+    SkipOptim && @info "Not optimizing given PEtabODEProblem automatically. To optimize, use SkipOptim=false in the ConditionGrid constructor."
     ObsidsInCondDict = GetObservablesInConditionDict(P.model_info.model; ObsID, CondID)
     UniqueConds = GetUniqueConditions(P; CondID) # keep original order
     SortConditions && sort!(UniqueConds)
