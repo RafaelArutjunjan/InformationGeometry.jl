@@ -5,12 +5,12 @@
     ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10)
 Projects `θ` onto the level set `loglike(θ) = C` using damped gradient steps and returns `(θ, residual)`.
 """
-function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), Gradient!::Function=GetGrad!(ADmode, loglike), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
+function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), GradientGetter!::Function=DerivableFunctionsBase._GetGrad!(ADmode), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
     g = similar(θ)
     for _ in 1:maxiters
         r = loglike(θ) - C
         abs(r) <= tol && return θ, abs(r)
-        Gradient!(g, θ)
+        GradientGetter!(g, loglike, θ)
         # Scalar Newton step along the gradient direction
         α = r / (dot(g, g) + reg)
         θ .-= α .* g
@@ -42,6 +42,45 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
     throw("Need to load NonlinearSolve.jl first or pass explicit solve method as final positional argument or kwarg `meth`.")
 end
 
+function _ConstrainedOptimisationInitialGuess(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
+                            sense::Int=1, reg::Real=1e-14, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2) where T<:Number
+    n = length(θguess)
+    gobj = GradientGetter(objective_fixedt0, θguess)
+    gcon = GradientGetter(ZerodConstraint, θguess)
+    Δ = ZerodConstraint(θguess)
+
+    if norm(gcon) <= InteriorTol
+        # θguess is near a stationary point of the constraint (e.g. the MLE):
+        # quadratic branch-selecting seed, signed by `sense`.
+        Hpos = HessianGetter(ZerodConstraint, θguess);  Hpos .*= -1
+        @inbounds for i in 1:n    Hpos[i, i] += reg    end
+        d = Hpos \ gobj
+        q = dot(gobj, d)
+
+        if isfinite(Δ) && isfinite(q) && Δ > 0 && q > 0
+            α0 = sqrt(2 * Δ / q)
+            θseed = θguess .+ sense .* α0 .* d
+            λseed = -sense * sqrt(q / (2 * Δ))
+        else
+            # Conservative fallback: a small step along ±∇(objective)
+            gnorm = norm(gobj)
+            if gnorm > reg
+                θseed = θguess .+ sense .* 0.1 .* (gobj ./ gnorm)
+            else
+                θseed = copy(θguess)
+            end
+            λseed = T(sense)
+        end
+    else
+        # θguess already near the constraint contour: refine in place.
+        # Estimate λ from the stationarity condition sense·gobj + λ·gcon = 0
+        θseed = copy(θguess)
+        λseed = -sense * dot(gcon, gobj) / (dot(gcon, gcon) + reg)
+    end
+    ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, maxiters=ProjectIters, tol=ProjectTol, reg))
+    θseed, λseed
+end
+
 """
     SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{<:Real}, meth::SciMLBase.AbstractNonlinearAlgorithm;
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, ADmode::Val=Val(:ForwardDiff), 
@@ -56,43 +95,10 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
                             ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
-    if TransformGuess
-        gobj = GradientGetter(objective_fixedt0, θguess)
-        gcon = GradientGetter(ZerodConstraint, θguess)
-        Δ = ZerodConstraint(θguess)
-
-        if norm(gcon) <= InteriorTol
-            # θguess is near a stationary point of the constraint (e.g. the MLE):
-            # quadratic branch-selecting seed, signed by `sense`.
-            Hcon = HessianGetter(ZerodConstraint, θguess)
-            Hpos = copy(-Hcon)
-            @inbounds for i in 1:n    Hpos[i, i] += reg    end
-            d = Hpos \ gobj
-            q = dot(gobj, d)
-
-            if isfinite(Δ) && isfinite(q) && Δ > 0 && q > 0
-                α0 = sqrt(2 * Δ / q)
-                θseed = θguess .+ sense .* α0 .* d
-                λseed = -sense * sqrt(q / (2 * Δ))
-            else
-                # Conservative fallback: a small step along ±∇(objective)
-                gnorm = norm(gobj)
-                if gnorm > reg
-                    θseed = θguess .+ sense .* 0.1 .* (gobj ./ gnorm)
-                else
-                    θseed = copy(θguess)
-                end
-                λseed = T(sense)
-            end
-        else
-            # θguess already near the constraint contour: refine in place.
-            # Estimate λ from the stationarity condition sense·gobj + λ·gcon = 0
-            θseed = copy(θguess)
-            λseed = -sense * dot(gcon, gobj) / (dot(gcon, gcon) + reg)
-        end
-        ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, maxiters=ProjectIters, tol=ProjectTol, reg))
+    θseed, λseed = if TransformGuess
+        _ConstrainedOptimisationInitialGuess(objective_fixedt0, ZerodConstraint, θguess; ADmode, GradientGetter, HessianGetter, sense, reg, ProjectFirst, ProjectIters, ProjectTol, InteriorTol)
     else
-        θseed = θguess;     λseed = T(sense)
+        copy(θguess), T(sense)
     end
     x0 = vcat(copy(θseed), λseed)
 
@@ -142,10 +148,10 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res[FixedInds] .*= abs(z[end])
         Res
     end
-    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
+    ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C;    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
     if Multistart > 0
         FixedMeth = meth
-        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, FixedMeth; sense=1, Full=true, Kwargs...)
+        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; sense=1, Full=true, Kwargs...)
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
         @assert length(Dom) == length(FullInitial)
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
@@ -155,7 +161,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
     else
-        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, meth; sense=1, kwargs...)
+        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, meth; sense=1, kwargs...)
         Full ? Res : ReconstructModelParams(Res[1])
     end
 end
