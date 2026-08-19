@@ -140,7 +140,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         V = ValInserter(FixedInds, abs(z[end]) .* ParameterDirection, FullInitial)
         V((@view z[1:end-1]))
     end
-    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end]) # Added minus here
+    ConstraintFunction = constraint∘ReconstructModelParams;    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
     if Multistart > 0
         FixedMeth = meth
         MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ConstraintFunction, startz, C, FixedMeth; sense=1, Full=true, Kwargs...)
@@ -172,17 +172,21 @@ function ReorderPointsCCW(FullPs::AbstractVector{<:AbstractVector}; SubSetter::F
                     Ps::AbstractVector=map(SubSetter,FullPs), SubSettedMeanPoint::AbstractVector{<:Number}=mean(Ps))
     @assert ConsistentElDims(Ps) == 2
     order = map(p->mod2pi(atan(p[2]-SubSettedMeanPoint[2], p[1]-SubSettedMeanPoint[1])+2π), Ps)
-    @view FullPs[sortperm(order; rev)]
+    if !issorted(order; rev)
+        @view FullPs[sortperm(order; rev)]
+    else
+        FullPs
+    end
 end
 
-function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, 
+function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int=2, ProcessPoints::Function=identity, SubSetter::Function=identity, parallel::Bool=true, 
             XP::AbstractVector{<:Number}=Float64[], SubSettedMeanPoint::Union{Nothing,AbstractVector{<:Number}}=(length(XP) > 0 ? SubSetter(XP) : nothing), kwargs...)
     SubSettedMeanPointTuple = (!isnothing(SubSettedMeanPoint) ? (;SubSettedMeanPoint=SubSettedMeanPoint) : (;))
     Pts = collect(ReorderPointsCCW(Ps; SubSetter, SubSettedMeanPointTuple...))
     for _ in 1:maxiters
         ExtraPts = BisectInds(Pts; SubSetter, kwargs...)
         length(ExtraPts) == 0 && break
-        Pts = ReorderPointsCCW([Pts; map(ProcessPoints,ExtraPts)]; SubSetter, SubSettedMeanPointTuple...)
+        Pts = ReorderPointsCCW([Pts; (parallel ? pmap : map)(ProcessPoints,ExtraPts)]; SubSetter, SubSettedMeanPointTuple...)
     end;    Pts
 end
 
@@ -195,7 +199,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::Abst
     SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(Pt->SeedFixedInds(reducefactor .* sqrtIC .* Pt), Points)
     !Refine && return Res
-    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), maxiters, factor, XP)
+    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
 end
 
 

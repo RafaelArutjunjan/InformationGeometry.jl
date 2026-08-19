@@ -127,6 +127,19 @@ function MakeThresholdCallback(Fthresh::Real)
 end
 
 
+ConvertFunctionTupleToOptim(Fs::Tuple{<:Function}, start::AbstractVector) = Optim.TwiceDifferentiable(Fs[1], start)
+ConvertFunctionTupleToOptim(Fs::Tuple{<:Function, <:Function}, start::AbstractVector) = Optim.OnceDifferentiable(Fs[1], Fs[2], start)
+ConvertFunctionTupleToOptim(Fs::Tuple{<:Function, <:Function, <:Function}, start::AbstractVector) = Optim.TwiceDifferentiable(Fs[1], Fs[2], Fs[3], start)
+
+function ConvertConstraintsToOptim(ConstraintFunction::Function, lcons::AbstractVector, ucons::AbstractVector, λlb::AbstractVector=[0.0], λub::AbstractVector=[0.0]; ADmode::Val=Val(:ForwardDiff))
+    con_c!(c, x) = (c[1] = ConstraintFunction(x); c)
+    con_jacobian! = GetJac!(ADmode, x->SA[ConstraintFunction(x)])
+    Hess! = GetHess!(ADmode, ConstraintFunction)
+    con_hessian!(H, x, λ) = (Hess!(H, x);    H .*= λ[1];     H)
+    Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lcons, ucons, λlb, λub)
+end
+
+
 # Not economocal use of kwargs for passthrough but all options for Optim.jl listed in one place
 function minimizeOptimJL(Fs::Tuple, Start::AbstractVector{T}, meth::Optim.AbstractOptimizer; Domain::Union{HyperCube,Nothing}=nothing, 
                 Fthresh::Union{Nothing,Real}=nothing, tol::Real=1e-10, reltol::Real=tol, abstol::Real=tol, ForceClamp::Bool=true,

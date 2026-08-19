@@ -790,6 +790,8 @@ end
 (M::MergedMethods)(Tup::Tuple{<:AbstractArray, <:AbstractArray}; kwargs...) = M(Tup[1], Tup[2]; kwargs...)
 
 Base.ComposedFunction(M::MergedMethods, inner::Function) = MergedMethods(M.OutOfPlace∘inner, (J::AbstractArray, x::AbstractVector; kwargs...) -> M.Inplace!(J, x; kwargs...))
+Negate(M::MergedMethods) = NegateBoth(M)
+NegateBoth(M::MergedMethods) = MergedMethods(Negate(M.OutOfPlace), Negate!!(M.Inplace!))
 
 
 ## Convert from ADmode keyword syntax using Vals to corresponding ADtype

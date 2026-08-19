@@ -155,7 +155,7 @@ end
 function Base.show(io::IO, DM::AbstractDataModel)
     # Expr = CachedSymbolicModel(DM)
     print(io, Base.summary(DM))
-    print(io, ", Maximal value of log-likelihood: "*string(round(Float64(LogLikeMLE(DM)); sigdigits=5)))
+    print(io, ", maximal value of log-likelihood: "*string(round(Float64(LogLikeMLE(DM)); sigdigits=5)))
     # Expr[1] == 'y' && println(io, "Model Expr:  $Expr")
 end
 
