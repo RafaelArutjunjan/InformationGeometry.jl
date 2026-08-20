@@ -481,22 +481,23 @@ function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::
     ModelEmbedding(DM, Emb, invEmb; Domain=NewDomain, kwargs...)
 end
 
-_GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = (_GetDecorrelationTransform(F; kwargs...), mle)
+_GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = _GetDecorrelationTransform(F; kwargs...)
 _GetDecorrelationTransform(M::AbstractMatrix; Inverter::Function=inv, Diagonal::Bool=false) = (C=cholesky(Symmetric(Inverter(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
 
 DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
 FullDecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
 
-function DecorrelationTransforms(F::AbstractMatrix, mle::AbstractVector; Inverter::Function=inv, kwargs...)
+function DecorrelationTransformsWithJac(F::AbstractMatrix, mle::AbstractVector; Inverter::Function=inv, kwargs...)
     M = _GetDecorrelationTransform(F; Inverter, kwargs...);      iM = Inverter(M)
     ForwardTransform(x::AbstractVector) = muladd(M, x, mle)
     InvTransform(x::AbstractVector) = iM * (x - mle)
-    ForwardTransform, InvTransform
+    ForwardTransform, InvTransform, (Mres, θ)->(Mres .= M), M
 end
+DecorrelationTransforms(F::AbstractMatrix, mle::AbstractVector; kwargs...) = ((Emb, invEmb, _, _) = DecorrelationTransformsWithJac(F, mle; kwargs...);  (Emb,invEmb))
 
 function LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, Diagonal::Bool=false, kwargs...)
-    Emb, invEmb = DecorrelationTransforms(F, mle; Inverter, Diagonal)
-    ModelEmbedding(DM, Emb, invEmb; kwargs...)
+    Emb, invEmb, Jac!, _ = DecorrelationTransformsWithJac(F, mle; Inverter, Diagonal)
+    ModelEmbedding(DM, Emb, invEmb; Jac!, kwargs...)
 end
 
 
@@ -546,8 +547,8 @@ end
 
 
 ### Usually faster to regenerate Score via ForwardDiff, recompile cost typically acceptable
-function EmbedScore(ScoreFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, kwargs...) where T<:Number
-    Jac! = GetJac!(ADmode, Emb);   n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
+function EmbedScore(ScoreFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
+    n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
     # EmbeddedScoreFn(θ::AbstractVector) = Jac(θ)' * ScoreFn(Emb(θ))
     # EmbeddedScoreFn!(J, θ::AbstractVector) = (ScoreFn(J,Emb(θ));    Z=copy(J);    mul!(J, Jac(θ)',Z))
     Scache = DiffCache(similar(TestPars); levels);    Jcache = DiffCache(Matrix{T}(undef, n, n); levels)
@@ -557,8 +558,8 @@ function EmbedScore(ScoreFn::Function, Emb::Function, TestPars::AbstractVector{T
 end
 ### Embedded Fisher metric only needs Jacobian of embedding in pullback, no second derivative terms necessary
 ### Moreover, generating ForwardDiff CostHessian of log-likelihood can take very long to compile -> neglecting second derivative term from embedding can even be worth it for Hessian, despite no longer exact
-function EmbedFisher(FisherInfoFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, kwargs...) where T<:Number
-    Jac! = GetJac!(ADmode, Emb);   n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
+function EmbedFisher(FisherInfoFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
+    n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
     Fcache = DiffCache(Matrix{T}(undef, n, n); levels);    Jcache = DiffCache(Matrix{T}(undef, n, n); levels)
     # EmbeddedFisherInfoFn(θ::AbstractVector) = (F=FisherInfoFn(Emb(θ));   J=Jac(θ);    J' * F * J)
     # EmbeddedFisherInfoFn!(Fres, θ::AbstractVector) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     F=UnrollCache(Fcache,θ);     FisherInfoFn(F, Emb(θ));   @tullio F[a,b] = J[s,a] * F[s,t] * J[t,b])
@@ -588,25 +589,25 @@ function ModelEmbedding(DM::AbstractDataModel, Emb::Function, start::AbstractVec
 end
 
 function ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
-                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
+                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode, Emb),
                 GenerateNewScore::Bool=true, ScoreFn::Union{Nothing,Function}=nothing, ## Score faster to regenerate with ForwardDiff, Fisher better to embed with embedding Jacbian multiplication
                 GenerateNewFisher::Bool=false, FisherInfoFn::Union{Nothing,Function}=nothing, GenerateNewCostHessian::Bool=false, CostHessianFn::Union{Nothing,Function}=nothing, kwargs...)
     NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; FullDomain(length(MLE),Inf) end) : Domain
-    ScoreTup = !isnothing(ScoreFn) ? (; ScoreFn=ScoreFn) : (!GenerateNewScore ? (; ScoreFn=EmbedScore(Score(DM), Emb, MLE; ADmode, levels)) : (;))
-    FisherTup = !isnothing(FisherInfoFn) ? (; FisherInfoFn=FisherInfoFn) : (!GenerateNewFisher ? (; FisherInfoFn = EmbedFisher(FisherMetric(DM), Emb, MLE; ADmode, levels)) : (;))
-    CostHessianTup = !isnothing(CostHessianFn) ? (; CostHessianFn=CostHessianFn) : (!GenerateNewCostHessian ? (; CostHessianFn = EmbedFisher(CostHessian(DM), Emb, MLE; ADmode, levels)) : (;))
-    DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb; Domain=NewDomain), invEmb(MLE), EmbedLogPrior(DM, Emb); 
+    ScoreTup = !isnothing(ScoreFn) ? (; ScoreFn=ScoreFn) : (!GenerateNewScore ? (; ScoreFn=EmbedScore(Score(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
+    FisherTup = !isnothing(FisherInfoFn) ? (; FisherInfoFn=FisherInfoFn) : (!GenerateNewFisher ? (; FisherInfoFn = EmbedFisher(FisherMetric(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
+    CostHessianTup = !isnothing(CostHessianFn) ? (; CostHessianFn=CostHessianFn) : (!GenerateNewCostHessian ? (; CostHessianFn = EmbedFisher(CostHessian(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb; Domain=NewDomain, Jac!), invEmb(MLE), EmbedLogPrior(DM, Emb); 
                 LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreTup..., FisherTup..., CostHessianTup..., 
                 SkipOptim, SkipTests, name, kwargs...)
 end
 function ModelEmbedding(DM::AbstractConditionGrid, Emb::Function, invEmb::Function; OldDomain::Union{Nothing,HyperCube}=GetDomain(DM), Domain::Union{Nothing,HyperCube}=nothing, 
-                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), pnames::AbstractVector=pnames(DM), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
+                MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, name::StringOrSymb=name(DM), pnames::AbstractVector=pnames(DM), ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode, Emb),
                 GenerateNewScore::Bool=true, ScoreFn::Union{Nothing,Function}=nothing, ## Score faster to regenerate with ForwardDiff, Fisher better to embed with embedding Jacbian multiplication
                 GenerateNewFisher::Bool=false, FisherInfoFn::Union{Nothing,Function}=nothing, GenerateNewCostHessian::Bool=false, CostHessianFn::Union{Nothing,Function}=nothing, kwargs...)
     NewDomain = isnothing(Domain) ? (try HyperCube(invEmb(OldDomain.L), invEmb(OldDomain.U)) catch; FullDomain(length(MLE),Inf) end) : Domain
-    ScoreTup = !isnothing(ScoreFn) ? (; ScoreFn=ScoreFn) : (!GenerateNewScore ? (; ScoreFn=EmbedScore(Score(DM), Emb, MLE; ADmode, levels)) : (;))
-    FisherTup = !isnothing(FisherInfoFn) ? (; FisherInfoFn=FisherInfoFn) : (!GenerateNewFisher ? (; FisherInfoFn = EmbedFisher(FisherMetric(DM), Emb, MLE; ADmode, levels)) : (;))
-    CostHessianTup = !isnothing(CostHessianFn) ? (; CostHessianFn=CostHessianFn) : (!GenerateNewCostHessian ? (; CostHessianFn = EmbedFisher(CostHessian(DM), Emb, MLE; ADmode, levels)) : (;))
+    ScoreTup = !isnothing(ScoreFn) ? (; ScoreFn=ScoreFn) : (!GenerateNewScore ? (; ScoreFn=EmbedScore(Score(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
+    FisherTup = !isnothing(FisherInfoFn) ? (; FisherInfoFn=FisherInfoFn) : (!GenerateNewFisher ? (; FisherInfoFn = EmbedFisher(FisherMetric(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
+    CostHessianTup = !isnothing(CostHessianFn) ? (; CostHessianFn=CostHessianFn) : (!GenerateNewCostHessian ? (; CostHessianFn = EmbedFisher(CostHessian(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
     ConditionGrid(Conditions(DM), Trafos(DM)∘Emb, invEmb(MLE), EmbedLogPrior(DM, Emb); Domain=NewDomain, SkipOptim, SkipTests, 
             LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreTup..., FisherTup..., CostHessianTup...,
             pnames, name, kwargs...)
