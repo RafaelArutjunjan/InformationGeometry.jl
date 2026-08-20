@@ -525,42 +525,46 @@ function EmbedModelVia(M::ModelMap, F::Function; Domain::Union{Nothing,HyperCube
             Domain, (M.xyp[1], M.xyp[2], length(Domain)); pnames=Symbol.(PNames), name=Symbol(name), inplace, IsCustom, Meta, TrySymbolic, kwargs...)
 end
 
-function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple=Tuple([]); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    Jac = GetJac(ADmode, F)
-    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * Jac(θ)
+function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple{Int,Int}, testp::AbstractVector{T}=rand(Size[2]), testout::AbstractVector=F(testp); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
+                        Jac!::Function=GetJac!(ADmode, F), levels::Int=2, Kwargs...) where T<:Number
+    Jcache = DiffCache(Matrix{T}(undef, length(testout), length(testp)); levels)
+    EmbeddedJacobian(x, θ; kwargs...) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     dmodel(x, F(θ); kwargs...) * J)
 end
-function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,Int}; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
-    Jac = GetJac(ADmode, F)
-    function EmbeddedJacobian!(y, x, θ::AbstractVector{T}; kwargs...) where T<:Number
-        Ycache = Matrix{T}(undef, Size)
-        dmodel!(Ycache, x, F(θ); kwargs...)
-        mul!(y, Ycache, Jac(θ))
+function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,Int}, testp::AbstractVector{T}=rand(Size[2]), testout::AbstractVector=F(testp); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), 
+                        Jac!::Function=GetJac!(ADmode, F), levels::Int=2, Kwargs...) where T<:Number
+    Jcache = DiffCache(Matrix{T}(undef, length(testout), length(testp)); levels)
+    Ycache = DiffCache(Matrix{T}(undef, length(testout), length(testout)); levels)
+    function EmbeddedJacobian!(y, x, θ::AbstractVector; kwargs...)
+        J = UnrollCache(Jcache,θ);  Y = Unroll(Ycache, x, θ)
+        Jac!(J,θ);      dmodel!(Y, x, F(θ); kwargs...)
+        mul!(y, Y, J)
     end
 end
+
 function EmbedDModelVia(dM::ModelMap, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
-                name::StringOrSymb=name(dM), Meta=dM.Meta, inplace::Bool=ValToBool(dM.inplace), IsCustom::Bool=ValToBool(dM.CustomEmbedding), TrySymbolic::Bool=false, kwargs...)
+                name::StringOrSymb=name(dM), Meta=dM.Meta, inplace::Bool=ValToBool(dM.inplace), IsCustom::Bool=ValToBool(dM.CustomEmbedding), TrySymbolic::Bool=false, Jac!::Function=GetJac!(ADmode,F), levels::Int=2, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
-    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, dM.xyp[2:3]; ADmode), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
+    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, (ydim(dM), length(Domain)), rand(length(Domain)); ADmode, Jac!, levels), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
             Domain, (dM.xyp[1], dM.xyp[2], length(Domain)); pnames=Symbol.(PNames), name=Symbol(name), inplace, IsCustom, Meta, TrySymbolic, kwargs...)
 end
 
 
 ### Usually faster to regenerate Score via ForwardDiff, recompile cost typically acceptable
-function EmbedScore(ScoreFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
-    n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
+function EmbedScore(ScoreFn::Function, Emb::Function, TestPars::AbstractVector{T}, testout::AbstractVector=Emb(TestPars); ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
+    # Jac = GetJac(ADmode, Emb)
     # EmbeddedScoreFn(θ::AbstractVector) = Jac(θ)' * ScoreFn(Emb(θ))
     # EmbeddedScoreFn!(J, θ::AbstractVector) = (ScoreFn(J,Emb(θ));    Z=copy(J);    mul!(J, Jac(θ)',Z))
-    Scache = DiffCache(similar(TestPars); levels);    Jcache = DiffCache(Matrix{T}(undef, n, n); levels)
-    EmbeddedScoreFn(θ::AbstractVector) = (J=UnrollCache(Jcache, θ);     Jac!(J, θ);     J' * ScoreFn(Emb(θ)))
+    Scache = DiffCache(similar(testout); levels);    Jcache = DiffCache(Matrix{T}(undef, length(testout), length(TestPars)); levels)
+    EmbeddedScoreFn(θ::AbstractVector) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     J' * ScoreFn(Emb(θ)))
     EmbeddedScoreFn!(G, θ::AbstractVector) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     S=UnrollCache(Scache,θ);     ScoreFn(S,Emb(θ));    mul!(G, J', S))
     MergeOneArgMethods(EmbeddedScoreFn, EmbeddedScoreFn!)
 end
 ### Embedded Fisher metric only needs Jacobian of embedding in pullback, no second derivative terms necessary
 ### Moreover, generating ForwardDiff CostHessian of log-likelihood can take very long to compile -> neglecting second derivative term from embedding can even be worth it for Hessian, despite no longer exact
-function EmbedFisher(FisherInfoFn::Function, Emb::Function, TestPars::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
-    n = length(TestPars);    # Jac = GetJac(ADmode, Emb)
-    Fcache = DiffCache(Matrix{T}(undef, n, n); levels);    Jcache = DiffCache(Matrix{T}(undef, n, n); levels)
+function EmbedFisher(FisherInfoFn::Function, Emb::Function, TestPars::AbstractVector{T}, testout::AbstractVector=Emb(TestPars); ADmode::Val=Val(:ForwardDiff), levels::Int=1, Jac!::Function=GetJac!(ADmode,Emb), kwargs...) where T<:Number
+    # Jac = GetJac(ADmode, Emb)
+    Fcache = DiffCache(Matrix{T}(undef, length(testout), length(testout)); levels);    Jcache = DiffCache(Matrix{T}(undef, length(testout), length(TestPars)); levels)
     # EmbeddedFisherInfoFn(θ::AbstractVector) = (F=FisherInfoFn(Emb(θ));   J=Jac(θ);    J' * F * J)
     # EmbeddedFisherInfoFn!(Fres, θ::AbstractVector) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     F=UnrollCache(Fcache,θ);     FisherInfoFn(F, Emb(θ));   @tullio F[a,b] = J[s,a] * F[s,t] * J[t,b])
     EmbeddedFisherInfoFn(θ::AbstractVector) = (J=UnrollCache(Jcache,θ);     Jac!(J,θ);     F=FisherInfoFn(Emb(θ));   J' * F * J)
@@ -570,12 +574,13 @@ end
 
 
 """
-    ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; SkipOptim::Bool=true, SkipTests::Bool=true, 
+    ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; MLE::AbstractVector=MLE(DM), SkipOptim::Bool=true, SkipTests::Bool=true, 
                 ADmode::Val=Val(:ForwardDiff), levels::Int=1, GenerateNewScore::Bool=true, ScoreFn::Union{Nothing,Function}=nothing, 
                 GenerateNewFisher::Bool=false, FisherInfoFn::Union{Nothing,Function}=nothing, 
                 GenerateNewCostHessian::Bool=false, CostHessianFn::Union{Nothing,Function}=nothing, kwargs...)
     ModelEmbedding(DM::AbstractDataModel, Emb::Function, start::AbstractVector; Domain::HyperCube=FullDomain(length(start),Inf), kwargs...)
 Transforms a model function via `newmodel(x, θ) = oldmodel(x, Emb(θ))` and returns the associated `DataModel`.
+Need to pass new MLE or starting configuration of correct length for `Emb` via `MLE` kwarg.
 
 For `GenerateNewScore=true`, a new score function which includes the embedding is regenerated via ForwardDiff from the log-likelihood.
 Otherwise, the new score is implemented via explicit multiplication of the old score with the embedding Jacobian, which is typically slower.
@@ -596,7 +601,7 @@ function ModelEmbedding(DM::AbstractDataModel, Emb::Function, invEmb::Function; 
     ScoreTup = !isnothing(ScoreFn) ? (; ScoreFn=ScoreFn) : (!GenerateNewScore ? (; ScoreFn=EmbedScore(Score(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
     FisherTup = !isnothing(FisherInfoFn) ? (; FisherInfoFn=FisherInfoFn) : (!GenerateNewFisher ? (; FisherInfoFn = EmbedFisher(FisherMetric(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
     CostHessianTup = !isnothing(CostHessianFn) ? (; CostHessianFn=CostHessianFn) : (!GenerateNewCostHessian ? (; CostHessianFn = EmbedFisher(CostHessian(DM), Emb, MLE; ADmode, levels, Jac!)) : (;))
-    DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb; Domain=NewDomain, Jac!), invEmb(MLE), EmbedLogPrior(DM, Emb); 
+    DataModel(Data(DM), EmbedModelVia(Predictor(DM), Emb; Domain=NewDomain), EmbedDModelVia(dPredictor(DM), Emb, (ydim(DM), length(MLE)), MLE; Domain=NewDomain, Jac!), invEmb(MLE), EmbedLogPrior(DM, Emb); 
                 LogLikelihoodFn=loglikelihood(DM)∘Emb, ScoreTup..., FisherTup..., CostHessianTup..., 
                 SkipOptim, SkipTests, name, kwargs...)
 end
