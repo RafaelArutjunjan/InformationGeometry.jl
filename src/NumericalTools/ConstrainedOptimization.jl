@@ -93,14 +93,11 @@ For default `TransformGuess == true`, the initial parameter configuration is fir
 If the initial guess is already known to be reasonably accurate, this projection step can be avoided by setting `TransformGuess = false`.
 """
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::SciMLBase.AbstractNonlinearAlgorithm;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, 
-                            ADmode::Val=Val(:ForwardDiff), levels::Int=1, # GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
-                            # GradientGetter!::Function=DerivableFunctionsBase._GetGrad!(ADmode), HessianGetter!::Function=DerivableFunctionsBase._GetHess!(ADmode),
+                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                             ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
                             ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
-
     ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
     gobj = DiffCache(copy(θguess); levels);    gcon = DiffCache(copy(θguess); levels)
     Hobj = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels);    Hcon = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels)
@@ -149,7 +146,8 @@ end
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
-                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, ADmode::Val=Val(:ForwardDiff), levels::Int=1,
+                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
+                    GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put this radius in the last component
@@ -164,19 +162,15 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
     ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
-    ConstraintGradient! = GetGrad!(ADmode, ZerodConstraintFunction)
-    # ConstraintGradient! = EmbedScore(Score(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels=1)
-    ConstraintHessian! = EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
-    # ConstraintGradient! = Score(DM)∘ReconstructModelParams;     ConstraintHessian! = Negate(CostHessian(DM))∘ReconstructModelParams
+    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(Score(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    # Objective same for all, could define upstream and reuse?
     ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
-    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * Sgn(z[end]))
-    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
-    # ObjectiveGradient!=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0)
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * Sgn(z[end]));    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
     if Multistart > 0
         FixedMeth = meth
         MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; ADmode, levels, sense=1, Full=true, 
-                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, 
-                    Kwargs...)
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, Kwargs...)
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
         @assert length(Dom) == length(FullInitial)
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
@@ -187,8 +181,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
     else
         Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, meth; ADmode, levels, sense=1, 
-                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, 
-                    kwargs...)
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
         Full ? Res : ReconstructModelParams(Res[1])
     end
 end
