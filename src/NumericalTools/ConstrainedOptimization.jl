@@ -5,12 +5,12 @@
     ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), maxiters::Int=50, tol::Real=1e-10)
 Projects `θ` onto the level set `loglike(θ) = C` using damped gradient steps and returns `(θ, residual)`.
 """
-function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), GradientGetter!::Function=DerivableFunctionsBase._GetGrad!(ADmode), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
+function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), Gradient!::Function=GetGrad!(ADmode, loglike), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
     g = similar(θ)
     for _ in 1:maxiters
         r = loglike(θ) - C
         abs(r) <= tol && return θ, abs(r)
-        GradientGetter!(g, loglike, θ)
+        Gradient!(g, θ)
         # Scalar Newton step along the gradient direction
         α = r / (dot(g, g) + reg)
         θ .-= α .* g
@@ -42,19 +42,21 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, constr
     throw("Need to load NonlinearSolve.jl first or pass explicit solve method as final positional argument or kwarg `meth`.")
 end
 
-function _ConstrainedOptimisationInitialGuess(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}; ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
-                            sense::Int=1, reg::Real=1e-14, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2) where T<:Number
+function _ConstrainedOptimisationInitialGuess(ZerodConstraint::Function, θguess::AbstractVector{T}, gobjcache::Union{AbstractArray,DiffCache}, gconcache::Union{AbstractVector,DiffCache}, Hconcache::Union{AbstractMatrix,DiffCache};
+                        sense::Int=1, reg::Real=1e-14, ADmode::Val=Val(:ForwardDiff), ObjectiveGradient!::Function, ConstraintGradient!::Function, ConstraintHessian!::Function,
+                        ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2) where T<:Number
     n = length(θguess)
-    gobj = GradientGetter(objective_fixedt0, θguess)
-    gcon = GradientGetter(ZerodConstraint, θguess)
+    gobj = UnrollCache(gobjcache, θguess);    gcon = UnrollCache(gconcache, θguess)
+    ObjectiveGradient!(gobj, θguess);    ConstraintGradient!(gcon, θguess)
     Δ = ZerodConstraint(θguess)
 
     if norm(gcon) <= InteriorTol
         # θguess is near a stationary point of the constraint (e.g. the MLE):
         # quadratic branch-selecting seed, signed by `sense`.
-        Hpos = HessianGetter(ZerodConstraint, θguess);  Hpos .*= -1
-        @inbounds for i in 1:n    Hpos[i, i] += reg    end
-        d = Hpos \ gobj
+        Hcon = UnrollCache(Hconcache, θguess);    ConstraintHessian!(Hcon, θguess)
+        Hcon .*= -1
+        @inbounds for i in 1:n    Hcon[i, i] += reg    end
+        d = Hcon \ gobj
         q = dot(gobj, d)
 
         if isfinite(Δ) && isfinite(q) && Δ > 0 && q > 0
@@ -77,7 +79,7 @@ function _ConstrainedOptimisationInitialGuess(objective_fixedt0::Function, Zerod
         θseed = copy(θguess)
         λseed = -sense * dot(gcon, gobj) / (dot(gcon, gcon) + reg)
     end
-    ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, maxiters=ProjectIters, tol=ProjectTol, reg))
+    ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, Gradient! =ConstraintGradient!, maxiters=ProjectIters, tol=ProjectTol, reg))
     θseed, λseed
 end
 
@@ -92,20 +94,29 @@ If the initial guess is already known to be reasonably accurate, this projection
 """
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::SciMLBase.AbstractNonlinearAlgorithm;
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, 
-                            ADmode::Val=Val(:ForwardDiff), GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
+                            ADmode::Val=Val(:ForwardDiff), levels::Int=1, # GradientGetter::Function=DerivableFunctionsBase._GetGrad(ADmode), HessianGetter::Function=DerivableFunctionsBase._GetHess(ADmode),
+                            # GradientGetter!::Function=DerivableFunctionsBase._GetGrad!(ADmode), HessianGetter!::Function=DerivableFunctionsBase._GetHess!(ADmode),
+                            ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
+                            ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
                             TransformGuess::Bool=true, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
+
+    ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
+    gobj = DiffCache(copy(θguess); levels);    gcon = DiffCache(copy(θguess); levels)
+    Hobj = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels);    Hcon = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels)
     θseed, λseed = if TransformGuess
-        _ConstrainedOptimisationInitialGuess(objective_fixedt0, ZerodConstraint, θguess; ADmode, GradientGetter, HessianGetter, sense, reg, ProjectFirst, ProjectIters, ProjectTol, InteriorTol)
+        _ConstrainedOptimisationInitialGuess(ZerodConstraint, θguess, gobj, gcon, Hcon; sense, reg, ADmode, ObjectiveGradient!, ConstraintGradient!, ConstraintHessian!, ProjectFirst, ProjectIters, ProjectTol, InteriorTol)
     else
         copy(θguess), T(sense)
     end
-    x0 = vcat(copy(θseed), λseed)
+    x0 = vcat(θseed, λseed)
 
     function residual!(F, x, p)
         θ = @view x[1:n];      λ = x[end]
-        gobj = GradientGetter(objective_fixedt0, θ)
-        gcon = GradientGetter(ZerodConstraint, θ)
+        gobj = UnrollCache(gobj, x)
+        gcon = UnrollCache(gcon, x)
+        ObjectiveGradient!(gobj, θ)
+        ConstraintGradient!(gcon, θ)
 
         F[1:n] .= sense .* gobj .+ λ .* gcon
         F[n + 1] = ZerodConstraint(θ)
@@ -113,11 +124,14 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     end
     function jacobian!(J, x, p)
         θ = @view x[1:n];      λ = x[end]
-        Hobj = HessianGetter(objective_fixedt0, θ)
-        Hcon = HessianGetter(ZerodConstraint, θ)
-        gcon = GradientGetter(ZerodConstraint, θ)
+        gcon = UnrollCache(gcon, x)
+        Hobj = UnrollCache(Hobj, x)
+        Hcon = UnrollCache(Hcon, x)
+        ConstraintGradient!(gcon, θ)
+        ObjectiveHessian!(Hobj, θ)
+        ConstraintHessian!(Hcon, θ)
 
-        fill!(J, zero(eltype(J)))
+        J .= 0
         J[1:n, 1:n] .= sense .* Hobj .+ λ .* Hcon
         @inbounds for i in 1:n    J[i, i] += reg     end
         J[1:n, n + 1] .= gcon
@@ -135,7 +149,7 @@ end
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
-                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, 
+                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, ADmode::Val=Val(:ForwardDiff), levels::Int=1,
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put this radius in the last component
@@ -148,10 +162,21 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res[FixedInds] .*= abs(z[end])
         Res
     end
-    ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C;    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
+    Jac! = GetJac!(ADmode, ReconstructModelParams)
+    ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
+    ConstraintGradient! = GetGrad!(ADmode, ZerodConstraintFunction)
+    # ConstraintGradient! = EmbedScore(Score(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels=1)
+    ConstraintHessian! = EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    # ConstraintGradient! = Score(DM)∘ReconstructModelParams;     ConstraintHessian! = Negate(CostHessian(DM))∘ReconstructModelParams
+    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * Sgn(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
+    # ObjectiveGradient!=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0)
     if Multistart > 0
         FixedMeth = meth
-        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; sense=1, Full=true, Kwargs...)
+        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; ADmode, levels, sense=1, Full=true, 
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, 
+                    Kwargs...)
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
         @assert length(Dom) == length(FullInitial)
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
@@ -161,7 +186,9 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
     else
-        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, meth; sense=1, kwargs...)
+        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, meth; ADmode, levels, sense=1, 
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, 
+                    kwargs...)
         Full ? Res : ReconstructModelParams(Res[1])
     end
 end
@@ -232,7 +259,7 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
     @assert pdim(DM) > 2
     @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
-    parallel && parallelinner && @warn "Enabling both `parallel` and `parallelinner` creates nested process parallelism and is usually slower due to scheduling and serialization overhead."
+    parallel && parallelinner && @warn "Enabling both `parallel` and `parallelinner` creates nested process parallelism and is usually slower due to scheduling overhead!"
 
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
     n = length(paridxs)
