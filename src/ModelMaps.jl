@@ -481,11 +481,9 @@ function AffineTransform(DM::AbstractDataModel, A::AbstractMatrix{<:Number}, v::
     ModelEmbedding(DM, Emb, invEmb; Domain=NewDomain, kwargs...)
 end
 
+
 _GetDecorrelationTransform(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = _GetDecorrelationTransform(F; kwargs...)
 _GetDecorrelationTransform(M::AbstractMatrix; Inverter::Function=inv, Diagonal::Bool=false) = (C=cholesky(Symmetric(Inverter(M))).L;   (Diagonal ? LinearAlgebra.Diagonal(C) : C))
-
-DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
-FullDecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
 
 function DecorrelationTransformsWithJac(F::AbstractMatrix, mle::AbstractVector; Inverter::Function=inv, kwargs...)
     M = _GetDecorrelationTransform(F; Inverter, kwargs...);      iM = Inverter(M)
@@ -493,7 +491,13 @@ function DecorrelationTransformsWithJac(F::AbstractMatrix, mle::AbstractVector; 
     InvTransform(x::AbstractVector) = iM * (x - mle)
     ForwardTransform, InvTransform, (Mres, θ)->(Mres .= M), M
 end
+DecorrelationTransformsWithJac(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = DecorrelationTransformsWithJac(F, mle; kwargs...)
+
 DecorrelationTransforms(F::AbstractMatrix, mle::AbstractVector; kwargs...) = ((Emb, invEmb, _, _) = DecorrelationTransformsWithJac(F, mle; kwargs...);  (Emb,invEmb))
+DecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
+
+
+FullDecorrelationTransforms(DM::AbstractDataModel, mle::AbstractVector=TotalLeastSquaresV(DM), F::AbstractMatrix=FullFisherMetric(DM, XP); kwargs...) = DecorrelationTransforms(F, mle; kwargs...)
 
 function LinearDecorrelation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), F::AbstractMatrix=FisherMetric(DM, mle); Inverter::Function=inv, Diagonal::Bool=false, kwargs...)
     Emb, invEmb, Jac!, _ = DecorrelationTransformsWithJac(F, mle; Inverter, Diagonal)

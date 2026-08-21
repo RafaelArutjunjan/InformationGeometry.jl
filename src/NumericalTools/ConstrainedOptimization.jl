@@ -146,7 +146,7 @@ end
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
-                    constraint::Function=loglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=loglikeMLE-0.5*IC, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
+                    constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
@@ -161,8 +161,9 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
+    ### Maybe use Negloglikelihood as constraint, use Negate(Score(DM)) and leave CostHessian as-is?
     ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
-    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(Score(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     # Objective same for all, could define upstream and reuse?
     ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
@@ -223,11 +224,14 @@ end
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, kwargs...)
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, 
+                    ## Unit sphere generates starting values for FixedInds subspace, ScalePoints also of dim FixedInds
+                    L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
+                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
     SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
-    Res = (parallel ? pmap : map)(Pt->SeedFixedInds(reducefactor .* sqrtIC .* Pt), Points)
+    Res = (parallel ? pmap : map)(SeedFixedInds∘ScalePoints, Points)
     !Refine && return Res
     IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
 end
@@ -258,6 +262,21 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
     n = length(paridxs)
     finalidxs = [IndMat[i,j] for i in 2:n for j in 1:(n-1) if comparison(j,i)]
     Sols = (parallel ? progress_pmap : progress_map)(inds->ProcessInds(inds; parallel=parallelinner, kwargs...), finalidxs)
+    plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
+    Sols, finalidxs
+end
+
+function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
+                PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), 
+                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM),
+                IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
+                comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
+    Emb, invEmb, Jac!, _ = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
+    dm = ModelEmbedding(DM, Emb, invEmb; Jac!)
+    UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; plot=false, IndMat, comparison, kwargs...)
+    Sols = [map(Emb, sol) for sol in UntransformedSols]
+
     plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
     Sols, finalidxs
 end
