@@ -188,6 +188,51 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
 end
 
 
+### Projects `FullInitial` onto a confidence boundary strictly radially in the subspace spanned by the columns of `Directions`.
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
+                    constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
+                    GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, kwargs...)
+    n = length(FullInitial);    subdim = size(Directions, 2)
+    @assert size(Directions, 1) == n && 0 < subdim ≤ n
+    @assert rank(Directions) == subdim "Columns of Directions must be linearly independent."
+    @assert length(XP) == n
+    ParameterDirection = Directions * (Directions \ (FullInitial - XP))
+    @assert !iszero(norm(ParameterDirection)) "FullInitial - XP must have a nonzero component in span(Directions)."
+    Q = Matrix(qr(Directions).Q[:, 1:n])
+    NuisanceBasis = Q[:, subdim+1:end]
+    NuisanceCoordinates = NuisanceBasis' * (FullInitial - XP)
+    startz = vcat(NuisanceCoordinates, 0.0)
+    function ReconstructModelParams(z::AbstractVector)
+        XP + ParameterDirection .* exp(z[end]) + NuisanceBasis * (@view z[1:end-1])
+    end
+    Jac! = GetJac!(ADmode, ReconstructModelParams)
+    ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
+    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ObjectiveFunction(z::AbstractVector) = factor * exp(z[end])
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * exp(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = factor * exp(z[end]))
+    if Multistart > 0
+        FixedMeth = meth
+        MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; ADmode, levels, sense=1, Full=true,
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, Kwargs...)
+        Dom = isnothing(MultistartDomain) ? FullDomain(n, maxval) : MultistartDomain
+        @assert length(Dom) == n
+        Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
+        for i in eachindex(Points)
+            Points[i] = vcat(NuisanceBasis' * (Points[i] - XP), 0.0)
+        end
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
+        Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
+    else
+        Res = SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, meth; ADmode, levels, sense=1,
+                    ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
+        Full ? Res : ReconstructModelParams(Res[1])
+    end
+end
+
+
 ## Returns new points to add
 function BisectInds(FullPs::AbstractVector{T}; factor::Real=1.5, SubSetter::Function=identity, Norm::Function=norm, Median::Function=median) where T<:AbstractVector{<:Number}
     Ps = map(SubSetter, FullPs);    Ds = map(Norm, diff(Ps));    Med = Median(Ds);    Thresh = factor * Med
@@ -237,6 +282,24 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::Abst
 end
 
 
+## Generates boundary points for the projection onto the subspace spanned by the columns of `Directions`.
+function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, XP::AbstractVector=MLE(DM); N::Int=50,
+                    parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
+                    UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2; N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6,
+                    ScaleMatrix::AbstractMatrix=I, ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), kwargs...)
+    @assert size(Directions, 1) == length(XP) && size(Directions, 2) > 0
+    @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
+    @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
+    subdim = size(Directions, 2);    Points = UnitSpherePointGenerator(subdim)(N)
+    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt; XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
+    Res = (parallel ? pmap : map)(SeedDirections∘ScalePoints, Points)
+    !Refine && return Res
+    ProjectionCoordinates = (Directions' * Directions) \ Directions'
+    IterativeBisectInds(Res; ProcessPoints=SeedDirections, SubSetter=ProjectionCoordinates, parallel, maxiters, factor, XP)
+end
+
+
 
 """
 GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
@@ -272,9 +335,11 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
                 plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM),
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
-    Emb, invEmb, Jac!, _ = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
+    Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
     dm = ModelEmbedding(DM, Emb, invEmb; Jac!)
-    UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; plot=false, IndMat, comparison, kwargs...)
+    WhitenedDirections = M \ Matrix{eltype(M)}(I, size(M))
+    ProcessInds = (inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), MLE(dm); Kwargs..., parallel=false))
+    UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; ProcessInds, plot=false, IndMat, comparison, kwargs...)
     Sols = [map(Emb, sol) for sol in UntransformedSols]
 
     plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
