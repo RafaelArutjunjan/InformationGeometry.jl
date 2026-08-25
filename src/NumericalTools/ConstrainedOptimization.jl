@@ -150,14 +150,14 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
-    ## Fix direction in which parameters are to be changed and put this radius in the last component
+    ## Fix direction in which parameters are to be changed and put its log-radius in the last component
     ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
     NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
     startz = vcat(view(FullInitial, NuisanceInds), 1.0)
     V = ValInserter(FixedInds, ParameterDirection, FullInitial)
     function ReconstructModelParams(z::AbstractVector)
         Res = V(@view z[1:end-1])
-        Res[FixedInds] .*= abs(z[end])
+        Res[FixedInds] .*= exp(z[end])
         Res
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
@@ -166,8 +166,10 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     # Objective same for all, could define upstream and reuse?
-    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end]) # Added minus here
-    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * Sgn(z[end]));    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
+    # Maximize the strictly positive radius in its unconstrained log parameterization.
+    ObjectiveFunction(z::AbstractVector) = factor * exp(z[end])
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * exp(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = factor * exp(z[end]))
     if Multistart > 0
         FixedMeth = meth
         MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; ADmode, levels, sense=1, Full=true, 
@@ -336,8 +338,7 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
     Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
-    dm = ModelEmbedding(DM, Emb, invEmb; Jac!)
-    WhitenedDirections = M \ Eye(Base.size(M,1))
+    dm = ModelEmbedding(DM, Emb, invEmb; Jac!);     WhitenedDirections = M \ Eye(Base.size(M,1))
     ProcessInds = (inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), InformationGeometry.MLE(dm); Kwargs..., parallel=false))
     UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; ProcessInds, plot=false, IndMat, comparison, kwargs...)
     Sols = [map(Emb, sol) for sol in UntransformedSols]
