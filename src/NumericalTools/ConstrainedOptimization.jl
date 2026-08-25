@@ -287,7 +287,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2; N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6,
-                    ScaleMatrix::AbstractMatrix=I, ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), kwargs...)
+                    ScaleMatrix::AbstractMatrix=Eye(size(Directions, 2)), ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), kwargs...)
     @assert size(Directions, 1) == length(XP) && size(Directions, 2) > 0
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
@@ -296,7 +296,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
     Res = (parallel ? pmap : map)(SeedDirections∘ScalePoints, Points)
     !Refine && return Res
     ProjectionCoordinates = (Directions' * Directions) \ Directions'
-    IterativeBisectInds(Res; ProcessPoints=SeedDirections, SubSetter=ProjectionCoordinates, parallel, maxiters, factor, XP)
+    IterativeBisectInds(Res; ProcessPoints=SeedDirections, SubSetter=x->ProjectionCoordinates*x, parallel, maxiters, factor, XP)
 end
 
 
@@ -337,8 +337,8 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
     Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
     dm = ModelEmbedding(DM, Emb, invEmb; Jac!)
-    WhitenedDirections = M \ Matrix{eltype(M)}(I, size(M))
-    ProcessInds = (inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), MLE(dm); Kwargs..., parallel=false))
+    WhitenedDirections = M \ Eye(Base.size(M,1))
+    ProcessInds = (inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), InformationGeometry.MLE(dm); Kwargs..., parallel=false))
     UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; ProcessInds, plot=false, IndMat, comparison, kwargs...)
     Sols = [map(Emb, sol) for sol in UntransformedSols]
 
