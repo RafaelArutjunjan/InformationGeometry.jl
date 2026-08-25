@@ -172,34 +172,36 @@ InsertIntoLast(θ::AbstractVector{<:Number}) = PassingIntoFirst(X::AbstractVecto
 
 
 ProfilePredictor(DM::AbstractDataModel, args...; kwargs...) = ProfilePredictor(Predictor(DM), args...; kwargs...)
-function ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
+function ProfilePredictor(M::ModelMap, Comp::Int, PinnedValue::AbstractFloat, outputstructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comp, PinnedValue, outputstructure); Domain=DropCubeDims(Domain(M), Comp), kwargs...)
 end
-function ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
-end
-
-function ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedModelVia(M, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
-end
-function ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedModelVia(M, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
+function ProfilePredictor(M::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, outputstructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comps, PinnedValues, outputstructure); Domain=DropCubeDims(Domain(M), Comps), kwargs...)
 end
 
-
-ProfileDPredictor(DM::AbstractDataModel, args...; kwargs...) = ProfileDPredictor(dPredictor(DM), args...; kwargs...)
-function ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
+function ProfilePredictor(M::Function, Comp::Int, PinnedValue::AbstractFloat, outputstructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comp, PinnedValue, outputstructure); kwargs...)
 end
-function ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+function ProfilePredictor(M::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, outputstructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedModelVia(M, ValInserter(Comps, PinnedValues, outputstructure); kwargs...)
 end
 
-function ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, mlestructure); kwargs...)
+# ProfileDPredictor(DM::AbstractDataModel, args...; kwargs...) = ProfileDPredictor(dPredictor(DM), args...; kwargs...)
+function ProfileDPredictor(DM::AbstractDataModel, Comps, PinnedValues, outputstructure::AbstractVector=MLE(DM), inputstructure::AbstractVector=(@view outputstructure[1:end-length(Comps)]); kwargs...)
+    ProfileDPredictor(dPredictor(DM), Comps, PinnedValues, outputstructure, inputstructure; kwargs...)
 end
-function ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, mlestructure::AbstractVector=Float64[]; ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
-    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, mlestructure); kwargs...)
+function ProfileDPredictor(dM::ModelMap, Comp::Int, PinnedValue::AbstractFloat, outputstructure::AbstractVector=Float64[], inputstructure::AbstractVector=(@view outputstructure[1:end-1]); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, outputstructure), inputstructure, outputstructure; Domain=DropCubeDims(Domain(dM), Comp), kwargs...)
+end
+function ProfileDPredictor(dM::ModelMap, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, outputstructure::AbstractVector=Float64[], inputstructure::AbstractVector=(@view outputstructure[1:end-length(Comps)]); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, outputstructure), inputstructure, outputstructure; Domain=DropCubeDims(Domain(dM), Comps), kwargs...)
+end
+
+function ProfileDPredictor(dM::Function, Comp::Int, PinnedValue::AbstractFloat, outputstructure::AbstractVector=Float64[], inputstructure::AbstractVector=(@view outputstructure[1:end-1]); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comp, PinnedValue, outputstructure), inputstructure, outputstructure; kwargs...)
+end
+function ProfileDPredictor(dM::Function, Comps::AbstractVector{<:Int}, PinnedValues::AbstractVector{<:AbstractFloat}, outputstructure::AbstractVector=Float64[], inputstructure::AbstractVector=(@view outputstructure[1:end-length(Comps)]); ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
+    EmbedDModelVia(dM, ValInserter(Comps, PinnedValues, outputstructure), inputstructure, outputstructure; kwargs...)
 end
 
 """
