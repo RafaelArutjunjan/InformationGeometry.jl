@@ -144,8 +144,7 @@ end
 
 
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}, meth::Optim.AbstractConstrainedOptimizer;
-                    factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)),
-                    constraint::Function=Negloglikelihood(DM),
+                    factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), constraint::Function=Negloglikelihood(DM),
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC),
                     ADmode::Val=Val(:ForwardDiff), levels::Int=1,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
@@ -172,8 +171,8 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     
     con_c!(c, z) = (c[1] = ZerodConstraintFunction(z))
     function con_jacobian!(J, z)
-        ConstraintGradient!(J, z) # gbuf
-        # J[1, :] .= gbuf
+        ConstraintGradient!(gbuf, z)
+        J[1, :] .= gbuf
         nothing
     end
     function con_hessian!(H, z, λ)
@@ -195,7 +194,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         @assert length(MultistartDomain) == length(FullInitial)
         Points = GenerateSobolPoints(MultistartDomain; maxval, N=Multistart)
         for i in eachindex(Points)
-            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 0.0)
         end
         MinimizeFunc = (F, x0; Kwargs...)->begin
             dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [0.0], [0.0])
@@ -211,7 +210,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
 end
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
-function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), 
                     constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
@@ -219,7 +218,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     ## Fix direction in which parameters are to be changed and put its log-radius in the last component
     ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
     NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
-    startz = vcat(view(FullInitial, NuisanceInds), 1.0)
+    startz = vcat(view(FullInitial, NuisanceInds), 0.0)
     V = ValInserter(FixedInds, ParameterDirection, FullInitial)
     function ReconstructModelParams(z::AbstractVector)
         Res = V(@view z[1:end-1])
@@ -244,7 +243,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         @assert length(Dom) == length(FullInitial)
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
         for i in eachindex(Points)
-            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 0.0)
         end
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
@@ -257,7 +256,7 @@ end
 
 
 ### Projects `FullInitial` onto a confidence boundary strictly radially in the subspace spanned by the columns of `Directions`.
-function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)),
                     constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, kwargs...)
@@ -340,10 +339,10 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::Abst
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, 
                     ## Unit sphere generates starting values for FixedInds subspace, ScalePoints also of dim FixedInds
                     L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
-                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), kwargs...)
+                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=nothing, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z); Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
+    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP=XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(SeedFixedInds∘ScalePoints, Points)
     !Refine && return Res
     IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
@@ -360,7 +359,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
     subdim = size(Directions, 2);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt; XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
+    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt, meth; XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(SeedDirections∘ScalePoints, Points)
     !Refine && return Res
     ProjectionCoordinates = (Directions' * Directions) \ Directions'
