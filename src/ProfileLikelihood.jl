@@ -1960,3 +1960,17 @@ function GetProfileTimes(P::Union{ParameterProfiles,ConfidenceIntervals})
     end
     Meta.parse.(ExtractBracketedString.(pnames(P)))
 end
+
+
+"""
+    Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; N::Int=30, MLE::AbstractVector=MLE(DM), PlotKwargs=(;), Domain=GetDomain(DM), 
+            loglikeMLE::Real=LogLikeMLE(DM), PostTransform::Function=NegLs->2*(loglikeMLE + NegLs), kwargs...)
+Plots 2D profile likelihood for two indices `FixedInds=[i,j]` and returns computed values as a matrix `[X Y L]`.
+"""
+function Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; N::Int=30, MLE::AbstractVector=MLE(DM), PlotKwargs=(;), Domain=GetDomain(DM), 
+            CostFunction::Function=Negloglikelihood(DM), loglikeMLE::Real=LogLikeMLE(DM), PostTransform::Function=NegLs->2*(loglikeMLE + NegLs), kwargs...)
+    @assert length(Cube) == length(FixedInds) == 2 && allunique(FixedInds) && all(1 .≤ FixedInds .≤ length(MLE))
+    OptimizeIdxs = Drop(1:length(MLE), FixedInds)
+    ProfileFunction = Z::AbstractVector->PartialMinimization(CostFunction, (X=copy(MLE);  X[FixedInds] .= Z;  X), OptimizeIdxs; Domain, kwargs...)
+    PlotScalar(PostTransform∘CostFunction∘ProfileFunction, Cube; N, PlotKwargs...)
+end
