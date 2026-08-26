@@ -316,7 +316,7 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
                 ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
                 ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=false,
-                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=true, 
+                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
     @assert pdim(DM) > 2
@@ -327,7 +327,7 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
     n = length(paridxs)
     finalidxs = [IndMat[i,j] for i in 2:n for j in 1:(n-1) if comparison(j,i)]
     Sols = (parallel ? progress_pmap : progress_map)(inds->ProcessInds(inds; parallel=parallelinner, kwargs...), finalidxs)
-    plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
+    plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotMethod, PlotKwargs...)
     Sols, finalidxs
 end
 

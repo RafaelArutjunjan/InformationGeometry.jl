@@ -279,6 +279,7 @@ export PlotProfileTrajectories, PlotProfileTrajectories!, PlotProfilePathNormDif
 export ValidationProfiles, PredictionProfiles, ConvertValidationToPredictionProfiles
 export FullValidationProfiles, FullPredictionProfiles
 export ConfidenceIntervals, SubConfidenceIntervals
+export Profiles2D, Profiles2DLowerTriangular, FullProfiles2D, FullProfiles2DLowerTriangular
 
 
 include("NumericalTools/Multistart.jl")
