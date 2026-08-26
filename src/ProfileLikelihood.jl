@@ -1981,3 +1981,13 @@ function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, parid
             ProcessInds=(inds; parallel=false, Kwargs...)->Profiles2D(DM, inds, SubHyperCube(Cube, inds); MLE, plot=false, Kwargs..., kwargs...), 
             PlotMethod=(sol;Kwargs...)->PlotScalar(sol; Kwargs..., PlotKwargs...))
 end
+
+function FullProfiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; MLE::AbstractVector=TotalLeastSquaresV(DM), 
+            CostFunction::Function=FullNegloglikelihood(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, kwargs...)
+    Profiles2D(DM, FixedInds, Cube; MLE, CostFunction, loglikeMLE, Domain, kwargs...)
+end
+
+function FullProfiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=length(xdata(DM)) .+ (1:pdim(DM)); MLE::AbstractVector=TotalLeastSquaresV(DM), 
+            CostFunction::Function=FullNegloglikelihood(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, kwargs...)
+    Profiles2DLowerTriangular(DM, Cube, paridxs; MLE, CostFunction, loglikeMLE, Domain, kwargs...)
+end

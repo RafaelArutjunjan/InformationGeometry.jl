@@ -545,13 +545,22 @@ function EmbedDModelVia_inplace(dmodel!::Function, F::Function, Size::Tuple{Int,
     end
 end
 
-function EmbedDModelVia(dM::ModelMap, F::Function; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Domain::HyperCube=FullDomain(GetArgLength(F; max=MaxArgLen),Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
+function EmbedDModelVia(dM::ModelMap, F::Function, Size::Tuple{Int,Int}=(ydim(dM), GetArgLength(F; max=MaxArgLen)), testp::AbstractVector{<:Number}=rand(Size[2]), testout::AbstractVector=F(testp); ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Domain::HyperCube=FullDomain(Size[2],Inf), pnames::Union{Nothing,AbstractVector{<:StringOrSymb}}=nothing, 
                 name::StringOrSymb=name(dM), Meta=dM.Meta, inplace::Bool=ValToBool(dM.inplace), IsCustom::Bool=ValToBool(dM.CustomEmbedding), TrySymbolic::Bool=false, Jac!::Function=GetJac!(ADmode,F), levels::Int=2, kwargs...)
     # Pass the OLD pdim to EmbedDModelVia_inplace for cache
     PNames = isnothing(pnames) ? CreateSymbolNames(length(Domain), "θ") : pnames
-    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, (ydim(dM), length(Domain)), rand(length(Domain)); ADmode, Jac!, levels), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
+    ModelMap((isinplacemodel(dM) ? EmbedDModelVia_inplace : EmbedDModelVia)(dM.Map, F, Size, testp, testout; ADmode, Jac!, levels), (!isnothing(InDomain(dM)) ? InDomain(dM)∘F : nothing),
             Domain, (dM.xyp[1], dM.xyp[2], length(Domain)); pnames=Symbol.(PNames), name=Symbol(name), inplace, IsCustom, Meta, TrySymbolic, kwargs...)
 end
+EmbedDModelVia(dM::ModelMap, F::Function, testp::AbstractVector{<:Number}, args...; kwargs...) = EmbedDModelVia(dM, F, (ydim(dM), length(testp)), testp, args...; kwargs...) 
+
+
+### Fallback method!
+function EmbedDModelVia(dmodel::Function, F::Function, Size::Tuple=Tuple([]), startp::AbstractVector=Float64[], args...; ADmode::Union{Symbol,Val}=Val(:ForwardDiff), Kwargs...)
+    Jac = GetJac(ADmode, F)
+    EmbeddedJacobian(x, θ; kwargs...) = dmodel(x, F(θ); kwargs...) * Jac(θ)
+end
+EmbedDModelVia(dmodel::Function, F::Function, startp::AbstractVector, args...; kwargs...) = EmbedDModelVia(dmodel, F, Tuple([]), startp, args...; kwargs...)
 
 
 ### Usually faster to regenerate Score via ForwardDiff, recompile cost typically acceptable
