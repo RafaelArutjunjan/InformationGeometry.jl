@@ -582,7 +582,7 @@ meshgrid(x, y) = (repeat(x, outer=length(y)), repeat(y, inner=length(x)))
     PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, OverWrite::Bool=true, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, OverWrite::Bool=true, nlevels=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     func(args...) = F([args...])
     A, B = range(PlanarCube.L[1], PlanarCube.U[1], length=Nx), range(PlanarCube.L[2], PlanarCube.U[2], length=Ny)
@@ -597,7 +597,7 @@ end
     PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=100, Save::Bool=false, parallel::Bool=false, nlevels::Int=40, kwargs...)
 Plots a scalar function `F` by evaluating the given `PlotPlane` over the 2D domain `PlanarCube` by `N^2` evaluations on a regular grid.
 """
-function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, nlevels::Int=40, kwargs...)
+function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=nworkers()>1, nlevels=40, kwargs...)
     length(PlanarCube) != 2 && throw(ArgumentError("Cube not Planar."))
     Lcomp(x,y) = F(PlaneCoordinates(PlotPlane,[x,y]))
     A, B = range(PlanarCube.L[1], PlanarCube.U[1], length=Nx), range(PlanarCube.L[2], PlanarCube.U[2], length=Ny)
@@ -610,6 +610,15 @@ function PlotScalar(F::Function, PlotPlane::Plane, PlanarCube::HyperCube; N::Int
         p = RecipesBase.plot!(p, [0],[0]; seriestype=:scatter, lab="Center", marker=:hex)
         display(p)
     end;    [X Y Z]
+end
+
+function PlotScalar(M::AbstractMatrix; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bool=false, plot::Bool=true, parallel::Bool=true, OverWrite::Bool=true, nlevels=40, kwargs...)
+    @assert size(M,2) == 3
+    # Extract unique sorted axes
+    A = sort(unique(@view M[:,1]));    B = sort(unique(@view M[:,2]))
+    @assert length(A) * length(B) == size(M,1)
+    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, reshape((@view M[:,3]), length(A), length(B)); st=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
+    M
 end
 
 """

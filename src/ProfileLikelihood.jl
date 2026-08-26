@@ -1974,3 +1974,10 @@ function Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cub
     ProfileFunction = Z::AbstractVector->PartialMinimization(CostFunction, (X=copy(MLE);  X[FixedInds] .= Z;  X), OptimizeIdxs; Domain, kwargs...)
     PlotScalar(PostTransform∘CostFunction∘ProfileFunction, Cube; N, PlotKwargs...)
 end
+
+### Does not return matrix outputted by Profiles2D currently
+function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), PlotKwargs=(;), kwargs...)
+    GenericLowerTriangular(DM, paridxs; MLE, 
+            ProcessInds=(inds; Kwargs...)->nothing, ProcessSol=(sol, inds)->inds, PrePlot=inds->RecipesBase.plot(), # inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+            PlotMethod=(inds;Kwargs...)->Profiles2D(DM, inds, SubHyperCube(Cube, inds); MLE, PlotKwargs=(; Kwargs..., PlotKwargs...), kwargs...))
+end
