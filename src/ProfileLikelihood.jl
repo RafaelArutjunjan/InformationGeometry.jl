@@ -1968,7 +1968,7 @@ end
 Plots 2D profile likelihood for two indices `FixedInds=[i,j]` and returns computed values as a matrix `[X Y L]`.
 """
 function Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; N::Int=30, MLE::AbstractVector=MLE(DM), PlotKwargs=(;), Domain=GetDomain(DM), 
-            CostFunction::Function=Negloglikelihood(DM), loglikeMLE::Real=LogLikeMLE(DM), PostTransform::Function=identity, ProfileTransform::Function=NegLs->2*(loglikeMLE + NegLs), plot::Bool=isloaded(:Plots), kwargs...)
+            CostFunction::Function=Negloglikelihood(DM), loglikeMLE::Real=LogLikeMLE(DM), Trafo::Function=identity, ProfileTransform::Function=NegLs->2*(loglikeMLE + NegLs), plot::Bool=isloaded(:Plots), kwargs...)
     @assert length(Cube) == length(FixedInds) == 2 && allunique(FixedInds) && all(1 .≤ FixedInds .≤ length(MLE))
     OptimizeIdxs = Drop(1:length(MLE), FixedInds)
     ProfileFunction = Z::AbstractVector->PartialMinimization(CostFunction, (X=copy(MLE);  X[FixedInds] .= Z;  X), OptimizeIdxs; Domain, kwargs...)

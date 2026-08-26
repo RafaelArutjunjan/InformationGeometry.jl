@@ -143,6 +143,72 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
 end
 
 
+function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}, meth::Optim.AbstractConstrainedOptimizer;
+                    factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)),
+                    constraint::Function=Negloglikelihood(DM),
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC),
+                    ADmode::Val=Val(:ForwardDiff), levels::Int=1,
+                    GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter,
+                    TransformGuess::Bool=false, radiuslower::Real=1e-7, radiusupper::Real=1e3, Domain::Union{Nothing,HyperCube}=GetDomainSafe(DM), kwargs...)
+    @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
+    @assert 0 ≤ radiuslower < radiusupper
+    NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
+    startz = vcat(view(FullInitial, NuisanceInds), 0.0);    # gbuf = similar(startz)
+    V = ValInserter(FixedInds, view(FullInitial, FixedInds), FullInitial)
+    function ReconstructModelParams(z::AbstractVector)
+        Res = V(@view z[1:end-1])
+        Res[FixedInds] .*= exp(z[end])
+        Res
+    end
+    Jac! = GetJac!(ADmode, ReconstructModelParams)
+    ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
+    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ObjectiveFunction(z::AbstractVector) = -factor * exp(z[end])
+    ObjectiveGradient!(g, z::AbstractVector) = (g .= 0;  g[end] = -factor * exp(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = -factor * exp(z[end]))
+    df = Optim.TwiceDifferentiable(ObjectiveFunction, ObjectiveGradient!, ObjectiveHessian!, startz)
+    
+    con_c!(c, z) = (c[1] = ZerodConstraintFunction(z))
+    function con_jacobian!(J, z)
+        ConstraintGradient!(J, z) # gbuf
+        # J[1, :] .= gbuf
+        nothing
+    end
+    function con_hessian!(H, z, λ)
+        ConstraintHessian!(H, z)
+        H .*= λ[1]
+        nothing
+    end
+    if isnothing(Domain)
+        lower = fill(-Inf, length(startz))
+        upper = fill(Inf, length(startz))
+    else
+        @assert length(Domain) == length(FullInitial)
+        lower = collect(Domain.L[NuisanceInds]) .- XP[NuisanceInds]
+        upper = collect(Domain.U[NuisanceInds]) .- XP[NuisanceInds]
+    end
+    push!(lower, log(radiuslower))
+    push!(upper, log(radiusupper))
+    if Multistart > 0
+        @assert length(MultistartDomain) == length(FullInitial)
+        Points = GenerateSobolPoints(MultistartDomain; maxval, N=Multistart)
+        for i in eachindex(Points)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
+        end
+        MinimizeFunc = (F, x0; Kwargs...)->begin
+            dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [0.0], [0.0])
+            Optim.optimize(df, dfc, x0, meth, Optim.Options(; Kwargs...))
+        end
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
+        Full ? Res : ReconstructModelParams(GetMinimizer(Res)[1:end-1])
+    else
+        dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [0.0], [0.0])
+        result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; kwargs...))
+        Full ? result : ReconstructModelParams(InformationGeometry.GetMinimizer(result))
+    end
+end
 
 ### Projects FullInitial onto given confidence boundary strictly radially in the subspace defined by `FixedInds`.
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), meth=nothing,
