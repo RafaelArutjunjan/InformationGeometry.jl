@@ -73,7 +73,7 @@ Cached / in-place version of `ValInserter`.
 function ValInserter!(Components::AbstractVector{<:Int}, Values::AbstractVector{<:Number}, Z::AbstractVector{<:Number}=Float64[]; kwargs...)
     @assert length(Components) == length(Values)
     @assert !isempty(Z) "Need prototype output as third argument."
-    @assert length(Z) > length(Components)
+    @assert length(Z) ≥ length(Components)
     comps, vals = _SortTogether(collect(Components), collect(Values))
     ValInserterCache(comps, vals, DiffCache(copy(Z); kwargs...))
 end
@@ -1968,18 +1968,17 @@ end
 Plots 2D profile likelihood for two indices `FixedInds=[i,j]` and returns computed values as a matrix `[X Y L]`.
 """
 function Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; N::Int=30, MLE::AbstractVector=MLE(DM), PlotKwargs=(;), Domain=GetDomain(DM), 
-            CostFunction::Function=Negloglikelihood(DM), loglikeMLE::Real=LogLikeMLE(DM), PostTransform::Function=NegLs->2*(loglikeMLE + NegLs), plot::Bool=isloaded(:Plots), kwargs...)
+            CostFunction::Function=Negloglikelihood(DM), loglikeMLE::Real=LogLikeMLE(DM), PostTransform::Function=identity, ProfileTransform::Function=NegLs->2*(loglikeMLE + NegLs), plot::Bool=isloaded(:Plots), kwargs...)
     @assert length(Cube) == length(FixedInds) == 2 && allunique(FixedInds) && all(1 .≤ FixedInds .≤ length(MLE))
     OptimizeIdxs = Drop(1:length(MLE), FixedInds)
     ProfileFunction = Z::AbstractVector->PartialMinimization(CostFunction, (X=copy(MLE);  X[FixedInds] .= Z;  X), OptimizeIdxs; Domain, kwargs...)
-    PlotScalar(PostTransform∘CostFunction∘ProfileFunction, Cube; N, plot, PlotKwargs...)
+    PlotScalar(PostTransform∘ProfileTransform∘CostFunction∘ProfileFunction, Cube; N, plot, PlotKwargs...)
 end
 
-function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), PlotKwargs=(;), kwargs...)
-    GenericLowerTriangular(DM, paridxs; MLE, 
-            ProcessSol=(sol, inds)->sol, PrePlot=inds->RecipesBase.plot(), # inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), PlotKwargs=(;), plot::Bool=true, kwargs...)
+    GenericLowerTriangular(DM, paridxs; MLE, ProcessSol=(sol, inds)->sol, PrePlot=inds->RecipesBase.plot(), # inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
             ProcessInds=(inds; parallel=false, Kwargs...)->Profiles2D(DM, inds, SubHyperCube(Cube, inds); MLE, plot=false, Kwargs..., kwargs...), 
-            PlotMethod=(sol;Kwargs...)->PlotScalar(sol; Kwargs..., PlotKwargs...))
+            PlotMethod=(sol;Kwargs...)->PlotScalar(sol; plot, Kwargs..., PlotKwargs...))
 end
 
 function FullProfiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; MLE::AbstractVector=TotalLeastSquaresV(DM), 
