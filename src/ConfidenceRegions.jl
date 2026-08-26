@@ -1218,17 +1218,17 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
 end
 
 function PlotLowerTriangular(Sols::AbstractVector, IndMat::AbstractMatrix{<:AbstractVector{<:Int}}; pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(Base.size(IndMat,1)), 
-                        Domains::Union{Nothing,<:AbstractVector{<:HyperCube}}=nothing, comparison::Function=Base.isless, size=PlotSizer(length(IndMat)), 
+                        Domains::Union{Nothing,<:AbstractVector{<:HyperCube}}=nothing, comparison::Function=Base.isless, size=PlotSizer(length(IndMat)), PlotMethod::Function=RecipesBase.plot!, 
                         PrePlot::Function=inds->RecipesBase.plot(), ProcessSol::Function=(sol, inds)->sol, label="", kwargs...)
     @assert Base.size(IndMat,1) == Base.size(IndMat,2)
     k = 0;  Plts = [];  n = Base.size(IndMat,1)
     for i in 2:n, j in 1:(n-1)
         inds = IndMat[i,j]
         if comparison(j,i)
-            k += 1;     Plt = PrePlot(inds)
-            RecipesBase.plot!(Plt, ProcessSol(Sols[k], inds); label, xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], 
+            k += 1;     PrePlot(inds)
+            PlotMethod(ProcessSol(Sols[k], inds); label, xlabel=pnames[inds[1]], ylabel=pnames[inds[2]], 
                                 (!isnothing(Domains) ? (; xlims=Domains[k][1], ylims=Domains[k][2]) : (;))..., kwargs...)
-            push!(Plts, Plt)
+            push!(Plts, deepcopy(RecipesBase.plot!()))
         else
             push!(Plts, RecipesBase.plot(; framestyle=:none))
         end
