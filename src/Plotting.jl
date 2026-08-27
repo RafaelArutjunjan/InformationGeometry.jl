@@ -617,7 +617,7 @@ function PlotScalar(M::AbstractMatrix; N::Int=35, Nx::Int=N, Ny::Int=N, Save::Bo
     # Extract unique sorted axes
     A = sort(unique(@view M[:,1]));    B = sort(unique(@view M[:,2]))
     @assert length(A) * length(B) == size(M,1)
-    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, reshape((@view M[:,3]), length(A), length(B)); st=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
+    plot && (OverWrite ? RecipesBase.plot : RecipesBase.plot!)(A, B, transpose(reshape((@view M[:,3]), length(A), length(B))); st=:contour, fill=true, nlevels=nlevels, kwargs...) |> display
     M
 end
 

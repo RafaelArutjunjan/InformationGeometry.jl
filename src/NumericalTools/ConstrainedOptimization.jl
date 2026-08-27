@@ -353,7 +353,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::Abst
                     L::AbstractMatrix=Eye(length(XP)), H::AbstractMatrix=CostHessian(DM)(MLE(DM)),
                     Hschur::AbstractMatrix=SchurComplement(H, FixedInds, setdiff(1:length(XP), FixedInds)),
                     ScaleMatrix::AbstractMatrix=(E=eigen(Symmetric(Hschur)); E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'),
-                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=nothing, kwargs...)
+                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=Optim.IPNewton(), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
     SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP=XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
@@ -378,7 +378,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
                         E = eigen(Symmetric(Hprofile))
                         E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'
                     end,
-                    ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), meth=nothing, kwargs...)
+                    ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), meth=Optim.IPNewton(), kwargs...)
     @assert size(Directions, 1) == length(XP) && size(Directions, 2) > 0
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
