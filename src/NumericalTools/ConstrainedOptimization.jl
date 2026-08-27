@@ -384,8 +384,8 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
                 plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
-    @assert pdim(DM) > 2
-    @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
+    @assert length(MLE) ≥ 2
+    @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ length(MLE)) && all(1 .≤ getindex.(IndMat,2) .≤ length(MLE))
     parallel && parallelinner && @warn "Enabling both `parallel` and `parallelinner` creates nested process parallelism and is usually slower due to scheduling overhead!"
 
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."

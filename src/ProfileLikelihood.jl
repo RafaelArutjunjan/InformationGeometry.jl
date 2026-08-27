@@ -1972,21 +1972,21 @@ function Profiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cub
     @assert length(Cube) == length(FixedInds) == 2 && allunique(FixedInds) && all(1 .≤ FixedInds .≤ length(MLE))
     OptimizeIdxs = Drop(1:length(MLE), FixedInds)
     ProfileFunction = Z::AbstractVector->PartialMinimization(CostFunction, (X=copy(MLE);  X[FixedInds] .= Z;  X), OptimizeIdxs; Domain, kwargs...)
-    PlotScalar(PostTransform∘ProfileTransform∘CostFunction∘ProfileFunction, Cube; N, plot, PlotKwargs...)
+    PlotScalar(Trafo∘ProfileTransform∘CostFunction∘ProfileFunction, Cube; N, plot, PlotKwargs...)
 end
 
-function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), PlotKwargs=(;), plot::Bool=true, kwargs...)
-    GenericLowerTriangular(DM, paridxs; MLE, ProcessSol=(sol, inds)->sol, PrePlot=inds->RecipesBase.plot(), # inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
+function Profiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), PlotKwargs=(;), plot::Bool=true, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), kwargs...)
+    GenericLowerTriangular(DM, paridxs; MLE, plot, pnames, ProcessSol=(sol, inds)->sol, PrePlot=inds->RecipesBase.plot(), # inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
             ProcessInds=(inds; parallel=false, Kwargs...)->Profiles2D(DM, inds, SubHyperCube(Cube, inds); MLE, plot=false, Kwargs..., kwargs...), 
-            PlotMethod=(sol;Kwargs...)->PlotScalar(sol; plot, Kwargs..., PlotKwargs...))
+            PlotMethod=(sol;Kwargs...)->PlotScalar(sol; plot, pnames, Kwargs..., PlotKwargs...))
 end
 
 function FullProfiles2D(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, Cube::HyperCube; MLE::AbstractVector=TotalLeastSquaresV(DM), 
-            CostFunction::Function=FullNegloglikelihood(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, kwargs...)
-    Profiles2D(DM, FixedInds, Cube; MLE, CostFunction, loglikeMLE, Domain, kwargs...)
+            CostFunction::Function=FullLiftedNegLogLikelihoodAfterEmbedding(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), kwargs...)
+    Profiles2D(DM, FixedInds, Cube; MLE, CostFunction, loglikeMLE, Domain, pnames, kwargs...)
 end
 
 function FullProfiles2DLowerTriangular(DM::AbstractDataModel, Cube::HyperCube, paridxs::AbstractVector{<:Int}=length(xdata(DM)) .+ (1:pdim(DM)); MLE::AbstractVector=TotalLeastSquaresV(DM), 
-            CostFunction::Function=FullNegloglikelihood(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, kwargs...)
-    Profiles2DLowerTriangular(DM, Cube, paridxs; MLE, CostFunction, loglikeMLE, Domain, kwargs...)
+            CostFunction::Function=FullLiftedNegLogLikelihoodAfterEmbedding(DM), loglikeMLE::Real=-CostFunction(MLE), Domain=nothing, pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), kwargs...)
+    Profiles2DLowerTriangular(DM, Cube, paridxs; MLE, CostFunction, loglikeMLE, Domain, pnames, kwargs...)
 end
