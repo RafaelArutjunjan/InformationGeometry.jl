@@ -152,21 +152,26 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
                     TransformGuess::Bool=false, radiuslower::Real=1e-7, radiusupper::Real=1e3, Domain::Union{Nothing,HyperCube}=GetDomainSafe(DM), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     @assert 0 ≤ radiuslower < radiusupper
+    ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
+    XPsub = view(XP, FixedInds)
     NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
-    startz = vcat(view(FullInitial, NuisanceInds), 0.0);    # gbuf = similar(startz)
-    V = ValInserter(FixedInds, view(FullInitial, FixedInds), FullInitial)
+    startz = vcat(view(FullInitial, NuisanceInds), 1.0);    gbuf = similar(startz)
+    V = ValInserter(FixedInds, ParameterDirection, FullInitial) # Inserted values will be completely replaced anyway
     function ReconstructModelParams(z::AbstractVector)
         Res = V(@view z[1:end-1])
-        Res[FixedInds] .*= exp(z[end])
+        Res[FixedInds] .= XPsub .+ abs(z[end]) .* ParameterDirection
         Res
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
     ZerodConstraintFunction(z::AbstractVector) = constraint(ReconstructModelParams(z))-C
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
-    ObjectiveFunction(z::AbstractVector) = -factor * exp(z[end])
-    ObjectiveGradient!(g, z::AbstractVector) = (g .= 0;  g[end] = -factor * exp(z[end]))
-    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = -factor * exp(z[end]))
+    # ObjectiveFunction(z::AbstractVector) = -factor * exp(z[end])
+    # ObjectiveGradient!(g, z::AbstractVector) = (g .= 0;  g[end] = -factor * exp(z[end]))
+    # ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = -factor * exp(z[end]))
+    ObjectiveFunction(z::AbstractVector) = -factor * abs(z[end])
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = -factor * Sgn(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
     df = Optim.TwiceDifferentiable(ObjectiveFunction, ObjectiveGradient!, ObjectiveHessian!, startz)
     
     con_c!(c, z) = (c[1] = ZerodConstraintFunction(z))
@@ -194,7 +199,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         @assert length(MultistartDomain) == length(FullInitial)
         Points = GenerateSobolPoints(MultistartDomain; maxval, N=Multistart)
         for i in eachindex(Points)
-            Points[i] = vcat(view(Points[i], NuisanceInds), 0.0)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
         end
         MinimizeFunc = (F, x0; Kwargs...)->begin
             dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [0.0], [0.0])
@@ -213,16 +218,18 @@ end
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), 
                     constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
-                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter, kwargs...)
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter!, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
     ## Fix direction in which parameters are to be changed and put its log-radius in the last component
     ParameterDirection = view(FullInitial, FixedInds) .- view(XP, FixedInds)
+    XPsub = view(XP, FixedInds)
+    @assert !iszero(norm(ParameterDirection)) "FullInitial - XP must have a nonzero component in span(Directions)."
     NuisanceInds = setdiff(1:length(FullInitial), FixedInds)
-    startz = vcat(view(FullInitial, NuisanceInds), 0.0)
-    V = ValInserter(FixedInds, ParameterDirection, FullInitial)
+    startz = vcat(view(FullInitial, NuisanceInds), 1.0)
+    V = ValInserter(FixedInds, ParameterDirection, FullInitial) # Inserted values will be completely replaced anyway
     function ReconstructModelParams(z::AbstractVector)
         Res = V(@view z[1:end-1])
-        Res[FixedInds] .*= exp(z[end])
+        Res[FixedInds] .= XPsub .+ abs(z[end]) .* ParameterDirection
         Res
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
@@ -231,10 +238,12 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(NegScore(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian(DM), ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     # Objective same for all, could define upstream and reuse?
-    # Maximize the strictly positive radius in its unconstrained log parameterization.
-    ObjectiveFunction(z::AbstractVector) = factor * exp(z[end])
-    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * exp(z[end]))
-    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = factor * exp(z[end]))
+    # ObjectiveFunction(z::AbstractVector) = factor * exp(z[end])
+    # ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * exp(z[end]))
+    # ObjectiveHessian!(H, z::AbstractVector) = (H .= 0;  H[end, end] = factor * exp(z[end]))
+    ObjectiveFunction(z::AbstractVector) = factor * abs(z[end])
+    ObjectiveGradient!(J, z::AbstractVector) = (J .= 0;  J[end] = factor * Sgn(z[end]))
+    ObjectiveHessian!(H, z::AbstractVector) = (H .= 0)
     if Multistart > 0
         FixedMeth = meth
         MinimizeFunc = (ObjectiveFunction, startz; meth=nothing, timeout=nothing, Kwargs...)->SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, startz, FixedMeth; ADmode, levels, sense=1, Full=true, 
@@ -243,7 +252,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         @assert length(Dom) == length(FullInitial)
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
         for i in eachindex(Points)
-            Points[i] = vcat(view(Points[i], NuisanceInds), 0.0)
+            Points[i] = vcat(view(Points[i], NuisanceInds), 1.0)
         end
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
@@ -259,16 +268,18 @@ end
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)),
                     constraint::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
-                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, kwargs...)
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, NuisanceBasis::Union{Nothing,AbstractMatrix}=nothing, kwargs...)
     n = length(FullInitial);    subdim = size(Directions, 2)
     @assert size(Directions, 1) == n && 0 < subdim ≤ n
     @assert rank(Directions) == subdim "Columns of Directions must be linearly independent."
     @assert length(XP) == n
     ParameterDirection = Directions * (Directions \ (FullInitial - XP))
     @assert !iszero(norm(ParameterDirection)) "FullInitial - XP must have a nonzero component in span(Directions)."
-    Q = Matrix(qr(Directions).Q[:, 1:n])
-    NuisanceBasis = Q[:, subdim+1:end]
-    NuisanceCoordinates = NuisanceBasis' * (FullInitial - XP)
+    if isnothing(NuisanceBasis)
+        Q = Matrix(qr(Directions).Q[:, 1:n])
+        NuisanceBasis = Q[:, subdim+1:end]
+    end
+    NuisanceCoordinates = NuisanceBasis \ ((FullInitial - XP) - ParameterDirection)
     startz = vcat(NuisanceCoordinates, 0.0)
     function ReconstructModelParams(z::AbstractVector)
         XP + ParameterDirection .* exp(z[end]) + NuisanceBasis * (@view z[1:end-1])
@@ -288,7 +299,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
         @assert length(Dom) == n
         Points = GenerateSobolPoints(Dom; maxval, N=Multistart)
         for i in eachindex(Points)
-            Points[i] = vcat(NuisanceBasis' * (Points[i] - XP), 0.0)
+            Points[i] = vcat(NuisanceBasis \ ((Points[i] - XP) - Directions * (Directions \ (Points[i] - XP))), 0.0)
         end
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc=MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res)[1:end-1])
@@ -336,9 +347,12 @@ end
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6, 
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9, 
                     ## Unit sphere generates starting values for FixedInds subspace, ScalePoints also of dim FixedInds
-                    L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
+                    # L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
+                    L::AbstractMatrix=Eye(length(XP)), H::AbstractMatrix=CostHessian(DM)(MLE(DM)),
+                    Hschur::AbstractMatrix=SchurComplement(H, FixedInds, setdiff(1:length(XP), FixedInds)),
+                    ScaleMatrix::AbstractMatrix=(E=eigen(Symmetric(Hschur)); E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'),
                     ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=nothing, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
@@ -353,8 +367,18 @@ end
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, XP::AbstractVector=MLE(DM); N::Int=50,
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2; N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.6,
-                    ScaleMatrix::AbstractMatrix=Eye(size(Directions, 2)), ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), kwargs...)
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9,
+                    H::AbstractMatrix=CostHessian(DM)(XP), SeedNuisanceBasis::Union{Nothing,AbstractMatrix}=nothing,
+                    ScaleMatrix::AbstractMatrix=let
+                        k = size(Directions, 2)
+                        Q = isnothing(SeedNuisanceBasis) ? Matrix(qr(Directions).Q[:, 1:length(XP)])[:, k+1:end] : SeedNuisanceBasis
+                        B = hcat(Directions, Q)
+                        HB = B' * H * B
+                        Hprofile = k == length(XP) ? HB : SchurComplement(HB, collect(1:k), collect(k+1:length(XP)))
+                        E = eigen(Symmetric(Hprofile))
+                        E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'
+                    end,
+                    ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), meth=nothing, kwargs...)
     @assert size(Directions, 1) == length(XP) && size(Directions, 2) > 0
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
@@ -366,6 +390,8 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
     IterativeBisectInds(Res; ProcessPoints=SeedDirections, SubSetter=x->ProjectionCoordinates*x, parallel, maxiters, factor, XP)
 end
 
+## N corresponds to nuisance inds, F is indices of interest
+SchurComplement(H::AbstractMatrix, F::AbstractVector{<:Int}, N::AbstractVector{<:Int}) = @views H[F, F] - H[F, N] * (H[N, N] \ H[N, F])
 
 
 """
@@ -404,7 +430,7 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
     Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
     dm = ModelEmbedding(DM, Emb, invEmb; Jac!);     WhitenedDirections = M \ Eye(Base.size(M,1))
-    ProcessInds = (inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), InformationGeometry.MLE(dm); Kwargs..., parallel=false))
+    ProcessInds = (inds; Kwargs...)->(NuisanceInds = setdiff(1:Base.size(M,1), inds);  NB = Matrix(qr((M \ Eye(Base.size(M,1)))[:, NuisanceInds]).Q);  collect(GenerateProjectiveBoundaryPoints(dm, view(WhitenedDirections, :, inds), InformationGeometry.MLE(dm); NuisanceBasis=NB, SeedNuisanceBasis=NB, Kwargs..., parallel=false)))
     UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; ProcessInds, plot=false, IndMat, comparison, kwargs...)
     Sols = [map(Emb, sol) for sol in UntransformedSols]
 
