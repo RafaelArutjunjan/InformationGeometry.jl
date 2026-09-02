@@ -44,3 +44,31 @@ Res = Vector{Float64}[]
 
 @test PartialMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3.] .*x), ComponentVector(x=[3,2,1.]), [1,3]; meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false) isa AbstractVector
 
+
+
+## Test constrained optimisation for method errors
+
+using NonlinearSolve
+DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), PolynomialModel(2))
+
+Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=TrustRegion(), Confnum=1, Refine=false)
+Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=60, meth=TrustRegion(), Confnum=1, Refine=false)
+
+Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=IPNewton(), Confnum=1, Refine=false)
+Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=IPNewton(), Confnum=1, Refine=false)
+
+@test all(x->all(isfinite, x), Sols[1])
+@test all(x->all(isfinite, x), Sols2[1])
+@test all(x->all(isfinite, x), Sols3[1])
+@test all(x->all(isfinite, x), Sols4[1])
+
+Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+
+Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+
+@test all(x->all(isfinite, x), Sols[1])
+@test all(x->all(isfinite, x), Sols2[1])
+@test all(x->all(isfinite, x), Sols3[1])
+@test all(x->all(isfinite, x), Sols4[1])
