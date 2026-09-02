@@ -416,14 +416,13 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
                 Confnum::Real=2, dof::Int=DOF(DM), reducefactor::Real=0.9, kwargs...)
     Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
     dm = ModelEmbedding(DM, Emb, invEmb; Jac!, MLE);     WhitenedDirections = M \ Eye(Base.size(M,1))
-    EmbeddedMLE = invEmb(MLE)
+    EmbeddedMLE = invEmb(MLE);    H = CostHessian(dm)(EmbeddedMLE)
     ProcessInds = (inds; Kwargs...)->begin
         NuisanceInds = setdiff(1:Base.size(M,1), inds)
         Directions = WhitenedDirections[:, inds]
         NuisanceBasis = WhitenedDirections[:, NuisanceInds]
         # The directional solver profiles in the supplied basis, so use the
         # embedded Hessian and the matching Schur complement for its seeds.
-        H = CostHessian(dm)(EmbeddedMLE)
         B = hcat(Directions, NuisanceBasis)
         HB = B' * H * B
         Hprofile = SchurComplement(HB, collect(1:length(inds)), collect(length(inds)+1:Base.size(HB, 1)))
@@ -431,7 +430,7 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
         ScaleMatrix = E.vectors * LinearAlgebra.Diagonal(inv.(sqrt.(E.values))) * E.vectors'
         ScalePoints = Pt->EmbeddedMLE + Directions * (reducefactor * sqrt(icdfThreshold(dof, Confnum)) * ScaleMatrix * Pt)
         collect(GenerateProjectiveBoundaryPoints(dm, Directions, EmbeddedMLE;
-            NuisanceBasis, SeedNuisanceBasis=NuisanceBasis, ScaleMatrix, ScalePoints, Confnum, Kwargs..., parallel=false))
+            NuisanceBasis, SeedNuisanceBasis=NuisanceBasis, H, ScaleMatrix, ScalePoints, Confnum, Kwargs..., parallel=false))
     end
     UntransformedSols, finalidxs = GenericLowerTriangular(dm, paridxs; ProcessInds, plot=false, IndMat, comparison, Confnum, dof, reducefactor, kwargs...)
     Sols = [map(Emb, sol) for sol in UntransformedSols]

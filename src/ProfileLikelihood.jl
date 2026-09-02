@@ -53,7 +53,7 @@ end
 
 @inline function _insert_vals!(dest::AbstractVector{<:Number}, src::AbstractVector{<:Number}, comps::AbstractVector{<:Int}, vals::AbstractVector{<:Number})
     n = length(src);    m = length(comps)
-    @boundscheck @assert length(dest) == n + m
+    @boundscheck @assert length(dest) == n + m "length(dest) = $(length(dest)), length(src) = $n, length(vals) = $m. Need dest = src + vals"
     @inbounds begin
         i = 1;   j = 1
         for k in eachindex(dest)
@@ -353,6 +353,10 @@ GetMinimum(Res::SciMLBase.OptimizationSolution, L::Function) = Res.objective
 HasConverged(Res::SciMLBase.OptimizationSolution; kwargs...) = HasConverged(Res.retcode; kwargs...)
 HasConverged(Ret::SciMLBase.ReturnCode.T; kwargs...) = Ret === ReturnCode.Success
 GetIterations(Res::SciMLBase.OptimizationSolution) = Res.stats.iterations
+
+## For NonlinearSolve
+GetMinimizer(Res::SciMLBase.AbstractNonlinearSolution) = Res.u
+GetMinimum(Res::SciMLBase.AbstractNonlinearSolution, L::Function) = L(Res.u)
 
 # For Multistart fit
 GetMinimizer(X::AbstractVector{<:Number}) = X
