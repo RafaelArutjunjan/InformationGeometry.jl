@@ -95,8 +95,10 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
                             sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                             ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
                             ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
-                            TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, kwargs...) where T<:Number
+                            TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
+                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
+    @assert length(lower) == n == length(upper)
     ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
     gobj = DiffCache(copy(θguess); levels);    gcon = DiffCache(copy(θguess); levels)
     Hobj = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels);    Hcon = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels)
@@ -138,7 +140,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     prob = NonlinearProblem(nlf, x0, nothing)
     sol = solve(prob, meth; abstol=tol, reltol=tol, maxiters, kwargs...)
     Full && return sol
-    θ0 = sol.u[1:n];    λ0 = sol.u[end];    θ0, λ0
+    θ0 = sol.u[1:n];    λ0 = sol.u[end];    (θ0, λ0)
 end
 
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::Optim.AbstractConstrainedOptimizer;
@@ -146,7 +148,9 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
                             ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
                             ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
                             TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, 
-                            radiuslower::Real=1e-7, radiusupper::Real=1e4, kwargs...) where T<:Number
+                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), kwargs...) where T<:Number
+    @assert abs(sense) == 1
+    @assert length(lower) == length(θguess) == length(upper)
     gcon = similar(θguess)
     startz = if TransformGuess
         gobj = similar(θguess);      Hcon = similar(θguess, length(θguess), length(θguess))
@@ -154,25 +158,15 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     else
         copy(θguess)
     end
-    df = Optim.TwiceDifferentiable(ObjectiveFunction, ObjectiveGradient!, ObjectiveHessian!, startz)
+    df = Optim.TwiceDifferentiable(objective_fixedt0, ObjectiveGradient!, ObjectiveHessian!, startz)
     
-    con_c!(c, z) = (c[1] = ZerodConstraintFunction(z))
+    con_c!(c, z) = (c[1] = ZerodConstraint(z))
     con_jacobian!(J, z) = (ConstraintGradient!(gcon, z);   J[1, :] .= gcon;     nothing)
     con_hessian!(H, z, λ) = (ConstraintHessian!(H, z);     H .*= λ[1];     nothing)
-    
-    if isnothing(Domain)
-        lower = fill(-Inf, length(startz))
-        upper = fill(Inf, length(startz))
-    else
-        @assert length(Domain) == length(FullInitial)
-        lower = collect(Domain.L[NuisanceInds]) .- XP[NuisanceInds]
-        upper = collect(Domain.U[NuisanceInds]) .- XP[NuisanceInds]
-    end
-    push!(lower, radiuslower);    push!(upper, radiusupper)
 
-    dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [0.0], [0.0])
-    result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; maxiters, g_tol=tol, g_abstol=tol, kwargs...))
-    Full ? result : (GetMinimizer(result), T[])
+    dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [zero(T)], [zero(T)])
+    result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; iterations=maxiters, g_tol=tol, g_abstol=tol, kwargs...))
+    Full ? result : (GetMinimizer(result), -Inf)
 end
 
 
@@ -389,13 +383,13 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::Abst
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9, 
                     ## Unit sphere generates starting values for FixedInds subspace, ScalePoints also of dim FixedInds
                     # L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
-                    L::AbstractMatrix=Eye(length(XP)), H::AbstractMatrix=CostHessian(DM)(MLE(DM)),
+                    L::AbstractMatrix=Eye(length(XP)), CostHessian::Function=CostHessian(DM), H::AbstractMatrix=CostHessian(XP), 
                     Hschur::AbstractMatrix=SchurComplement(H, FixedInds, setdiff(1:length(XP), FixedInds)),
                     ScaleMatrix::AbstractMatrix=(E=eigen(Symmetric(Hschur)); E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'),
                     ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=Optim.IPNewton(), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP=XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
+    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP=XP, Confnum, dof, IC, TransformGuess, CostHessian, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(SeedFixedInds∘ScalePoints, Points)
     !Refine && return Res
     IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
@@ -407,7 +401,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2; N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
                     Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9,
-                    H::AbstractMatrix=CostHessian(DM)(XP), SeedNuisanceBasis::Union{Nothing,AbstractMatrix}=nothing,
+                    CostHessian::Function=CostHessian(DM), H::AbstractMatrix=CostHessian(XP), SeedNuisanceBasis::Union{Nothing,AbstractMatrix}=nothing,
                     ScaleMatrix::AbstractMatrix=let
                         k = size(Directions, 2)
                         Q = isnothing(SeedNuisanceBasis) ? Matrix(qr(Directions).Q[:, 1:length(XP)])[:, k+1:end] : SeedNuisanceBasis
@@ -422,7 +416,7 @@ function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::Abs
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
     subdim = size(Directions, 2);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt, meth; XP, Confnum, dof, IC, TransformGuess, kwargs..., Kwargs...)
+    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt, meth; XP, Confnum, dof, IC, TransformGuess, CostHessian, kwargs..., Kwargs...)
     Res = (parallel ? pmap : map)(SeedDirections∘ScalePoints, Points)
     !Refine && return Res
     ProjectionCoordinates = (Directions' * Directions) \ Directions'
@@ -436,7 +430,7 @@ SchurComplement(H::AbstractMatrix, F::AbstractVector{<:Int}, N::AbstractVector{<
 """
 GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
             ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
-            parallel::Bool=true, parallelinner::Bool=false, plot::Bool=isloaded(:Plots), kwargs...)
+            parallel::Bool=true, parallelinner::Bool=!parallel, plot::Bool=isloaded(:Plots), kwargs...)
 Plots projections of confidence region onto planes spanned by all pairs of parameters in `paridxs` to show non-linearity of parameter interdependence.
 
 `parallel=true` parallelizes over parameter pairs and is the recommended default. 
@@ -445,8 +439,8 @@ Set `parallelinner=true` only when outer parallelism is disabled since enabling 
 function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
                 ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
-                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=false,
-                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
+                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=!parallel,
+                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:StringOrSymb}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
     @assert length(MLE) ≥ 2
@@ -464,7 +458,7 @@ end
 function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
                 ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), 
-                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM),
+                plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:StringOrSymb}=pnames(DM),
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), Diagonal::Bool=false, kwargs...)
     Emb, invEmb, Jac!, M = DecorrelationTransformsWithJac(DM, MLE; Diagonal)
