@@ -48,7 +48,7 @@ Res = Vector{Float64}[]
 
 ## Test constrained optimisation for method errors
 
-using NonlinearSolve
+using NonlinearSolveFirstOrder
 DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), PolynomialModel(2))
 
 Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=TrustRegion(), Confnum=1, Refine=false)
