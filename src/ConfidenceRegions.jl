@@ -1217,19 +1217,21 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
     end;    esols, finalidxs
 end
 
-function PlotLowerTriangular(Sols::AbstractVector, IndVec::AbstractVector{<:AbstractVector{<:Int}}; n::Int=Int((1 + sqrt(1+8length(Sols)))/2), comparison::Function=Base.isless, kwargs...)
-    @assert length(Sols) == length(IndVec)
-    @assert length(Sols) == n * (n - 1) ÷ 2
+function MakeIndMatFromLowerTriangular(IndVec::AbstractVector{<:AbstractVector{<:Int}}, n::Int=Int((1 + sqrt(1+8length(IndVec)))/2); comparison::Function=Base.isless)
+    @assert length(IndVec) == n * (n - 1) ÷ 2
     IndMat = fill([-1,-1], n, n);    k = 0
     for i in 2:n, j in 1:(n-1)
         if comparison(j,i)
             k += 1;     IndMat[i,j] = IndVec[k]
         end
-    end
-    println(IndMat)
-    PlotLowerTriangular(Sols, IndMat; comparison, kwargs...)
+    end;    IndMat
 end
 
+function PlotLowerTriangular(Sols::AbstractVector, IndVec::AbstractVector{<:AbstractVector{<:Int}}; n::Int=Int((1 + sqrt(1+8length(Sols)))/2), comparison::Function=Base.isless, kwargs...)
+    @assert length(Sols) == length(IndVec)
+    IndMat = MakeIndMatFromLowerTriangular(IndVec; comparison)
+    PlotLowerTriangular(Sols, IndMat; comparison, kwargs...)
+end
 function PlotLowerTriangular(Sols::AbstractVector, IndMat::AbstractMatrix{<:AbstractVector{<:Int}}; pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(Base.size(IndMat,1)), 
                         Domains::Union{Nothing,<:AbstractVector{<:HyperCube}}=nothing, comparison::Function=Base.isless, size=PlotSizer(length(IndMat)), PlotMethod::Function=RecipesBase.plot!, 
                         PrePlot::Function=inds->RecipesBase.plot(), ProcessSol::Function=(sol, inds)->sol, label="", kwargs...)
