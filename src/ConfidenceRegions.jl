@@ -1198,7 +1198,7 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
                 tol::Real=1e-5, plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:AbstractString}=pnames(DM), SkipTests::Bool=false, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
-    @assert pdim(DM) > 2 && Confnum > 0
+    @assert pdim(DM) ≥ 2 && Confnum > 0
     @assert allunique(IndMat) && ConsistentElDims(@view IndMat[:]) == 2 && all(1 .≤ getindex.(IndMat,1) .≤ pdim(DM)) && all(1 .≤ getindex.(IndMat,2) .≤ pdim(DM))
 
     !SkipTests && !IsStructurallyIdentifiable(DM) && @warn "Model does not appear to be structurally identifiable. Continuing anyway."
@@ -1217,11 +1217,25 @@ function ContourDiagramLowerTriangular(DM::AbstractDataModel, Confnum::Real=2, p
     end;    esols, finalidxs
 end
 
+function PlotLowerTriangular(Sols::AbstractVector, IndVec::AbstractVector{<:AbstractVector{<:Int}}; n::Int=Int((1 + sqrt(1+8length(Sols)))/2), comparison::Function=Base.isless, kwargs...)
+    @assert length(Sols) == length(IndVec)
+    @assert length(Sols) == n * (n - 1) ÷ 2
+    IndMat = fill([-1,-1], n, n);    k = 0
+    for i in 2:n, j in 1:(n-1)
+        if comparison(j,i)
+            k += 1;     IndMat[i,j] = IndVec[k]
+        end
+    end
+    println(IndMat)
+    PlotLowerTriangular(Sols, IndMat; comparison, kwargs...)
+end
+
 function PlotLowerTriangular(Sols::AbstractVector, IndMat::AbstractMatrix{<:AbstractVector{<:Int}}; pnames::AbstractVector{<:AbstractString}=CreateSymbolNames(Base.size(IndMat,1)), 
                         Domains::Union{Nothing,<:AbstractVector{<:HyperCube}}=nothing, comparison::Function=Base.isless, size=PlotSizer(length(IndMat)), PlotMethod::Function=RecipesBase.plot!, 
                         PrePlot::Function=inds->RecipesBase.plot(), ProcessSol::Function=(sol, inds)->sol, label="", kwargs...)
-    @assert Base.size(IndMat,1) == Base.size(IndMat,2)
-    k = 0;  Plts = [];  n = Base.size(IndMat,1)
+    @assert Base.size(IndMat,1) == Base.size(IndMat,2);    n = Base.size(IndMat,1)
+    @assert length(Sols) == n * (n - 1) ÷ 2
+    k = 0;  Plts = []
     for i in 2:n, j in 1:(n-1)
         inds = IndMat[i,j]
         if comparison(j,i)
