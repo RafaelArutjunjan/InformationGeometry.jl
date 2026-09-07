@@ -78,7 +78,8 @@ function MultistartFit(DM::AbstractDataModel, InitialPointGen::Union{AbstractVec
     MultistartFit(CostFunction, InitialPointGen; LogPriorFn, pnames, meth, DM, TypeConversion, kwargs...)
 end
 function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVector{<:AbstractVector{<:Number}}, Distributions.MultivariateDistribution, Base.Generator, SOBOL.AbstractSobolSeq}; showprogress::Bool=true, N::Int=100, maxval::Real=1e3, plot::Bool=false, 
-                                        DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], TransformSample::Function=identity,
+                                        DM::Union{Nothing,AbstractDataModel}=nothing, LogPriorFn::Union{Nothing,Function}=nothing, CostFunction::Function=costfunction, resampling::Bool=!(InitialPointGen isa AbstractVector), pnames::AbstractVector{<:StringOrSymb}=Symbol[], 
+                                        TransformSample::Function=identity, LogLikelihoodFn::Function=Negate(CostFunction), # Used to rank outcomes in MultistartResults
                                         Robust::Bool=false, MinimizeFunc::Function=!Robust ? InformationGeometry.minimize : (@assert !isnothing(DM) "Cannot generate RobustFit if DM==nothing.";  InformationGeometry.RobustFit), TypeConversion::Function=identity,
                                         MultistartDomain::Union{HyperCube,Nothing}=nothing, parallel::Bool=true, TryCatchOptimizer::Bool=true, TryCatchCostFunction::Bool=false, TryCatchCostFunc::Bool=TryCatchCostFunction, timeout::Real=120, verbose::Bool=TryCatchOptimizer || TryCatchCostFunc, 
                                         meth=((isnothing(LogPriorFn) && DM isa DataModel && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : DefaultFirstOrderOptimizer), Full::Bool=true, SaveFullOptimizationResults::Bool=Full, seed::Union{Int,Nothing}=nothing, kwargs...)
@@ -94,7 +95,7 @@ function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVe
     
     TryCatchWrapper(F::Function, Default=-Inf; verbose::Bool=verbose) = x -> try F(x) catch E; verbose && println("Failed with $E");  Default   end
     # Double negation... Use LogLikelihoodFn instead? Make this consistent with GetProfile()
-    LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(Negate(CostFunction))
+    LogLikeFunc = (TryCatchCostFunc ? TryCatchWrapper : identity)(LogLikelihoodFn)
 
     TakeFromUnclamped(X::Distributions.Distribution) = rand(X)
     TakeFromUnclamped(X::Base.Generator) = iterate(X)[1]

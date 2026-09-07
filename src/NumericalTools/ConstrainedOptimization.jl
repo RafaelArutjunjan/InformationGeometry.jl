@@ -100,8 +100,8 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     @assert abs(sense) == 1;    n = length(θguess)
     @assert length(lower) == n == length(upper)
     ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
-    gobj = DiffCache(copy(θguess); levels);    gcon = DiffCache(copy(θguess); levels)
-    Hobj = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels);    Hcon = DiffCache(rand(eltype(θguess), length(θguess), length(θguess)); levels)
+    gobj = DiffCache(similar(θguess); levels);    gcon = DiffCache(similar(θguess); levels)
+    Hobj = DiffCache(similar(θguess, length(θguess), length(θguess)); levels);    Hcon = DiffCache(similar(θguess, length(θguess), length(θguess)); levels)
     θseed, λseed = if TransformGuess
         _ConstrainedOptimisationInitialGuess(ZerodConstraint, θguess, gobj, gcon, Hcon; sense, reg, ADmode, ObjectiveGradient!, ConstraintGradient!, ConstraintHessian!, ProjectFirst, ProjectIters, ProjectTol, InteriorTol)
     else
@@ -174,7 +174,7 @@ end
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)), 
                     CostFunction::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                     ## Old (unmodified) CostHessian and NegScore pre embedding:
-                    CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM),
+                    CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM), ConstraintTrafo::Function=identity,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter,
                     TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
@@ -193,7 +193,8 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         Res
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
-    ZerodConstraint(z::AbstractVector) = CostFunction(ReconstructModelParams(z)) - C
+    ZerodConstraintUntransformed(z::AbstractVector) = CostFunction(ReconstructModelParams(z))-C
+    ZerodConstraint = ConstraintTrafo === identity ? ZerodConstraintUntransformed : ConstraintTrafo∘ZerodConstraintUntransformed
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraint) : EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraint) : EmbedFisher(CostHessian, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     MaximizationObjective(z::AbstractVector) = factor * abs(z[end])
@@ -222,7 +223,9 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
             Points[i] = vcat(view(Points[i], NuisanceInds) .- view(XP, NuisanceInds), 1.0)
         end
         MinimizeFunc = (_, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
+        SortingObjective(z) = MaximizationObjective(z) -abs(ZerodConstraint(z))
+        # Expects cost function
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
     else
         Res = SolveOne(startz)
@@ -236,7 +239,7 @@ end
 function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, FullInitial::AbstractVector{<:Number}, meth=nothing; factor::Real=1, XP::AbstractVector=zeros(length(FullInitial)),
                     CostFunction::Function=Negloglikelihood(DM), Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), loglikeMLE::Real=LogLikeMLE(DM), C::Real=-(loglikeMLE-0.5*IC), ADmode::Val=Val(:ForwardDiff), levels::Int=1,
                     ## Old (unmodified) CostHessian and NegScore pre embedding:
-                    CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM),
+                    CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM), ConstraintTrafo::Function=identity,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
                     Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1,
                     NuisanceBasis::Union{Nothing,AbstractMatrix}=nothing, TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4,
@@ -262,9 +265,10 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
         XP .+ ParameterDirection .* abs(z[end]) .+ NuisanceBasis * (@view z[1:end-1])
     end
     Jac! = GetJac!(ADmode, ReconstructModelParams)
-    ZerodConstraintFunction(z::AbstractVector) = CostFunction(ReconstructModelParams(z))-C
-    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraintFunction) : EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
-    ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraintFunction) : EmbedFisher(CostHessian, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ZerodConstraintUntransformed(z::AbstractVector) = CostFunction(ReconstructModelParams(z))-C
+    ZerodConstraint = ConstraintTrafo === identity ? ZerodConstraintUntransformed : ConstraintTrafo∘ZerodConstraintUntransformed
+    ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraint) : EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraint) : EmbedFisher(CostHessian, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     MaximizationObjective(z::AbstractVector) = factor * abs(z[end])
     MaximizationGradient!(g, z::AbstractVector) = (g .= 0; g[end] = factor * Sgn(z[end]))
     MaximizationHessian!(H, z::AbstractVector) = (H .= 0)
@@ -274,7 +278,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
     ObjectiveHessian! = isoptim ? (H, z) -> (MaximizationHessian!(H, z); H .*= -1) : MaximizationHessian!
     lower = fill(-Inf, length(startz));     upper = fill(Inf, length(startz))
     lower[end] = radiuslower; upper[end] = radiusupper
-    SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraintFunction, z, meth;
+    SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraint, z, meth;
         ADmode, levels, sense=1, Full=true, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
         lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
     if Multistart > 0
@@ -286,7 +290,9 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
             Points[i] = vcat(view(Coordinates, subdim+1:n), 1.0)
         end
         MinimizeFunc = (_, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, kwargs...)
+        SortingObjective(z) = MaximizationObjective(z) -abs(ZerodConstraint(z))
+        # Expects cost function
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
     else
         Res = SolveOne(startz)
@@ -389,7 +395,8 @@ Plots projections of confidence region onto planes spanned by all pairs of param
 Set `parallelinner=true` only when outer parallelism is disabled since enabling both creates significant scheduling overhead.
 """
 function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=1:pdim(DM); MLE::AbstractVector=MLE(DM), 
-                ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; Kwargs...)),
+                CostHessian::Function=CostHessian(DM), H::AbstractMatrix=(Hnew=similar(MLE, length(MLE), length(MLE));  CostHessian(Hnew,MLE);  Hnew), FixedCostHessian::Bool=false,
+                ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; CostHessian=(FixedCostHessian ? ((Hnew,p)->Hnew .= H) : CostHessian), H, Kwargs...)),
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
                 ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=!parallel,
                 plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:StringOrSymb}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
