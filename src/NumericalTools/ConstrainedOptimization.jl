@@ -338,19 +338,19 @@ end
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, FixedInds::AbstractVector{<:Int}, XP::AbstractVector=MLE(DM); N::Int=50, 
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2;  N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9, 
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9, meth=Optim.IPNewton(),
                     ## Unit sphere generates starting values for FixedInds subspace, ScalePoints also of dim FixedInds
-                    # L::AbstractMatrix=Eye(length(XP)), ScaleMatrix::AbstractMatrix=(@view L[FixedInds,FixedInds]), 
                     L::AbstractMatrix=Eye(length(XP)), CostHessian::Function=CostHessian(DM), H::AbstractMatrix=CostHessian(XP), 
                     Hschur::AbstractMatrix=SchurComplement(H, FixedInds, setdiff(1:length(XP), FixedInds)),
                     ScaleMatrix::AbstractMatrix=(E=eigen(Symmetric(Hschur)); E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'),
-                    ScalePoints::Function=Pt->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), meth=Optim.IPNewton(), kwargs...)
+                    ScalePoints::Function=Pt::AbstractVector->(@view XP[FixedInds]) .+ reducefactor .* sqrtIC .* (ScaleMatrix*Pt), 
+                    SeedFixedInds::Function=(Pt::AbstractVector; Kwargs...)->SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP, Confnum, dof, IC, TransformGuess, CostHessian, Kwargs...), kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(XP)) && allunique(FixedInds)
     subdim = length(FixedInds);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedFixedInds(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, FixedInds, (Z=copy(XP);   Z[FixedInds] .= Pt;   Z), meth; XP=XP, Confnum, dof, IC, TransformGuess, CostHessian, kwargs..., Kwargs...)
-    Res = (parallel ? pmap : map)(SeedFixedInds∘ScalePoints, Points)
+    SeedFixedIndsInt = (Pt::AbstractVector; Kwargs...)->SeedFixedInds(Pt; Kwargs..., kwargs...)
+    Res = (parallel ? pmap : map)(SeedFixedIndsInt∘ScalePoints, Points)
     !Refine && return Res
-    IterativeBisectInds(Res; ProcessPoints=SeedFixedInds∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
+    IterativeBisectInds(Res; ProcessPoints=SeedFixedIndsInt∘ViewElements(FixedInds), SubSetter=ViewElements(FixedInds), parallel, maxiters, factor, XP)
 end
 
 
@@ -358,27 +358,25 @@ end
 function GenerateProjectiveBoundaryPoints(DM::AbstractDataModel, Directions::AbstractMatrix{<:Number}, XP::AbstractVector=MLE(DM); N::Int=50,
                     parallel::Bool=false, Refine::Bool=true, maxiters::Int=3, factor::Real=1.5, TransformGuess::Bool=false,
                     UnitSpherePointGenerator::Function=subdim->(@assert subdim == 2; N::Int->[[cos(α), sin(α)] for α in range(0, 2π; length=N+1)[1:end-1]]),
-                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9,
+                    Confnum::Real=2, dof::Real=DOF(DM), IC::Real=icdfThreshold(dof, Confnum), sqrtIC::Real=sqrt(IC), reducefactor::Real=0.9, meth=Optim.IPNewton(),
                     CostHessian::Function=CostHessian(DM), H::AbstractMatrix=CostHessian(XP), SeedNuisanceBasis::Union{Nothing,AbstractMatrix}=nothing,
                     ScaleMatrix::AbstractMatrix=let
-                        k = size(Directions, 2)
-                        Q = isnothing(SeedNuisanceBasis) ? Matrix(qr(Directions).Q[:, 1:length(XP)])[:, k+1:end] : SeedNuisanceBasis
-                        B = hcat(Directions, Q)
-                        HB = B' * H * B
-                        Hprofile = k == length(XP) ? HB : SchurComplement(HB, collect(1:k), collect(k+1:length(XP)))
-                        E = eigen(Symmetric(Hprofile))
-                        E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'
+                        k = size(Directions, 2);    Q = isnothing(SeedNuisanceBasis) ? Matrix(qr(Directions).Q[:, 1:length(XP)])[:, k+1:end] : SeedNuisanceBasis
+                        B = hcat(Directions, Q);    HB = B' * H * B
+                        Hprofile = k == length(XP) ? HB : SchurComplement(HB, 1:k, k+1:length(XP))
+                        E = eigen(Symmetric(Hprofile));     E.vectors * Diagonal(inv.(sqrt.(E.values))) * E.vectors'
                     end,
-                    ScalePoints::Function=Pt->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), meth=Optim.IPNewton(), kwargs...)
+                    ScalePoints::Function=Pt::AbstractVector->XP .+ reducefactor .* sqrtIC .* (Directions * (ScaleMatrix * Pt)), 
+                    SeedDirections::Function=(Pt::AbstractVector; Kwargs...)->SolvePointSphereOptimisationProblem(DM, Directions, Pt, meth; XP, Confnum, dof, IC, TransformGuess, CostHessian, Kwargs...), kwargs...)
     @assert size(Directions, 1) == length(XP) && size(Directions, 2) > 0
     @assert rank(Directions) == size(Directions, 2) "Columns of Directions must be linearly independent."
     @assert size(ScaleMatrix) == (size(Directions, 2), size(Directions, 2))
     subdim = size(Directions, 2);    Points = UnitSpherePointGenerator(subdim)(N)
-    SeedDirections(Pt::AbstractVector; Kwargs...) = SolvePointSphereOptimisationProblem(DM, Directions, Pt, meth; XP, Confnum, dof, IC, TransformGuess, CostHessian, kwargs..., Kwargs...)
-    Res = (parallel ? pmap : map)(SeedDirections∘ScalePoints, Points)
+    SeedDirectionsInt = (Pt::AbstractVector; Kwargs...)->SeedDirections(Pt; Kwargs..., kwargs...)
+    Res = (parallel ? pmap : map)(SeedDirectionsInt∘ScalePoints, Points)
     !Refine && return Res
     ProjectionCoordinates = (Directions' * Directions) \ Directions'
-    IterativeBisectInds(Res; ProcessPoints=SeedDirections, SubSetter=x->ProjectionCoordinates*x, parallel, maxiters, factor, XP)
+    IterativeBisectInds(Res; ProcessPoints=SeedDirectionsInt, SubSetter=x->ProjectionCoordinates*x, parallel, maxiters, factor, XP)
 end
 
 ## N corresponds to nuisance inds, F is indices of interest

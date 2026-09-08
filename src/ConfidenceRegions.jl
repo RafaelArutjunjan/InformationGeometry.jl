@@ -95,7 +95,7 @@ function FindConfBoundaryOld(Test::Function, mle::AbstractVector{<:Number}; tol:
     SmallFloat(Res, tol)
 end
 # Takes roughly 1/3 of the time of Boolean LineSearch
-function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=DOF(DM), Comp::Int=1, maxiter::Int=-1, factor::Real=10.0, verbose::Bool=true,
+function FindConfBoundaryOld2(DM::AbstractDataModel, Confnum::Real; tol::Real=4e-15, dof::Int=DOF(DM), Comp::Int=1, maxiters::Int=-1, maxiter::Int=maxiters, factor::Real=10.0, verbose::Bool=true,
                         meth::Roots.AbstractUnivariateZeroMethod=Roots.AlefeldPotraShi())
     CF = ConfVol(Confnum; verbose=verbose)
     muladd(AltLineSearch(_GetFloatTesterFunc(DM, MLE(DM), CF; dof=dof, Comp=Comp), _BracketingInterval(DM, CF; dof=dof, Comp=Comp, factor=factor), meth; tol), BasisVector(Comp, pdim(DM)), MLE(DM))
@@ -1059,15 +1059,16 @@ If such a point cannot be found (i.e. does not seem to exist), the method return
 function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, Confnum::Real=1.; tol::Real=1e-8, kwargs...)
     FindConfBoundaryOnPlane(DM, PL, MLEinPlane(DM, PL; tol=tol), Confnum; tol=tol, kwargs...)
 end
-function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=DOF(DM), tol::Real=1e-8, LogLikelihoodFn::Function=loglikelihood(DM), meth=Roots.AlefeldPotraShi(), maxval::Real=1e-6, maxiter::Int=10000)
+function FindConfBoundaryOnPlane(DM::AbstractDataModel, PL::Plane, mle::AbstractVector{<:Number}, Confnum::Real=1.; dof::Int=DOF(DM), LogLikelihoodFn::Function=loglikelihood(DM), 
+            meth=Roots.AlefeldPotraShi(), maxval::Real=1e-6, loglikeMLE::Real=LogLikeMLE(DM), kwargs...)
     CF = ConfVol(Confnum)
     # model = Predictor(DM);    PlanarLogPrior = EmbedLogPrior(DM, PL)
     # planarmod(x,p::AbstractVector{<:Number}) = model(x, PlaneCoordinates(PL,p))
     # Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - loglikelihood(Data(DM), planarmod, mle + SA[x,0.], PlanarLogPrior)))) - CF < 0.
     EmbeddedLikelihood = LogLikelihoodFn∘PlaneCoordinates(PL)
-    Test(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle .+ SA[x,0.])))) - CF < 0.
+    Test(x::Number) = ChisqCDF(dof, abs(2(loglikeMLE - EmbeddedLikelihood(mle .+ SA[x,0.])))) - CF < 0.
     !Test(0.) && return false
-    SA[LineSearch(Test, 0.; tol=tol, maxiter=maxiter), 0.] .+ mle
+    SA[LineSearch(Test, 0.; kwargs...), 0.] .+ mle
     # TestCont(x::Number) = ChisqCDF(dof, abs(2(LogLikeMLE(DM) - EmbeddedLikelihood(mle + SA[x,0.])))) - CF
     # TestCont(0.) ≥ 0 && return false
     # SA[AltLineSearch(TestCont, (0.0, maxval), meth; tol=tol), 0.] + mle

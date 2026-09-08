@@ -286,7 +286,7 @@ function KarcherMeanStep(Metric::Function, points::AbstractVector{<:AbstractVect
     dirs = map(x->LogarithmicMap(Metric, initialmean, x; kwargs...), points)
     ExponentialMap(Metric, initialmean, sum(dirs) / length(dirs))
 end
-function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); verbose::Bool=true, tol::Real=1e-8, meth::AbstractODEAlgorithm=GetMethod(tol), maxiter::Int=10, kwargs...)
+function KarcherMean(Metric::Function, points::AbstractVector{<:AbstractVector{<:Number}}, initialmean::AbstractVector{<:Number}=sum(points)/length(points); verbose::Bool=true, tol::Real=1e-8, meth::AbstractODEAlgorithm=GetMethod(tol), maxiters::Int=10, maxiter::Int=maxiters, kwargs...)
     @assert ConsistentElDims(points) == length(initialmean)
     oldmean = initialmean
     for iter in 1:maxiter

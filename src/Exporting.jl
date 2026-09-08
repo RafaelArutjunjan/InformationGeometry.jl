@@ -2,7 +2,7 @@
 
 
 SaveAdaptive(sol::AbstractODESolution, N::Int=500; kwargs...) = SaveAdaptive(sol, (sol.t[1],sol.t[end]); N=N, kwargs...)
-function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Real,Real}; N::Int=500, curvature::Real=0.003, Ntol::Real=0.08, maxiter::Int=30)
+function SaveAdaptive(sol::Union{Function,AbstractODESolution}, Tspan::Tuple{Real,Real}; N::Int=500, curvature::Real=0.003, Ntol::Real=0.08, maxiters::Int=30, maxiter::Int=maxiters)
     @assert Tspan[1] < Tspan[2]
     test = sol(Tspan[1])
     for _ in 1:maxiter
