@@ -565,7 +565,7 @@ OrthogonalComplement(M::AbstractMatrix) = (@assert size(M,1) ≥ size(M,2);   nu
 
 """
     PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,2)); 
-                        NullSpace::AbstractMatrix=nullspace(FixedDirMatrix'), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+                        NullSpace::AbstractMatrix=OrthogonalComplement(FixedDirMatrix), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
 Keeps subspace spanned by columns of `FixedDirMatrix` fixed during optimization.
 """
 function PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,1)-size(FixedDirMatrix,2)); 
@@ -626,4 +626,33 @@ end
 function AltLineSearch(Test::Function, start::BigFloat, meth::Roots.AbstractNonBracketingMethod=Roots.Order2(); tol::Real=convert(BigFloat,exp10(-precision(BigFloat)/10)), kwargs...)
     Res = Roots.find_zero(Test, Float64(start), meth; xatol=1e-12, xrtol=1e-12)
     Roots.find_zero(Test, BigFloat(Res), meth; xatol=tol, xrtol=tol, kwargs...)
+end
+
+
+
+function ThresholdLinesearch(CostFunction::Function, NuisanceDirMatrix, Thresh::Real, XP::AbstractVector{<:Number}, startx::Union{Real,Tuple}=1.0; kwargs...)
+    ThresholdLinesearch(x->CostFunction(x)-Thresh, NuisanceDirMatrix, XP, startx; kwargs...)
+end
+function ThresholdLinesearch(ZerodConstraint::Function, NuisanceDirMatrix::AbstractMatrix, XP::AbstractVector{<:Number}, startx::Union{Real,Tuple}=1.0, startc::AbstractVector{<:Number}=zeros(size(NuisanceDirMatrix, 2)); NullSpace::AbstractMatrix=OrthogonalComplement(NuisanceDirMatrix), NullSpaceVec::AbstractVector=vec(NullSpace), 
+                meth=Roots.Order2(), MinimizeFunc::Function=InformationGeometry.Minimize, tol::Real=1e-8, Optimtol::Real=tol, Domain=nothing, SubDomain=nothing, kwargs...)
+    @assert size(NuisanceDirMatrix, 1) == length(XP)
+    @assert size(NuisanceDirMatrix, 2) == length(XP) - 1
+    @assert size(NullSpace, 1) == length(XP) && size(NullSpace, 2) == 1
+    @assert length(startc) == size(NuisanceDirMatrix, 2)
+    NuisanceMin = copy(startc)
+    # Nuisance embedding: fix line-search coord at x, vary over NuisanceDirMatrix span
+    NuisanceEmbed(Nuisance::AbstractVector, x::Number) = XP .+ NullSpaceVec .* x .+ NuisanceDirMatrix * Nuisance
+    function TestNum(x::Number)
+        Embed(c::AbstractVector) = NuisanceEmbed(c, x) # Fixes current x
+        NuisanceMin .= GetMinimizer(MinimizeFunc(ZerodConstraint∘Embed, startc; Domain=SubDomain, tol=Optimtol, kwargs...))
+        ZerodConstraint(NuisanceEmbed(NuisanceMin, x))
+    end
+    xstar = InformationGeometry.AltLineSearch(TestNum, startx, meth; tol)
+    cstar = GetMinimizer(MinimizeFunc(ZerodConstraint ∘ (c -> NuisanceEmbed(c, xstar)), NuisanceMin; Domain=SubDomain, tol=Optimtol, kwargs...))
+    NuisanceEmbed(cstar, xstar)
+end
+function ThresholdLinesearch(ZerodConstraint::Function, DropInds::AbstractVector{<:Int}, XP::AbstractVector{<:Number}, startx::Union{Real,Tuple}, args...; kwargs...)
+    n = length(XP);    @assert allunique(DropInds) && all(1 .≤ DropInds .≤ n)
+    NuisanceDirMatrix = VectorOfArray([InformationGeometry.BasisVector(i,n) for i in DropInds])
+    ThresholdLinesearch(ZerodConstraint, NuisanceDirMatrix, XP, startx, args...; kwargs...)
 end
