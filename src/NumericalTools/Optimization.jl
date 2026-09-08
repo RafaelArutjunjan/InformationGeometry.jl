@@ -560,13 +560,16 @@ function PartialMinimization(F::Function, X::AbstractVector{<:Number}, OptimizeI
 end
 PartialMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args...; Domain::Union{Nothing,HyperCube}=GetDomain(DM), CostGradient::Function=NegScore(DM), kwargs...) = PartialMinimization(Negloglikelihood(DM), MLE, args...; Domain, CostGradient, kwargs...)
 
+
+OrthogonalComplement(M::AbstractMatrix) = (@assert size(M,1) ≥ size(M,2);   nullspace(M'))
+
 """
     PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,2)); 
                         NullSpace::AbstractMatrix=nullspace(FixedDirMatrix'), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
 Keeps subspace spanned by columns of `FixedDirMatrix` fixed during optimization.
 """
 function PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,1)-size(FixedDirMatrix,2)); 
-                        NullSpace::AbstractMatrix=nullspace(FixedDirMatrix'), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+                        NullSpace::AbstractMatrix=OrthogonalComplement(FixedDirMatrix), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
     @assert size(FixedDirMatrix, 1) == length(X) && size(FixedDirMatrix, 1) - size(FixedDirMatrix, 2) == length(startb)
     @assert size(NullSpace, 1) == length(X) && size(NullSpace, 2) == length(startb)
     Embed(b::AbstractVector{<:Number}) = X + NullSpace * b
@@ -605,6 +608,9 @@ function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiters:
     end
     throw("$maxiter iterations over. Value=$value, Stepsize=$stepsize")
 end
+
+# If tuple elements not of same type
+AltLineSearch(Test::Function, Domain::Tuple{S,T}, args...; kwargs...) where {S<:Number,T<:Number} = AltLineSearch(Test, promote_type(S,T).(Domain), args...; kwargs...)
 
 function AltLineSearch(Test::Function, Domain::Tuple{T,T}=(0., 1e4), meth::Roots.AbstractBracketingMethod=Roots.AlefeldPotraShi(); tol::Real=1e-12, kwargs...) where T<:Real
     Roots.find_zero(Test, Domain, meth; xatol=tol, xrtol=tol, kwargs...)
