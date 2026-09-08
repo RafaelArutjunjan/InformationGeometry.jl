@@ -7,7 +7,7 @@ Projects `θ` onto the level set `loglike(θ) = C` using damped gradient steps a
 """
 function ProjectToLevel!(θ::AbstractVector{<:Number}, loglike::Function, C::Number; ADmode::Val=Val(:ForwardDiff), Gradient!::Function=GetGrad!(ADmode, loglike), maxiters::Int=50, tol::Real=1e-10, reg::Real=1e-13)
     g = similar(θ)
-    for _ in 1:maxiters
+    for i in 1:maxiters
         r = loglike(θ) - C
         abs(r) <= tol && return θ, abs(r)
         Gradient!(g, θ)
@@ -79,7 +79,7 @@ function _ConstrainedOptimisationInitialGuess(ZerodConstraint::Function, θguess
         θseed = copy(θguess)
         λseed = -sense * dot(gcon, gobj) / (dot(gcon, gcon) + reg)
     end
-    ProjectFirst && (θseed, _ = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, Gradient! =ConstraintGradient!, maxiters=ProjectIters, tol=ProjectTol, reg))
+    ProjectFirst && (θseed = ProjectToLevel!(θseed, ZerodConstraint, 0; ADmode, Gradient! =ConstraintGradient!, maxiters=ProjectIters, tol=ProjectTol, reg)[1])
     θseed, λseed
 end
 
@@ -222,8 +222,8 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         for i in eachindex(Points)
             Points[i] = vcat(view(Points[i], NuisanceInds) .- view(XP, NuisanceInds), 1.0)
         end
-        MinimizeFunc = (_, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
-        SortingObjective(z) = MaximizationObjective(z) -abs(ZerodConstraint(z))
+        MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
+        SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
@@ -289,8 +289,8 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
             Coordinates = Basis \ (Points[i] - XP)
             Points[i] = vcat(view(Coordinates, subdim+1:n), 1.0)
         end
-        MinimizeFunc = (_, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
-        SortingObjective(z) = MaximizationObjective(z) -abs(ZerodConstraint(z))
+        MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
+        SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
@@ -326,7 +326,7 @@ function IterativeBisectInds(Ps::AbstractVector{<:AbstractVector}; maxiters::Int
             XP::AbstractVector{<:Number}=Float64[], SubSettedMeanPoint::Union{Nothing,AbstractVector{<:Number}}=(length(XP) > 0 ? SubSetter(XP) : nothing), kwargs...)
     SubSettedMeanPointTuple = (!isnothing(SubSettedMeanPoint) ? (;SubSettedMeanPoint=SubSettedMeanPoint) : (;))
     Pts = collect(ReorderPointsCCW(Ps; SubSetter, SubSettedMeanPointTuple...))
-    for _ in 1:maxiters
+    for i in 1:maxiters
         ExtraPts = BisectInds(Pts; SubSetter, kwargs...)
         length(ExtraPts) == 0 && break
         Pts = ReorderPointsCCW([Pts; (parallel ? pmap : map)(ProcessPoints,ExtraPts)]; SubSetter, SubSettedMeanPointTuple...)
@@ -396,7 +396,7 @@ function GenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<
                 CostHessian::Function=CostHessian(DM), H::AbstractMatrix=(Hnew=similar(MLE, length(MLE), length(MLE));  CostHessian(Hnew,MLE);  Hnew), FixedCostHessian::Bool=false,
                 ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; CostHessian=(FixedCostHessian ? ((Hnew,p)->Hnew .= H) : CostHessian), H, Kwargs...)),
                 PrePlot::Function=inds->RecipesBase.plot([MLE[inds]]; ms=3, marker=:hex, label="MLE$(inds)", seriestype=:scatter), 
-                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=true, parallelinner::Bool=!parallel,
+                ProcessSol::Function=(sol, inds)->map(ViewElements(inds), sol), parallel::Bool=length(paridxs)>2, parallelinner::Bool=!parallel,
                 plot::Bool=isloaded(:Plots), pnames::AbstractVector{<:StringOrSymb}=pnames(DM), PlotMethod::Function=RecipesBase.plot!, SkipTests::Bool=true, 
                 IndMat::AbstractMatrix{<:AbstractVector{<:Int}}=[[x,y] for y in paridxs, x in paridxs], PlotKwargs=(;),
                 comparison::Function=Base.isless, size=PlotSizer(prod(Base.size(IndMat))), kwargs...)
