@@ -560,13 +560,26 @@ function PartialMinimization(F::Function, X::AbstractVector{<:Number}, OptimizeI
 end
 PartialMinimization(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM), args...; Domain::Union{Nothing,HyperCube}=GetDomain(DM), CostGradient::Function=NegScore(DM), kwargs...) = PartialMinimization(Negloglikelihood(DM), MLE, args...; Domain, CostGradient, kwargs...)
 
+"""
+    PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,2)); 
+                        NullSpace::AbstractMatrix=nullspace(FixedDirMatrix'), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+Keeps subspace spanned by columns of `FixedDirMatrix` fixed during optimization.
+"""
+function PartialMinimization(F::Function, X::AbstractVector{<:Number}, FixedDirMatrix::AbstractMatrix{<:Number}, Dom::Union{Nothing,HyperCube}=nothing, startb::AbstractVector{<:Number}=zeros(size(FixedDirMatrix,1)-size(FixedDirMatrix,2)); 
+                        NullSpace::AbstractMatrix=nullspace(FixedDirMatrix'), Domain::Union{Nothing,HyperCube}=Dom, SubDomain::Union{Nothing,HyperCube}=nothing, MinimizeFunc::Function=InformationGeometry.Minimize, kwargs...)
+    @assert size(FixedDirMatrix, 1) == length(X) && size(FixedDirMatrix, 1) - size(FixedDirMatrix, 2) == length(startb)
+    @assert size(NullSpace, 1) == length(X) && size(NullSpace, 2) == length(startb)
+    Embed(b::AbstractVector{<:Number}) = X + NullSpace * b
+    GetMinimizer(MinimizeFunc(F∘Embed, startb; Domain=SubDomain, kwargs...)) |> Embed
+end
+
 
 
 """
-    LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, promote::Bool=(tol < 1e-15), maxiter::Int=10000) -> Number
+    LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, promote::Bool=(tol < 1e-15), maxiters::Int=10000) -> Number
 Finds real number `x` where the boolean-valued `Test(x::Number)` goes from `true` to `false`.
 """
-function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiter::Int=10000, promote::Bool=(tol < 1e-15), verbose::Bool=true)
+function LineSearch(Test::Function, start::Number=0.; tol::Real=8e-15, maxiters::Int=10000, maxiter::Int=maxiters, meth=nothing, promote::Bool=(tol < 1e-15), verbose::Bool=true)
     if promote
         verbose && (suff(start) != BigFloat) && @info "LineSearch: start not BigFloat but tol=$tol. Promoting and continuing."
         start = BigFloat(start)

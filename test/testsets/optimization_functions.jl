@@ -44,6 +44,8 @@ Res = Vector{Float64}[]
 
 @test PartialMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3.] .*x), ComponentVector(x=[3,2,1.]), [1,3]; meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false) isa AbstractVector
 
+@test PartialMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3.] .*x), ComponentVector(x=[3,2,1.]), [1,3]; meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false) ≈ 
+                PartialMinimization(x::ComponentVector->10sum(sqrt∘abs, [1,2,3.] .*x), ComponentVector(x=[3,2,1.]), [0 1 0]'; meth=Optim.GradientDescent(), tol=1e-6, maxiters=3, verbose=false)
 
 
 ## Test constrained optimisation for method errors
