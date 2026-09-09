@@ -96,9 +96,10 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
                             ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
                             ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
                             TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
-                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), kwargs...) where T<:Number
+                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
+                            Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
-    @assert length(lower) == n == length(upper)
+    @assert length(lower) == n == length(upper) == length(Domain)
     ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
     gobj = DiffCache(similar(θguess); levels);    gcon = DiffCache(similar(θguess); levels)
     Hobj = DiffCache(similar(θguess, length(θguess), length(θguess)); levels);    Hcon = DiffCache(similar(θguess, length(θguess), length(θguess)); levels)
@@ -148,9 +149,10 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
                             ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
                             ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
                             TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, 
-                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), kwargs...) where T<:Number
+                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
+                            Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
     @assert abs(sense) == 1
-    @assert length(lower) == length(θguess) == length(upper)
+    @assert length(lower) == length(θguess) == length(upper) == length(Domain)
     gcon = similar(θguess)
     startz = if TransformGuess
         gobj = similar(θguess);      Hcon = similar(θguess, length(θguess), length(θguess))
@@ -164,7 +166,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     con_jacobian!(J, z) = (ConstraintGradient!(gcon, z);   J[1, :] .= gcon;     nothing)
     con_hessian!(H, z, λ) = (ConstraintHessian!(H, z);     H .*= λ[1];     nothing)
 
-    dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, lower, upper, [zero(T)], [zero(T)])
+    dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, Domain.L, Domain.U, [zero(T)], [zero(T)])
     result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; iterations=maxiters, g_tol=tol, g_abstol=tol, kwargs...))
     Full ? result : (GetMinimizer(result), -Inf)
 end
