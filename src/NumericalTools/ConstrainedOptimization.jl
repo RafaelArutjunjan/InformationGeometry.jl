@@ -178,7 +178,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
                     ## Old (unmodified) CostHessian and NegScore pre embedding:
                     CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM), ConstraintTrafo::Function=identity,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false, 
-                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter,
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=nothing, TryCatchOptimizer::Bool=false, Full::Bool=false, maxval::Real=1, ValInserter::Function=InformationGeometry.ValInserter,
                     TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
                     radiuslower::Real=1e-7, radiusupper::Real=1e3, Domain::Union{Nothing,HyperCube}=nothing, kwargs...)
     @assert all(1 .≤ FixedInds .≤ length(FullInitial)) && allunique(FixedInds)
@@ -227,7 +227,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
     else
         Res = SolveOne(startz)
@@ -243,7 +243,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
                     ## Old (unmodified) CostHessian and NegScore pre embedding:
                     CostGradient::Function=NegScore(DM), CostHessian::Function=CostHessian(DM), ConstraintTrafo::Function=identity,
                     GenerateNewScore::Bool=true, GenerateNewCostHessian::Bool=false,
-                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=(Multistart > 0 ? GetDomainSafe(DM) : nothing), Full::Bool=false, maxval::Real=1,
+                    Multistart::Int=0, MultistartDomain::Union{Nothing,HyperCube}=nothing, TryCatchOptimizer::Bool=false, Full::Bool=false, maxval::Real=1,
                     NuisanceBasis::Union{Nothing,AbstractMatrix}=nothing, TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4,
                     InteriorTol::Real=1e-2, radiuslower::Real=1e-7, radiusupper::Real=1e3, kwargs...)
     n = length(FullInitial);    subdim = size(Directions, 2)
@@ -294,7 +294,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
         MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, kwargs...)
+        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
         Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
     else
         Res = SolveOne(startz)

@@ -132,7 +132,11 @@ function MultistartFit(costfunction::Function, InitialPointGen::Union{AbstractVe
         # By internal optimizer criterion:
         Converged = map(x->HasConverged(x; verbose=false), Res)
         PNames = length(pnames) == 0 ? CreateSymbolNames(length(FinalPoints[1])) : pnames
-        R = MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        R = if TransformFinalPoints === identity
+            MultistartResults(FinalPoints, InitialPoints, FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        else
+            MultistartResults(map(TransformFinalPoints, FinalPoints), map(TransformFinalPoints, InitialPoints), FinalObjectives, InitialObjectives, Iterations, Converged, PNames, meth, seed, MultistartDomain, SaveFullOptimizationResults ? Res : nothing; verbose)
+        end
         plot && display(RecipesBase.plot(R))
         R
     else
