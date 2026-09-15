@@ -634,22 +634,23 @@ function ThresholdLinesearch(CostFunction::Function, NuisanceDirMatrix, Thresh::
     ThresholdLinesearch(x->CostFunction(x)-Thresh, NuisanceDirMatrix, XP, startx; kwargs...)
 end
 function ThresholdLinesearch(ZerodConstraint::Function, NuisanceDirMatrix::AbstractMatrix, XP::AbstractVector{<:Number}, startx::Union{Real,Tuple}=1.0, startc::AbstractVector{<:Number}=zeros(size(NuisanceDirMatrix, 2)); NullSpace::AbstractMatrix=OrthogonalComplement(NuisanceDirMatrix), NullSpaceVec::AbstractVector=vec(NullSpace), 
-                meth=Roots.Order2(), MinimizeFunc::Function=InformationGeometry.Minimize, tol::Real=1e-8, Optimtol::Real=tol, Domain=nothing, SubDomain=nothing, kwargs...)
+                meth=Roots.Order2(), OptimMeth=missing, MinimizeFunc::Function=InformationGeometry.Minimize, tol::Real=1e-8, Optimtol::Real=tol, Full::Bool=false, Domain=nothing, SubDomain=nothing, kwargs...)
     @assert size(NuisanceDirMatrix, 1) == length(XP)
     @assert size(NuisanceDirMatrix, 2) == length(XP) - 1
     @assert size(NullSpace, 1) == length(XP) && size(NullSpace, 2) == 1
-    @assert length(startc) == size(NuisanceDirMatrix, 2)
+    @assert length(startc) == size(NuisanceDirMatrix, 2) "startc=$startc, NuisanceDirMatrix=$NuisanceDirMatrix"
     NuisanceMin = copy(startc)
     # Nuisance embedding: fix line-search coord at x, vary over NuisanceDirMatrix span
     NuisanceEmbed(Nuisance::AbstractVector, x::Number) = XP .+ NullSpaceVec .* x .+ NuisanceDirMatrix * Nuisance
     function TestNum(x::Number)
         Embed(c::AbstractVector) = NuisanceEmbed(c, x) # Fixes current x
-        NuisanceMin .= GetMinimizer(MinimizeFunc(ZerodConstraint∘Embed, startc; Domain=SubDomain, tol=Optimtol, kwargs...))
+        NuisanceMin .= GetMinimizer(MinimizeFunc(ZerodConstraint∘Embed, startc; Domain=SubDomain, tol=Optimtol, (!ismissing(OptimMeth) ? (;meth=OptimMeth) : (;))..., kwargs...))
         ZerodConstraint(NuisanceEmbed(NuisanceMin, x))
     end
     xstar = InformationGeometry.AltLineSearch(TestNum, startx, meth; tol)
-    cstar = GetMinimizer(MinimizeFunc(ZerodConstraint ∘ (c -> NuisanceEmbed(c, xstar)), NuisanceMin; Domain=SubDomain, tol=Optimtol, kwargs...))
-    NuisanceEmbed(cstar, xstar)
+    Res = MinimizeFunc(ZerodConstraint∘(c->NuisanceEmbed(c, xstar)), NuisanceMin; Domain=SubDomain, tol=Optimtol, kwargs...)
+    Full && return Res
+    cstar = GetMinimizer(Res);      NuisanceEmbed(cstar, xstar)
 end
 function ThresholdLinesearch(ZerodConstraint::Function, DropInds::AbstractVector{<:Int}, XP::AbstractVector{<:Number}, startx::Union{Real,Tuple}, args...; kwargs...)
     n = length(XP);    @assert allunique(DropInds) && all(1 .≤ DropInds .≤ n)

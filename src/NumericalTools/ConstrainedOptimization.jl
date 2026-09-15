@@ -92,12 +92,13 @@ For `sense == +1`, the given objective is maximized, for `sense == -1`, the obje
 If the initial guess is already known to be reasonably accurate, this projection step can be avoided by setting `TransformGuess = false`.
 """
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::SciMLBase.AbstractNonlinearAlgorithm;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
-                            ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
-                            ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
-                            TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
-                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
-                            Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
+                NuisanceDirMatrix=nothing, NullSpace=nothing, verbose::Bool=false, 
+                sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
+                ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
+                ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
+                TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2,
+                lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
+                Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
     @assert abs(sense) == 1;    n = length(θguess)
     @assert length(lower) == n == length(upper) == length(Domain)
     ## Use DiffCache and make derivative getters inplace? Use Score and CostHessian
@@ -145,12 +146,13 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
 end
 
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::Optim.AbstractConstrainedOptimizer;
-                            sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
-                            ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
-                            ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
-                            TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, 
-                            lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
-                            Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
+                NuisanceDirMatrix=nothing, NullSpace=nothing, verbose::Bool=false, 
+                sense::Int=1, reg::Real=1e-14, maxiters::Int=100, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
+                ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
+                ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
+                TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, 
+                lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
+                Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
     @assert abs(sense) == 1
     @assert length(lower) == length(θguess) == length(upper) == length(Domain)
     gcon = similar(θguess)
@@ -169,6 +171,39 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, Domain.L, Domain.U, [zero(T)], [zero(T)])
     result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; iterations=maxiters, g_tol=tol, g_abstol=tol, kwargs...))
     Full ? result : (GetMinimizer(result), -Inf)
+end
+
+### Use radial line search
+function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, linesearchmeth::Roots.AbstractUnivariateZeroMethod; 
+                NuisanceDirMatrix::AbstractMatrix{<:Number}=(@view Eye(length(θguess))[:, 1:end-1]), NullSpace::AbstractMatrix{<:Number}=reshape(BasisVector(length(θguess), length(θguess)), :, 1), 
+                sense::Int=1, reg::Real=1e-14, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
+                ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
+                ConstraintGradient!::Function=GetGrad!(ADmode, ZerodConstraint), ConstraintHessian!::Function=GetHess!(ADmode, ZerodConstraint), 
+                TransformGuess::Bool=false, ProjectFirst::Bool=true, ProjectIters::Int=1, ProjectTol::Real=1e-4, InteriorTol::Real=1e-2, 
+                lower::AbstractVector=Fill(-Inf, length(θguess)), upper::AbstractVector=Fill(Inf, length(θguess)), 
+                Domain::HyperCube=HyperCube(lower, upper), kwargs...) where T<:Number
+    @assert abs(sense) == 1
+    @assert length(lower) == length(θguess) == length(upper) == length(Domain)
+    gcon = similar(θguess)
+    startz = if TransformGuess
+        gobj = similar(θguess);      Hcon = similar(θguess, length(θguess), length(θguess))
+        _ConstrainedOptimisationInitialGuess(ZerodConstraint, θguess, gobj, gcon, Hcon; sense, reg, ADmode, ObjectiveGradient!, ConstraintGradient!, ConstraintHessian!, ProjectFirst, ProjectIters, ProjectTol, InteriorTol)[1]
+    else
+        copy(θguess)
+    end
+
+    Result = try
+        ThresholdLinesearch(ZerodConstraint, NuisanceDirMatrix, zeros(length(θguess)), startz[end], startz[1:end-1]; # CostGradient=ConstraintGradient!, CostHessian=ConstraintHessian!,
+                NullSpace, meth=linesearchmeth, tol, Domain, kwargs...)
+    catch E;
+        if E isa Roots.ConvergenceFailed
+            @warn "$E"
+            fill(Inf, length(startz))
+        else
+            rethrow(E)
+        end
+    end
+    Full ? Result : (GetMinimizer(Result), -Inf)
 end
 
 
