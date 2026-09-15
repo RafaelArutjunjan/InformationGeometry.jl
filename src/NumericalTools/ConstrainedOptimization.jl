@@ -141,8 +141,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     nlf = NonlinearFunction(residual!; jac = jacobian!)
     prob = NonlinearProblem(nlf, x0, nothing)
     sol = solve(prob, meth; abstol=tol, reltol=tol, maxiters, kwargs...)
-    Full && return sol
-    θ0 = sol.u[1:n];    λ0 = sol.u[end];    (θ0, λ0)
+    Full ? sol : sol.u[1:n]
 end
 
 function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, meth::Optim.AbstractConstrainedOptimizer;
@@ -170,7 +169,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
 
     dfc = Optim.TwiceDifferentiableConstraints(con_c!, con_jacobian!, con_hessian!, Domain.L, Domain.U, [zero(T)], [zero(T)])
     result = Optim.optimize(df, dfc, startz, meth, Optim.Options(; iterations=maxiters, g_tol=tol, g_abstol=tol, kwargs...))
-    Full ? result : (GetMinimizer(result), -Inf)
+    Full ? result : GetMinimizer(result)
 end
 
 ### Use radial line search
@@ -192,7 +191,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
         copy(θguess)
     end
 
-    Result = try
+    result = try
         ThresholdLinesearch(ZerodConstraint, NuisanceDirMatrix, zeros(length(θguess)), startz[end], startz[1:end-1]; # CostGradient=ConstraintGradient!, CostHessian=ConstraintHessian!,
                 NullSpace, meth=linesearchmeth, tol, Domain, kwargs...)
     catch E;
@@ -203,7 +202,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
             rethrow(E)
         end
     end
-    Full ? Result : (GetMinimizer(Result), -Inf)
+    Full ? result : GetMinimizer(result)
 end
 
 
@@ -250,7 +249,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     end
     push!(lower, radiuslower);      push!(upper, radiusupper)
     SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraint, z, meth;
-        ADmode, levels, sense=1, Full=true, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
+        ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
         lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
@@ -316,7 +315,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
     lower = fill(-Inf, length(startz));     upper = fill(Inf, length(startz))
     lower[end] = radiuslower; upper[end] = radiusupper
     SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraint, z, meth;
-        ADmode, levels, sense=1, Full=true, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
+        ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
         lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(n, maxval) : MultistartDomain
