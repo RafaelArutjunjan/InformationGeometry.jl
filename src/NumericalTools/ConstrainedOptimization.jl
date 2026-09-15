@@ -479,3 +479,22 @@ function GenericLowerTriangularWithDecorrelation(DM::AbstractDataModel, paridxs:
     plot && PlotLowerTriangular(Sols, IndMat; pnames, comparison, size, PrePlot, ProcessSol, PlotKwargs...)
     Sols, finalidxs
 end
+
+
+
+"""
+    FullGenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=length(xdata(DM)) .+ (1:pdim(DM)); MLE::AbstractVector=TotalLeastSquaresV(DM), 
+            CostFunction::Function=FullLiftedNegLogLikelihoodAfterEmbedding(DM), CostGradient::Function=GetGrad!(ADmode,CostFunction), CostHessian::Function=MergeOneArgMethods(GetHess(ADmode,CostFunction),GetHess!(ADmode,CostFunction)), 
+            parallel::Bool=true, parallelinner::Bool=!parallel, plot::Bool=isloaded(:Plots), kwargs...)
+Plots projections of confidence region onto planes spanned by all pairs of parameters in `paridxs` to show non-linearity of parameter interdependence.
+
+`parallel=true` parallelizes over parameter pairs and is the recommended default. 
+Set `parallelinner=true` only when outer parallelism is disabled since enabling both creates significant scheduling overhead.
+"""
+function FullGenericLowerTriangular(DM::AbstractDataModel, paridxs::AbstractVector{<:Int}=length(xdata(DM)) .+ (1:pdim(DM)); MLE::AbstractVector=TotalLeastSquaresV(DM), 
+                ADmode::Val=Val(:ForwardDiff), pnames::AbstractVector{<:StringOrSymb}=_FullNames(DM), SkipTests::Bool=false,
+                CostFunction::Function=FullLiftedNegLogLikelihoodAfterEmbedding(DM), CostGradient::Function=GetGrad!(ADmode,CostFunction), CostHessian::Function=MergeOneArgMethods(GetHess(ADmode,CostFunction),GetHess!(ADmode,CostFunction)), 
+                H::AbstractMatrix=(Hnew=similar(MLE, length(MLE), length(MLE));  CostHessian(Hnew,MLE);  Hnew), loglikeMLE::Real=-CostFunction(MLE),
+                ProcessInds::Function=(inds; Kwargs...)->collect(GenerateProjectiveBoundaryPoints(DM, inds, MLE; ADmode, CostFunction, CostGradient, CostHessian, H, loglikeMLE, Kwargs...)), kwargs...)
+    GenericLowerTriangular(DM, paridxs; MLE, ProcessInds, pnames, SkipTests, CostHessian, H, kwargs...)
+end

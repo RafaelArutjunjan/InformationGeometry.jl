@@ -84,3 +84,14 @@ Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(
 @test all(x->all(isfinite, x), Sols4[1])
 @test all(x->all(isfinite, x), Sols5[1])
 @test all(x->all(isfinite, x), Sols6[1])
+
+
+DME = DataModel(DataSetExact([1,2,3,4], 0.3, [4,5,6.5,9], [0.5,0.45,0.6,1]), LinearModel)
+
+Sols, finalidxs = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false)
+Sols3, finalidxs3 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false)
+Sols5, finalidxs5 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Roots.Order2(), Confnum=1, Refine=false)
+
+@test all(x->all(isfinite, x), Sols[1])
+@test all(x->all(isfinite, x), Sols3[1])
+@test all(x->all(isfinite, x), Sols5[1])
