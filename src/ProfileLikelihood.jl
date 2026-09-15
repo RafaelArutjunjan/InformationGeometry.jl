@@ -1023,7 +1023,7 @@ ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real=1; kw
     ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
+ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)[1]
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 
