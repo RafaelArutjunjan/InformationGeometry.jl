@@ -173,7 +173,7 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
 end
 
 ### Use radial line search
-function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, linesearchmeth::Roots.AbstractUnivariateZeroMethod; 
+function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodConstraint::Function, θguess::AbstractVector{T}, linesearchmeth::Roots.AbstractUnivariateZeroMethod; OptimMeth=DefaultFirstOrderOptimizer,
                 NuisanceDirMatrix::AbstractMatrix{<:Number}=(@view Eye(length(θguess))[:, 1:end-1]), NullSpace::AbstractMatrix{<:Number}=reshape(BasisVector(length(θguess), length(θguess)), :, 1), 
                 sense::Int=1, reg::Real=1e-14, tol::Real=1e-10, Full::Bool=false, ADmode::Val=Val(:ForwardDiff), levels::Int=1, 
                 ObjectiveGradient!::Function=GetGrad!(ADmode, objective_fixedt0), ObjectiveHessian!::Function=GetHess!(ADmode, objective_fixedt0),
@@ -192,15 +192,11 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     end
 
     result = try
-        ThresholdLinesearch(ZerodConstraint, NuisanceDirMatrix, zeros(length(θguess)), startz[end], startz[1:end-1]; # CostGradient=ConstraintGradient!, CostHessian=ConstraintHessian!,
-                NullSpace, meth=linesearchmeth, tol, Domain, kwargs...)
+        ThresholdLinesearch(ZerodConstraint, NuisanceDirMatrix, Zeros(length(θguess)), startz[end], startz[1:end-1]; 
+                # ConstraintGradient!=EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels), # CostHessian!=ConstraintHessian!,
+                NullSpace, meth=linesearchmeth, tol, Domain, OptimMeth, kwargs...)
     catch E;
-        if E isa Roots.ConvergenceFailed
-            @warn "$E"
-            fill(Inf, length(startz))
-        else
-            rethrow(E)
-        end
+        E isa Roots.ConvergenceFailed ? (@warn "$E";   fill(Inf, length(startz))) : rethrow(E)
     end
     Full ? result : GetMinimizer(result)
 end
@@ -262,11 +258,11 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
-        Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
+        Full ? Res : ReconstructModelParams(MLE(Res))
     else
         Res = SolveOne(startz)
         # Normalize for different lengths between NonlinearSolve and Optim
-        Full ? Res : ReconstructModelParams(@view GetMinimizer(Res)[1:length(startz)])
+        Full ? Res : ReconstructModelParams(GetMinimizer(Res))
     end
 end
 
@@ -329,11 +325,11 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
         Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
-        Full ? Res : ReconstructModelParams(@view MLE(Res)[1:length(startz)])
+        Full ? Res : ReconstructModelParams(MLE(Res))
     else
         Res = SolveOne(startz)
         # Normalize for different lengths between NonlinearSolve and Optim
-        Full ? Res : ReconstructModelParams(@view GetMinimizer(Res)[1:length(startz)])
+        Full ? Res : ReconstructModelParams(GetMinimizer(Res))
     end
 end
 

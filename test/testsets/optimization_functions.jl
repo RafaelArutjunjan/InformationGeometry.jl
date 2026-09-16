@@ -53,14 +53,14 @@ Res = Vector{Float64}[]
 using NonlinearSolveFirstOrder, Roots
 DM = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), PolynomialModel(2))
 
-Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false)
-Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=60, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false)
+Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, plot=false)
+Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=60, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, plot=false)
 
-Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false)
-Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false)
+Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, plot=false)
+Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, plot=false)
 
-Sols5, finalidxs5 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false)
-Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false)
+Sols5, finalidxs5 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, plot=false)
+Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, plot=false)
 
 @test all(x->all(isfinite, x), Sols[1])
 @test all(x->all(isfinite, x), Sols2[1])
@@ -69,14 +69,14 @@ Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(
 @test all(x->all(isfinite, x), Sols5[1])
 @test all(x->all(isfinite, x), Sols6[1])
 
-Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5)
-Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+Sols, finalidxs = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
+Sols2, finalidxs2 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
 
-Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5)
-Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+Sols3, finalidxs3 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
+Sols4, finalidxs4 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
 
-Sols5, finalidxs5 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, Multistart=10, maxval=5)
-Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, Multistart=10, maxval=5)
+Sols5, finalidxs5 = InformationGeometry.GenericLowerTriangular(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
+Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(DM; N=50, meth=Roots.Order2(), Confnum=1, Refine=false, Multistart=10, maxval=5, plot=false)
 
 @test all(x->all(isfinite, x), Sols[1])
 @test all(x->all(isfinite, x), Sols2[1])
@@ -88,9 +88,9 @@ Sols6, finalidxs6 = InformationGeometry.GenericLowerTriangularWithDecorrelation(
 
 DME = DataModel(DataSetExact([1,2,3,4], 0.3, [4,5,6.5,9], [0.5,0.45,0.6,1]), LinearModel)
 
-Sols, finalidxs = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, Refine=false)
-Sols3, finalidxs3 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Optim.IPNewton(), Confnum=1, Refine=false)
-Sols5, finalidxs5 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Roots.Order2(), Confnum=1, Refine=false)
+Sols, finalidxs = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=NonlinearSolveFirstOrder.TrustRegion(), Confnum=1, plot=false)
+Sols3, finalidxs3 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Optim.IPNewton(), Confnum=1, plot=false)
+Sols5, finalidxs5 = InformationGeometry.FullGenericLowerTriangular(DME; N=50, meth=Roots.Order2(), Confnum=1, plot=false)
 
 @test all(x->all(isfinite, x), Sols[1])
 @test all(x->all(isfinite, x), Sols3[1])

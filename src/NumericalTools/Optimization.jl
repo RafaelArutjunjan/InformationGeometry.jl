@@ -644,11 +644,11 @@ function ThresholdLinesearch(ZerodConstraint::Function, NuisanceDirMatrix::Abstr
     NuisanceEmbed(Nuisance::AbstractVector, x::Number) = XP .+ NullSpaceVec .* x .+ NuisanceDirMatrix * Nuisance
     function TestNum(x::Number)
         Embed(c::AbstractVector) = NuisanceEmbed(c, x) # Fixes current x
-        NuisanceMin .= GetMinimizer(MinimizeFunc(ZerodConstraint∘Embed, startc; Domain=SubDomain, tol=Optimtol, (!ismissing(OptimMeth) ? (;meth=OptimMeth) : (;))..., kwargs...))
+        NuisanceMin .= GetMinimizer(MinimizeFunc(ZerodConstraint∘Embed, NuisanceMin; Domain=SubDomain, tol=Optimtol, (!ismissing(OptimMeth) ? (;meth=OptimMeth) : (;))..., kwargs...))
         ZerodConstraint(NuisanceEmbed(NuisanceMin, x))
     end
     xstar = InformationGeometry.AltLineSearch(TestNum, startx, meth; tol)
-    Res = MinimizeFunc(ZerodConstraint∘(c->NuisanceEmbed(c, xstar)), NuisanceMin; Domain=SubDomain, tol=Optimtol, kwargs...)
+    Res = MinimizeFunc(ZerodConstraint∘(c->NuisanceEmbed(c, xstar)), NuisanceMin; Domain=SubDomain, tol=Optimtol, (!ismissing(OptimMeth) ? (;meth=OptimMeth) : (;))..., kwargs...)
     Full && return Res
     cstar = GetMinimizer(Res);      NuisanceEmbed(cstar, xstar)
 end
