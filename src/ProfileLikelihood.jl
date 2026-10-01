@@ -1147,6 +1147,7 @@ end
     IntegrationParameterProfiles(DM::AbstractDataModel, confnum::Real=2, inds::AbstractVector{<:Int}=1:pdim(DM); meth=BS3(), tol::Real=1e-4, N::Union{Nothing,Int}=51, ProfileDomain::HyperCube=FullDomain(length(MLE), Inf), γ::Union{Nothing,Real}=nothing, kwargs...)
 Computes profile likelihood path via integrating ODE derived via Lagrange multiplier based contraint by Chen and Jennrich (https://doi.org/10.1198/106186002493).
 Unlike in Chen and Jennrich's approach, no stabilization term with constant `γ` is added by default, since the need for this stabilization is essentially obviated by the accuracy of autodiff Hessians and γ > 0 adds undesirable bias to the computed trajectory.
+When a stabilization term with `γ > 0` is requested, its sign is automatically flipped for the arm integrating towards decreasing values of the profiled parameter, such that deviations from the constraint submanifold of nuisance parameter optimality are exponentially damped along the direction of integration on both arms.
 
 While the default tolerance is `tol=1e-4` for more performant exploration during model development, tolerances `< 1e-5` should generally be chosen for reliable results.
 Further, it is possible to compute integration-based profiles at low tolerances and the re-optimize the obtained trajectories via `ReoptimizeProfile`, starting from the given approximate profiles.
@@ -1233,6 +1234,9 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{T}
                 meth::AbstractODEAlgorithm=BS3(), tol::Real=1e-4, kwargs...) where T<:Number
 
     n = length(MLE);    λ_indices = setdiff(1:n, Comp);    LogLikeThreshold = logLikeMLE - 0.5 * IC * MinSafetyFactor
+    ## The γ retraction term only damps deviations from the nuisance optimality constraint in the direction
+    ## of integration, so its sign must be flipped for the left arm which integrates towards decreasing ψ.
+    γeff = isnothing(γ) ? nothing : (Left ? -γ : γ)
     Hcache = DiffCache(Matrix{T}(undef, n, n); levels);   Gcache = isnothing(γ) || isnothing(CostGradient) ? nothing : DiffCache(Vector{T}(undef, n); levels)
     θcache = DiffCache(copy(MLE); levels);     HλλCache = DiffCache(Matrix{T}(undef, n-1, n-1); levels)
     # rhsCache = DiffCache(Vector{T}(undef, n-1); levels);    
@@ -1265,7 +1269,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{T}
         FastFill!(Hλλ, H, λ_indices, λ_indices);     FastFill!(Hλψ, H, λ_indices, Comp)
         ## Original Chen Jennrich with γ:  (Should not use γ > 0 unless accuracy of Hessian low)
         ## dλ_dψ .= -(Hλλ \ (Hλψ .+ γ .* (@view (GetGrad(ADmode,LogLikelihoodFn)(θ))[λ_indices])))
-        PrepareGradientCorrection!(G, γ, CostGradient, θ)
+        PrepareGradientCorrection!(G, γeff, CostGradient, θ)
         ConditionalAddGradient!(Hλψ, G, λ_indices)
 
         RegularizeDiagonal!(Hλλ, DiagonalRegularization)
