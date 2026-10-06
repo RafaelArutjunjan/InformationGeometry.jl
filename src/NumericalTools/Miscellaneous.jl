@@ -422,15 +422,21 @@ Returns tuple `(xdim,pdim)` associated with the method `model(x,p)`.
 GetArgSize(model::Function; inplace::Bool=isinplacemodel(model), max::Int=MaxArgLen) = GetArgSize(model, Val(inplace); max=max)
 function GetArgSize(model::Function, inplace::Val{false}; max::Int=MaxArgLen)
     try return (1, GetArgLength(p->model(rand(),p); max=max)) catch; end
-    for i in 2:max
+    for i in 2:max-1
         try return (i,GetArgLength(p->model(rand(i),p); max=max)) catch; end
-    end;    throw("Wasn't able to find config for max=$max.")
+    end
+    try return (max,GetArgLength(p->model(rand(max),p); max=max)) catch E; 
+        throw("Wasn't able to find config for max=$max. Last error thrown was: $E")
+    end
 end
 function GetArgSize(model!::Function, inplace::Val{true}; max::Int=MaxArgLen)
     try return (1, GetArgLength((Res,p)->model!(Res,rand(),p); max=max)) catch; end
-    for i in 2:max
+    for i in 2:max-1
         try return (i,GetArgLength((Res,p)->model!(Res,rand(i),p); max=max)) catch; end
-    end;    throw("Wasn't able to find config for max=$max.")
+    end
+    try return (max,GetArgLength((Res,p)->model!(Res,rand(max),p); max=max)) catch E;
+        throw("Wasn't able to find config for max=$max. Last error thrown was: $E")
+    end
 end
 GetArgSize(model::ModelMap; inplace::Bool=false, max::Int=MaxArgLen) = (model.xyp[1], model.xyp[3])
 
