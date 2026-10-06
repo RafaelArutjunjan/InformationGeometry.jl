@@ -27,8 +27,8 @@ SIRDM = DataModel(SIRDS, SIRsys, SIRinitial, x->x[2], [0.6,0.0023,0.46]; tol=1e-
 # InformationGeometry.MakeSymbolicParsOld([:t, :k])
 # InformationGeometry.MakeSymbolicVarsOld([:(A(t))])
 # using ModelingToolkitBase
-eval(Symbolics._parse_vars(:parameters, Real, (:t, :k), ModelingToolkitBase.toparam))
-eval(Symbolics._parse_vars(:variables, Real, (:(A(t)),)))
+Core.eval(@__MODULE__, Symbolics._parse_vars(:parameters, Real, (:t, :k), ModelingToolkitBase.toparam))
+Core.eval(@__MODULE__, Symbolics._parse_vars(:variables, Real, (:(A(t)),)))
 
 sys = ODESystem([Differential(t)(A) ~ -k*A], t, [A], [k]; name=Symbol("Decay System"))
 Split(θ) = (θ[1:1], θ[2:2])
@@ -38,6 +38,11 @@ dm = DataModel(DataSet([0.2,1,2], [0.9,0.4,0.25], [0.1,0.1,0.1]), sys, Split, Ob
 # ObservationFunction is extended to 3 arguments, does not equal initially given PreObservationFunction
 @test length(Predictor(dm).Meta) == 4 && Predictor(dm).Meta[1:2] == (sys, Split)
 @test string(Predictor(dm).name) == "Decay System"
+theta_decay = [0.75, 0.6]
+times_decay = [0.2, 0.8, 1.4, 2.0]
+pred_decay = EmbeddingMap(dm, theta_decay, times_decay)
+exact_decay = [2theta_decay[1] * exp(-theta_decay[2] * t) for t in times_decay]
+@test norm(pred_decay - exact_decay, Inf) < 2e-7
 
 # Backwards in time integration (GetModelRobust)
 @test all(EmbeddingMap(SIRDM, MLE(SIRDM), [-10, 3, -0.5, 15]) .> 0)
@@ -103,6 +108,11 @@ SDEDM = DataModel(SDEDS, sdemod, [0.5,1,0.2], true)
 @test EmbeddingMap(SDEDM, MLE(SDEDM)) isa AbstractVector
 @test EmbeddingMap(SDEDM, MLE(SDEDM); trajectories=nothing) isa AbstractVector
 @test EmbeddingMap(SDEDM, MLE(SDEDM); filter=x->!(x.retcode === ReturnCode.Unstable)) isa AbstractVector
+
+theta_det = [0.5, 1.0, 0.0]
+pred_det = EmbeddingMap(SDEDM, theta_det; trajectories=nothing)
+exact_det = [theta_det[1] * exp(theta_det[2] * t) for t in xdata(SDEDS)]
+@test norm(pred_det - exact_det, Inf) < 3e-3
 
 @test EmbeddingMatrix(SDEDM, MLE(SDEDM)) isa AbstractMatrix
 @test EmbeddingMatrix(SDEDM, MLE(SDEDM); trajectories=nothing) isa AbstractMatrix

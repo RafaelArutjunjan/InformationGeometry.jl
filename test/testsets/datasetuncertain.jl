@@ -69,8 +69,8 @@ using ModelingToolkitBase, OrdinaryDiffEq, LinearAlgebra, Symbolics
 # InformationGeometry.MakeSymbolicParsOld([:t, :β, :γ])
 # InformationGeometry.MakeSymbolicVarsOld([:(S(t)), :(I(t)), :(R(t))])
 # using ModelingToolkitBase
-eval(Symbolics._parse_vars(:parameters, Real, (:t, :β, :γ), ModelingToolkitBase.toparam))
-eval(Symbolics._parse_vars(:variables, Real, (:(S(t)), :(I(t)), :(R(t)))))
+Core.eval(@__MODULE__, Symbolics._parse_vars(:parameters, Real, (:t, :β, :γ), ModelingToolkitBase.toparam))
+Core.eval(@__MODULE__, Symbolics._parse_vars(:variables, Real, (:(S(t)), :(I(t)), :(R(t)))))
 Dt = Differential(t)
 Eqs = Equation[Dt(S) ~ -β*S*I/(S+I+R), Dt(I) ~ β*S*I/(S+I+R) -γ*I, Dt(R) ~ γ*I]
 
