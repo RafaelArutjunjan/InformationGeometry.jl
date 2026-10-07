@@ -795,7 +795,11 @@ ProfileBox(DM::AbstractDataModel, Fs::AbstractVector{<:Union{<:AbstractInterpola
 
 function ProfileBox(Fs::AbstractVector{<:Union{<:AbstractInterpolation,<:Nothing}}, mle::AbstractVector, Confnum::Real=1.; parallel::Bool=true, dof::Int=length(mle), kwargs...)
     @assert length(Fs) == length(mle)
-    reduce(vcat, (parallel ? pmap : map)(i->_ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs)))
+    # NB: `reduce(vcat, Boxes)` does not unwrap a single-element collection, since Base treats a
+    # HyperCube (which is not an AbstractArray) as a scalar and `vcat(C)` rewraps it into a
+    # length-1 vector. Return the only box directly in that case.
+    Boxes = (parallel ? pmap : map)(i->_ProfileBox(Fs[i], Confnum; mleval=mle[i], dof, kwargs...), 1:length(Fs))
+    length(Boxes) == 1 ? Boxes[1] : reduce(vcat, Boxes)
 end
 
 
@@ -814,6 +818,10 @@ _ProfileBox(F::Nothing, Confnum::Real=1.0; kwargs...) = HyperCube([-Inf], [Inf])
 
 function _ProfileBox(F::AbstractInterpolation, Confnum::Real=1.0; IsCost::Bool=true, dof::Int=1, mleval::Real=F.t[findmin(F.u)[2]], 
                             IC::Union{<:Real,Nothing}=nothing, CostThreshold::Union{<:Real,Nothing}=IC, maxval::Real=Inf, tol::Real=1e-10, xrtol::Real=tol, xatol::Real=tol, kwargs...)
+    # Degenerate interpolation domain (profile axis collapsed to a single value, e.g. a prediction
+    # which is parameter-independent there): no zero search is possible. For prediction profiles
+    # this case is intercepted upstream in ProfileBox and returned as a point interval instead.
+    F.t[1] == F.t[end] && return HyperCube([-Inf], [Inf])
     Crossings = if !IsCost
         FindZerosWrapper(x->(F(x)-Confnum), F.t[1], F.t[end]; no_pts=length(F.t), xrtol, xatol, mleval, kwargs...)
     else
@@ -965,7 +973,17 @@ ProfileBox(DM::AbstractDataModel, P::ParameterProfiles, Confnum::Real=1; kwargs.
     ProfileBox(P::ParameterProfiles, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-ProfileBox(P::ParameterProfiles, Confnum::Real=1; IsCost::Bool=IsCost(P), dof::Int=DOF(P), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox(InterpolatedProfiles(P, Interp), MLE(P), Confnum; IsCost, dof, kwargs...)
+function ProfileBox(P::ParameterProfiles, Confnum::Real=1; IsCost::Bool=IsCost(P), dof::Int=DOF(P), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, parallel::Bool=true, kwargs...)
+    Fs = InterpolatedProfiles(P, Interp)
+    # Prediction profiles whose axis collapsed to a single value (the prediction is
+    # parameter-independent there, e.g. y(t,θ) ∝ t at t = 0): the prediction band is that point.
+    Degenerate = P.Meta === :PredictionProfiles ? [i for i in eachindex(Fs) if Fs[i] isa AbstractInterpolation && Fs[i].t[1] == Fs[i].t[end]] : Int[]
+    isempty(Degenerate) || @warn "Prediction profile axis collapsed to a single value at $([Pnames(P)[i] for i in Degenerate]) (the prediction is parameter-independent there); returning degenerate (point) confidence intervals."
+    isempty(Degenerate) && return ProfileBox(Fs, MLE(P), Confnum; IsCost, dof, parallel, kwargs...)
+    boxes = (parallel ? pmap : map)(i -> i in Degenerate ? HyperCube([Fs[i].t[1]], [Fs[i].t[1]]) :
+                                     _ProfileBox(Fs[i], Confnum; mleval=MLE(P)[i], dof, IsCost, kwargs...), eachindex(Fs))
+    length(boxes) == 1 ? boxes[1] : reduce(vcat, boxes)
+end
 
 
 """
@@ -1023,7 +1041,7 @@ ProfileBox(DM::AbstractDataModel, PV::ParameterProfilesView, Confnum::Real=1; kw
     ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; Interp=DataInterpolations.QuadraticInterpolation, kwargs...)
 Constructs `HyperCube` which bounds the confidence region associated with the confidence level `Confnum` from the interpolated likelihood profiles.
 """
-ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)[1]
+ProfileBox(PV::ParameterProfilesView, Confnum::Real=1; IsCost::Bool=IsCost(PV), dof::Int=DOF(PV), Interp::Type{<:AbstractInterpolation}=QuadraticInterpolation, kwargs...) = ProfileBox([InterpolatedProfiles(PV, Interp)], [MLE(PV)[PV.i]], Confnum; IsCost, dof, kwargs...)
 
 PracticallyIdentifiable(PV::ParameterProfilesView) = PracticallyIdentifiable(view(Profiles(PV.P), PV.i:PV.i))
 

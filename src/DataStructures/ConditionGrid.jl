@@ -128,6 +128,7 @@ end
 
 
 Base.getindex(CG::ConditionGrid, i) = getindex(Conditions(CG), i)
+Base.getindex(CG::ConditionGrid, S::Symbol) = getindex(Conditions(CG), findfirst(x-> x === S, ConditionNames(CG)))
 
 # Forwarding:
 for F in [:length, :size, :firstindex, :lastindex, :keys, :values, :getindex]
