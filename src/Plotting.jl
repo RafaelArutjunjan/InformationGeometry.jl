@@ -74,13 +74,28 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
                     end
                 else
                     SqrtVar = VariancePropagation(DM, mle, icdfThreshold(dof,Conf) * pinv(F); Validation, Confnum=Conf, dof)(Windup(X, xdim(DM))) .|> x->Diagonal(x).diag
-                    for i in 1:ydim(DM)
-                        @series begin
-                            seriescolor := Colors[i]
-                            linestyle   --> :dash
-                            linealpha   --> max(0.1, 0.9 - (j-1)*0.6/length(Confnum))
-                            label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
-                            X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
+                    if ydim(DM) ≤ Npoints(DM)
+                        # Y is (length(X) × ydim): column i = observable i along X
+                        for i in 1:ydim(DM)
+                            @series begin
+                                seriescolor := Colors[i]
+                                linestyle   --> :dash
+                                linealpha   --> max(0.1, 0.9 - (j-1)*0.6/length(Confnum))
+                                label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
+                                X, [view(Y,:,i) .+ getindex.(SqrtVar, i) view(Y,:,i) .- getindex.(SqrtVar, i)]
+                            end
+                        end
+                    else
+                        # Y is transposed (ydim × Npoints): column k = all observables at time k,
+                        # matching the per-time layout of the data/fit series above
+                        for k in eachindex(SqrtVar)
+                            @series begin
+                                seriescolor := Colors[k]
+                                linestyle   --> :dash
+                                linealpha   --> max(0.1, 0.9 - (j-1)*0.6/length(Confnum))
+                                label       --> ["Linearized $(Conf)σ $((Validation ? "Validation" : "Conf.")) Band" nothing]
+                                [view(Y,:,k) .+ SqrtVar[k] view(Y,:,k) .- SqrtVar[k]]
+                            end
                         end
                     end
                 end
