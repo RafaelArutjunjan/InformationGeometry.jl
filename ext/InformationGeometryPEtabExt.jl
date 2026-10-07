@@ -125,7 +125,7 @@ import PEtab: PEtabODEProblemInfo, ModelInfo
 # const GetNllhHesses = PEtab._get_hess
 
 #### Debugging:
-import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetFixedDataUncertainty, GetConditionData, GetDataSets, GetModelFunction
+import InformationGeometry: GetNllh, GetNllhGrads, GetNllhHesses, GetFixedDataUncertainty, GetConditionData, GetDataSets, GetModelFunction, GetPredictionsJacobian
 import InformationGeometry: SplitParamsIntoCategories, DataSet
 
 # Pass model from PEtabODEProblem
@@ -148,7 +148,7 @@ SplitParamsIntoCategories(model_info::PEtab.ModelInfo, args...; kwargs...) = Spl
 function SplitParamsIntoCategories(xindices::PEtab.ParameterIndices)
     LogDict = xindices.xscale
     Merger(S::Symbol) = (X=LogDict[S];  X === :lin ? S : Symbol(string(X)*"_"*string(S)))
-    (Merger.(xindices.xids[:dynamic]), Merger.(xindices.xids[:noise]), Merger.(xindices.xids[:nondynamic]), Merger.(xindices.xids[:observable]))
+    (Merger.(xindices.ids[:dynamic]), Merger.(xindices.ids[:noise]), Merger.(xindices.ids[:nondynamic_mech]), Merger.(xindices.ids[:observable]))
 end
 GetDynamicParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[1]
 GetErrorParams(args...; kwargs...) = SplitParamsIntoCategories(args...; kwargs...)[2]
@@ -165,7 +165,9 @@ HasErrorModel(P::PEtabODEProblem, args...; kwargs...) = HasErrorModel(P.model_in
 function HasErrorModel(P::PEtabModel, CondName::Symbol; CondID=:simulationConditionId, NoiseParam=:noiseParameters, NoiseFormula=:noiseFormula)
     df = CreateSymbolDFmeasurements(P);    df = @view df[Symbol.(df[!,CondID]) .=== CondName, :]
     @assert !isempty(df) "Condition Name wrong? Got $CondName."
-    IsFloat(x::Number) = true;  IsFloat(x) = Meta.parse(x) isa Number
+    # Non-parseable entries (missing, empty, or symbolic noise parameters) count as
+    # estimated error parameters, i.e. HasErrorModel = true
+    IsFloat(x::Number) = true;  IsFloat(x) = try Meta.parse(x) isa Number catch; false end
     if NoiseParam ∈ Symbol.(names(df))
         !all(IsFloat, df[!, NoiseParam])
     else
@@ -481,5 +483,117 @@ function GetModelFunction(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_
     end
 end
 
+## Dedicated prediction jacobian ∂GetPredictions/∂θ for a single condition
+function GetPredictionsJacobian(petab_prob::PEtabODEProblem; cid::Symbol=Symbol(petab_prob.model_info.model.petab_tables[:conditions][1,1]), ObsID=:observableId, CondID=:simulationConditionId, verbose::Bool=true,
+                ObsidsInCondDict::Dict{Symbol,<:AbstractVector{Symbol}}=GetObservablesInConditionDict(petab_prob.model_info.model; ObsID, CondID))
+    @unpack model_info, probinfo = petab_prob
+    xindices, simulation_info, cache = model_info.xindices, model_info.simulation_info, probinfo.cache
+    @unpack cid_exp, ObsidToRepresentativeMeasurementIndDict, UniqueObsids = GetPredictionContext(petab_prob; cid, ObsID, CondID, ObsidsInCondDict)
+
+    ## Fall back to AD-generated dmodels for problems the dual derivative solve does not support
+    if !isempty(xindices.ids[:ml]) || !SciMLBase.isautodifferentiable(probinfo.solver_gradient.solver)
+        verbose && @warn "GetPredictionsJacobian does not support $(isempty(xindices.ids[:ml]) ? "ML (neural network) models" : "the configured non-dual gradient solver"), falling back to AD-generated dmodel for condition $cid."
+        return nothing
+    end
+
+    nobs = length(UniqueObsids)
+    est_to_dynamic = xindices.indices_est[:est_to_dynamic]
+    est_to_not_system = xindices.indices_est[:est_to_not_system]
+    tsaves = simulation_info.tsaves[cid_exp]
+    Xnom = collect(petab_prob.xnominal)
+    @unpack x_ml_models_constant = cache
+
+    ## Evaluate all unique observables of the condition at the requested timepoints, given the
+    ## solution of the derivative (dual-ready) ODE problem and the observable/noise parameters
+    function EvaluatePredictions(ts::AbstractVector{<:AbstractFloat}, getu, p_vec::AbstractVector, xobservable_ps::AbstractVector, xnondynamic_mech_ps::AbstractVector, x_ml_models)
+        T = promote_type(eltype(p_vec), eltype(xobservable_ps), eltype(xnondynamic_mech_ps), eltype(getu(1)))
+        Res = Matrix{T}(undef, nobs, length(ts))
+        for (i,obsid) in enumerate(UniqueObsids)
+            mapxobservables = xindices.xobservable_maps[ObsidToRepresentativeMeasurementIndDict[obsid]]
+            for (j,t) in enumerate(ts)
+                Res[i,j] = PEtab._h(getu(j), t, p_vec, xobservable_ps, xnondynamic_mech_ps, x_ml_models, x_ml_models_constant,
+                        model_info.model, mapxobservables, obsid, Xnom)
+            end
+        end;    vec(Res)
+    end
+    
+    PredictionsJacobian(x::Number, θ::AbstractVector{<:Number}) = PredictionsJacobian([x], θ)
+    PredictionsJacobian(x::AbstractVector{<:Int}, θ::AbstractVector{<:Number}) = PredictionsJacobian(float.(x), θ)
+    function PredictionsJacobian(ts::AbstractVector{<:AbstractFloat}, θ::AbstractVector{T}) where T<:Number
+        J = Matrix{T}(undef, length(ts)*nobs, length(θ))
+        PredictionsJacobian!(J, ts, θ)
+        J
+    end
+    function PredictionsJacobian!(J::AbstractMatrix{<:Number}, ts::AbstractVector{<:AbstractFloat}, θ::AbstractVector{<:Number})
+        size(J) == (length(ts)*nobs, length(θ)) || throw(DimensionMismatch("Expected a $(length(ts)*nobs)×$(length(θ)) prediction jacobian for condition $cid, got size(J) = $(size(J))."))
+        length(θ) == length(xindices.ids[:estimate]) || throw(DimensionMismatch("Expected a parameter vector of length $(length(xindices.ids[:estimate])) for condition $cid, got length(θ) = $(length(θ))."))
+
+        ts = ts isa Vector{Float64} ? ts : collect(float.(ts))
+        x = collect(θ)
+        xdynamic, xobservable, xnoise, xnondynamic_mech, x_ml_models = PEtab.split_x(x, xindices, cache)
+        ## Fixed (Float64) observable and non-dynamic parameters for the dynamic parameter block
+        xobservable_ps0 = copy(PEtab.transform_x(xobservable, xindices, :xobservable, cache))
+        xnondynamic_mech_ps0 = copy(PEtab.transform_x(xnondynamic_mech, xindices, :xnondynamic_mech, cache))
+        ## If the requested timepoints coincide with the measurement timepoints (the usual case
+        ## when used as dmodel), read the solution off at the saved columns, else solve with
+        ## dense output and interpolate
+        icols = [findfirst(isequal(t), tsaves) for t in ts]
+        dense = any(isnothing, icols)
+
+        ## Solve at Float64 precision for the not-system parameter block, which does not enter
+        ## the ODE and thus requires no duals
+        xdynamic_mech_ps = PEtab.transform_x(xdynamic, xindices, :xdynamic_mech, cache)
+        sol0_ok = PEtab.solve_conditions!(model_info, xdynamic_mech_ps, x_ml_models, probinfo;
+                        cids=[cid_exp], derivative=false, save_observed_t=!dense, dense_sol=dense)
+        if sol0_ok
+            sol0 = simulation_info.odesols[cid_exp]
+            p_vec0 = PEtab._get_tunables(sol0.prob.p, xindices.get_ps_mtk_parameters)
+            getu0 = dense ? (j -> sol0(ts[j])) : (j -> sol0[:, icols[j]])
+        end
+
+        fill!(J, zero(eltype(J)))
+        ## Dynamic parameter block: differentiate the ODE solve (dual states and parameters) + h
+        if !isempty(est_to_dynamic)
+            xdyn_est = x[est_to_dynamic]
+            chunk = PEtab._get_chunksize(probinfo.chunksize, xdyn_est)
+            function _jac_dynamic(xdyn_est_dual)
+                xdynamic_mech_dual = PEtab.transform_x(xdyn_est_dual, xindices, :xdynamic_mech, cache)
+                success = PEtab.solve_conditions!(model_info, xdynamic_mech_dual, x_ml_models, probinfo;
+                                cids=[cid_exp], derivative=true, save_observed_t=!dense, dense_sol=dense)
+                if !success
+                    @warn "Failed to solve ODE derivatives for the prediction jacobian of condition $cid, zeroing out the corresponding block." maxlog=1
+                    return fill(zero(eltype(xdyn_est_dual)), length(ts)*nobs)
+                end
+                sol = simulation_info.odesols_derivatives[cid_exp]
+                p_vec = PEtab._get_tunables(sol.prob.p, xindices.get_ps_mtk_parameters)
+                getu = dense ? (j -> sol(ts[j])) : (j -> sol[:, icols[j]])
+                EvaluatePredictions(ts, getu, p_vec, xobservable_ps0, xnondynamic_mech_ps0, x_ml_models)
+            end
+            try
+                J[:, est_to_dynamic] .= ForwardDiff.jacobian(_jac_dynamic, xdyn_est, ForwardDiff.JacobianConfig(_jac_dynamic, xdyn_est, chunk))
+            catch E;
+                PEtab.catch_ode_error(E)
+                J[:, est_to_dynamic] .= zero(eltype(J))
+            end
+        end
+        ## Not-system parameter block (noise, observable and non-dynamic parameters): these do
+        ## not enter the ODE, so only h has to be differentiated w.r.t. them
+        if !isempty(est_to_not_system) && sol0_ok
+            xns_est = x[est_to_not_system]
+            function _jac_notsystem(xns_est_dual)
+                _, xobservable_dual, xnondynamic_mech_dual, _ = PEtab.split_x_notsystem(xns_est_dual, xindices, cache)
+                xobservable_ps = PEtab.transform_x(xobservable_dual, xindices, :xobservable, cache)
+                xnondynamic_mech_ps = PEtab.transform_x(xnondynamic_mech_dual, xindices, :xnondynamic_mech, cache)
+                EvaluatePredictions(ts, getu0, p_vec0, xobservable_ps, xnondynamic_mech_ps, x_ml_models)
+            end
+            try
+                J[:, est_to_not_system] .= ForwardDiff.jacobian(_jac_notsystem, xns_est, ForwardDiff.JacobianConfig(_jac_notsystem, xns_est))
+            catch E;
+                PEtab.catch_ode_error(E)
+                J[:, est_to_not_system] .= zero(eltype(J))
+            end
+        end;    J
+    end;    PredictionsJacobian
+end
 
 end # module

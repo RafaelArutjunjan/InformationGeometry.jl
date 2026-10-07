@@ -350,6 +350,7 @@ function GetFixedDataUncertainty end
 function GetConditionData end
 function GetDataSets end
 function GetModelFunction end
+function GetPredictionsJacobian end
 function SplitParamsIntoCategories end
 function NicifyPEtabNames end
 function GetDynamicParamInds end
