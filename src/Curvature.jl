@@ -216,8 +216,8 @@ Computes the second fundamental form at the given parameters under the assumptio
 Measures how strongly tangent vectors to the embedded model manifold fail to stay tangent under parallel transport with respect to the ambient connection, i.e. extrinsic curvature.
 Normal vector valued (0,2) tensor.
 """
-function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p),
-                        g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=inv(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
+function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Inverter::Function=inv,
+                        g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=Inverter(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
     @boundscheck @assert length(mle) == size(g,1) == size(g,2) == size(g⁻¹,1) == size(g⁻¹,2)
     J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
     P_N = Eye(size(J,1)) .- J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
@@ -229,18 +229,20 @@ for F in [:EfronScalarCurvature, :EfronMeanCurvature,
             :EfronRiemannCurvature, :EfronRiemannCurvature2,
             :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
             :EfronShapeOperator, :EfronCurvatureIsotropy,
+            :BartlettCorrectionFactor,
             :NormSFF]
-    @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true,
-            g⁻¹::AbstractMatrix=try inv(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   inv(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
+    @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true, Inverter::Function=inv,
+            g⁻¹::AbstractMatrix=try Inverter(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   Inverter(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
             Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), SkipTests::Bool=false, kwargs...)
         SkipTests || @assert !HasEstimatedUncertainties(DM) "Not implemented for parameter-dependent data variance yet."
+        verbose && (SkipTests || (NotPosDef(g) && @warn "Given metric g does not appear to be positive definite, det(g)=$(det(g))"))
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
     end
     @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
 end
-## Gives proportionality to 2nd order MLE risk
+## Gives proportionality to 2nd order MLE risk - is squared norm
 function NormSFF(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
-    @tullio IInorm = g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+    @tullio IInorm² = g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
 end
 function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     NormSFF(II, g, g⁻¹, Σ⁻¹) / 2
@@ -282,6 +284,15 @@ function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::
     end
 end
 
+# Gives B term which is order N⁻¹. For correction, still needs to be divided by degrees of freedom k to yield W/(1 + B/k).
+# Holds only for case of Gaussian noise with fixed known variance
+function BartlettCorrectionFactor(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+    H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
+    Hnorm² = InnerProduct(Σ⁻¹, H)
+    IInorm² = NormSFF(II, g, g⁻¹, Σ⁻¹)
+    (2*IInorm² - Hnorm²) / 4
+end
+
 function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     @tullio Ric[i,j] := g⁻¹[a,b] * dot(II[i,j], Σ⁻¹, II[a,b])
 end
@@ -318,7 +329,7 @@ end
 function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
     Hnorm² = InnerProduct(Σ⁻¹, H)
-    IInorm² = 2*EfronScalarCurvature(II, g, g⁻¹, Σ⁻¹)
+    IInorm² = NormSFF(II, g, g⁻¹, Σ⁻¹)
     Hnorm² / IInorm²
 end
 
@@ -365,7 +376,7 @@ end
     EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
 Computes the (1,2) Christoffel symbol of the e-connection, i.e. the α-connection with α=-1.
 """
-function EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), g⁻¹::AbstractMatrix{<:Number}=inv(g), kwargs...)
+function EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), Inverter::Function=inv, g⁻¹::AbstractMatrix{<:Number}=Inverter(g), kwargs...)
     Γ = ChristoffelSymbol(DM, MLE; kwargs...)
     C = CencovTensor(DM, MLE; kwargs...)
     @tullio Γ[i,j,k] += -0.5 * g⁻¹[i,a] * C[a,j,k]
@@ -375,7 +386,7 @@ end
     MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
 Computes the (1,2) Christoffel symbol of the m-connection, i.e. the α-connection with α=+1.
 """
-function MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), g⁻¹::AbstractMatrix{<:Number}=inv(g), kwargs...)
+function MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), Inverter::Function=inv, g⁻¹::AbstractMatrix{<:Number}=Inverter(g), kwargs...)
     Γ = ChristoffelSymbol(DM, MLE; kwargs...)
     C = CencovTensor(DM, MLE; kwargs...)
     @tullio Γ[i,j,k] += +0.5 * g⁻¹[i,a] * C[a,j,k]
