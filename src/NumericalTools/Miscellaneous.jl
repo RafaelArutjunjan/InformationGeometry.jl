@@ -533,6 +533,17 @@ function ClipArray!(X::AbstractArray{T}, value::T=maximum(X); ClipperBool::Funct
     end
 end
 
+"""
+    ClipArrayCross(X::AbstractMatrix{T}, value::T=maximum(X); ClipperBool::Function=isequal(value), Impute::T=zero(T))
+Clips columns and rows of matrix `X` for which application of `ClipperBool` to diagonal evaluates to `true` to value specified by `Impute`.
+"""
+ClipArrayCross(X, args...; kwargs...) = (Res = copy(X);    ClipArrayCross!(Res, args...; kwargs...);    Res)
+function ClipArrayCross!(X::AbstractMatrix{T}, value::T=maximum(X); ClipperBool::Function=isequal(value), Impute::T=zero(T)) where T<:Number
+    @assert size(X,1) == size(X,2)
+    @inbounds for i in axes(X,1)
+        ClipperBool(X[i,i]) && (X[i,:] .= Impute;   X[:,i] .= Impute)
+    end
+end
 
 
 """

@@ -753,8 +753,8 @@ function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector, C::Abst
     VarSqrtN(X::AbstractVector{AbstractVector{<:Number}}) = (Jf = embeddingMatrix(DM, normalparamsNoXs, X);   map((J,x)->Sqrt((J * C * transpose(J))[1], x), JacobianWindup(Jf, ydim), X))
     xdim == 1 ? (ydim > 1 ? VarCholesky1 : VarSqrt1) : (ydim > 1 ? VarCholeskyN : VarSqrtN)
 end
-function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), 
-                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FisherMetric(DM, mle), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), verbose::Bool=true, kwargs...)
+function VariancePropagation(DM::AbstractDataModel, mle::AbstractVector=MLE(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), Inverter::Function=pinv,
+                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FisherMetric(DM, mle), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(Inverter(Fisher)), verbose::Bool=true, kwargs...)
     verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FisherMetric)=0."
     VariancePropagation(DM, mle, ScaledInverseFisher; Confnum, dof, IC, verbose, kwargs...)
 end
@@ -763,8 +763,8 @@ end
     FullVariancePropagation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), Fisher::AbstractMatrix=FullFisherMetric(DM, XP), verbose::Bool=true, kwargs...)
 Variance propagation based on FullFisherMetric, i.e. including x-uncertainties.
 """
-function FullVariancePropagation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), pInds::AbstractVector{<:Int}=(xp=length(XP);  xp-pdim(DM)+1:xp), 
-                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FullFisherMetric(DM, XP), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)[pInds, pInds]), verbose::Bool=true, kwargs...)
+function FullVariancePropagation(DM::AbstractDataModel, XP::AbstractVector=TotalLeastSquaresV(DM), confnum::Real=1; Confnum::Real=confnum, dof::Int=DOF(DM), pInds::AbstractVector{<:Int}=(xp=length(XP);  xp-pdim(DM)+1:xp), Inverter::Function=pinv,
+                IC::Real=icdfThreshold(dof,Confnum), Fisher::AbstractMatrix=FullFisherMetric(DM, XP), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(Inverter(Fisher)[pInds, pInds]), verbose::Bool=true, kwargs...)
     @assert size(Fisher,1) == size(Fisher,2) == length(XP) == xpdim(DM);    @assert xpdim(DM) > length(MLE(DM));    verbose && NotPosDef(Fisher) && @warn "Variance Propagation unreliable since det(FullFisherMetric)=0."
     VariancePropagation(DM, (@view XP[pInds]), ScaledInverseFisher; Confnum, dof, IC, verbose, kwargs...)
 end
