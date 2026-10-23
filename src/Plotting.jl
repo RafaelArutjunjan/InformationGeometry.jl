@@ -1,7 +1,7 @@
 
 
 # RecipesBase.@recipe f(DM::AbstractDataModel) = DM, MLE(DM)
-RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
+RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1.0, ConfnumData=1, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
     (xdim(DM) != 1 && Npoints(DM) > 1) && throw("Not programmed for plotting xdim != 1 yet.")
     xguide -->              (ydim(DM) > Npoints(DM) ? "Positions" : xnames(DM)[1])
     yguide -->              (ydim(DM) == 1 ? ynames(DM)[1] : "Observations")
@@ -10,13 +10,16 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, mle::AbstractVector{<:Numb
     Colors = ydim(DM) ≤ 16 ? reshape([palette(color_palette)[i] for i in 1:ydim(DM)],1,:) : :auto
     seriescolor := Colors
     @series begin
+        # Recipe keywords are consumed locally; forward the data scale explicitly.
+        ConfnumData := ConfnumData
+        # Estimated errors override the dataset defaults, so scale them here once.
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
                 ysig = WoundYSigmaMasked(Data(DM), (SplitErrorParams(DM)(mle))[end])
-                yerror := Unpack(ysig)
+                yerror := ConfnumData .* Unpack(ysig)
             elseif Data(DM) isa UnknownVarianceDataSet
-                xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
-                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+                xerror := ConfnumData .* Unpack(Windup(xsigma(DM, mle), xdim(DM)))
+                yerror := ConfnumData .* Unpack(Windup(ysigma(DM, mle), ydim(DM)))
             else
                 @warn "Not programmed for plotting $(typeof(Data(DM))) yet"
             end
@@ -120,12 +123,12 @@ end
 RecipesBase.@recipe f(DS::AbstractDataSet, positions::AbstractVector{<:Number}=xdata(DS)) = xdim(DS) == 1 ? (DS, Val(:Default), positions) : (DS, Val(xdim(DS) ≤ 10 ? :ManyPredictors : :IgnoreX))
 
 # xpositions for PDE Datasets
-RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS))
+RecipesBase.@recipe function f(DS::AbstractDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS); ConfnumData=1)
     @assert xdim(DS) == 1 "Use a different plotting method with Val(:ManyPredictors) or Val(:IgnoreX)"
     ysig = ysigma(DS)
-    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    Σ_y = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
     xsig = xsigma(DS)
-    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    Σ_x = HasXerror(DS) ? ConfnumData .* (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
     line -->                (:scatter, 0.8)
     xguide -->              (ydim(DS) > Npoints(DS) ? "Positions" : xnames(DS)[1])
     yguide -->              (ydim(DS) == 1 ? ynames(DS)[1] : "Observations")
@@ -174,15 +177,17 @@ end
 
 RecipesBase.@recipe f(DM::AbstractDataModel, S::Symbol, mle=MLE(DM)) = DM, Val(S), mle
 RecipesBase.@recipe f(DM::AbstractDataModel, mle::AbstractVector{<:Number}, S::Symbol) = DM, Val(S), mle
-RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
+RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::AbstractVector{<:Number}=MLE(DM), xpositions::AbstractVector{<:Number}=xdata(DM); Confnum=1, ConfnumData=1, PlotVariance=false, dof=DOF(DM), Validation=false, Fisher=nothing, verbose=false)
     @series begin
+        # Preserve the scale through the dataset's per-observable recipes.
+        ConfnumData := ConfnumData
         if HasEstimatedUncertainties(DM)
             if Data(DM) isa DataSetUncertain
                 ysig = WoundYSigmaMasked(Data(DM), (SplitErrorParams(DM)(mle))[end])
-                yerror := Unpack(ysig)
+                yerror := ConfnumData .* Unpack(ysig)
             elseif Data(DM) isa UnknownVarianceDataSet
-                xerror := Unpack(Windup(xsigma(DM, mle), xdim(DM)))
-                yerror := Unpack(Windup(ysigma(DM, mle), ydim(DM)))
+                xerror := ConfnumData .* Unpack(Windup(xsigma(DM, mle), xdim(DM)))
+                yerror := ConfnumData .* Unpack(Windup(ysigma(DM, mle), ydim(DM)))
             else
                 @warn "Not programmed for plotting $(typeof(Data(DM))) yet"
             end
@@ -190,7 +195,9 @@ RecipesBase.@recipe function f(DM::AbstractDataModel, V::Val{:Individual}, mle::
         Data(DM), V, xpositions
     end
     X = xpositions == xdata(DM) ? range(XCube(DM)[1]...; length=500) : xpositions
-    Ypred = UnpackWindup(EmbeddingMap(DM, mle, X), ydim(DM))
+    # Evaluate all observables on the dense plotting grid, rather than applying
+    # a CompositeDataSet's observation-only masking to that grid.
+    Ypred = UnpackWindup(EmbeddingMap(Val(true), Predictor(DM), GetOnlyModelParams(Data(DM))(mle), X), ydim(DM))
     RSEs = ResidualStandardError(DM, mle; verbose)
     RSEs = !isnothing(RSEs) ? convert.(Float64, RSEs) : RSEs
     Labels = ["Fit"*(isnothing(RSEs) ? "" : " with RSE≈$(round(RSEs[i]; sigdigits=3))")  for i in 1:ydim(DM)]
@@ -233,13 +240,13 @@ end
 RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, args...) = (DM, Val(S))
 
 # Plot multiple (~10) independent variables separately
-@recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}; rectangular=(xdim(DS) ≤ 10))
+@recipe function f(DS::AbstractDataSet, V::Val{:ManyPredictors}, xpositions::AbstractVector{<:Number}=xdata(DS); rectangular=(xdim(DS) ≤ 10), ConfnumData=1)
     layout --> (rectangular ? (ydim(DS),xdim(DS)) : xdim(DS)*ydim(DS))
     plot_title --> string(name(DS))
     ysig = ysigma(DS)
-    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    Σ_y = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
     xsig = xsigma(DS)
-    Σ_x = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+    Σ_x = HasXerror(DS) ? ConfnumData .* (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
     for j in 1:ydim(DS)
         for i in 1:xdim(DS)
             @series begin
@@ -257,11 +264,11 @@ RecipesBase.@recipe f(DM::Union{AbstractDataModel, AbstractDataSet}, S::Symbol, 
 end
 
 # Just plot data points in order when number of independent variables > 10
-@recipe function f(DS::AbstractDataSet, V::Val{:IgnoreX}; collapse=(ydim(DS) ≤ 5))
+@recipe function f(DS::AbstractDataSet, V::Val{:IgnoreX}, xpositions::AbstractVector{<:Number}=xdata(DS); collapse=(ydim(DS) ≤ 5), ConfnumData=1)
     !collapse && (layout --> ydim(DS))
     plot_title --> string(name(DS))
     ysig = ysigma(DS)
-    Σ_y = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+    Σ_y = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
     for j in 1:ydim(DS)
         @series begin
             xguide := "Data Point Index"
@@ -564,7 +571,7 @@ function PlotEllipses(X::AbstractVector, Σ::AbstractMatrix, dims::Tuple{Int,Int
 end
 
 
-RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVector{<:Number}=xdata(GDS))
+RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVector{<:Number}=xdata(GDS); ConfnumData=1)
     @assert xdim(GDS) + ydim(GDS) == 2
     names = vcat(xnames(GDS),ynames(GDS))
     xguide --> names[1]
@@ -572,7 +579,7 @@ RecipesBase.@recipe function f(GDS::GeneralizedDataSet, xpositions::AbstractVect
     N = xdim(GDS) + ydim(GDS) == 2 ? 200 : 80
     seriescolor --> :blue
     for (x,σ) in ToEllipsoidTuples(GetMean(dist(GDS)),Sigma(dist(GDS)),dims(GDS))
-        A = cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))']
+        A = ConfnumData .* (cholesky(collect(σ)).U * [cos.(range(0, 2π; length=N))'; sin.(range(0, 2π; length=N))'])
         @series begin
             seriestype := :shape
             fillalpha --> 0.4

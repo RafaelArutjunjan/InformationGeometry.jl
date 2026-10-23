@@ -13,6 +13,13 @@ where the best fit corresponding to the MLE parameters `MLE(DM)` is drawn in by 
 
 By default, a linearized (i.e. *approximate*) confidence band is computed around the prediction via [Gaussian error propagation](https://en.wikipedia.org/wiki/Propagation_of_uncertainty) of the inverse Fisher information, which provides a *lower* bound on the parameter uncertainty by the [Cramér-Rao theorem](https://en.wikipedia.org/wiki/Cram%C3%A9r%E2%80%93Rao_bound#Multivariate_case).
 
+Data error bars show one standard deviation by default. Use `ConfnumData` to multiply both the horizontal and vertical data error bars, independently of the model confidence bands:
+```julia
+plot(Data(DM); ConfnumData=2)       # 2σ data error bars
+plot(DM; ConfnumData=1.96)          # approximately 95% marginal error bars for Gaussian data
+plot(DM, :Individual; ConfnumData=3) # 3σ data error bars in separate panels
+```
+The default is `ConfnumData=1`. This only changes the displayed error bars, not the stored uncertainties, fit, or model confidence/validation bands.
 A desired (vector of) confidence level(s) in units of ``\sigma`` can be specified via the `Confnum` keyword for more control over the bands, with `Confnum=0` disabling the bands.
 ```@example Plotting
 plot(DM; Confnum=[1,2])

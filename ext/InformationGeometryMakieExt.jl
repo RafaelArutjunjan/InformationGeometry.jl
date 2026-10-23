@@ -150,14 +150,14 @@ module InformationGeometryMakieExt
     #### Datasets and DataModels
     import InformationGeometry: xdata, name, ynames, Npoints, DOF, ysigma, Windup, Unpack, DomainSamples, xdata, ResidualStandardError, xnames
     import InformationGeometry: AbstractUnknownUncertaintyDataSet, HasXerror
-    import InformationGeometry: SubDataSetComponent, predictedY, NotPosDef
+    import InformationGeometry: SubDataSetComponent, predictedY, NotPosDef, WoundY
 
     """
-        Makie.plot(DM::AbstractDataModel, mle, xpositions; Confnum=1.0, PlotVariance=false, dof=DOF(DM), Validation=false)
+        Makie.plot(DM::AbstractDataModel, mle, xpositions; Confnum=1.0, ConfnumData=1, PlotVariance=false, dof=DOF(DM), Validation=false)
     Inner method: builds a Makie Figure and Axis, plots the data (with errors
     if present), the model fit, and optional variance bands.
     """
-    function Makie.plot(DM::AbstractDataModel, mle::AbstractVector{<:Number} = MLE(DM), xpositions::AbstractVector{<:Number} = xdata(DM); Confnum::Real = 1.0, PlotVariance::Bool = false, 
+    function Makie.plot(DM::AbstractDataModel, mle::AbstractVector{<:Number} = MLE(DM), xpositions::AbstractVector{<:Number} = xdata(DM); Confnum::Real = 1.0, ConfnumData::Real = 1, PlotVariance::Bool = false,
                         dof::Real = DOF(DM), Validation::Bool = false, Padding::Real = 0.05, Fisher=nothing, verbose::Bool=false, kwargs...)
 
         (xdim(DM) != 1 && Npoints(DM) > 1) && error("Not programmed for plotting xdim != 1 yet.")
@@ -169,7 +169,11 @@ module InformationGeometryMakieExt
         fig = Makie.Figure()
         ax  = Makie.Axis(fig[1, 1]; xlabel = xlabel, ylabel = ylabel, title = ttl, limits=(HyperCube(extrema(xdata(DM)); Padding)[1], nothing))
 
-        Makie.plot!(ax, Data(DM), Val(:Default), xpositions; kwargs...)
+        # Pass unscaled uncertainties at the supplied parameters; the dataset
+        # method applies ConfnumData exactly once, independently of the bands.
+        Makie.plot!(ax, Data(DM), Val(:Default), xpositions; ConfnumData,
+                    xsig=Data(DM) isa DataSetUncertain ? xsigma(Data(DM)) : xsigma(DM, mle),
+                    ysig=ysigma(DM, mle), kwargs...)
 
         X = (ydim(DM) ≤ Npoints(DM)) ? DomainSamples(extrema(xdata(DM)); N=401) : xdata(DM)
         Y = InformationGeometry.predictedY(DM, mle, X)
@@ -200,9 +204,10 @@ module InformationGeometryMakieExt
             end
         else
             # One series per x-component
+            positions = length(xpositions) == ydim(DM) ? xpositions : (1:ydim(DM))
             for (i, xval) in enumerate(xdata(DM))
                 lbl = "Fit for $(xnames(DM)[1])=$(round(xval; sigdigits=3))"
-                Makie.lines!(ax, X, Y[i];
+                Makie.lines!(ax, positions, view(Y, :, i);
                     color     = palette_colors[mod1(i, length(palette_colors))],
                     linewidth = 2,
                     linestyle = :solid,
@@ -257,9 +262,9 @@ module InformationGeometryMakieExt
         if xdim(DS) == 1
             return Makie.plot(DS, Val(:Default), positions; kwargs...)
         elseif xdim(DS) ≤ 10
-            return Makie.plot(DS, Val(:ManyPredictors), positions; kwargs...)  # not implemented here
+            return Makie.plot(DS, Val(:ManyPredictors), positions; kwargs...)
         else
-            return Makie.plot(DS, Val(:IgnoreX), positions; kwargs...)         # not implemented here
+            return Makie.plot(DS, Val(:IgnoreX), positions; kwargs...)
         end
     end
 
@@ -280,14 +285,12 @@ module InformationGeometryMakieExt
         Makie.plot!(ax, DS, V, xpositions; kwargs...)
         fig
     end
-    function Makie.plot!(ax, DS::AbstractDataSet, ::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS); palette_colors = Makie.wong_colors(), kwargs...)
+    function Makie.plot!(ax, DS::AbstractDataSet, ::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS); ConfnumData::Real=1, xsig=xsigma(DS), ysig=ysigma(DS), palette_colors = Makie.wong_colors(), kwargs...)
         @assert xdim(DS) == 1 "Use Val(:ManyPredictors) or Val(:IgnoreX) for xdim != 1"
 
         # compute sigmas
-        ysig = ysigma(DS)
-        Σ_y  = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
-        xsig = xsigma(DS)
-        Σ_x  = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+        Σ_y  = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
+        Σ_x  = HasXerror(DS) ? ConfnumData .* (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
 
         if ydim(DS) == 1
             # single series
@@ -295,7 +298,7 @@ module InformationGeometryMakieExt
             Makie.scatter!(ax, xpositions, yvals; label = "Data", color=palette_colors[1], kwargs...)
             Makie.errorbars!(ax, xpositions, yvals, Σ_y; color=palette_colors[1], kwargs...)
             # errors
-            HasXerror(DS) && Makie.errorbars!(ax, xpositions, yvals, Σ_y; direction=:x, color=palette_colors[1], kwargs...)
+            !isnothing(Σ_x) && Makie.errorbars!(ax, xpositions, yvals, Σ_x; direction=:x, color=palette_colors[1], kwargs...)
         elseif ydim(DS) ≤ Npoints(DS)
             # one series per y-component
             yvals = Unpack(Windup(ydata(DS), ydim(DS)))
@@ -304,27 +307,41 @@ module InformationGeometryMakieExt
                 Makie.scatter!(ax, xpositions, yvals[:, i];
                         color = palette_colors[mod1(i, length(palette_colors))],
                         label = "Data: $(ynames(DS)[i])", kwargs...)
-                if HasXerror(DS)
-                    Makie.errorbars!(ax, xpositions, yvals[:, i], yerrs[:, i], Σ_x; color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
-                else
-                    Makie.errorbars!(ax, xpositions, yvals[:, i], yerrs[:, i]; color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
-                end
+                Makie.errorbars!(ax, xpositions, yvals[:, i], yerrs[:, i]; color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
+                !isnothing(Σ_x) && Makie.errorbars!(ax, xpositions, yvals[:, i], Σ_x; direction=:x, color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
             end
         else
             # one series per x-component (transposed)
-            yvals = transpose(Unpack(Windup(ydata(DS), ydim(DS))))
-            yerrs = transpose(Unpack(Windup(Σ_y, ydim(DS))))
+            yvals = Unpack(Windup(ydata(DS), ydim(DS)))
+            yerrs = Unpack(Windup(Σ_y, ydim(DS)))
+            positions = length(xpositions) == ydim(DS) ? xpositions : (1:ydim(DS))
             for i in 1:length(xdata(DS))
                 lbl = "Data for $(xnames(DS)[1])=$(round(xdata(DS)[i]; sigdigits=3))"
-                Makie.scatter!(ax, xpositions, yvals[i, :];
+                Makie.scatter!(ax, positions, yvals[i, :];
                         color = palette_colors[mod1(i, length(palette_colors))],
                         label = lbl, kwargs...)
                 # no robust way to incorporate xpositions if different from xdata
-                Makie.errorbars!(ax, xpositions, yvals[i, :], yerrs[i, :]; color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
+                Makie.errorbars!(ax, positions, yvals[i, :], yerrs[i, :]; color = palette_colors[mod1(i, length(palette_colors))], kwargs...)
             end
         end
 
         Makie.axislegend(ax; position = :rb)
+        return ax
+    end
+
+    # Composite datasets can have different observation positions per component.
+    # Keep each component's coordinates and split optional model-level errors.
+    function Makie.plot!(ax, DS::CompositeDataSet, V::Val{:Default}, xpositions::AbstractVector{<:Number}=xdata(DS); ConfnumData::Real=1, xsig=nothing, ysig=nothing, palette_colors=Makie.wong_colors(), kwargs...)
+        xoffset = yoffset = 0
+        for (i, component) in enumerate(Data(DS))
+            nx, ny = length(xdata(component)), length(ydata(component))
+            component_xsig = isnothing(xsig) ? xsigma(component) : (xsig isa AbstractVector ? xsig[xoffset+1:xoffset+nx] : xsig[xoffset+1:xoffset+nx, xoffset+1:xoffset+nx])
+            component_ysig = isnothing(ysig) ? ysigma(component) : (ysig isa AbstractVector ? ysig[yoffset+1:yoffset+ny] : ysig[yoffset+1:yoffset+ny, yoffset+1:yoffset+ny])
+            Makie.plot!(ax, component, V; ConfnumData, xsig=component_xsig, ysig=component_ysig,
+                        palette_colors=[palette_colors[mod1(i, length(palette_colors))]], kwargs...)
+            xoffset += nx
+            yoffset += ny
+        end
         return ax
     end
 
@@ -333,7 +350,7 @@ module InformationGeometryMakieExt
     Plot multiple (≈10) independent variables separately. If `rectangular` is true,
     create a ydim×xdim grid of subplots; otherwise stack the subplots in one column.
     """
-    function Makie.plot(DS::AbstractDataSet, ::Val{:ManyPredictors}; rectangular::Bool = (xdim(DS) ≤ 10))
+    function Makie.plot(DS::AbstractDataSet, ::Val{:ManyPredictors}, xpositions::AbstractVector{<:Number}=xdata(DS); rectangular::Bool = (xdim(DS) ≤ 10), ConfnumData::Real=1)
 
         # overall figure + optional “title” label
         fig = Makie.Figure()
@@ -341,9 +358,9 @@ module InformationGeometryMakieExt
 
         # error magnitudes
         ysig = ysigma(DS)
-        Σ_y  = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+        Σ_y  = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
         xsig = xsigma(DS)
-        Σ_x  = HasXerror(DS) ? (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
+        Σ_x  = HasXerror(DS) ? ConfnumData .* (xsig isa AbstractVector ? xsig : sqrt.(Diagonal(xsig).diag)) : nothing
 
         # helper to place axes
         function place_axis(fig, idx, totalrows, totalcols)
@@ -369,7 +386,8 @@ module InformationGeometryMakieExt
                         Makie.errorbars!(ax, xvals, yvals, yerr)
                     else
                         xerr = getindex.(Windup(Σ_x, xdim(DS)), i)
-                        Makie.errorbars!(ax, xvals, yvals, yerr, xerr)
+                        Makie.errorbars!(ax, xvals, yvals, yerr)
+                        Makie.errorbars!(ax, xvals, yvals, xerr; direction=:x)
                     end
                 end
             end
@@ -389,7 +407,8 @@ module InformationGeometryMakieExt
                         Makie.errorbars!(ax, xvals, yvals, yerr)
                     else
                         xerr = getindex.(Windup(Σ_x, xdim(DS)), i)
-                        Makie.errorbars!(ax, xvals, yvals, yerr, xerr)
+                        Makie.errorbars!(ax, xvals, yvals, yerr)
+                        Makie.errorbars!(ax, xvals, yvals, xerr; direction=:x)
                     end
                     idx += 1
                 end
@@ -403,14 +422,14 @@ module InformationGeometryMakieExt
     all y-dimensions are overlaid on a single axis; otherwise each y-dimension gets
     its own subplot.
     """
-    function Makie.plot(DS::AbstractDataSet, ::Val{:IgnoreX}; collapse::Bool = (ydim(DS) ≤ 5))
+    function Makie.plot(DS::AbstractDataSet, ::Val{:IgnoreX}, xpositions::AbstractVector{<:Number}=xdata(DS); collapse::Bool = (ydim(DS) ≤ 5), ConfnumData::Real=1)
 
         fig = Makie.Figure()
-        fig[1, :] = Makie.Label(fig, string(name(DS)); fontsize = 18, tellheight = true)
+        fig[0, :] = Makie.Label(fig, string(name(DS)); fontsize = 18, tellheight = true)
 
         # y-error magnitudes
         ysig = ysigma(DS)
-        Σ_y  = ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag)
+        Σ_y  = ConfnumData .* (ysig isa AbstractVector ? ysig : sqrt.(Diagonal(ysig).diag))
 
         palette_colors = Makie.wong_colors()
 
