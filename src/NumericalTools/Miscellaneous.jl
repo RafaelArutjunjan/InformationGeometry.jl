@@ -761,7 +761,7 @@ struct ViewElements{Inds} <: Function
     F::Function
     Inds::Union{AbstractArray, Tuple, Colon, Int}
     ViewElements(Inds::AbstractRange) = new{Inds}(X::AbstractArray{<:Number}->SafeView(X, Inds), Inds)
-    ViewElements(Inds::Int) = new{Inds}(X::AbstractArray{<:Number}->SafeView(X, Inds), Inds)
+    ViewElements(Inds::Int) = new{Inds}(X::AbstractArray{<:Number}->only(SafeView(X, Inds)), Inds)
     ViewElements(Inds::AbstractArray{<:Int}) = new{Tuple(Inds)}(X::AbstractArray{<:Number}->SafeView(X, Inds), Inds)
     ViewElements(Inds::AbstractArray{<:Bool}) = ViewElements((1:length(Inds))[Inds])
     ViewElements(Inds::NTuple{N,<:Int}) where N = ViewElements(collect(Inds))
