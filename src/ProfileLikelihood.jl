@@ -1925,6 +1925,19 @@ end
 FullPredictionProfiles(args...; DivideBy::Real=10, kwargs...) = FullValidationProfiles(args...; DivideBy, kwargs...) |> ConvertValidationToPredictionProfiles
 
 
+
+## Warn if no condition index is specified for ConditionGrid with more than single condition when trying to retrieve Predictor map
+SafePredictor(DM::AbstractDataModel, Condition::Int) = Predictor(Conditions(DM)[Condition])
+SafePredictor(DM::DataModel, Cond::Int) = Predictor(DM)
+
+SafePredictor(DM::AbstractDataModel, ::Nothing) = SafePredictor(DM)
+SafePredictor(DM::DataModel) = Predictor(DM)
+function SafePredictor(CG::AbstractConditionGrid)
+    length(Conditions(CG)) > 1 && @warn "Requested ModelMap for ConditionGrid with more than one condition! Returning model for first condition."
+    SafePredictor(CG, 1)
+end
+
+
 # Generate multiple validation profiles and add back offset to prediction scale
 """
     ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector; Confnum::Real=2, dof::Int=DOF(DM), OffsetToZero::Bool=false, kwargs...)
@@ -1936,7 +1949,7 @@ Most other kwargs are passed on to the `ParameterProfiles` function and thereby 
 """
 function ValidationProfiles(DM::AbstractDataModel, yComp::Int, Ts::AbstractVector=range(extrema(xdata(DM))...; length=3length(xdata(DM))); Confnum::Real=2.2, dof::Int=DOF(DM), MLE::AbstractVector{<:Number}=MLE(DM), ModelParExtractor::Function=GetOnlyModelParams(DM),
                         Fisher::AbstractMatrix=FisherMetric(DM, MLE), IC::Real=icdfThreshold(dof,Confnum), ScaledInverseFisher::AbstractMatrix=IC * Symmetric(pinv(Fisher)), VarianceProp::Function=VariancePropagation(DM, MLE, ScaledInverseFisher; Confnum, dof),
-                        Model::ModelOrFunction=Predictor(DM), ydim::Int=length(Model(Ts[1], ModelParExtractor(MLE))), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
+                        Model::ModelOrFunction=SafePredictor(DM), ydim::Int=length(Model(Ts[1], ModelParExtractor(MLE))), IsCost::Bool=true, OffsetToZero::Bool=false, Meta=:ValidationProfiles, parallel::Bool=true, verbose::Bool=true, kwargs...)
     ypreds = @view EmbeddingMap(Val(true), Model, ModelParExtractor(MLE), Ts)[yComp:ydim:end]      # Always compute with offset to zero internally
     Res = (parallel ? progress_pmap : progress_map)(i->GetValidationProfilePoint(DM, yComp, Ts[i]; ypred=ypreds[i], Confnum, dof, MLE, Model, ModelParExtractor, ydim=ydim, IC, Fisher, ScaledInverseFisher, VarianceProp, IsCost, verbose, kwargs...), 1:length(Ts); progress=Progress(length(Ts); enabled=verbose, desc="Computing Validation Profiles... (parallel, $(nworkers()) workers) ", dt=1, showspeed=true))
     Profs, Trajs = getindex.(Res,1), getindex.(Res,2)

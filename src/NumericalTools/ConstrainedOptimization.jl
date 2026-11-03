@@ -24,7 +24,7 @@ function RefineInitialCondition(DM::AbstractDataModel, t0::Real, ConfNum::Real=2
 end
 
 function RefineInitialCondition(DM::AbstractDataModel, θguess::AbstractVector{<:Number}, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, 
-            constraint::Function=loglikelihood(DM), dof::Real=DOF(DM), loglikeMLE::Real=LogLikeMLE(DM), objective::Function=only∘Predictor(DM), 
+            constraint::Function=loglikelihood(DM), dof::Real=DOF(DM), loglikeMLE::Real=LogLikeMLE(DM), objective::Function=only∘SafePredictor(DM), 
             TransformGuess::Bool=true, C::Real=loglikeMLE-0.5*icdfThreshold(dof, Confnum), meth=nothing, kwargs...)
     SolveConstrainedOptimisationProblem(θ->objective(t0, θ), constraint, θguess, C, meth; TransformGuess, kwargs...)
 end
