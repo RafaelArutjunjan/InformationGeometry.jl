@@ -63,7 +63,9 @@ function _ConstrainedOptimisationInitialGuess(ZerodConstraint::Function, θguess
         if isfinite(Δ) && isfinite(q) && Δ > 0 && q > 0
             α0 = sqrt(2 * Δ / q)
             θseed = θguess .+ sense .* α0 .* d
-            λseed = -sense * sqrt(q / (2 * Δ))
+            # λ follows from the KKT condition sense·gobj + λ·gcon = 0 evaluated on the quadratic model,
+            # where gcon(seed) ≈ -sense·α0·gobj, i.e. λ = 1/α0, independent of `sense`.
+            λseed = sqrt(q / (2 * Δ))
         else
             # Conservative fallback: a small step along ±∇(objective)
             gnorm = norm(gobj)
@@ -162,7 +164,12 @@ function SolveConstrainedOptimisationProblem(objective_fixedt0::Function, ZerodC
     else
         copy(θguess)
     end
-    df = Optim.TwiceDifferentiable(objective_fixedt0, ObjectiveGradient!, ObjectiveHessian!, startz)
+    ## Optim always minimizes: rescale the objective by -sense so that `sense = +1` maximizes and `sense = -1` minimizes,
+    ## matching the KKT convention of the NonlinearSolve method.
+    ScaledObjective = x -> -sense * objective_fixedt0(x)
+    ScaledObjectiveGradient!(g, x) = (ObjectiveGradient!(g, x);     g .*= -sense)
+    ScaledObjectiveHessian!(H, x) = (ObjectiveHessian!(H, x);     H .*= -sense)
+    df = Optim.TwiceDifferentiable(ScaledObjective, ScaledObjectiveGradient!, ScaledObjectiveHessian!, startz)
     
     con_c!(c, z) = (c[1] = ZerodConstraint(z))
     con_jacobian!(J, z) = (ConstraintGradient!(gcon, z);   J[1, :] .= gcon;     nothing)
@@ -230,13 +237,10 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     ZerodConstraint = ConstraintTrafo === identity ? ZerodConstraintUntransformed : ConstraintTrafo∘ZerodConstraintUntransformed
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraint) : EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraint) : EmbedFisher(CostHessian, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ## SolveConstrainedOptimisationProblem rescales the objective by -sense internally, so the objective is passed unscaled here
     MaximizationObjective(z::AbstractVector) = factor * abs(z[end])
     MaximizationGradient!(g, z::AbstractVector) = (g .= 0; g[end] = factor * Sgn(z[end]))
     MaximizationHessian!(H, z::AbstractVector) = (H .= 0)
-    isoptim = meth isa Optim.AbstractConstrainedOptimizer
-    ObjectiveFunction = isoptim ? z -> -MaximizationObjective(z) : MaximizationObjective
-    ObjectiveGradient! = isoptim ? (g, z) -> (MaximizationGradient!(g, z); g .*= -1) : MaximizationGradient!
-    ObjectiveHessian! = isoptim ? (H, z) -> (MaximizationHessian!(H, z); H .*= -1) : MaximizationHessian!
     if isnothing(Domain)
         lower = fill(-Inf, length(startz)-1);     upper = fill(Inf, length(startz)-1)
     else
@@ -245,9 +249,9 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         upper = collect(Domain.U[NuisanceInds]) .- XP[NuisanceInds]
     end
     push!(lower, radiuslower);      push!(upper, radiusupper)
-    SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraint, z, meth;
+    SolveOne = z -> SolveConstrainedOptimisationProblem(MaximizationObjective, ZerodConstraint, z, meth;
         ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
-        lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
+        lower, upper, ConstraintGradient!, ConstraintHessian!, MaximizationGradient!, MaximizationHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
         @assert length(Dom) == length(FullInitial)
@@ -258,7 +262,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
         MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
+        Res = MultistartFit(MaximizationObjective, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res))
     else
         Res = SolveOne(startz)
@@ -302,18 +306,15 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
     ZerodConstraint = ConstraintTrafo === identity ? ZerodConstraintUntransformed : ConstraintTrafo∘ZerodConstraintUntransformed
     ConstraintGradient! = GenerateNewScore ? GetGrad!(ADmode, ZerodConstraint) : EmbedScore(CostGradient, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
     ConstraintHessian! = GenerateNewCostHessian ? GetHess!(ADmode, ZerodConstraint) : EmbedFisher(CostHessian, ReconstructModelParams, startz, FullInitial; ADmode, Jac!, levels)
+    ## SolveConstrainedOptimisationProblem rescales the objective by -sense internally, so the objective is passed unscaled here
     MaximizationObjective(z::AbstractVector) = factor * abs(z[end])
     MaximizationGradient!(g, z::AbstractVector) = (g .= 0; g[end] = factor * Sgn(z[end]))
     MaximizationHessian!(H, z::AbstractVector) = (H .= 0)
-    isoptim = meth isa Optim.AbstractConstrainedOptimizer
-    ObjectiveFunction = isoptim ? z -> -MaximizationObjective(z) : MaximizationObjective
-    ObjectiveGradient! = isoptim ? (g, z) -> (MaximizationGradient!(g, z); g .*= -1) : MaximizationGradient!
-    ObjectiveHessian! = isoptim ? (H, z) -> (MaximizationHessian!(H, z); H .*= -1) : MaximizationHessian!
     lower = fill(-Inf, length(startz));     upper = fill(Inf, length(startz))
     lower[end] = radiuslower; upper[end] = radiusupper
-    SolveOne = z -> SolveConstrainedOptimisationProblem(ObjectiveFunction, ZerodConstraint, z, meth;
+    SolveOne = z -> SolveConstrainedOptimisationProblem(MaximizationObjective, ZerodConstraint, z, meth;
         ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
-        lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient!, ObjectiveHessian!, kwargs...)
+        lower, upper, ConstraintGradient!, ConstraintHessian!, MaximizationGradient!, MaximizationHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(n, maxval) : MultistartDomain
         @assert length(Dom) == n
@@ -325,7 +326,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
         MinimizeFunc = (x, z; meth=nothing, timeout=nothing, Kwargs...) -> SolveOne(z)
         SortingObjective(z) = MaximizationObjective(z) -1e2*abs(ZerodConstraint(z))
         # Expects cost function
-        Res = MultistartFit(ObjectiveFunction, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
+        Res = MultistartFit(MaximizationObjective, Points; MinimizeFunc, DM=nothing, showprogress=false, LogLikelihoodFn=SortingObjective, TryCatchOptimizer, kwargs...)
         Full ? Res : ReconstructModelParams(MLE(Res))
     else
         Res = SolveOne(startz)
