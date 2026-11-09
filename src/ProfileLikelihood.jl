@@ -389,12 +389,12 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
                         SavedPs::Union{AbstractVector{<:AbstractVector{<:Number}},Nothing}=nothing, FisherMetricFn::Function=FisherMetric(DM), MLE::AbstractVector{<:Number}=InformationGeometry.MLE(DM), 
                         UseGrad::Bool=true, CostGradient::Union{Function,Nothing}=(!UseGrad ? nothing : (GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM))),
                         UseHess::Bool=false, CostHessian::Union{Function,Nothing}=(!UseHess ? nothing : (GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM))),
-                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false,
+                        LogPriorFn::Union{Nothing,Function}=LogPrior(DM), SavePriors::Bool=!isnothing(LogPriorFn), Ndata::Int=DataspaceDim(DM), UseFscaling::Bool=false, Trafo::Symbol=UseFscaling ? :F : :Chi, 
                         logLikeMLE::Real=LogLikeMLE(DM), KnownVariance::Bool=!HasEstimatedUncertainties(DM), MinimizeFunc::Function=InformationGeometry.minimize,
                         Fisher::Union{Nothing, AbstractMatrix}=(adaptive ? FisherMetricFn(MLE) : nothing), verbose::Bool=false, resort::Bool=true, Multistart::Int=0, maxval::Real=1e5, OnlyBreakOnBounds::Bool=false,
                         Domain::Union{Nothing, HyperCube}=GetDomain(DM), InDomain::Union{Nothing, Function}=GetInDomain(DM), ProfileDomain::Union{Nothing, HyperCube}=GetDomain(DM), tol::Real=1e-10,
                         meth=((isnothing(LogPriorFn) && !general && !HasEstimatedUncertainties(DM) && isloaded(:LsqFit)) ? nothing : DefaultFirstOrderOptimizer), OptimMeth=meth, OffsetResults::Bool=true,
-                        IC::Real=(!UseFscaling ? eltype(MLE)(icdfThreshold(dof,Confnum)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
+                        IC::Real=eltype(MLE)(!UseFscaling ? icdfThreshold(dof,Confnum) : dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8)), MinSafetyFactor::Real=1.05, MaxSafetyFactor::Real=3, 
                         stepfactor::Real=3.5, stepmemory::Real=0.2, terminatefactor::Real=10, flatstepconst::Real=3e-2, curvaturesensitivity::Real=0.7, gradientsensitivity::Real=0.05, kwargs...)
     SavePriors && isnothing(LogPriorFn) && @warn "Got kwarg SavePriors=true but model does not have prior."
     @assert Confnum > 0
@@ -609,7 +609,7 @@ function GetProfile(DM::AbstractDataModel, Comp::Int, ps::AbstractVector{<:Real}
         end
     end
 
-    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, verbose)
+    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, Trafo, verbose, DM)
     perm = sortperm(visitedps)
     # Param always first col, Res second, Converged last. Third column always priors IF length(cols) ≥ 4, columns after prior may be other saved information.
     # Lazy array construction via RecursiveArrayTools allows for preserving type information of columns while still being indexable as matrix
@@ -623,31 +623,29 @@ end
 
 
 function ProfileDataPostProcessing!!(Res::AbstractVector{<:Number}, priors::Union{Nothing,AbstractVector}, Converged::AbstractVector{<:Bool}; MLE::AbstractVector=Float64[], dof::Real=length(MLE), LogPriorFn::Union{Function,Nothing}=nothing, 
-                        AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf, Ndata::Int=-5000, UseFscaling::Bool=false, verbose::Bool=true)
+                        AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(priors), OffsetResults::Bool=true, logLikeMLE::Real=-Inf, Ndata::Int=-5000, 
+                        UseFscaling::Bool=false, Trafo::Symbol=UseFscaling ? :F : :Chi, verbose::Bool=true, DM::Union{AbstractDataModel,Nothing}=nothing)
     Logmax = AllowNewMLE ? max(try maximum(view(Res, Converged)) catch; -Inf end, logLikeMLE) : logLikeMLE
     Logmax > logLikeMLE && @warn "Profile Likelihood analysis apparently found a likelihood value which is larger (i.e. better) than the previously stored LogLikeMLE. Continuing anyway."
     # Using pdim(DM) instead of 1 here, because it gives the correct result
     Priormax = SavePriors ? EvalLogPrior(LogPriorFn,MLE) : 0.0
-    if IsCost
-        if OffsetResults
-            @. Res = 2*(Logmax - Res)
-            SavePriors && (@. priors = 2*(Priormax - priors))
-        else
-            Res .*= -2
-            SavePriors && (priors .*= -2)
-        end
+    if OffsetResults
+        @. Res = 2*(Logmax - Res)
+        SavePriors && (@. priors = 2*(Priormax - priors))
     else
-        @assert OffsetResults
-        Chi²ₖConfMapping(l::Real, lmle::Real) = l ≤ lmle ? InvConfVol(ChisqCDF(dof, 2(lmle - l))) : NaN
-        Fₖ_ₙ₋ₖ_ConfMapping(l::Real, lmle::Real) = l ≤ lmle ? InvConfVol(FDistCDF(2(lmle - l)/dof, dof, Ndata-dof)) : NaN
-        ConfMapping = UseFscaling ? Fₖ_ₙ₋ₖ_ConfMapping : Chi²ₖConfMapping
+        Res .*= -2
+        SavePriors && (priors .*= -2)
+    end
+    if !IsCost
+        @assert OffsetResults && !isnothing(DM)
+        ConfTrafo = GetLRTConfidenceTransform(DM, Trafo; MLE, dof, Ndata, ConfidenceScaleTrafo=InvConfVol)
         @inbounds for i in eachindex(Res)
-            Res[i] = ConfMapping(Res[i], Logmax)
+            Res[i] = ConfTrafo(Res[i])
         end
         if SavePriors
             verbose && @info "Got IsCost=true with SavePriors=true. Converting prior to confidence scale independently from data contribution. Strictly speaking, the isolated prior contributions are not meaningfully comparable to full profile on this scale!"
             @inbounds for i in eachindex(priors)
-                priors[i] = ConfMapping(priors[i], Priormax)
+                priors[i] = ConfTrafo(priors[i])
             end
         end
     end
@@ -1084,21 +1082,35 @@ function ProfileTransform(P::ParameterProfiles, F::Function; Meta::Symbol=Symbol
 end
 
 
+## Assumes inputs W are already W = 2(lmle-l)
+function GetLRTConfidenceTransform(DM::AbstractDataModel, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), MLE::AbstractVector=MLE(DM), ConfidenceScaleTrafo::Function=InvConfVol)
+    AllowedSymbs = [:Chi, :F, :ChiRescaled]
+    @assert Trafo ∈ AllowedSymbs "Do not know $Trafo, choose Trafo from $AllowedSymbs."
+    # Already transformed as w = 2(lmle-l)
+    TrafoFn = if Trafo === :Chi # Fixed errors of true known size
+        Chi²ₖConfMapping(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(ChisqCDF(dof, W)) : NaN
+        Chi²ₖConfMapping(Ps::AbstractVector, Ws::AbstractVector) = broadcast(Chi²ₖConfMapping, Ws)
+    elseif Trafo === :F # Estimated errors
+        Fₖ_ₙ₋ₖ_ConfMapping(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(FDistCDF(((Ndata-dof)/dof) * (exp(W/Ndata) -1), dof, Ndata-dof)) : NaN
+        Fₖ_ₙ₋ₖ_ConfMapping(Ps::AbstractVector, Ws::AbstractVector) = broadcast(Fₖ_ₙ₋ₖ_ConfMapping, Ws)
+    elseif Trafo === :ChiRescaled # Fixed errors of with rescaled overall magnitude size
+        ChiSqRed = ChisquaredReduced(DM, MLE; dof)
+        Fₖ_ₙ₋ₖ_ConfMappingRescaled(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(FDistCDF((W/dof)*(Ndata-dof)/ChiSqRed, dof, Ndata-dof)) : NaN
+        Fₖ_ₙ₋ₖ_ConfMappingRescaled(Ps::AbstractVector, Ws::AbstractVector) = broadcast(Fₖ_ₙ₋ₖ_ConfMappingRescaled, Ws)
+    end;    TrafoFn
+end
+
 """
     ProfileConfidenceTransform(DM::AbstractDataModel, P::ParameterProfiles, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), kwargs...)
-Applies confidence scaling based on `Trafo=:Chi` or `Trafo=:F` to given profiles `P`.
+Applies confidence scaling based on `Trafo=:Chi`, `Trafo=:F`, `Trafo=:ChiRescaled` to given profiles `P`.
+Chi: Assuming Wilks' theorem, i.e. W ~ χ^2
+F: Assuming Gaussian likelihood but all data uncertainties estimated
+ChiRescaled: Errors fixed but rescales final likelihood based on ChiSquaredReduced
 """
-function ProfileConfidenceTransform(DM::AbstractDataModel, P::ParameterProfiles, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), kwargs...)
-        _ProfileConfidenceTransform(P, Trafo, dof, Ndata; kwargs...)
-end
-function _ProfileConfidenceTransform(P::ParameterProfiles, Trafo::Symbol, dof::Real, Ndata::Int; TransformPriors::Bool=HasPriors(P), kwargs...)
-    @assert Trafo === :Chi || Trafo === :F
-    # Already transformed as 2(lmle-l)
-    Chi²ₖConfMappingInd(w::Real) = w ≥ 0 ? InvConfVol(ChisqCDF(dof, w)) : NaN
-    Chi²ₖConfMapping(Ps::AbstractVector, Ws::AbstractVector) = map(Chi²ₖConfMappingInd, Ws)
-    Fₖ_ₙ₋ₖ_ConfMappingInd(w::Real) = w ≥ 0 ? InvConfVol(FDistCDF(w/dof, dof, Ndata-dof)) : NaN
-    Fₖ_ₙ₋ₖ_ConfMapping(Ps::AbstractVector, Ws::AbstractVector) = map(Fₖ_ₙ₋ₖ_ConfMappingInd, Ws)
-    ProfileTransform(P, Trafo === :Chi ? Chi²ₖConfMapping : Fₖ_ₙ₋ₖ_ConfMapping; TransformPriors, kwargs...)
+function ProfileConfidenceTransform(DM::AbstractDataModel, P::ParameterProfiles, Trafo::Symbol=:Chi; dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), MLE::AbstractVector=MLE(DM), 
+                        ConfidenceScaleTrafo::Function=InvConfVol, kwargs...)
+    # Assumes inputs already transformed as W = 2(lmle-l)
+    ProfileTransform(P, GetLRTConfidenceTransform(DM, Trafo; dof, Ndata, MLE, ConfidenceScaleTrafo); kwargs...)
 end
 
 
@@ -1201,8 +1213,8 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::Union{<:Tup
                 LogLikelihoodFn::Function=loglikelihood(DM), CostFunction::Function=Negate(LogLikelihoodFn), MLE::AbstractVector{<:Number}=MLE(DM), ADmode::Val=Val(:ForwardDiff), 
                 CostGradient::Union{Function,Nothing}=(GenerateNewDerivatives ? MergeOneArgMethods(GetGrad(ADmode, CostFunction), GetGrad!(ADmode, CostFunction)) : NegScore(DM)),
                 CostHessian::Union{Function,Nothing}=(GenerateNewDerivatives ? AutoMetricFromNegScore(CostGradient; ADmode) : CostHessian(DM)),
-                dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false, verbose::Bool=true, 
-                IC::Real=(!UseFscaling ? eltype(MLE)(icdfThreshold(dof,Confnum)) : eltype(MLE)(dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8))),
+                dof::Real=DOF(DM), Ndata::Int=DataspaceDim(DM), Confnum::Number=2, UseFscaling::Bool=false, Trafo::Symbol=UseFscaling ? :F : :Chi, verbose::Bool=true, 
+                IC::Real=eltype(MLE)(!UseFscaling ? icdfThreshold(dof,Confnum) : dof*InvFDistCDF(ConfVol(Confnum), dof, Ndata-dof; maxval=1e8)),
                 LogPriorFn::Union{Function,Nothing}=LogPrior(DM), logLikeMLE::Real=LogLikeMLE(DM), Domain::Union{Nothing, HyperCube}=GetDomain(DM), 
                 ### Pure PostProcessing:
                 AllowNewMLE::Bool=true, IsCost::Bool=true, SavePriors::Bool=!isnothing(LogPriorFn), OffsetResults::Bool=true, SaveTrajectories::Bool=true, # Catch last
@@ -1235,7 +1247,7 @@ function GetIntegrationProfile(DM::AbstractDataModel, Comp::Int, ps::Union{<:Tup
     priors = SavePriors ? map(LogPriorFn, path) : nothing
     Converged = trues(length(Res))
 
-    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, verbose)
+    ProfileDataPostProcessing!!(Res, priors, Converged; MLE, dof, LogPriorFn, AllowNewMLE, IsCost, SavePriors, OffsetResults, logLikeMLE, Ndata, UseFscaling, Trafo, verbose, DM)
     ResMat = SavePriors ? VectorOfArray([getindex.(path,Comp), Res, priors, Converged]) : VectorOfArray([getindex.(path,Comp), Res, Converged])
     (ResMat, path)
 end

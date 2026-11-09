@@ -251,7 +251,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, FixedInds::A
     push!(lower, radiuslower);      push!(upper, radiusupper)
     SolveOne = z -> SolveConstrainedOptimisationProblem(MaximizationObjective, ZerodConstraint, z, meth;
         ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
-        lower, upper, ConstraintGradient!, ConstraintHessian!, MaximizationGradient!, MaximizationHessian!, kwargs...)
+        lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient! = MaximizationGradient!, ObjectiveHessian! = MaximizationHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(length(FullInitial), maxval) : MultistartDomain
         @assert length(Dom) == length(FullInitial)
@@ -314,7 +314,7 @@ function SolvePointSphereOptimisationProblem(DM::AbstractDataModel, Directions::
     lower[end] = radiuslower; upper[end] = radiusupper
     SolveOne = z -> SolveConstrainedOptimisationProblem(MaximizationObjective, ZerodConstraint, z, meth;
         ADmode, levels, sense=1, Full=false, TransformGuess, ProjectFirst, ProjectIters, ProjectTol, InteriorTol,
-        lower, upper, ConstraintGradient!, ConstraintHessian!, MaximizationGradient!, MaximizationHessian!, kwargs...)
+        lower, upper, ConstraintGradient!, ConstraintHessian!, ObjectiveGradient! = MaximizationGradient!, ObjectiveHessian! = MaximizationHessian!, kwargs...)
     if Multistart > 0
         Dom = isnothing(MultistartDomain) ? FullDomain(n, maxval) : MultistartDomain
         @assert length(Dom) == n
