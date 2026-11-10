@@ -895,7 +895,7 @@ mutable struct ParameterProfiles <: AbstractProfiles
     Meta::Symbol
     function ParameterProfiles(DM::AbstractDataModel, Confnum::Union{Real,HyperCube}=2., Inds::AbstractVector{<:Int}=1:pdim(DM); plot::Bool=isloaded(:Plots), SaveTrajectories::Bool=true, IsCost::Bool=true, dof::Int=DOF(DM), Meta::Symbol=:ParameterProfiles, pnames::AbstractVector{<:StringOrSymb}=pnames(DM), MLE::AbstractVector=MLE(DM), kwargs...)
         inds = sort(Inds)
-        FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories, IsCost, MLE, kwargs...)
+        FullProfs = ProfileLikelihood(DM, Confnum, inds; plot=false, SaveTrajectories, IsCost, dof, MLE, kwargs...)
         Profs = SaveTrajectories ? getindex.(FullProfs,1) : FullProfs
         Trajs = SaveTrajectories ? getindex.(FullProfs,2) : Fill(nothing, length(inds))
         if !(inds == 1:length(MLE))
@@ -1094,8 +1094,8 @@ function GetLRTConfidenceTransform(DM::AbstractDataModel, Trafo::Symbol=:Chi; do
         Fₖ_ₙ₋ₖ_ConfMapping(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(FDistCDF(((Ndata-dof)/dof) * (exp(W/Ndata) -1), dof, Ndata-dof)) : NaN
         Fₖ_ₙ₋ₖ_ConfMapping(Ps::AbstractVector, Ws::AbstractVector) = broadcast(Fₖ_ₙ₋ₖ_ConfMapping, Ws)
     elseif Trafo === :ChiRescaled # Fixed errors of with rescaled overall magnitude size
-        ChiSqRed = ChisquaredReduced(DM, MLE; dof)
-        Fₖ_ₙ₋ₖ_ConfMappingRescaled(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(FDistCDF((W/dof)*(Ndata-dof)/ChiSqRed, dof, Ndata-dof)) : NaN
+        Smle = ResidualSquares(DM, MLE)
+        Fₖ_ₙ₋ₖ_ConfMappingRescaled(W::Real) = W ≥ 0 ? ConfidenceScaleTrafo(FDistCDF((W/dof)*(Ndata-dof)/Smle, dof, Ndata-dof)) : NaN
         Fₖ_ₙ₋ₖ_ConfMappingRescaled(Ps::AbstractVector, Ws::AbstractVector) = broadcast(Fₖ_ₙ₋ₖ_ConfMappingRescaled, Ws)
     end;    TrafoFn
 end
