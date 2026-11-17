@@ -23,10 +23,89 @@ function RefineInitialCondition(DM::AbstractDataModel, t0::Real, ConfNum::Real=2
     RefineInitialCondition(DM, MLE(DM), t0, ConfNum; Confnum, kwargs...)
 end
 
+"""
+    RefineInitialCondition(DM::AbstractDataModel, θguess::AbstractVector{<:Number}, t0::Real, ConfNum::Real=2; TransformGuess::Bool=true, meth=Optim.IPNewton(), sense::Int=1, dof::Real=DOF(DM), 
+    constraint::Function=loglikelihood(DM), objective::Function=only∘SafePredictor(DM), C::Real=LogLikeMLE(DM)-0.5*icdfThreshold(dof, Confnum), kwargs...)
+Solves constrained optimization problem which tries to maximize or minimize `objective(t0,p)` for fixed `t0` depending on `sense` under the constraint that `constraint(θ) == C`.
+For default settings, `objective(t,θ)` is a scalar prediction and the constraint is that the log-likelihood is on a given level set.
+`θguess` serves as a warm start (use the `MLE` if nothing better is known). Set `TransformGuess = false` to skip the seed construction and trust `θguess` as-is.
+"""
 function RefineInitialCondition(DM::AbstractDataModel, θguess::AbstractVector{<:Number}, t0::Real, ConfNum::Real=2; Confnum::Real=ConfNum, 
             constraint::Function=loglikelihood(DM), dof::Real=DOF(DM), loglikeMLE::Real=LogLikeMLE(DM), objective::Function=only∘SafePredictor(DM), 
-            TransformGuess::Bool=true, C::Real=loglikeMLE-0.5*icdfThreshold(dof, Confnum), meth=nothing, kwargs...)
-    SolveConstrainedOptimisationProblem(θ->objective(t0, θ), constraint, θguess, C, meth; TransformGuess, kwargs...)
+            TransformGuess::Bool=true, C::Real=loglikeMLE-0.5*icdfThreshold(dof, Confnum), meth=nothing, sense::Int=1, 
+            objective_fixedt0::Function=θ -> objective(t0, θ), ZerodConstraint::Function=θ -> constraint(θ) - C,
+            SeedPoint::Union{Nothing,AbstractVector{<:Number}}=nothing, ConstraintTol::Real=1e-5, ContinuationLevels::Int=8, ADmode::Val=Val(:ForwardDiff), kwargs...)
+    @assert abs(sense) == 1
+    isfinite(C) || throw(ArgumentError("RefineInitialCondition: target constraint level C=$C is not finite; the requested confidence level (Confnum=$Confnum) is too extreme for dof=$dof."))
+    θ = SolveConstrainedOptimisationProblem(objective_fixedt0, ZerodConstraint, θguess, meth; TransformGuess, sense, ADmode, kwargs...)
+    Acceptable = θ -> _IsAcceptableConstrainedSolution(objective_fixedt0, ZerodConstraint, θ; sense, ConstraintTol, ADmode)
+    Acceptable(θ) && return θ
+    ## Warm start did not yield the requested extremum: retry from `SeedPoint`, whose signed quadratic seed
+    ## selects the branch of the constrained solution deterministically.
+    θanchor = isnothing(SeedPoint) ? MLE(DM) : SeedPoint
+    θ2 = SolveConstrainedOptimisationProblem(objective_fixedt0, ZerodConstraint, θanchor, meth; TransformGuess=true, sense, ADmode, kwargs...)
+    Acceptable(θ2) && return θ2
+    ## Last resort: trace the solution branch from the MLE to the target confidence level
+    θ3 = _RefineInitialConditionContinuation(objective_fixedt0, constraint, θanchor, loglikeMLE, C, meth; sense, ContinuationLevels, ConstraintTol, ADmode, kwargs...)
+    Acceptable(θ3) || @warn "RefineInitialCondition: could not certify the extremum selected by sense=$sense on the confidence boundary."
+    θ3
+end
+
+## Verifies that `θ` solves the constrained problem "maximize sense*objective_fixedt0 subject to ZerodConstraint(θ) == 0":
+## the constraint must be satisfied and the Lagrangian curvature projected onto the tangent space of the
+## constraint level set must be negative semidefinite (i.e. `sense*objective` attains a local maximum there).
+function _IsAcceptableConstrainedSolution(objective_fixedt0::Function, ZerodConstraint::Function, θ::AbstractVector{<:Number};
+        sense::Int=1, ADmode::Val=Val(:ForwardDiff), ConstraintTol::Real=1e-5, StationarityTol::Real=1e-4, CurvatureRelTol::Real=1e-4)
+    all(isfinite, θ) || return false
+    abs(ZerodConstraint(θ)) <= ConstraintTol || return false
+    n = length(θ)
+    ObjectiveGradient! = GetGrad!(ADmode, objective_fixedt0);    ConstraintGradient! = GetGrad!(ADmode, ZerodConstraint)
+    gobj = similar(θ);    gcon = similar(θ)
+    ObjectiveGradient!(gobj, θ);    ConstraintGradient!(gcon, θ)
+    ngc = dot(gcon, gcon)
+    ngc <= sqrt(eps(eltype(θ))) && return false # θ sits at a stationary point of the constraint itself: branch is ambiguous
+    N = nullspace(gcon') # orthonormal basis of the tangent space of the constraint level set
+    size(N, 2) == 0 && return true # univariate parameter space: no tangential curvature to check
+    ## At a KKT point the tangential component of sense·gobj vanishes; a large one means θ is not a stationary point at all
+    norm(N' * (sense .* gobj)) <= StationarityTol * max(one(eltype(θ)), norm(gobj)) || return false
+    ## Multiplier estimated from the stationarity condition sense·gobj + λ·gcon = 0
+    λ = -sense * dot(gcon, gobj) / ngc
+    ObjectiveHessian! = GetHess!(ADmode, objective_fixedt0);    ConstraintHessian! = GetHess!(ADmode, ZerodConstraint)
+    Hobj = similar(θ, n, n);    Hcon = similar(θ, n, n)
+    ObjectiveHessian!(Hobj, θ);    ConstraintHessian!(Hcon, θ)
+    Q = sense .* Hobj .+ λ .* Hcon
+    E = eigvals(Symmetric(N' * Q * N))
+    ## A strictly positive tangential curvature means `sense*objective` attains a local minimum there,
+    ## i.e. the solver converged to the opposite extremum.
+    maximum(E) <= CurvatureRelTol * max(1e-12, maximum(abs, E))
+end
+
+## Traces the solution branch of the constrained problem from `θanchor` (a stationary point of `constraint`, e.g. the MLE)
+## to the target constraint value `C` by gradually increasing the log-likelihood gap. Since the signed quadratic seed at the
+## first (tiny) level selects the branch deterministically and subsequent levels are solved from the previous solution,
+## the KKT solver stays on the branch selected by `sense`. The step size grows by `StepGrowth` after successful levels and
+## shrinks towards the previous level on failures.
+function _RefineInitialConditionContinuation(objective_fixedt0::Function, constraint::Function, θanchor::AbstractVector{T}, loglikeMLE::Real, C::Real, meth;
+        sense::Int=1, ContinuationLevels::Int=8, MaxStepRetries::Int=4, StepGrowth::Real=1.5, ConstraintTol::Real=1e-5, ADmode::Val=Val(:ForwardDiff), kwargs...) where T<:Number
+    Δtarget = loglikeMLE - C
+    Δtarget <= 0 && return copy(θanchor)
+    θprev = copy(θanchor);    Δprev = zero(Δtarget);    Δ = Δtarget / 2.0^(ContinuationLevels - 1)
+    nsteps = max(1, ceil(Int, log(Δtarget / Δ) / log(StepGrowth)))
+    attempts = 0;    MaxAttempts = nsteps * (MaxStepRetries + 1)
+    while attempts < MaxAttempts
+        LevelConstraint = θ -> constraint(θ) - (loglikeMLE - Δ)
+        θtry = SolveConstrainedOptimisationProblem(objective_fixedt0, LevelConstraint, θprev, meth; TransformGuess=true, sense, ADmode, kwargs...)
+        if _IsAcceptableConstrainedSolution(objective_fixedt0, LevelConstraint, θtry; sense, ConstraintTol, ADmode)
+            θprev = θtry;    Δprev = Δ
+            Δ == Δtarget && break
+            Δ = min(Δtarget, StepGrowth * Δ) # grow step after a successful level
+        else
+            Δ = (Δ + Δprev) / 2 # retry with a smaller step towards the previous level
+        end
+        attempts += 1
+    end
+    Δ == Δtarget || @warn "RefineInitialCondition: continuation only reached a log-likelihood gap of $Δ instead of $Δtarget, returning intermediate result."
+    θprev
 end
 
 
