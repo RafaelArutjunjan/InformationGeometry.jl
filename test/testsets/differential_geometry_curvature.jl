@@ -1,4 +1,4 @@
-using InformationGeometry, Test, LinearAlgebra, StaticArrays
+using InformationGeometry, Test, LinearAlgebra, StaticArrays, Random
 
 S2metric((θ,ϕ)) = [1.0 0; 0 sin(θ)^2]
 function S2Christoffel((θ,ϕ))
@@ -57,15 +57,57 @@ DM2 = DataModel(DataSet(0:0, rand(3), Diagonal([inv(a), inv(a), inv(b)]), (1,1,3
 @test EfronScalarCurvature(DM2, [0,0.]) ≈ 4b/a^2
 
 
-# ## Need to put σ here, not sigma^2!
-# DSU = DataSetUncertain(0:5., 1:6., (x,y,c)->c[1], x->(x,x), [1.0]; nerrorparameters=0)
-# DMU = DataModel(DSU, (x,p)->p[1], [0.1])
+## Second fundamental form for fixed known uncertainties: fixed-variance regression anchor
+Random.seed!(1234)
+DMlin = DataModel(DataSet([1,2,3,4], [4,5,6.5,9], [0.5,0.45,0.6,1]), (x,p)->p[1]*x + p[2])
+@test SFFNormSquared(DMlin, MLE(DMlin)) ≈ 2EfronScalarCurvature(DMlin, MLE(DMlin))
+IIlin = SecondFundamentalForm(DMlin, MLE(DMlin))
+@test IIlin isa Matrix{<:AbstractVector}    ## fixed-variance format unchanged by the merge
+@test length(IIlin) == pdim(DMlin)^2
 
-# θ = MLE(DMU)[1];    N = InformationGeometry.DataspaceDim(DMU)
-# ## Metric
-# @test FisherMetric(DMU, MLE(DMU))[1] ≈ N * (θ^4 +2) / θ^2
+## Extrinsic curvature with simultaneously estimated uncertainties (DataSetUncertain)
+DSU = DataSetUncertain(1:2, rand(2), (x,y,c)->c[1], x->(x,x), [1.0]; nerrorparameters=0)
+DMU = DataModel(DSU, (x,p)->p[1], [0.1])
+θU = MLE(DMU)[1];    NU = DataspaceDim(DMU)
+@test FisherMetric(DMU, MLE(DMU))[1] ≈ NU * (θU^4 +2) / θU^2
+@test sum(InformationGeometry.yInvCovProper(DMU, MLE(DMU))) ≈ NU * θU^2
+@test SFFNormSquared(DMU, MLE(DMU)) ≈ 2 * θU^4 / (NU * (θU^4 +2)^3)
+IIμ, IIΛ = SecondFundamentalForm(DMU, MLE(DMU))
+# @test size(IIμ) == (NU, 1, 1) && size(IIΛ) == (NU, NU, 1, 1)
+@test EfronScalarCurvature(DMU, MLE(DMU)) ≈ SFFNormSquared(DMU, MLE(DMU))/2
+Hμ, HΛ = EfronMeanCurvature(DMU, MLE(DMU))
+# @test length(Hμ) == NU && size(HΛ) == (NU, NU)
+@test all(isfinite, InformationGeometry.EfronRicciCurvature(DMU, MLE(DMU)))
+@test all(isfinite, InformationGeometry.EfronRiemannCurvature(DMU, MLE(DMU)))
+Embed, Prec = EmbeddingMapExtended(DMU, MLE(DMU))
+@test Embed ≈ EmbeddingMap(DMU, MLE(DMU))
+@test Prec ≈ InformationGeometry.yInvCovProper(DMU, MLE(DMU))
 
-# @test sum(yInvCovProper(DMU, MLE(DMU))) ≈ N * θ^2
+## SFFNormSquared is invariant under reparametrisations of the model and data space
+DSUlog = DataSetUncertain(1:2, ydata(DMU), (x,y,c)->exp(c[1]), x->(x,x), [1.0]; nerrorparameters=0)
+DMUlog = DataModel(DSUlog, (x,p)->exp(p[1]), [log(MLE(DMU)[1])])
+@test SFFNormSquared(DMUlog, MLE(DMUlog)) ≈ SFFNormSquared(DMU, MLE(DMU))
 
-# # Efron curvature
-# @test Evaluate(DMU, MLE(DMU)) ≈ 2 * θ^4 / (N * (θ^4 +2)^3)
+## Diagonal vs dense error models yield consistent results
+DMU1 = DataModel(DataSetUncertain(Windup([1,2,3,4],2), Windup([4,5,6.5,9],2), (x,y,c)->Diagonal([exp10(-c[1]),exp10(-c[1])]), [0.0]), (x,p)->[p[1]*x[1] + p[2], p[1]*x[2] + p[2]], rand(3))
+DMU2 = DataModel(DataSetUncertain(Windup([1,2,3,4],2), Windup([4,5,6.5,9],2), (x,y,c)->diagm([exp10(-c[1]),exp10(-c[1])]), [0.0]), (x,p)->[p[1]*x[1] + p[2], p[1]*x[2] + p[2]], rand(3))
+@test MLE(DMU1) ≈ MLE(DMU2)
+IIμ1, IIΛ1 = SecondFundamentalForm(DMU1, MLE(DMU1))
+IIμ2, IIΛ2 = SecondFundamentalForm(DMU2, MLE(DMU2))
+@test IIμ1 ≈ IIμ2
+@test isapprox(IIΛ1, IIΛ2; atol=1e-10)
+@test isapprox(EfronScalarCurvature(DMU1, MLE(DMU1)), EfronScalarCurvature(DMU2, MLE(DMU2)); atol=1e-20)
+
+## UnknownVarianceDataSet is not supported yet (x-values are fitted parameters, i.e. the ambient
+## space also contains an x-block), but yInvCovProper and ysigmaProper work for it
+XU = 1:5;    YU = 2 .* XU .+ 1 .+ 0.1 .* randn(5)
+DSUV = UnknownVarianceDataSet(XU, YU, (x,y,c)->exp10(-c[1]), (x,y,c)->exp10(-c[1]), [log10(0.3)], [log10(0.2)])
+θV = [Float64.(XU); 0.4; 0.2; log10(0.3); log10(0.2)]
+DMUV = DataModel(DSUV, ModelMap(LinearModel), θV; SkipOptim=true, SkipTests=true)
+SplitV = InformationGeometry.SplitErrorParams(DSUV)(θV)
+LiftV = InformationGeometry.LiftedEmbedding(DSUV, Predictor(DMUV), length(SplitV[1]) - length(XU))(SplitV[1])
+PredV = view(LiftV, length(XU)+1:length(LiftV))
+@test InformationGeometry.yInvCovProper(DMUV, θV) ≈ InformationGeometry._InvCov(InformationGeometry.yinverrormodel(DSUV), SplitV[end], InformationGeometry.WoundX(DSUV), InformationGeometry.Windup(PredV, ydim(DSUV))) |> x->InformationGeometry._MaskedUVD(x, DSUV.datakeep)
+@test all(isfinite, InformationGeometry.ysigmaProper(DMUV, θV))
+@test_throws String SecondFundamentalForm(DMUV, θV)
+@test_throws String SFFNormSquared(DMUV, θV)

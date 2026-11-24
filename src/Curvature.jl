@@ -199,54 +199,143 @@ RicciScalar(Metric::Function, θ::AbstractVector{<:Number}; kwargs...) = tr(tran
 
 ## For computing extrinsic curvature
 """
-    _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix)
-Computes the second fundamental form where J is the Jacobian and H the Hessian of the embedding map (h : M -> D).
-P_N is the projection onto the direction normal to the model manifold in the "tangent space of the data space".
+    SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), g::AbstractMatrix=FisherMetric(DM, mle))
+Second fundamental form of the embedding of the parameter manifold into the ambient data space for data with fixed known Gaussian uncertainties and for data with simultaneously estimated data covariance, where the embedding map is extended to H(θ) = (h(θ), Λ(θ)) with the parameter-dependent inverse data covariance Λ = Σ⁻¹(θ).
+Measures how strongly tangent vectors to the embedded model manifold fail to stay tangent under parallel transport with respect to the ambient connection, i.e. extrinsic curvature.
+For estimated uncertainties, the returned tuple contains the mean and covariance contributions `(IIμ, IIΛ)`, whereas for fixed uncertainties the mean contribution with `II[i,j]::AbstractVector` is returned.
+Currently, the case of simultaneously estimated uncertainties is only supported for `DataSetUncertain`; other data types with parameter-dependent variance (e.g. `UnknownVarianceDataSet`, whose ambient space also contains an x-block since the x-values are fitted parameters) are not supported yet.
+Omitting offdiagonal, i.e. mixed mean-covariance contribution to second fundamental form since metric always has block-diagonal form for Gaussian ambient space.
 """
-function _SecondFundamentalForm(J::AbstractMatrix{T}, H::AbstractArray, P_N::AbstractMatrix) where T<:Number
+function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Inverter::Function=inv,
+                        g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=Inverter(g), yInvCovGenerator::Function=p->yInvCovProper(DM, p), Σ⁻¹::AbstractMatrix{<:Number}=yInvCovGenerator(mle), kwargs...)
+    Result = _SecondFundamentalForm(Data(DM), EmbeddingFn, mle, g⁻¹, Σ⁻¹; yInvCovGenerator, ADmode, Inverter, kwargs...)
+    # # Don't unpack in the future?
+    # @inline Unpacker(Res::AbstractArray) = Res
+    # @inline Unpacker(Res::Tuple) = ((II_μ, II_Λ) = Res;   (stack(II_μ), stack(Matrix.(II_Λ))))
+    # Unpacker(Result)
+end
+
+function _SecondFundamentalForm(::AbstractFixedUncertaintyDataSet, EmbeddingFn::Function, mle::AbstractVector, g⁻¹::AbstractMatrix, Σ⁻¹::AbstractMatrix; kwargs...)
+    _SecondFundamentalFormFixedUncert(EmbeddingFn, mle, g⁻¹, Σ⁻¹; kwargs...)
+end
+function _SecondFundamentalFormFixedUncert(EmbeddingFn::Function, mle::AbstractVector{T}, g⁻¹::AbstractMatrix, Σ⁻¹::AbstractMatrix; ADmode::Val=Val(:ForwardDiff), kwargs...) where T <: Number
+    @boundscheck @assert length(mle) == size(g⁻¹,1) == size(g⁻¹,2)
+    J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn, length(mle), size(Σ⁻¹,1))(mle)
+    P_N = Eye(size(J,1)) .- J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
     N, k = size(J);    @boundscheck @assert N == size(H,1) == size(P_N,1) == size(P_N,2);    @boundscheck @assert k == size(H,2) == size(H,3)
-    II = Array{Vector{T}}(undef, k, k)
+    II = Matrix{Vector{T}}(undef, k, k)
     @inbounds for i in 1:k, j in 1:k
         II[i,j] = P_N * view(H, :, i, j)
     end;    II
 end
-"""
-    SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), g::AbstractMatrix=FisherMetric(DM, mle))
-Computes the second fundamental form at the given parameters under the assumption of constant known data variance.
-Measures how strongly tangent vectors to the embedded model manifold fail to stay tangent under parallel transport with respect to the ambient connection, i.e. extrinsic curvature.
-Normal vector valued (0,2) tensor.
-"""
-function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Inverter::Function=inv,
-                        g::AbstractMatrix=FisherMetric(DM, mle), g⁻¹::AbstractMatrix=Inverter(g), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle))
-    @boundscheck @assert length(mle) == size(g,1) == size(g,2) == size(g⁻¹,1) == size(g⁻¹,2)
-    J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
-    P_N = Eye(size(J,1)) .- J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
-    @inbounds _SecondFundamentalForm(J, H, P_N)
+
+## Catch UnknownVarianceDataSet for now
+function _SecondFundamentalForm(DS::AbstractUnknownUncertaintyDataSet, ::Function, ::AbstractVector, ::AbstractMatrix, ::AbstractMatrix; kwargs...)
+    throw("SecondFundamentalForm: Not programmed for dataset type $(typeof(DS)) yet.")
 end
 
+
+"""
+    EmbeddingMapExtended(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...)
+Returns the tuple `(μ::AbstractVector, Λ::AbstractMatrix)` embedding into the extended statistical manifold, i.e. the model prediction together with the inverse data covariance (precision) evaluated at the model prediction.
+"""
+EmbeddingMapExtended(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); kwargs...) = (EmbeddingMap(DM, mle; kwargs...), yInvCovProper(DM, mle))
+
+## Λ is the precision matrix corresponding to the point in the ambient space where the metric is evaluated
+## Tuples are tangent vectors to the ambient space
+"""
+    AmbientMetric(Λ::AbstractMatrix, Tup1::Tuple, Tup2::Tuple=Tup1, Λ⁻¹::AbstractMatrix=inv(Λ))
+Inner product of two ambient tangent vectors `(μ1, λ1)` and `(μ2, λ2)` in the ambient full Gaussian family,
+i.e. `transpose(μ1) * Λ * μ2 + tr(Λ⁻¹ * λ1 * Λ⁻¹ * λ2) / 2`.
+"""
+function AmbientMetric(Λ::AbstractMatrix, Tup1::Tuple{<:AbstractVector,<:AbstractMatrix}, Tup2::Tuple{<:AbstractVector,<:AbstractMatrix}=Tup1, Λ⁻¹::AbstractMatrix=inv(Λ))
+    _AmbientMetric(Λ, Λ⁻¹, Tup1..., Tup2...)
+end
+function _AmbientMetric(Λ::AbstractMatrix, Λ⁻¹::AbstractMatrix, μ1::AbstractVector, λ1::AbstractMatrix, μ2::AbstractVector=μ1, λ2::AbstractMatrix=λ1)
+    transpose(μ1) * Λ * μ2 .+ tr(Λ⁻¹ * λ1 * Λ⁻¹ * λ2) ./ 2
+end
+
+## Extrinsic curvature for data with simultaneously estimated uncertainties, where the embedding map is
+## extended to H(θ) = (h(θ), Λ(θ)) with the parameter-dependent inverse data covariance Λ = Σ⁻¹(θ).
+## Tuples (μ, λ) of an ambient vector and matrix are tangent vectors to this extended ambient space.
+## NB: Dispatch restricted to DataSetUncertain since for UnknownVarianceDataSet the x-values are
+## fitted parameters as well, i.e. the ambient space also contains an x-block with parameter-dependent
+## metric, which the formulas below (single y-block with metric Σ⁻¹(θ)) do not account for.
+function _SecondFundamentalForm(::DataSetUncertain, EmbeddingFn::Function, mle::AbstractVector, g⁻¹::AbstractMatrix, Σ⁻¹::AbstractMatrix; ADmode::Val=Val(:ForwardDiff), yInvCovGenerator::Function=identity, Inverter::Function=inv, kwargs...)
+    @boundscheck @assert length(mle) == size(g⁻¹,1) == size(g⁻¹,2)
+    @inline GetFirstDerivative(yInvCovGenerator::Function, mle::AbstractVector, ::Diagonal) = GetJac(ADmode, p->yInvCovGenerator(p).diag)(mle)
+    @inline GetFirstDerivative(yInvCovGenerator::Function, mle::AbstractVector, ::AbstractVector) = GetJac(ADmode, yInvCovGenerator)(mle)
+    @inline GetFirstDerivative(yInvCovGenerator::Function, mle::AbstractVector, Σ⁻¹::AbstractMatrix) = GetMatrixJac(ADmode, yInvCovGenerator, length(mle), size(Σ⁻¹))(mle)
+    @inline GetSecondDerivative(yInvCovGenerator::Function, mle::AbstractVector, ::Diagonal) = GetDoubleJac(ADmode, p->yInvCovGenerator(p).diag, length(mle), size(Σ⁻¹,1))(mle)
+    @inline GetSecondDerivative(yInvCovGenerator::Function, mle::AbstractVector, Σ⁻¹::AbstractVector) = GetDoubleJac(ADmode, yInvCovGenerator, length(mle), length(Σ⁻¹))(mle)
+    @inline GetSecondDerivative(yInvCovGenerator::Function, mle::AbstractVector, Σ⁻¹::AbstractMatrix) = reshape(GetDoubleJac(ADmode, vec∘yInvCovGenerator, length(mle), length(Σ⁻¹))(mle), size(Σ⁻¹)..., length(mle), length(mle))
+
+    J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn, length(mle), size(Σ⁻¹,1))(mle);    Σ = Inverter(Σ⁻¹)
+    ∂Σ⁻¹ = GetFirstDerivative(yInvCovGenerator, mle, Σ⁻¹);    ∂∂Σ⁻¹ = GetSecondDerivative(yInvCovGenerator, mle, Σ⁻¹)
+
+    @inline function AddCovarianceContributionsToQ!(Q::AbstractArray{<:Number,3}, Σ::AbstractMatrix, ∂Σ⁻¹::AbstractMatrix, ∂∂Σ⁻¹::AbstractArray{<:Number,3})
+        @tullio Q[n,i,j] += 0.5 * Σ[c,e] * ∂Σ⁻¹[e,n] * Σ[e,c] * ∂∂Σ⁻¹[c,i,j]
+    end
+    @inline function AddCovarianceContributionsToQ!(Q::AbstractArray{<:Number,3}, Σ::AbstractMatrix, ∂Σ⁻¹::AbstractArray{<:Number,3}, ∂∂Σ⁻¹::AbstractArray{<:Number,4})
+        @tullio Q[n,i,j] += 0.5 * Σ[c,e] * ∂Σ⁻¹[e,f,n] * Σ[f,d] * ∂∂Σ⁻¹[d,c,i,j]
+    end
+    ## Multi-term @tullio right-hand sides are mishandled by Tullio so subtractions must be assembled via plain array arithmetic as done here
+    @inline function SFF_Λ(Q::AbstractArray{<:Number,3}, g⁻¹::AbstractMatrix, ∂Σ⁻¹::AbstractMatrix, ∂∂Σ⁻¹::AbstractArray{<:Number,3})
+        @tullio TΛ[b,i,j] := ∂Σ⁻¹[b,k] * g⁻¹[k,n] * Q[n,i,j]
+        ∂∂Σ⁻¹ .- TΛ
+    end
+    @inline function SFF_Λ(Q::AbstractArray{<:Number,3}, g⁻¹::AbstractMatrix, ∂Σ⁻¹::AbstractArray{<:Number,3}, ∂∂Σ⁻¹::AbstractArray{<:Number,4})
+        @tullio TΛ[a,b,i,j] := ∂Σ⁻¹[a,b,k] * g⁻¹[k,n] * Q[n,i,j]
+        ∂∂Σ⁻¹ .- TΛ
+    end
+
+    @tullio Q[n,i,j] := J[c,n] * Σ⁻¹[c,d] * H[d,i,j]
+    AddCovarianceContributionsToQ!(Q, Σ, ∂Σ⁻¹, ∂∂Σ⁻¹)
+
+    @tullio Tμ[a,i,j] := J[a,k] * g⁻¹[k,n] * Q[n,i,j]
+    II_μ = H .- Tμ
+    II_Λ = SFF_Λ(Q, g⁻¹, ∂Σ⁻¹, ∂∂Σ⁻¹)
+
+    (
+        [view(II_μ, :, i, j) for i in axes(II_μ,2), j in axes(II_μ,3)],
+        if II_Λ isa AbstractArray{<:Number,3}
+            [Diagonal(view(II_Λ, :, i, j)) for i in axes(II_Λ,2), j in axes(II_Λ,3)]
+        else
+            [view(II_Λ, :, :, i, j) for i in axes(II_Λ,3), j in axes(II_Λ,4)]
+        end
+    )
+end
+
+
 for F in [:EfronScalarCurvature, :EfronMeanCurvature,
-            :EfronRicciCurvature, :EfronRicciCurvature2,
-            :EfronRiemannCurvature, :EfronRiemannCurvature2,
-            :EfronSectionalCurvature, :EfronSectionalCurvatureMap,
-            :EfronShapeOperator, :EfronCurvatureIsotropy,
-            :BartlettCorrectionFactor,
-            :NormSFF]
+            :EfronRicciCurvature, :EfronRiemannCurvature,
+            :EfronSectionalCurvature, :EfronCurvatureIsotropy,
+            :SFFNormSquared,
+            ## Not implemented for parameter-dependent data variance yet
+            :EfronRicciCurvature2, :EfronRiemannCurvature2, :EfronSectionalCurvatureMap,
+            :EfronShapeOperator, :BartlettCorrectionFactor]
     @eval function $F(DM::AbstractDataModel, mle::AbstractVector; g::AbstractMatrix=FisherMetric(DM, mle), MakePosDef::Bool=false, verbose::Bool=true, Inverter::Function=inv,
             g⁻¹::AbstractMatrix=try Inverter(g) catch E; E isa SingularException && MakePosDef ? (verbose && @warn "$($F): Adding 1e-14 to diagonal before since FisherMetric singular.";   Inverter(Symmetric(g + 1e-10Eye(length(mle))))) : rethrow(E) end, 
-            Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), SkipTests::Bool=false, kwargs...)
-        SkipTests || @assert !HasEstimatedUncertainties(DM) "Not implemented for parameter-dependent data variance yet."
+            Σ⁻¹::AbstractMatrix{<:Number}=yInvCovProper(DM, mle), SkipTests::Bool=false, kwargs...)
         verbose && (SkipTests || (NotPosDef(g) && @warn "Given metric g does not appear to be positive definite, det(g)=$(det(g))"))
         $F(SecondFundamentalForm(DM, mle; g, g⁻¹, Σ⁻¹, kwargs...), g, g⁻¹, Σ⁻¹)
     end
     @eval $F(DM::AbstractDataModel; kwargs...) = X::AbstractVector->$F(DM, X; kwargs...)
 end
+
 ## Gives proportionality to 2nd order MLE risk - is squared norm
-function NormSFF(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+function SFFNormSquared(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     @tullio IInorm² = g⁻¹[i,a] * g⁻¹[j,b] * dot(II[i,j], Σ⁻¹, II[a,b])
 end
-function EfronScalarCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
-    NormSFF(II, g, g⁻¹, Σ⁻¹) / 2
+function SFFNormSquared(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{<:Number}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix{<:Number}=inv(Λ))
+    IIμ, IIΛ = IItuple
+    @tullio γ² := g⁻¹[i,k] * g⁻¹[j,l] * _AmbientMetric(Λ, Λ⁻¹, IIμ[i,j], IIΛ[i,j], IIμ[k,l], IIΛ[k,l])
 end
+
+function EfronScalarCurvature(II::Union{<:Tuple,<:AbstractMatrix{<:AbstractVector{<:Number}}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, args...)
+    SFFNormSquared(II, g, g⁻¹, Σ⁻¹, args...) / 2
+end
+
 ## Gives direction of mean curvature, i.e. externally induced acceleration H = tr_g(II), no 1/k in definition!
 function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}=Eye(1), ::Nothing=nothing, args...) where T<:Number
     # 1/size(g⁻¹,1) .* sum(g⁻¹[i,j]*II[i,j] for i in axes(g⁻¹,1), j in axes(g⁻¹,2))
@@ -255,6 +344,32 @@ function EfronMeanCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::Abstract
         Res .+= g⁻¹[i,j] .* II[i,j]
     end;    Res
 end
+## Gives direction of mean curvature of the extended embedding, i.e. externally induced acceleration (Hμ, HΛ) = (tr_g(IIμ), tr_g(IIΛ)), no 1/k in definition!
+function EfronMeanCurvature(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{T}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix=inv(Λ)) where T<:Number
+    IIμ, IIΛ = IItuple
+    Hμ = zeros(T, length(IIμ[1]));    HΛ = zeros(T, size(IIΛ[1]))
+    for i in axes(g⁻¹,1), j in axes(g⁻¹,2)
+        Hμ .+= g⁻¹[i,j] .* IIμ[i,j]
+        HΛ .+= g⁻¹[i,j] .* IIΛ[i,j]
+    end;    (Hμ, HΛ)
+end
+
+function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+    @tullio Ric[i,j] := g⁻¹[a,b] * dot(II[i,j], Σ⁻¹, II[a,b])
+end
+function EfronRicciCurvature(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{<:Number}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix{<:Number}=inv(Λ))
+    IIμ, IIΛ = IItuple
+    @tullio Ric[i,j] := g⁻¹[a,b] * _AmbientMetric(Λ, Λ⁻¹, IIμ[i,a], IIΛ[i,a], IIμ[j,b], IIΛ[j,b])
+end
+
+function EfronRiemannCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+    @tullio Riem[i,j,k,l] := dot(II[i,k], Σ⁻¹, II[j,l]) - dot(II[i,l], Σ⁻¹, II[j,k])
+end
+function EfronRiemannCurvature(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{<:Number}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix{<:Number}=inv(Λ))
+    IIμ, IIΛ = IItuple
+    @tullio Riem[i,j,k,l] := _AmbientMetric(Λ, Λ⁻¹, IIμ[i,k], IIΛ[i,k], IIμ[j,l], IIΛ[j,l]) - _AmbientMetric(Λ, Λ⁻¹, IIμ[i,l], IIΛ[i,l], IIμ[j,k], IIΛ[j,k])
+end
+
 ## Sectional curvature with respect to coordinate basis
 function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...) where T<:Number
     K = fill(T(NaN), size(II,1), size(II,1))
@@ -264,6 +379,34 @@ function EfronSectionalCurvature(II::AbstractMatrix{<:AbstractVector{T}}, g::Abs
         K[a,b] = K[b,a] = num / denom
     end;    K
 end
+## Sectional curvature with respect to coordinate basis
+function EfronSectionalCurvature(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{T}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix{<:Number}=inv(Λ)) where T<:Number
+    IIμ, IIΛ = IItuple
+    K = fill(T(NaN), size(IIμ,1), size(IIμ,1))
+    for a in axes(IIμ,1), b in a+1:size(IIμ,1)
+        num = _AmbientMetric(Λ, Λ⁻¹, IIμ[a,a], IIΛ[a,a], IIμ[b,b], IIΛ[b,b]) - _AmbientMetric(Λ, Λ⁻¹, IIμ[a,b], IIΛ[a,b], IIμ[a,b], IIΛ[a,b])
+        denom = g[a,a] * g[b,b] - g[a,b]^2
+        K[a,b] = K[b,a] = num / denom
+    end;    K
+end
+
+## norm(H)^2 / norm(II)^2
+## If -> 1, then curvature mostly mean, if -> 0 then curvature anisotropic, i.e. due to few distinct parameter directions. 
+function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
+    H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
+    Hnorm² = InnerProduct(Σ⁻¹, H)
+    IInorm² = SFFNormSquared(II, g, g⁻¹, Σ⁻¹)
+    Hnorm² / IInorm²
+end
+function EfronCurvatureIsotropy(IItuple::Tuple{<:AbstractMatrix{<:AbstractVector{<:Number}},<:AbstractMatrix{<:AbstractMatrix}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Λ::AbstractMatrix{<:Number}, Λ⁻¹::AbstractMatrix{<:Number}=inv(Λ))
+    IIμ, IIΛ = IItuple
+    Hμ, HΛ = EfronMeanCurvature(IIμ, IIΛ, g, g⁻¹, Λ, Λ⁻¹)
+    Hnorm² = _AmbientMetric(Λ, Λ⁻¹, Hμ, HΛ)
+    IInorm² = SFFNormSquared(IIμ, IIΛ, g, g⁻¹, Λ, Λ⁻¹)
+    Hnorm² / IInorm²
+end
+
+
 ## Sectional curvature with respect to arbitrary given intrinsic tangent vectors
 function EfronSectionalCurvatureMap(II::AbstractMatrix{<:AbstractVector{T}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...) where T<:Number
     ## Precompute Q
@@ -289,16 +432,10 @@ end
 function BartlettCorrectionFactor(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
     Hnorm² = InnerProduct(Σ⁻¹, H)
-    IInorm² = NormSFF(II, g, g⁻¹, Σ⁻¹)
+    IInorm² = SFFNormSquared(II, g, g⁻¹, Σ⁻¹)
     (2*IInorm² - Hnorm²) / 4
 end
 
-function EfronRicciCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
-    @tullio Ric[i,j] := g⁻¹[a,b] * dot(II[i,j], Σ⁻¹, II[a,b])
-end
-function EfronRiemannCurvature(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
-    @tullio Riem[i,j,k,l] := dot(II[i,k], Σ⁻¹, II[j,l]) - dot(II[i,l], Σ⁻¹, II[j,k])
-end
 ## Pre-whitening of II, more performant for large Σ⁻¹ with non-zero off-diagonal
 function EfronRicciCurvature2(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
     L = cholesky(Σ⁻¹).L;    IIw = [L * II[i,j] for i in axes(II,1), j in axes(II,2)]
@@ -324,14 +461,6 @@ function EfronShapeOperator(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::A
     end
 end
 
-## norm(H)^2 / norm(II)^2
-## If -> 1, then curvature mostly mean, if -> 0 then curvature anisotropic, i.e. due to few distinct parameter directions. 
-function EfronCurvatureIsotropy(II::AbstractMatrix{<:AbstractVector{<:Number}}, g::AbstractMatrix{<:Number}, g⁻¹::AbstractMatrix{<:Number}, Σ⁻¹::AbstractMatrix{<:Number}, ::Nothing=nothing, args...)
-    H = EfronMeanCurvature(II, g, g⁻¹, Σ⁻¹)
-    Hnorm² = InnerProduct(Σ⁻¹, H)
-    IInorm² = NormSFF(II, g, g⁻¹, Σ⁻¹)
-    Hnorm² / IInorm²
-end
 
 
 
@@ -340,8 +469,8 @@ CencovTensor(DM::AbstractDataModel; kwargs...) = X::AbstractVector -> CencovTens
     CencovTensor(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), kwargs...)
 Computes the (0,3) Amari-Čencov tensor ``C_{ijk}(\\theta) = \\mathrm{E}(\\pdv{\\ell}{\\theta^i} \\pdv{\\ell}{\\theta^j} \\pdv{\\ell}{\\theta^k})`` for data with Gaussian noise of known or unknown variance.
 """
-function CencovTensor(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Σ⁻¹::AbstractMatrix{<:Number}=yInvCov(DM, mle), 
-                        ∂Σ⁻¹::Union{Nothing,AbstractArray{<:Number,3}}=HasEstimatedUncertainties(DM) ? GetMatrixJac(ADmode,p->yInvCov(DM,p))(mle) : nothing, kwargs...)
+function CencovTensor(DM::AbstractDataModel, mle::AbstractVector; ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(DM,p), Σ⁻¹::AbstractMatrix{<:Number}=yInvCovProper(DM, mle), 
+                        ∂Σ⁻¹::Union{Nothing,AbstractArray{<:Number,3}}=HasEstimatedUncertainties(DM) ? GetMatrixJac(ADmode,p->yInvCovProper(DM,p))(mle) : nothing, kwargs...)
     J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn)(mle)
     _CencovTensor(J, H, Σ⁻¹, ∂Σ⁻¹)
 end
