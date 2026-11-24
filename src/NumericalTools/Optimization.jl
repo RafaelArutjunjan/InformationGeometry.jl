@@ -420,7 +420,7 @@ function IncrementalTimeSeriesFit(MinimizeFunc::Function, DM::AbstractDataModel,
     @showprogress "Incremental Fit: " for chunk in vcat([1:i*(PerStep) for i in 1:steps-1], [1:Npoints(DM)])
         FullRes = MinimizeFunc(SubDataModel(DM, chunk; SkipOptim=true, SkipTests=true, verbose=false), res; kwargs...)
         res .= GetMinimizer(FullRes)
-        push!(Results, res)
+        push!(Results, copy(res))
     end;    !Safe && return Results[end]
     Losses = map(Negloglikelihood(DM), Results)
     Results[findmin(Losses)[2]]

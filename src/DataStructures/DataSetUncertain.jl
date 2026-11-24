@@ -474,11 +474,13 @@ function _loglikelihood(DS::DataSetUncertain{BesselCorrection,Keep}, model::Mode
         @assert length(Ydat) == length(Ypred) == size(Invσ,1) == size(Invσ,2)
         Res::T = -length(Ydat)*log(2T(π)) + 2logdet(Invσ)
         # Res -= sum(abs2, Invσ * (Ydat .- Ypred))
-        @inbounds for i in eachindex(Ydat)
-            z = Ydat[i] - Ypred[i]
-            @inbounds for j in eachindex(Ydat)
-                Res -= abs2(Invσ[j,i] * z)
+        ## Accumulate each component of Invσ * residual before squaring to retain all cross-terms
+        @inbounds for j in eachindex(Ydat)
+            z = zero(T)
+            @inbounds for i in eachindex(Ydat)
+                z += Invσ[j,i] * (Ydat[i] - Ypred[i])
             end
+            Res -= abs2(z)
         end;    Res *= 0.5;    Res
     end;    _Eval((@view yPredSparse[DS.predkeep]), InvσSparseKeep, ydata(DS))
 end

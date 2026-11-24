@@ -1267,6 +1267,7 @@ function IntegrationProfileArm(LogLikelihoodFn::Function, MLE::AbstractVector{T}
     ## The γ retraction term only damps deviations from the nuisance optimality constraint in the direction
     ## of integration, so its sign must be flipped for the left arm which integrates towards decreasing ψ.
     γeff = isnothing(γ) ? nothing : (Left ? -γ : γ)
+    !isnothing(γeff) && γeff < 0 && @warn "IntegrationProfileArm: Got negative γ=$γeff. This actively destabilizes the profile trajectory!"
     Hcache = DiffCache(Matrix{T}(undef, n, n); levels);   Gcache = isnothing(γ) || isnothing(CostGradient) ? nothing : DiffCache(Vector{T}(undef, n); levels)
     θcache = DiffCache(copy(MLE); levels);     HλλCache = DiffCache(Matrix{T}(undef, n-1, n-1); levels)
     # rhsCache = DiffCache(Vector{T}(undef, n-1); levels);    
