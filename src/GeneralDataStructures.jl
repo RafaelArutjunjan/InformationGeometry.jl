@@ -200,7 +200,10 @@ function ysigmaProper(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); ParamG
     _ysigma_internal(Data(DM), (SplitErrorParams(DM)(mle))[end], woundX, woundY, yinverrormodel(Data(DM)))
 end
 
-yInvCovProper(DM::AbstractConditionGrid, mle::AbstractVector=MLE(DM); kwargs...) = throw("Cannot compute yInvCovProper for ConditionGrid.")
+function yInvCovProper(CG::AbstractConditionGrid, mle::AbstractVector=MLE(CG); kwargs...)
+    HasEstimatedUncertainties(CG) && throw(ArgumentError("yInvCovProper: ConditionGrids with estimated uncertainties are not supported yet."))
+    BlockDiagonal([yInvCovProper(DM, Trafos(CG)[i](mle); kwargs...) for (i,DM) in enumerate(Conditions(CG))])
+end
 function yInvCovProper(DM::AbstractDataModel, mle::AbstractVector=MLE(DM); ParamGetter::Function=GetOnlyModelParams(DM), kwargs...)
     !HasEstimatedUncertainties(DM) && return yInvCov(DM, mle; kwargs...)
     woundX = WoundX(DM);    woundY = Windup(EmbeddingMap(Val(true), Predictor(DM), ParamGetter(mle), woundX), ydim(DM))

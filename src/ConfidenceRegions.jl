@@ -104,7 +104,7 @@ end
 
 # equivalent to ResidualSquares(DM,MLE(DM))
 RS_MLE(DM::AbstractDataModel) = logdetInvCov(DM) - DataspaceDim(DM)*log(2π) - 2LogLikeMLE(DM)
-ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = InnerProduct(yInvCov(DM, θ), ydata(DM) - EmbeddingMap(DM, θ; kwargs...))
+ResidualSquares(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); kwargs...) = InnerProduct(yInvCovProper(DM, θ), ydata(DM) - EmbeddingMap(DM, θ; kwargs...))
 ChisquaredReduced(DM::AbstractDataModel, θ::AbstractVector{<:Number}=MLE(DM); dof::Int=DOF(DM), kwargs...) = ResidualSquares(DM, θ; kwargs...) / (DataspaceDim(DM) - dof)
 ChisquaredReduced(DM::AbstractDataModel, R::AbstractMultistartResults; kwargs...) = ChisquaredReduced(DM, MLE(R); kwargs...)
 

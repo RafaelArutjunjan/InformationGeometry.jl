@@ -215,17 +215,25 @@ function SecondFundamentalForm(DM::AbstractDataModel, mle::AbstractVector=MLE(DM
     # Unpacker(Result)
 end
 
+function SecondFundamentalForm(CG::AbstractConditionGrid, mle::AbstractVector=MLE(CG); ADmode::Val=Val(:ForwardDiff), EmbeddingFn::Function=p -> EmbeddingMap(CG,p), Inverter::Function=inv,
+                        g::AbstractMatrix=FisherMetric(CG, mle), g⁻¹::AbstractMatrix=Inverter(g), yInvCovGenerator::Function=p->yInvCovProper(CG, p), Σ⁻¹::AbstractMatrix{<:Number}=yInvCovGenerator(mle), kwargs...)
+    HasEstimatedUncertainties(CG) && throw(ArgumentError("SecondFundamentalForm: ConditionGrids with estimated uncertainties are not supported yet."))
+    _SecondFundamentalFormFixedUncert(EmbeddingFn, mle, g⁻¹, Σ⁻¹; ADmode, kwargs...)
+end
+
 function _SecondFundamentalForm(::AbstractFixedUncertaintyDataSet, EmbeddingFn::Function, mle::AbstractVector, g⁻¹::AbstractMatrix, Σ⁻¹::AbstractMatrix; kwargs...)
     _SecondFundamentalFormFixedUncert(EmbeddingFn, mle, g⁻¹, Σ⁻¹; kwargs...)
 end
 function _SecondFundamentalFormFixedUncert(EmbeddingFn::Function, mle::AbstractVector{T}, g⁻¹::AbstractMatrix, Σ⁻¹::AbstractMatrix; ADmode::Val=Val(:ForwardDiff), kwargs...) where T <: Number
     @boundscheck @assert length(mle) == size(g⁻¹,1) == size(g⁻¹,2)
     J = GetJac(ADmode, EmbeddingFn)(mle);    H = GetDoubleJac(ADmode, EmbeddingFn, length(mle), size(Σ⁻¹,1))(mle)
-    P_N = Eye(size(J,1)) .- J * g⁻¹ * J' * Σ⁻¹ # Normal projector of model manifold tangent space in ambient space
-    N, k = size(J);    @boundscheck @assert N == size(H,1) == size(P_N,1) == size(P_N,2);    @boundscheck @assert k == size(H,2) == size(H,3)
+    N, k = size(J);    @boundscheck @assert N == size(H,1) == size(Σ⁻¹,1) == size(Σ⁻¹,2);    @boundscheck @assert k == size(H,2) == size(H,3)
+    # Apply the P_N in factored form without allocating N × N matrix
+    Jg⁻¹ = J * g⁻¹;    JᵀΣ⁻¹ = J' * Σ⁻¹
     II = Matrix{Vector{T}}(undef, k, k)
     @inbounds for i in 1:k, j in 1:k
-        II[i,j] = P_N * view(H, :, i, j)
+        Hᵢⱼ = view(H, :, i, j)
+        II[i,j] = Hᵢⱼ - Jg⁻¹ * (JᵀΣ⁻¹ * Hᵢⱼ)
     end;    II
 end
 
