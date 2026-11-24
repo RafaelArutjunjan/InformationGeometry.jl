@@ -110,7 +110,7 @@ ChisquaredReduced(DM::AbstractDataModel, R::AbstractMultistartResults; kwargs...
 
 function FCriterion(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)
     n = length(ydata(DM));  p = length(θ)
-    ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + length(θ)/(n - p)) * quantile(FDist(p, n-p), Confvol)
+    ResidualSquares(DM,θ) - RS_MLE(DM) * (1. + (length(θ)/(n - p)) * quantile(FDist(p, n-p), Confvol))
 end
 function FTest(DM::AbstractDataModel, θ::AbstractVector{<:Number}, Confvol::Real=ConfVol(one(suff(θ))); kwargs...)::Bool
     FCriterion(DM, θ, Confvol; kwargs...) < 0.0

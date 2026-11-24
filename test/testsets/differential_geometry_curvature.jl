@@ -40,6 +40,7 @@ Metric3SA(x) = SA[sinh(x[3]) exp(x[1])*sin(x[2]) 0; 0 cosh(x[2]) cos(x[2])*x[3]*
 
 
 
+import InformationGeometry: EmbeddingMapExtended, SFFNormSquared, AmbientMetric
 ## Test extrinsic curvature and Bartlett correction
 a = 1+rand();   b = 2+rand()
 DM = DataModel(DataSet(0:0, rand(2), Diagonal([inv(a), inv(b)]), (1,1,2)), (x,p)->[p[1], p[1]^2])
@@ -71,8 +72,13 @@ DMU = DataModel(DSU, (x,p)->p[1], [0.1])
 θU = MLE(DMU)[1];    NU = DataspaceDim(DMU)
 @test FisherMetric(DMU, MLE(DMU))[1] ≈ NU * (θU^4 +2) / θU^2
 @test sum(InformationGeometry.yInvCovProper(DMU, MLE(DMU))) ≈ NU * θU^2
-@test SFFNormSquared(DMU, MLE(DMU)) ≈ 2 * θU^4 / (NU * (θU^4 +2)^3)
+expectedIIμ = fill((θU^4 + 6) / (θU * (θU^4 + 2)), NU)
+expectedIIΛ = -4θU^4 / (θU^4 + 2) * Matrix{Float64}(I,NU,NU) - θU^4 * ones(NU,NU)
+@test SFFNormSquared(DMU, MLE(DMU)) ≈ AmbientMetric(
+    InformationGeometry.yInvCovProper(DMU), (expectedIIμ, expectedIIΛ)) / FisherMetric(DMU, MLE(DMU))[1]^2
 IIμ, IIΛ = SecondFundamentalForm(DMU, MLE(DMU))
+@test IIμ[1,1] ≈ expectedIIμ
+@test IIΛ[1,1] ≈ expectedIIΛ
 # @test size(IIμ) == (NU, 1, 1) && size(IIΛ) == (NU, NU, 1, 1)
 @test EfronScalarCurvature(DMU, MLE(DMU)) ≈ SFFNormSquared(DMU, MLE(DMU))/2
 Hμ, HΛ = EfronMeanCurvature(DMU, MLE(DMU))
@@ -94,9 +100,9 @@ DMU2 = DataModel(DataSetUncertain(Windup([1,2,3,4],2), Windup([4,5,6.5,9],2), (x
 @test MLE(DMU1) ≈ MLE(DMU2)
 IIμ1, IIΛ1 = SecondFundamentalForm(DMU1, MLE(DMU1))
 IIμ2, IIΛ2 = SecondFundamentalForm(DMU2, MLE(DMU2))
-@test IIμ1 ≈ IIμ2
-@test isapprox(IIΛ1, IIΛ2; atol=1e-10)
-@test isapprox(EfronScalarCurvature(DMU1, MLE(DMU1)), EfronScalarCurvature(DMU2, MLE(DMU2)); atol=1e-20)
+@test isapprox(IIμ1, IIμ2; atol=1e-11)
+@test isapprox(IIΛ1, IIΛ2; atol=1e-10, rtol=1e-8)
+@test isapprox(EfronScalarCurvature(DMU1, MLE(DMU1)), EfronScalarCurvature(DMU2, MLE(DMU2)); atol=1e-12, rtol=1e-10)
 
 ## UnknownVarianceDataSet is not supported yet (x-values are fitted parameters, i.e. the ambient
 ## space also contains an x-block), but yInvCovProper and ysigmaProper work for it

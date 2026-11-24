@@ -570,19 +570,19 @@ function WeightedCovariance(x::AbstractVector{XT}, weights::AbstractVector{<:Num
     if BiasCorrection
         R .*= W / (W^2 - dot(weights,weights))
     else
-        R ./ W
+        R ./= W
     end;    R
 end
 
 
 """
     WeightedStandardError(x::AbstractVector{XT}, weights::AbstractVector{<:Number}, x̄::XT=WeightedAverage(x,weights))
-Computes standard error of weighted average `x̄` of `x`.
+Computes the covariance matrix of the weighted average `x̄` of `x` (not its square root).
 """
 function WeightedStandardError(x::AbstractVector{<:Union{Number,AbstractVector{<:Number}}}, weights::AbstractVector{<:Number}, args...; BiasCorrection::Bool=true, kwargs...)
     @assert BiasCorrection
     @boundscheck @assert length(x) == length(weights)
-    dot(weights, weights) / sum(abs, weights) .* WeightedCovariance(x, weights, args...; kwargs...)
+    dot(weights, weights) / sum(abs, weights)^2 .* WeightedCovariance(x, weights, args...; kwargs...)
 end
 
 

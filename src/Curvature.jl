@@ -511,7 +511,7 @@ end
 
 """
     EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
-Computes the (1,2) Christoffel symbol of the e-connection, i.e. the α-connection with α=-1.
+Computes the (1,2) Christoffel symbol of the e-connection on the parameter manifold, i.e. the α-connection with α=+1.
 """
 function EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), Inverter::Function=inv, g⁻¹::AbstractMatrix{<:Number}=Inverter(g), kwargs...)
     Γ = ChristoffelSymbol(DM, MLE; kwargs...)
@@ -521,7 +521,7 @@ function EChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); 
 end
 """
     MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); kwargs...)
-Computes the (1,2) Christoffel symbol of the m-connection, i.e. the α-connection with α=+1.
+Computes the (1,2) Christoffel symbol of the m-connection on the parameter manifold, i.e. the α-connection with α=-1.
 """
 function MChristoffelSymbol(DM::AbstractDataModel, MLE::AbstractVector=MLE(DM); g::AbstractMatrix=FisherMetric(DM, MLE), Inverter::Function=inv, g⁻¹::AbstractMatrix{<:Number}=Inverter(g), kwargs...)
     Γ = ChristoffelSymbol(DM, MLE; kwargs...)
