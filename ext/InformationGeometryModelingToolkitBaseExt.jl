@@ -2,6 +2,7 @@ module InformationGeometryModelingToolkitBaseExt
 
 
 using InformationGeometry, ModelingToolkitBase, Optim, LineSearches, Symbolics
+using SciMLBase: AutoSpecialize
 
 
 # ODESystem deprecated in version ≥ 10. Change ODESystem -> System for v11
@@ -36,7 +37,7 @@ import InformationGeometry: pnames, Domain, MaximalNumberOfArguments, GetArgLeng
 # Extend this for other System types, i.e. SDE, PDE etc.
 # Add sparse=isloaded(:Sparspak)
 function _PerformGetModel(sys::ODESystem; jac=true, inplace::Bool=true, sparse=isloaded(:Sparspak), kwargs...)
-    ODEFunction{inplace}((ModelingToolkitBase.iscomplete(sys) ? sys : ModelingToolkitBase.complete(sys)); jac, sparse, kwargs...)
+    ODEFunction{inplace, AutoSpecialize}((ModelingToolkitBase.iscomplete(sys) ? sys : ModelingToolkitBase.complete(sys)); jac, sparse, kwargs...)
 end
 # Fallback
 function _PerformGetModel(sys; kwargs...)
