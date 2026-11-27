@@ -27,12 +27,13 @@ DataSetExact(X, Y, (2,1,1))
     ```
     where `DS1 == DS2 == DS3` will evaluate to `true`.
 """
-struct DataSetExact{XdistType<:Distribution,YdistType<:Distribution,InvC<:AbstractMatrix,WX<:Union{AbstractVector,Nothing}} <: AbstractFixedUncertaintyDataSet
+struct DataSetExact{XdistType<:Distribution,YdistType<:Distribution,InvC<:AbstractMatrix,WX<:Union{AbstractVector,Nothing},SX<:Function} <: AbstractFixedUncertaintyDataSet
     xdist::XdistType
     ydist::YdistType
     dims::Tuple{Int,Int,Int}
     InvCov::InvC
     WoundX::WX
+    SkipXs::SX
     xnames::AbstractVector{Symbol}
     ynames::AbstractVector{Symbol}
     name::Symbol
@@ -75,14 +76,14 @@ struct DataSetExact{XdistType<:Distribution,YdistType<:Distribution,InvC<:Abstra
             DataSetExact(xd, yd, dims, Σinv, [SVector{xdim(dims)}(Z) for Z in Windup(GetMean(xd),xdim(dims))]; kwargs...)
         end
     end
-    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing};
+    function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing}; SkipXs::Function=identity,
                             xnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"x"), ynames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(xdim(dims),"y"), name::StringOrSymb=Symbol(), kwargs...)
         @assert length(xnames) == xdim(dims) && length(ynames) == ydim(dims)
-        DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames, name; kwargs...)
+        DataSetExact(xd, yd, dims, InvCov, WoundX, xnames, ynames, name, SkipXs; kwargs...)
     end
     function DataSetExact(xd::Distribution, yd::Distribution, dims::Tuple{Int,Int,Int}, InvCov::AbstractMatrix{<:Number}, WoundX::Union{AbstractVector,Nothing},
-                            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, Name::StringOrSymb=Symbol())
-        new{typeof(xd), typeof(yd), typeof(InvCov), typeof(WoundX)}(xd, yd, dims, InvCov, WoundX, Symbol.(xnames), Symbol.(ynames), Symbol(Name))
+                            xnames::AbstractVector{<:StringOrSymb}, ynames::AbstractVector{<:StringOrSymb}, Name::StringOrSymb=Symbol(), SkipXs::Function=identity)
+        new{typeof(xd), typeof(yd), typeof(InvCov), typeof(WoundX), typeof(SkipXs)}(xd, yd, dims, InvCov, WoundX, SkipXs, Symbol.(xnames), Symbol.(ynames), Symbol(Name))
     end
 end
 
@@ -101,9 +102,10 @@ ydist::Distribution=Normal(0,1),
 dims::Tuple{Int,Int,Int}=(1,1,1),
 InvCov::AbstractMatrix{<:Number}=Diagonal([1.]),
 WoundX::Union{AbstractVector,Nothing}=nothing,
+SkipXs::Function=identity,
 xnames::AbstractVector{<:StringOrSymb}=[:x],
 ynames::AbstractVector{<:StringOrSymb}=[:y],
-name::StringOrSymb=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name)
+name::StringOrSymb=Symbol()) = DataSetExact(xdist, ydist, dims, InvCov, WoundX, xnames, ynames, name, SkipXs)
 
 
 # Conversion to DataSet
@@ -117,7 +119,8 @@ dims(DSE::DataSetExact) = DSE.dims
 yInvCov(DSE::DataSetExact; kwargs...) = DSE.InvCov
 xInvCov(DSE::DataSetExact; kwargs...) = InvCov(xdist(DSE))
 
-WoundX(DS::DataSetExact) = _WoundX(DS, DS.WoundX)
+WoundX(DSE::DataSetExact) = _WoundX(DSE, DSE.WoundX)
+SkipXs(DSE::DataSetExact) = DSE.SkipXs
 
 xdist(DSE::DataSetExact) = DSE.xdist
 ydist(DSE::DataSetExact) = DSE.ydist

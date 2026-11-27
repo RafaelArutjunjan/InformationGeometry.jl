@@ -68,6 +68,7 @@ struct ConditionGrid <: AbstractConditionGrid
     MLE::AbstractVector{<:Number}
     pnames::AbstractVector{Symbol}
     Domain::Union{Nothing,Cuboid}
+    SkipXs::Function
     name::Symbol
     LogLikelihoodFn::Function
     ScoreFn::Function
@@ -83,6 +84,7 @@ struct ConditionGrid <: AbstractConditionGrid
         pnames::AbstractVector{<:StringOrSymb}=CreateSymbolNames(length(mle)), 
         name::StringOrSymb=Symbol(),
         Domain::Union{Nothing,Cuboid}=nothing,
+        SkipXs::Function=identity,
         Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)), mle)),
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
         LogLikelihoodFn::Function=(Ls = map(loglikelihood, DMs);    θ::AbstractVector->sum(L(Trafos[i](θ)) for (i,L) in enumerate(Ls)) + EvalLogPrior(LogPriorFn, θ)),
@@ -99,7 +101,7 @@ struct ConditionGrid <: AbstractConditionGrid
         Mle = SkipOptim ? mle : InformationGeometry.minimize((Negate(LogLikelihoodFn), NegateBoth(ScoreFn)), mle, Domain; kwargs...)
         logLikeMLE = isnothing(LogLikeMLE) ? LogLikelihoodFn(Mle) : LogLikeMLE
 
-        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, logLikeMLE)
+        new(DMs, Trafos, LogPriorFn, Mle, Symbol.(pnames), Domain, SkipXs, Symbol(name), LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, logLikeMLE)
     end
 end
 
@@ -111,13 +113,14 @@ LogPriorFn::Union{Function,Nothing}=nothing,
 MLE::AbstractVector{<:Number}=Float64[],
 pnames::AbstractVector{Symbol}=Symbol[],
 Domain::Union{Nothing,Cuboid}=nothing,
+SkipXs::Function=identity,
 name::Symbol=Symbol(),
 LogLikelihoodFn::Function=x->-Inf,
 ScoreFn::Function=x->[-Inf],
 FisherInfoFn::Function=x->[-Inf],
 CostHessianFn::Function=x->[-Inf],
 LogLikeMLE::Union{Nothing,Number}=-Inf, 
-SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
+SkipOptim::Bool=true, SkipTests::Bool=true, kwargs...) = ConditionGrid(DMs, Trafos, LogPriorFn, MLE; pnames, Domain, SkipXs, name, LogLikelihoodFn, ScoreFn, FisherInfoFn, CostHessianFn, LogLikeMLE, SkipOptim, SkipTests, kwargs...)
 
 
 function (::Type{T})(CG::ConditionGrid; kwargs...) where T<:Number
@@ -148,7 +151,7 @@ Domain(CG::ConditionGrid) = CG.Domain
 InDomain(CG::ConditionGrid) = nothing
 
 HasPrior(CG::ConditionGrid) = !isnothing(LogPrior(CG))
-SkipXs(CG::AbstractConditionGrid) = identity
+SkipXs(CG::ConditionGrid) = CG.SkipXs
 
 loglikelihood(CG::ConditionGrid) = CG.LogLikelihoodFn
 loglikelihood(CG::ConditionGrid, θ::AbstractVector{<:Number}) = loglikelihood(CG)(θ)
