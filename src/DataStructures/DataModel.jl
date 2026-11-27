@@ -44,7 +44,7 @@ DM = DataModel(DS, model, [1.0,2.5], LogPriorFn)
 
 The `DataSet` contained in a `DataModel` named `DM` can be accessed via `Data(DM)`, whereas the model and its Jacobian can be used via `Predictor(DM)` and `dPredictor(DM)` respectively. The MLE and the value of the log-likelihood at the MLE are accessible via `MLE(DM)` and `LogLikeMLE(DM)`. The logarithmized prior can be accessed via `LogPrior(DM)`.
 """
-struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector,M<:ModelOrFunction,dM<:ModelOrFunction} <: AbstractDataModel
+struct DataModel{DS<:AbstractDataSet,PVec<:AbstractVector,M<:ModelOrFunction,dM<:ModelOrFunction} <: AbstractNonConditionGrid
     Data::DS
     model::M
     dmodel::dM

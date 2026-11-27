@@ -85,7 +85,7 @@ struct ConditionGrid <: AbstractConditionGrid
         Domain::Union{Nothing,Cuboid}=nothing,
         Trafos::ParamTrafo=(trafo isa ParamTrafo ? trafo : ParamTrafo(trafo, Symbol.(InformationGeometry.name.(DMs)), mle)),
         # LogLikelihoodFn::Function=θ::AbstractVector->mapreduce(loglikelihood, +, DMs, Trafos(θ)) + EvalLogPrior(LogPriorFn, θ),
-        LogLikelihoodFn::Function=(θ::AbstractVector->sum(loglikelihood(DM)(Trafos[i](θ)) for (i,DM) in enumerate(DMs)) + EvalLogPrior(LogPriorFn, θ)),
+        LogLikelihoodFn::Function=(Ls = map(loglikelihood, DMs);    θ::AbstractVector->sum(L(Trafos[i](θ)) for (i,L) in enumerate(Ls)) + EvalLogPrior(LogPriorFn, θ)),
         ScoreFn::Function=MergeOneArgMethods(GetGrad(ADmode,LogLikelihoodFn), GetGrad!(ADmode,LogLikelihoodFn)), # θ::AbstractVector->mapreduce(Score, +, DMs, [T(θ) for T in Trafos]) + EvalLogPriorGrad(LogPriorFn, θ),
         CostHessianFn::Function=MergeOneArgMethods(GetHess(ADmode, Negate(LogLikelihoodFn)),GetHess!(ADmode, Negate(LogLikelihoodFn))),
         FisherInfoFn::Function=GetFisherInfoFn(DMs, Trafos, LogPriorFn; ADmode),
@@ -148,7 +148,7 @@ Domain(CG::ConditionGrid) = CG.Domain
 InDomain(CG::ConditionGrid) = nothing
 
 HasPrior(CG::ConditionGrid) = !isnothing(LogPrior(CG))
-
+SkipXs(CG::AbstractConditionGrid) = identity
 
 loglikelihood(CG::ConditionGrid) = CG.LogLikelihoodFn
 loglikelihood(CG::ConditionGrid, θ::AbstractVector{<:Number}) = loglikelihood(CG)(θ)

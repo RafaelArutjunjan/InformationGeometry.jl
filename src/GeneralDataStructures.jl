@@ -89,7 +89,7 @@ end
 SplitErrorParams(DS::AbstractFixedUncertaintyDataSet) = X::AbstractVector{<:Number} -> (X, 0:-1)
 
 SkipXs(DS::AbstractDataModel) = SkipXs(Data(DS))
-SkipXs(DS::Union{AbstractConditionGrid,AbstractDataSet}) = identity
+SkipXs(DS::AbstractDataSet) = identity
 
 ## DataModel not defined yet
 GetOnlyModelParams(DS::AbstractDataModel) = GetOnlyModelParams(Data(DS))
